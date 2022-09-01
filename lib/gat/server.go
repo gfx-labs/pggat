@@ -117,7 +117,6 @@ func (s *Server) startup(ctx context.Context) error {
 		return err
 	}
 	buf2.Write(buf.Bytes())
-	log.Println(buf2)
 	_, err = s.wr.Write(buf2.Bytes())
 	if err != nil {
 		return err
@@ -143,7 +142,7 @@ func (s *Server) connect(ctx context.Context) error {
 			return err
 		}
 		msglen := int(msglen32)
-		log.Println(string(code), msglen)
+		s.log.Debug().Str("code", string(code)).Int("len", msglen).Msg("startup msg")
 		switch code {
 		case 'R':
 			var auth_code int32
