@@ -303,5 +303,35 @@ func (s *Server) connect(ctx context.Context) error {
 			return nil
 		}
 	}
-
 }
+
+// TODO: implement drop - we should rename to close.
+//impl Drop for Server {
+//    /// Try to do a clean shut down. Best effort because
+//    /// the socket is in non-blocking mode, so it may not be ready
+//    /// for a write.
+//    fn drop(&mut self) {
+//        self.stats
+//            .server_disconnecting(self.process_id(), self.address.id);
+//
+//        let mut bytes = BytesMut::with_capacity(4);
+//        bytes.put_u8(b'X');
+//        bytes.put_i32(4);
+//
+//        match self.write.try_write(&bytes) {
+//            Ok(_) => (),
+//            Err(_) => debug!("Dirty shutdown"),
+//        };
+//
+//        // Should not matter.
+//        self.bad = true;
+//
+//        let now = chrono::offset::Utc::now().naive_utc();
+//        let duration = now - self.connected_at;
+//
+//        info!(
+//            "Server connection closed, session duration: {}",
+//            crate::format_duration(&duration)
+//        );
+//    }
+//}
