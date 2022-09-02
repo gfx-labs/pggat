@@ -10,6 +10,75 @@ import (
 var _ bytes.Buffer
 var _ io.Reader
 
+type FieldsAuthenticationResponse struct {
+	Data []byte
+}
+
+func (T *FieldsAuthenticationResponse) Read(payloadLength int, reader io.Reader) (err error) {
+	DataLength := payloadLength
+	T.Data = make([]byte, int(DataLength))
+	for i := 0; i < int(DataLength); i++ {
+		T.Data[i], err = ReadByte(reader)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (T *FieldsAuthenticationResponse) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	for _, v := range T.Data {
+		temp, err = WriteByte(writer, v)
+		if err != nil {
+			return
+		}
+		length += temp
+	}
+	_ = temp
+	return
+}
+
+type AuthenticationResponse struct {
+	Fields FieldsAuthenticationResponse
+}
+
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
+func (T *AuthenticationResponse) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.Fields.Read(int(length-4), reader)
+}
+
+func (T *AuthenticationResponse) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.Fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('p'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
+}
+
+var _ Packet = (*AuthenticationResponse)(nil)
+
 type FieldsBindParameterValues struct {
 	Value []byte
 }
@@ -256,7 +325,6 @@ type CancelRequest struct {
 }
 
 // Read reads all but the packet identifier
-// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *CancelRequest) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -272,11 +340,6 @@ func (T *CancelRequest) Write(writer io.Writer) (length int, err error) {
 	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
-		return
-	}
-	_, err = WriteByte(writer, byte('F'))
-	if err != nil {
-		length = 1
 		return
 	}
 	_, err = WriteInt32(writer, int32(length))
@@ -853,75 +916,6 @@ func (T *GSSENCRequest) Write(writer io.Writer) (length int, err error) {
 
 var _ Packet = (*GSSENCRequest)(nil)
 
-type FieldsGSSResponse struct {
-	Data []byte
-}
-
-func (T *FieldsGSSResponse) Read(payloadLength int, reader io.Reader) (err error) {
-	DataLength := payloadLength
-	T.Data = make([]byte, int(DataLength))
-	for i := 0; i < int(DataLength); i++ {
-		T.Data[i], err = ReadByte(reader)
-		if err != nil {
-			return
-		}
-	}
-	return
-}
-
-func (T *FieldsGSSResponse) Write(writer io.Writer) (length int, err error) {
-	var temp int
-	for _, v := range T.Data {
-		temp, err = WriteByte(writer, v)
-		if err != nil {
-			return
-		}
-		length += temp
-	}
-	_ = temp
-	return
-}
-
-type GSSResponse struct {
-	Fields FieldsGSSResponse
-}
-
-// Read reads all but the packet identifier
-// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
-func (T *GSSResponse) Read(reader io.Reader) (err error) {
-	var length int32
-	length, err = ReadInt32(reader)
-	if err != nil {
-		return
-	}
-	return T.Fields.Read(int(length-4), reader)
-}
-
-func (T *GSSResponse) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
-	if err != nil {
-		length = 0
-		return
-	}
-	_, err = WriteByte(writer, byte('p'))
-	if err != nil {
-		length = 1
-		return
-	}
-	_, err = WriteInt32(writer, int32(length))
-	if err != nil {
-		length = 5
-		return
-	}
-	length += 5
-	_, err = writer.Write(buf.Bytes())
-	return
-}
-
-var _ Packet = (*GSSResponse)(nil)
-
 type FieldsParse struct {
 	PreparedStatement  string
 	Query              string
@@ -1023,69 +1017,6 @@ func (T *Parse) Write(writer io.Writer) (length int, err error) {
 
 var _ Packet = (*Parse)(nil)
 
-type FieldsPasswordMessage struct {
-	Password string
-}
-
-func (T *FieldsPasswordMessage) Read(payloadLength int, reader io.Reader) (err error) {
-	T.Password, err = ReadString(reader)
-	if err != nil {
-		return
-	}
-	return
-}
-
-func (T *FieldsPasswordMessage) Write(writer io.Writer) (length int, err error) {
-	var temp int
-	temp, err = WriteString(writer, T.Password)
-	if err != nil {
-		return
-	}
-	length += temp
-	_ = temp
-	return
-}
-
-type PasswordMessage struct {
-	Fields FieldsPasswordMessage
-}
-
-// Read reads all but the packet identifier
-// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
-func (T *PasswordMessage) Read(reader io.Reader) (err error) {
-	var length int32
-	length, err = ReadInt32(reader)
-	if err != nil {
-		return
-	}
-	return T.Fields.Read(int(length-4), reader)
-}
-
-func (T *PasswordMessage) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
-	if err != nil {
-		length = 0
-		return
-	}
-	_, err = WriteByte(writer, byte('p'))
-	if err != nil {
-		length = 1
-		return
-	}
-	_, err = WriteInt32(writer, int32(length))
-	if err != nil {
-		length = 5
-		return
-	}
-	length += 5
-	_, err = writer.Write(buf.Bytes())
-	return
-}
-
-var _ Packet = (*PasswordMessage)(nil)
-
 type FieldsQuery struct {
 	Query string
 }
@@ -1148,166 +1079,6 @@ func (T *Query) Write(writer io.Writer) (length int, err error) {
 }
 
 var _ Packet = (*Query)(nil)
-
-type FieldsSASLInitialResponse struct {
-	Mechanism       string
-	InitialResponse []byte
-}
-
-func (T *FieldsSASLInitialResponse) Read(payloadLength int, reader io.Reader) (err error) {
-	T.Mechanism, err = ReadString(reader)
-	if err != nil {
-		return
-	}
-	var InitialResponseLength int32
-	InitialResponseLength, err = ReadInt32(reader)
-	if err != nil {
-		return
-	}
-	if InitialResponseLength == int32(-1) {
-		InitialResponseLength = 0
-	}
-	T.InitialResponse = make([]byte, int(InitialResponseLength))
-	for i := 0; i < int(InitialResponseLength); i++ {
-		T.InitialResponse[i], err = ReadByte(reader)
-		if err != nil {
-			return
-		}
-	}
-	return
-}
-
-func (T *FieldsSASLInitialResponse) Write(writer io.Writer) (length int, err error) {
-	var temp int
-	temp, err = WriteString(writer, T.Mechanism)
-	if err != nil {
-		return
-	}
-	length += temp
-	temp, err = WriteInt32(writer, int32(len(T.InitialResponse)))
-	if err != nil {
-		return
-	}
-	length += temp
-	for _, v := range T.InitialResponse {
-		temp, err = WriteByte(writer, v)
-		if err != nil {
-			return
-		}
-		length += temp
-	}
-	_ = temp
-	return
-}
-
-type SASLInitialResponse struct {
-	Fields FieldsSASLInitialResponse
-}
-
-// Read reads all but the packet identifier
-// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
-func (T *SASLInitialResponse) Read(reader io.Reader) (err error) {
-	var length int32
-	length, err = ReadInt32(reader)
-	if err != nil {
-		return
-	}
-	return T.Fields.Read(int(length-4), reader)
-}
-
-func (T *SASLInitialResponse) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
-	if err != nil {
-		length = 0
-		return
-	}
-	_, err = WriteByte(writer, byte('p'))
-	if err != nil {
-		length = 1
-		return
-	}
-	_, err = WriteInt32(writer, int32(length))
-	if err != nil {
-		length = 5
-		return
-	}
-	length += 5
-	_, err = writer.Write(buf.Bytes())
-	return
-}
-
-var _ Packet = (*SASLInitialResponse)(nil)
-
-type FieldsSASLResponse struct {
-	Data []byte
-}
-
-func (T *FieldsSASLResponse) Read(payloadLength int, reader io.Reader) (err error) {
-	DataLength := payloadLength
-	T.Data = make([]byte, int(DataLength))
-	for i := 0; i < int(DataLength); i++ {
-		T.Data[i], err = ReadByte(reader)
-		if err != nil {
-			return
-		}
-	}
-	return
-}
-
-func (T *FieldsSASLResponse) Write(writer io.Writer) (length int, err error) {
-	var temp int
-	for _, v := range T.Data {
-		temp, err = WriteByte(writer, v)
-		if err != nil {
-			return
-		}
-		length += temp
-	}
-	_ = temp
-	return
-}
-
-type SASLResponse struct {
-	Fields FieldsSASLResponse
-}
-
-// Read reads all but the packet identifier
-// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
-func (T *SASLResponse) Read(reader io.Reader) (err error) {
-	var length int32
-	length, err = ReadInt32(reader)
-	if err != nil {
-		return
-	}
-	return T.Fields.Read(int(length-4), reader)
-}
-
-func (T *SASLResponse) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
-	if err != nil {
-		length = 0
-		return
-	}
-	_, err = WriteByte(writer, byte('p'))
-	if err != nil {
-		length = 1
-		return
-	}
-	_, err = WriteInt32(writer, int32(length))
-	if err != nil {
-		length = 5
-		return
-	}
-	length += 5
-	_, err = writer.Write(buf.Bytes())
-	return
-}
-
-var _ Packet = (*SASLResponse)(nil)
 
 type FieldsSSLRequest struct {
 	SSLRequestCode int32

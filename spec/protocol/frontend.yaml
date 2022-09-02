@@ -19,7 +19,6 @@ Bind:
       Type: int16
       LengthPrefixed: int16
 CancelRequest:
-  Identifier: 'F'
   Fields:
     - Name: RequestCode
       Type: int32
@@ -76,7 +75,7 @@ GSSENCRequest:
   Fields:
     - Name: EncryptionRequestCode
       Type: int32
-GSSResponse:
+AuthenticationResponse:
   Identifier: 'p'
   Fields:
     - Name: Data
@@ -92,30 +91,11 @@ Parse:
     - Name: ParameterDataTypes
       Type: int32
       LengthPrefixed: int32
-PasswordMessage:
-  Identifier: 'p'
-  Fields:
-    - Name: Password
-      Type: string
 Query:
   Identifier: 'Q'
   Fields:
     - Name: Query
       Type: string
-SASLInitialResponse:
-  Identifier: 'p'
-  Fields:
-    - Name: Mechanism
-      Type: string
-    - Name: InitialResponse
-      Type: byte
-      LengthPrefixed: int32
-SASLResponse:
-  Identifier: 'p'
-  Fields:
-    - Name: Data
-      Type: byte
-      ArrayLength: payloadLength
 SSLRequest:
   Fields:
     - Name: SSLRequestCode

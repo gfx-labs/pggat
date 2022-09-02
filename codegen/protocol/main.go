@@ -37,7 +37,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	all := make(map[string]any)
+	backend := make(map[string]any)
+	frontend := make(map[string]any)
 	var out bytes.Buffer
 	for _, e := range f {
 		var b []byte
@@ -50,9 +51,20 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-
-		for k, v := range packets {
-			all[k] = v
+		switch e.Name() {
+		case "backend.yaml":
+			for k, v := range packets {
+				backend[k] = v
+			}
+		case "frontend.yaml":
+			for k, v := range packets {
+				frontend[k] = v
+			}
+		default:
+			for k, v := range packets {
+				backend[k] = v
+				frontend[k] = v
+			}
 		}
 
 		err = t.Execute(&out, packets)
@@ -76,7 +88,10 @@ func main() {
 	}
 
 	t = template.Must(template.New("mod.tmpl").Funcs(funcs).ParseFiles(filepath.Join(CODEGEN, "mod.tmpl")))
-	err = t.Execute(&out, all)
+	err = t.Execute(&out, map[string]any{
+		"BackEnd":  backend,
+		"FrontEnd": frontend,
+	})
 	if err != nil {
 		panic(err)
 	}
