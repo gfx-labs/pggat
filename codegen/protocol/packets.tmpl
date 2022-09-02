@@ -75,6 +75,55 @@ import "io"
     {{end -}}
 {{end -}}
 
+{{define "writeFieldL1" -}}
+    {{$parent := (index . 0) -}}
+    {{$field := (index . 1) -}}
+    {{$location := (index . 2) -}}
+
+    {{if $field.Struct -}}
+        temp, err = {{$location}}.Write(writer)
+        if err != nil {
+            return
+        }
+        length += temp
+    {{- else if $field.Type -}}
+        temp, err = Write{{camelCase $field.Type}}(writer, {{$location}})
+        if err != nil {
+            return
+        }
+        length += temp
+    {{- end -}}
+{{end -}}
+
+{{define "writeField" -}}
+    {{$parent := (index . 0) -}}
+    {{$field := (index . 1) -}}
+
+    {{if $field.If -}}
+        if {{$field.If}} {
+    {{end -}}
+
+    {{if $field.LengthPrefixed -}}
+        temp, err = Write{{camelCase $field.LengthPrefixed}}(writer, {{$field.LengthPrefixed}}(len(T.{{$field.Name}})))
+        if err != nil {
+            return
+        }
+        length += temp
+    {{end -}}
+
+    {{if or $field.LengthPrefixed $field.ArrayLength -}}
+        for _, v := range T.{{$field.Name}} {
+            {{template "writeFieldL1" (list $parent $field "v")}}
+        }
+    {{else -}}
+        {{template "writeFieldL1" (list $parent $field (printf "T.%s" $field.Name))}}
+    {{end -}}
+
+    {{if $field.If -}}
+        }
+    {{end -}}
+{{end -}}
+
 {{define "declareFields" -}}
     {{$parent := (index . 0) -}}
     {{$struct := (index . 1) -}}
@@ -95,6 +144,15 @@ import "io"
         {{range $idx, $field := $struct.Fields -}}
             {{template "readField" (list $parent $field) -}}
         {{end -}}
+        return
+    }
+
+    func (T *Fields{{$parent}}) Write(writer io.Writer) (length int, err error) {
+        var temp int
+        {{range $idx, $field := $struct.Fields -}}
+            {{template "writeField" (list $parent $field) -}}
+        {{end -}}
+        _ = temp
         return
     }
 {{end -}}

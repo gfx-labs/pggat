@@ -59,3 +59,56 @@ func ReadString(reader io.Reader) (string, error) {
 	_, err = reader.Read(b[:])
 	return string(b), err
 }
+
+func WriteByte(writer io.Writer, value byte) (int, error) {
+	var b [1]byte
+	b[0] = value
+	return writer.Write(b[:])
+}
+
+func WriteInt8(writer io.Writer, value int8) (int, error) {
+	return WriteByte(writer, byte(value))
+}
+
+func WriteUint16(writer io.Writer, value uint16) (int, error) {
+	var b [2]byte
+	binary.BigEndian.PutUint16(b[:], value)
+	return writer.Write(b[:])
+}
+
+func WriteInt16(writer io.Writer, value int16) (int, error) {
+	return WriteUint16(writer, uint16(value))
+}
+
+func WriteUint32(writer io.Writer, value uint32) (int, error) {
+	var b [4]byte
+	binary.BigEndian.PutUint32(b[:], value)
+	return writer.Write(b[:])
+}
+
+func WriteInt32(writer io.Writer, value int32) (int, error) {
+	return WriteUint32(writer, uint32(value))
+}
+
+func WriteUint64(writer io.Writer, value uint64) (int, error) {
+	var b [8]byte
+	binary.BigEndian.PutUint64(b[:], value)
+	return writer.Write(b[:])
+}
+
+func WriteInt64(writer io.Writer, value int64) (int, error) {
+	return WriteUint64(writer, uint64(value))
+}
+
+func WriteString(writer io.Writer, value string) (int, error) {
+	// TODO i actually have no idea how they format strings, but i'm guessing it's UTF-8 with an int32 length prefix
+	length, err := WriteInt32(writer, int32(len(value)))
+	if err != nil {
+		return 0, err
+	}
+	_, err = writer.Write([]byte(value))
+	if err != nil {
+		return 0, err
+	}
+	return length + len(value), nil
+}

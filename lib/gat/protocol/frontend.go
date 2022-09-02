@@ -24,6 +24,24 @@ func (T *FieldsBindParameterValues) Read(payloadLength int, reader io.Reader) (e
 	return
 }
 
+func (T *FieldsBindParameterValues) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteInt32(writer, int32(len(T.Value)))
+	if err != nil {
+		return
+	}
+	length += temp
+	for _, v := range T.Value {
+		temp, err = WriteByte(writer, v)
+		if err != nil {
+			return
+		}
+		length += temp
+	}
+	_ = temp
+	return
+}
+
 type FieldsBind struct {
 	Destination             string
 	PreparedStatement       string
@@ -80,6 +98,58 @@ func (T *FieldsBind) Read(payloadLength int, reader io.Reader) (err error) {
 	return
 }
 
+func (T *FieldsBind) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteString(writer, T.Destination)
+	if err != nil {
+		return
+	}
+	length += temp
+	temp, err = WriteString(writer, T.PreparedStatement)
+	if err != nil {
+		return
+	}
+	length += temp
+	temp, err = WriteInt16(writer, int16(len(T.FormatCodes)))
+	if err != nil {
+		return
+	}
+	length += temp
+	for _, v := range T.FormatCodes {
+		temp, err = WriteInt16(writer, v)
+		if err != nil {
+			return
+		}
+		length += temp
+	}
+	temp, err = WriteInt16(writer, int16(len(T.ParameterValues)))
+	if err != nil {
+		return
+	}
+	length += temp
+	for _, v := range T.ParameterValues {
+		temp, err = v.Write(writer)
+		if err != nil {
+			return
+		}
+		length += temp
+	}
+	temp, err = WriteInt16(writer, int16(len(T.ResultColumnFormatCodes)))
+	if err != nil {
+		return
+	}
+	length += temp
+	for _, v := range T.ResultColumnFormatCodes {
+		temp, err = WriteInt16(writer, v)
+		if err != nil {
+			return
+		}
+		length += temp
+	}
+	_ = temp
+	return
+}
+
 type Bind struct {
 	fields FieldsBind
 }
@@ -106,6 +176,27 @@ func (T *FieldsCancelRequest) Read(payloadLength int, reader io.Reader) (err err
 	return
 }
 
+func (T *FieldsCancelRequest) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteInt32(writer, T.RequestCode)
+	if err != nil {
+		return
+	}
+	length += temp
+	temp, err = WriteInt32(writer, T.ProcessID)
+	if err != nil {
+		return
+	}
+	length += temp
+	temp, err = WriteInt32(writer, T.SecretKey)
+	if err != nil {
+		return
+	}
+	length += temp
+	_ = temp
+	return
+}
+
 type CancelRequest struct {
 	fields FieldsCancelRequest
 }
@@ -127,6 +218,22 @@ func (T *FieldsClose) Read(payloadLength int, reader io.Reader) (err error) {
 	return
 }
 
+func (T *FieldsClose) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteByte(writer, T.Which)
+	if err != nil {
+		return
+	}
+	length += temp
+	temp, err = WriteString(writer, T.Name)
+	if err != nil {
+		return
+	}
+	length += temp
+	_ = temp
+	return
+}
+
 type Close struct {
 	fields FieldsClose
 }
@@ -140,6 +247,17 @@ func (T *FieldsCopyFail) Read(payloadLength int, reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
+	return
+}
+
+func (T *FieldsCopyFail) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteString(writer, T.Cause)
+	if err != nil {
+		return
+	}
+	length += temp
+	_ = temp
 	return
 }
 
@@ -164,6 +282,22 @@ func (T *FieldsDescribe) Read(payloadLength int, reader io.Reader) (err error) {
 	return
 }
 
+func (T *FieldsDescribe) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteByte(writer, T.Which)
+	if err != nil {
+		return
+	}
+	length += temp
+	temp, err = WriteString(writer, T.Name)
+	if err != nil {
+		return
+	}
+	length += temp
+	_ = temp
+	return
+}
+
 type Describe struct {
 	fields FieldsDescribe
 }
@@ -185,6 +319,22 @@ func (T *FieldsExecute) Read(payloadLength int, reader io.Reader) (err error) {
 	return
 }
 
+func (T *FieldsExecute) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteString(writer, T.Name)
+	if err != nil {
+		return
+	}
+	length += temp
+	temp, err = WriteInt32(writer, T.MaxRows)
+	if err != nil {
+		return
+	}
+	length += temp
+	_ = temp
+	return
+}
+
 type Execute struct {
 	fields FieldsExecute
 }
@@ -193,6 +343,12 @@ type FieldsFlush struct {
 }
 
 func (T *FieldsFlush) Read(payloadLength int, reader io.Reader) (err error) {
+	return
+}
+
+func (T *FieldsFlush) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	_ = temp
 	return
 }
 
@@ -217,6 +373,24 @@ func (T *FieldsFunctionCallArguments) Read(payloadLength int, reader io.Reader) 
 			return
 		}
 	}
+	return
+}
+
+func (T *FieldsFunctionCallArguments) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteInt32(writer, int32(len(T.Value)))
+	if err != nil {
+		return
+	}
+	length += temp
+	for _, v := range T.Value {
+		temp, err = WriteByte(writer, v)
+		if err != nil {
+			return
+		}
+		length += temp
+	}
+	_ = temp
 	return
 }
 
@@ -263,6 +437,46 @@ func (T *FieldsFunctionCall) Read(payloadLength int, reader io.Reader) (err erro
 	return
 }
 
+func (T *FieldsFunctionCall) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteInt32(writer, T.Function)
+	if err != nil {
+		return
+	}
+	length += temp
+	temp, err = WriteInt16(writer, int16(len(T.ArgumentFormatCodes)))
+	if err != nil {
+		return
+	}
+	length += temp
+	for _, v := range T.ArgumentFormatCodes {
+		temp, err = WriteInt16(writer, v)
+		if err != nil {
+			return
+		}
+		length += temp
+	}
+	temp, err = WriteInt16(writer, int16(len(T.Arguments)))
+	if err != nil {
+		return
+	}
+	length += temp
+	for _, v := range T.Arguments {
+		temp, err = v.Write(writer)
+		if err != nil {
+			return
+		}
+		length += temp
+	}
+	temp, err = WriteInt16(writer, T.ResultFormatCode)
+	if err != nil {
+		return
+	}
+	length += temp
+	_ = temp
+	return
+}
+
 type FunctionCall struct {
 	fields FieldsFunctionCall
 }
@@ -276,6 +490,17 @@ func (T *FieldsGSSENCRequest) Read(payloadLength int, reader io.Reader) (err err
 	if err != nil {
 		return
 	}
+	return
+}
+
+func (T *FieldsGSSENCRequest) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteInt32(writer, T.EncryptionRequestCode)
+	if err != nil {
+		return
+	}
+	length += temp
+	_ = temp
 	return
 }
 
@@ -296,6 +521,19 @@ func (T *FieldsGSSResponse) Read(payloadLength int, reader io.Reader) (err error
 			return
 		}
 	}
+	return
+}
+
+func (T *FieldsGSSResponse) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	for _, v := range T.Data {
+		temp, err = WriteByte(writer, v)
+		if err != nil {
+			return
+		}
+		length += temp
+	}
+	_ = temp
 	return
 }
 
@@ -333,6 +571,34 @@ func (T *FieldsParse) Read(payloadLength int, reader io.Reader) (err error) {
 	return
 }
 
+func (T *FieldsParse) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteString(writer, T.PreparedStatement)
+	if err != nil {
+		return
+	}
+	length += temp
+	temp, err = WriteString(writer, T.Query)
+	if err != nil {
+		return
+	}
+	length += temp
+	temp, err = WriteInt32(writer, int32(len(T.ParameterDataTypes)))
+	if err != nil {
+		return
+	}
+	length += temp
+	for _, v := range T.ParameterDataTypes {
+		temp, err = WriteInt32(writer, v)
+		if err != nil {
+			return
+		}
+		length += temp
+	}
+	_ = temp
+	return
+}
+
 type Parse struct {
 	fields FieldsParse
 }
@@ -349,6 +615,17 @@ func (T *FieldsPasswordMessage) Read(payloadLength int, reader io.Reader) (err e
 	return
 }
 
+func (T *FieldsPasswordMessage) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteString(writer, T.Password)
+	if err != nil {
+		return
+	}
+	length += temp
+	_ = temp
+	return
+}
+
 type PasswordMessage struct {
 	fields FieldsPasswordMessage
 }
@@ -362,6 +639,17 @@ func (T *FieldsQuery) Read(payloadLength int, reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
+	return
+}
+
+func (T *FieldsQuery) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteString(writer, T.Query)
+	if err != nil {
+		return
+	}
+	length += temp
+	_ = temp
 	return
 }
 
@@ -394,6 +682,29 @@ func (T *FieldsSASLInitialResponse) Read(payloadLength int, reader io.Reader) (e
 	return
 }
 
+func (T *FieldsSASLInitialResponse) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteString(writer, T.Mechanism)
+	if err != nil {
+		return
+	}
+	length += temp
+	temp, err = WriteInt32(writer, int32(len(T.InitialResponse)))
+	if err != nil {
+		return
+	}
+	length += temp
+	for _, v := range T.InitialResponse {
+		temp, err = WriteByte(writer, v)
+		if err != nil {
+			return
+		}
+		length += temp
+	}
+	_ = temp
+	return
+}
+
 type SASLInitialResponse struct {
 	fields FieldsSASLInitialResponse
 }
@@ -414,6 +725,19 @@ func (T *FieldsSASLResponse) Read(payloadLength int, reader io.Reader) (err erro
 	return
 }
 
+func (T *FieldsSASLResponse) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	for _, v := range T.Data {
+		temp, err = WriteByte(writer, v)
+		if err != nil {
+			return
+		}
+		length += temp
+	}
+	_ = temp
+	return
+}
+
 type SASLResponse struct {
 	fields FieldsSASLResponse
 }
@@ -427,6 +751,17 @@ func (T *FieldsSSLRequest) Read(payloadLength int, reader io.Reader) (err error)
 	if err != nil {
 		return
 	}
+	return
+}
+
+func (T *FieldsSSLRequest) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteInt32(writer, T.SSLRequestCode)
+	if err != nil {
+		return
+	}
+	length += temp
+	_ = temp
 	return
 }
 
@@ -456,6 +791,27 @@ func (T *FieldsStartupMessage) Read(payloadLength int, reader io.Reader) (err er
 	return
 }
 
+func (T *FieldsStartupMessage) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteInt32(writer, T.ProtocolVersionNumber)
+	if err != nil {
+		return
+	}
+	length += temp
+	temp, err = WriteString(writer, T.ParameterName)
+	if err != nil {
+		return
+	}
+	length += temp
+	temp, err = WriteString(writer, T.ParameterValue)
+	if err != nil {
+		return
+	}
+	length += temp
+	_ = temp
+	return
+}
+
 type StartupMessage struct {
 	fields FieldsStartupMessage
 }
@@ -467,6 +823,12 @@ func (T *FieldsSync) Read(payloadLength int, reader io.Reader) (err error) {
 	return
 }
 
+func (T *FieldsSync) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	_ = temp
+	return
+}
+
 type Sync struct {
 	fields FieldsSync
 }
@@ -475,6 +837,12 @@ type FieldsTerminate struct {
 }
 
 func (T *FieldsTerminate) Read(payloadLength int, reader io.Reader) (err error) {
+	return
+}
+
+func (T *FieldsTerminate) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	_ = temp
 	return
 }
 
