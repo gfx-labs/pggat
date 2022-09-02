@@ -1,6 +1,9 @@
 package protocol
 
-import "io"
+import (
+	"bytes"
+	"io"
+)
 
 // codegen: modify for debug only
 
@@ -35,6 +38,16 @@ func (T *FieldsCopyData) Write(writer io.Writer) (length int, err error) {
 
 type CopyData struct {
 	fields FieldsCopyData
+}
+
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *CopyData) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
 }
 
 func (T *CopyData) Write(writer io.Writer) (length int, err error) {
@@ -75,6 +88,16 @@ func (T *FieldsCopyDone) Write(writer io.Writer) (length int, err error) {
 
 type CopyDone struct {
 	fields FieldsCopyDone
+}
+
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *CopyDone) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
 }
 
 func (T *CopyDone) Write(writer io.Writer) (length int, err error) {

@@ -40,6 +40,16 @@ type Authentication struct {
 	fields FieldsAuthentication
 }
 
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *Authentication) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
+}
+
 func (T *Authentication) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
@@ -100,6 +110,16 @@ type BackendKeyData struct {
 	fields FieldsBackendKeyData
 }
 
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *BackendKeyData) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
+}
+
 func (T *BackendKeyData) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
@@ -140,6 +160,16 @@ type BindComplete struct {
 	fields FieldsBindComplete
 }
 
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *BindComplete) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
+}
+
 func (T *BindComplete) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
@@ -178,6 +208,16 @@ func (T *FieldsCloseComplete) Write(writer io.Writer) (length int, err error) {
 
 type CloseComplete struct {
 	fields FieldsCloseComplete
+}
+
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *CloseComplete) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
 }
 
 func (T *CloseComplete) Write(writer io.Writer) (length int, err error) {
@@ -228,6 +268,16 @@ func (T *FieldsCommandComplete) Write(writer io.Writer) (length int, err error) 
 
 type CommandComplete struct {
 	fields FieldsCommandComplete
+}
+
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *CommandComplete) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
 }
 
 func (T *CommandComplete) Write(writer io.Writer) (length int, err error) {
@@ -305,6 +355,16 @@ type CopyBothResponse struct {
 	fields FieldsCopyBothResponse
 }
 
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *CopyBothResponse) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
+}
+
 func (T *CopyBothResponse) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
@@ -380,6 +440,16 @@ type CopyInResponse struct {
 	fields FieldsCopyInResponse
 }
 
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *CopyInResponse) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
+}
+
 func (T *CopyInResponse) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
@@ -453,6 +523,16 @@ func (T *FieldsCopyOutResponse) Write(writer io.Writer) (length int, err error) 
 
 type CopyOutResponse struct {
 	fields FieldsCopyOutResponse
+}
+
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *CopyOutResponse) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
 }
 
 func (T *CopyOutResponse) Write(writer io.Writer) (length int, err error) {
@@ -558,6 +638,16 @@ type DataRow struct {
 	fields FieldsDataRow
 }
 
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *DataRow) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
+}
+
 func (T *DataRow) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
@@ -596,6 +686,16 @@ func (T *FieldsEmptyQueryResponse) Write(writer io.Writer) (length int, err erro
 
 type EmptyQueryResponse struct {
 	fields FieldsEmptyQueryResponse
+}
+
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *EmptyQueryResponse) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
 }
 
 func (T *EmptyQueryResponse) Write(writer io.Writer) (length int, err error) {
@@ -656,6 +756,16 @@ func (T *FieldsErrorResponse) Write(writer io.Writer) (length int, err error) {
 
 type ErrorResponse struct {
 	fields FieldsErrorResponse
+}
+
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *ErrorResponse) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
 }
 
 func (T *ErrorResponse) Write(writer io.Writer) (length int, err error) {
@@ -721,6 +831,16 @@ func (T *FieldsFunctionCallResponse) Write(writer io.Writer) (length int, err er
 
 type FunctionCallResponse struct {
 	fields FieldsFunctionCallResponse
+}
+
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *FunctionCallResponse) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
 }
 
 func (T *FunctionCallResponse) Write(writer io.Writer) (length int, err error) {
@@ -798,6 +918,16 @@ type NegotiateProtocolVersion struct {
 	fields FieldsNegotiateProtocolVersion
 }
 
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *NegotiateProtocolVersion) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
+}
+
 func (T *NegotiateProtocolVersion) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
@@ -836,6 +966,16 @@ func (T *FieldsNoData) Write(writer io.Writer) (length int, err error) {
 
 type NoData struct {
 	fields FieldsNoData
+}
+
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *NoData) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
 }
 
 func (T *NoData) Write(writer io.Writer) (length int, err error) {
@@ -900,6 +1040,16 @@ func (T *FieldsNoticeResponse) Write(writer io.Writer) (length int, err error) {
 
 type NoticeResponse struct {
 	fields FieldsNoticeResponse
+}
+
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *NoticeResponse) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
 }
 
 func (T *NoticeResponse) Write(writer io.Writer) (length int, err error) {
@@ -972,6 +1122,16 @@ type NotificationResponse struct {
 	fields FieldsNotificationResponse
 }
 
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *NotificationResponse) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
+}
+
 func (T *NotificationResponse) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
@@ -1037,6 +1197,16 @@ type ParameterDescription struct {
 	fields FieldsParameterDescription
 }
 
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *ParameterDescription) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
+}
+
 func (T *ParameterDescription) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
@@ -1097,6 +1267,16 @@ type ParameterStatus struct {
 	fields FieldsParameterStatus
 }
 
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *ParameterStatus) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
+}
+
 func (T *ParameterStatus) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
@@ -1135,6 +1315,16 @@ func (T *FieldsParseComplete) Write(writer io.Writer) (length int, err error) {
 
 type ParseComplete struct {
 	fields FieldsParseComplete
+}
+
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *ParseComplete) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
 }
 
 func (T *ParseComplete) Write(writer io.Writer) (length int, err error) {
@@ -1177,6 +1367,16 @@ type PortalSuspended struct {
 	fields FieldsPortalSuspended
 }
 
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *PortalSuspended) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
+}
+
 func (T *PortalSuspended) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
@@ -1215,6 +1415,16 @@ func (T *FieldsReadForQuery) Write(writer io.Writer) (length int, err error) {
 
 type ReadForQuery struct {
 	fields FieldsReadForQuery
+}
+
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *ReadForQuery) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
 }
 
 func (T *ReadForQuery) Write(writer io.Writer) (length int, err error) {
@@ -1363,6 +1573,16 @@ func (T *FieldsRowDescription) Write(writer io.Writer) (length int, err error) {
 
 type RowDescription struct {
 	fields FieldsRowDescription
+}
+
+// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+func (T *RowDescription) Read(reader io.Reader) (err error) {
+	var length int32
+	length, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	return T.fields.Read(int(length-4), reader)
 }
 
 func (T *RowDescription) Write(writer io.Writer) (length int, err error) {

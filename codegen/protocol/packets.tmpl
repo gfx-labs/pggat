@@ -164,6 +164,16 @@ import "io"
         fields Fields{{$name}}
     }
 
+    // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+    func (T *{{$name}}) Read(reader io.Reader) (err error) {
+        var length int32
+        length, err = ReadInt32(reader)
+        if err != nil {
+            return
+        }
+        return T.fields.Read(int(length - 4), reader)
+    }
+
     func (T *{{$name}}) Write(writer io.Writer) (length int, err error) {
         // TODO replace with pool
         var buf bytes.Buffer
