@@ -57,6 +57,9 @@ import "io"
         if err != nil {
             return
         }
+        if {{$field.Name}}Length == {{$field.LengthPrefixed}}(-1) {
+            {{$field.Name}}Length = 0
+        }
     {{else if $field.ArrayLength -}}
         {{$field.Name}}Length := {{$field.ArrayLength}}
     {{end -}}

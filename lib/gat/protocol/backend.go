@@ -318,6 +318,9 @@ func (T *FieldsCopyBothResponse) Read(payloadLength int, reader io.Reader) (err 
 	if err != nil {
 		return
 	}
+	if ColumnFormatsLength == int16(-1) {
+		ColumnFormatsLength = 0
+	}
 	T.ColumnFormats = make([]int16, int(ColumnFormatsLength))
 	for i := 0; i < int(ColumnFormatsLength); i++ {
 		T.ColumnFormats[i], err = ReadInt16(reader)
@@ -402,6 +405,9 @@ func (T *FieldsCopyInResponse) Read(payloadLength int, reader io.Reader) (err er
 	ColumnFormatsLength, err = ReadInt16(reader)
 	if err != nil {
 		return
+	}
+	if ColumnFormatsLength == int16(-1) {
+		ColumnFormatsLength = 0
 	}
 	T.ColumnFormats = make([]int16, int(ColumnFormatsLength))
 	for i := 0; i < int(ColumnFormatsLength); i++ {
@@ -488,6 +494,9 @@ func (T *FieldsCopyOutResponse) Read(payloadLength int, reader io.Reader) (err e
 	if err != nil {
 		return
 	}
+	if ColumnFormatsLength == int16(-1) {
+		ColumnFormatsLength = 0
+	}
 	T.ColumnFormats = make([]int16, int(ColumnFormatsLength))
 	for i := 0; i < int(ColumnFormatsLength); i++ {
 		T.ColumnFormats[i], err = ReadInt16(reader)
@@ -568,6 +577,9 @@ func (T *FieldsDataRowColumns) Read(payloadLength int, reader io.Reader) (err er
 	if err != nil {
 		return
 	}
+	if BytesLength == int32(-1) {
+		BytesLength = 0
+	}
 	T.Bytes = make([]int8, int(BytesLength))
 	for i := 0; i < int(BytesLength); i++ {
 		T.Bytes[i], err = ReadInt8(reader)
@@ -605,6 +617,9 @@ func (T *FieldsDataRow) Read(payloadLength int, reader io.Reader) (err error) {
 	ColumnsLength, err = ReadInt16(reader)
 	if err != nil {
 		return
+	}
+	if ColumnsLength == int16(-1) {
+		ColumnsLength = 0
 	}
 	T.Columns = make([]FieldsDataRowColumns, int(ColumnsLength))
 	for i := 0; i < int(ColumnsLength); i++ {
@@ -801,6 +816,9 @@ func (T *FieldsFunctionCallResponse) Read(payloadLength int, reader io.Reader) (
 	if err != nil {
 		return
 	}
+	if ResultLength == int32(-1) {
+		ResultLength = 0
+	}
 	T.Result = make([]byte, int(ResultLength))
 	for i := 0; i < int(ResultLength); i++ {
 		T.Result[i], err = ReadByte(reader)
@@ -880,6 +898,9 @@ func (T *FieldsNegotiateProtocolVersion) Read(payloadLength int, reader io.Reade
 	NotRecognizedLength, err = ReadInt32(reader)
 	if err != nil {
 		return
+	}
+	if NotRecognizedLength == int32(-1) {
+		NotRecognizedLength = 0
 	}
 	T.NotRecognized = make([]string, int(NotRecognizedLength))
 	for i := 0; i < int(NotRecognizedLength); i++ {
@@ -1164,6 +1185,9 @@ func (T *FieldsParameterDescription) Read(payloadLength int, reader io.Reader) (
 	ParametersLength, err = ReadInt16(reader)
 	if err != nil {
 		return
+	}
+	if ParametersLength == int16(-1) {
+		ParametersLength = 0
 	}
 	T.Parameters = make([]int32, int(ParametersLength))
 	for i := 0; i < int(ParametersLength); i++ {
@@ -1542,6 +1566,9 @@ func (T *FieldsRowDescription) Read(payloadLength int, reader io.Reader) (err er
 	FieldsLength, err = ReadInt16(reader)
 	if err != nil {
 		return
+	}
+	if FieldsLength == int16(-1) {
+		FieldsLength = 0
 	}
 	T.Fields = make([]FieldsRowDescriptionFields, int(FieldsLength))
 	for i := 0; i < int(FieldsLength); i++ {

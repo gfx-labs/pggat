@@ -1,9 +1,6 @@
 package protocol
 
-import (
-	"bytes"
-	"io"
-)
+import "io"
 
 // codegen: modify for debug only
 
@@ -16,6 +13,9 @@ func (T *FieldsBindParameterValues) Read(payloadLength int, reader io.Reader) (e
 	ValueLength, err = ReadInt32(reader)
 	if err != nil {
 		return
+	}
+	if ValueLength == int32(-1) {
+		ValueLength = 0
 	}
 	T.Value = make([]byte, int(ValueLength))
 	for i := 0; i < int(ValueLength); i++ {
@@ -67,6 +67,9 @@ func (T *FieldsBind) Read(payloadLength int, reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
+	if FormatCodesLength == int16(-1) {
+		FormatCodesLength = 0
+	}
 	T.FormatCodes = make([]int16, int(FormatCodesLength))
 	for i := 0; i < int(FormatCodesLength); i++ {
 		T.FormatCodes[i], err = ReadInt16(reader)
@@ -79,6 +82,9 @@ func (T *FieldsBind) Read(payloadLength int, reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
+	if ParameterValuesLength == int16(-1) {
+		ParameterValuesLength = 0
+	}
 	T.ParameterValues = make([]FieldsBindParameterValues, int(ParameterValuesLength))
 	for i := 0; i < int(ParameterValuesLength); i++ {
 		err = T.ParameterValues[i].Read(payloadLength, reader)
@@ -90,6 +96,9 @@ func (T *FieldsBind) Read(payloadLength int, reader io.Reader) (err error) {
 	ResultColumnFormatCodesLength, err = ReadInt16(reader)
 	if err != nil {
 		return
+	}
+	if ResultColumnFormatCodesLength == int16(-1) {
+		ResultColumnFormatCodesLength = 0
 	}
 	T.ResultColumnFormatCodes = make([]int16, int(ResultColumnFormatCodesLength))
 	for i := 0; i < int(ResultColumnFormatCodesLength); i++ {
@@ -600,6 +609,9 @@ func (T *FieldsFunctionCallArguments) Read(payloadLength int, reader io.Reader) 
 	if err != nil {
 		return
 	}
+	if ValueLength == int32(-1) {
+		ValueLength = 0
+	}
 	T.Value = make([]byte, int(ValueLength))
 	for i := 0; i < int(ValueLength); i++ {
 		T.Value[i], err = ReadByte(reader)
@@ -645,6 +657,9 @@ func (T *FieldsFunctionCall) Read(payloadLength int, reader io.Reader) (err erro
 	if err != nil {
 		return
 	}
+	if ArgumentFormatCodesLength == int16(-1) {
+		ArgumentFormatCodesLength = 0
+	}
 	T.ArgumentFormatCodes = make([]int16, int(ArgumentFormatCodesLength))
 	for i := 0; i < int(ArgumentFormatCodesLength); i++ {
 		T.ArgumentFormatCodes[i], err = ReadInt16(reader)
@@ -656,6 +671,9 @@ func (T *FieldsFunctionCall) Read(payloadLength int, reader io.Reader) (err erro
 	ArgumentsLength, err = ReadInt16(reader)
 	if err != nil {
 		return
+	}
+	if ArgumentsLength == int16(-1) {
+		ArgumentsLength = 0
 	}
 	T.Arguments = make([]FieldsFunctionCallArguments, int(ArgumentsLength))
 	for i := 0; i < int(ArgumentsLength); i++ {
@@ -889,6 +907,9 @@ func (T *FieldsParse) Read(payloadLength int, reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
+	if ParameterDataTypesLength == int32(-1) {
+		ParameterDataTypesLength = 0
+	}
 	T.ParameterDataTypes = make([]int32, int(ParameterDataTypesLength))
 	for i := 0; i < int(ParameterDataTypesLength); i++ {
 		T.ParameterDataTypes[i], err = ReadInt32(reader)
@@ -1098,6 +1119,9 @@ func (T *FieldsSASLInitialResponse) Read(payloadLength int, reader io.Reader) (e
 	InitialResponseLength, err = ReadInt32(reader)
 	if err != nil {
 		return
+	}
+	if InitialResponseLength == int32(-1) {
+		InitialResponseLength = 0
 	}
 	T.InitialResponse = make([]byte, int(InitialResponseLength))
 	for i := 0; i < int(InitialResponseLength); i++ {
