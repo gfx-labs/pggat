@@ -154,6 +154,29 @@ type Bind struct {
 	fields FieldsBind
 }
 
+func (T *Bind) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('B'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
+}
+
 type FieldsCancelRequest struct {
 	RequestCode int32
 	ProcessID   int32
@@ -201,6 +224,29 @@ type CancelRequest struct {
 	fields FieldsCancelRequest
 }
 
+func (T *CancelRequest) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('F'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
+}
+
 type FieldsClose struct {
 	Which byte
 	Name  string
@@ -238,6 +284,29 @@ type Close struct {
 	fields FieldsClose
 }
 
+func (T *Close) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('C'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
+}
+
 type FieldsCopyFail struct {
 	Cause string
 }
@@ -263,6 +332,29 @@ func (T *FieldsCopyFail) Write(writer io.Writer) (length int, err error) {
 
 type CopyFail struct {
 	fields FieldsCopyFail
+}
+
+func (T *CopyFail) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('f'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
 }
 
 type FieldsDescribe struct {
@@ -302,6 +394,29 @@ type Describe struct {
 	fields FieldsDescribe
 }
 
+func (T *Describe) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('D'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
+}
+
 type FieldsExecute struct {
 	Name    string
 	MaxRows int32
@@ -339,6 +454,29 @@ type Execute struct {
 	fields FieldsExecute
 }
 
+func (T *Execute) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('E'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
+}
+
 type FieldsFlush struct {
 }
 
@@ -354,6 +492,29 @@ func (T *FieldsFlush) Write(writer io.Writer) (length int, err error) {
 
 type Flush struct {
 	fields FieldsFlush
+}
+
+func (T *Flush) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('H'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
 }
 
 type FieldsFunctionCallArguments struct {
@@ -481,6 +642,29 @@ type FunctionCall struct {
 	fields FieldsFunctionCall
 }
 
+func (T *FunctionCall) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('F'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
+}
+
 type FieldsGSSENCRequest struct {
 	EncryptionRequestCode int32
 }
@@ -506,6 +690,24 @@ func (T *FieldsGSSENCRequest) Write(writer io.Writer) (length int, err error) {
 
 type GSSENCRequest struct {
 	fields FieldsGSSENCRequest
+}
+
+func (T *GSSENCRequest) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
 }
 
 type FieldsGSSResponse struct {
@@ -539,6 +741,29 @@ func (T *FieldsGSSResponse) Write(writer io.Writer) (length int, err error) {
 
 type GSSResponse struct {
 	fields FieldsGSSResponse
+}
+
+func (T *GSSResponse) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('p'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
 }
 
 type FieldsParse struct {
@@ -603,6 +828,29 @@ type Parse struct {
 	fields FieldsParse
 }
 
+func (T *Parse) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('P'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
+}
+
 type FieldsPasswordMessage struct {
 	Password string
 }
@@ -630,6 +878,29 @@ type PasswordMessage struct {
 	fields FieldsPasswordMessage
 }
 
+func (T *PasswordMessage) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('p'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
+}
+
 type FieldsQuery struct {
 	Query string
 }
@@ -655,6 +926,29 @@ func (T *FieldsQuery) Write(writer io.Writer) (length int, err error) {
 
 type Query struct {
 	fields FieldsQuery
+}
+
+func (T *Query) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('Q'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
 }
 
 type FieldsSASLInitialResponse struct {
@@ -709,6 +1003,29 @@ type SASLInitialResponse struct {
 	fields FieldsSASLInitialResponse
 }
 
+func (T *SASLInitialResponse) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('p'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
+}
+
 type FieldsSASLResponse struct {
 	Data []byte
 }
@@ -742,6 +1059,29 @@ type SASLResponse struct {
 	fields FieldsSASLResponse
 }
 
+func (T *SASLResponse) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('p'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
+}
+
 type FieldsSSLRequest struct {
 	SSLRequestCode int32
 }
@@ -767,6 +1107,24 @@ func (T *FieldsSSLRequest) Write(writer io.Writer) (length int, err error) {
 
 type SSLRequest struct {
 	fields FieldsSSLRequest
+}
+
+func (T *SSLRequest) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
 }
 
 type FieldsStartupMessage struct {
@@ -816,6 +1174,24 @@ type StartupMessage struct {
 	fields FieldsStartupMessage
 }
 
+func (T *StartupMessage) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
+}
+
 type FieldsSync struct {
 }
 
@@ -833,6 +1209,29 @@ type Sync struct {
 	fields FieldsSync
 }
 
+func (T *Sync) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('S'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
+}
+
 type FieldsTerminate struct {
 }
 
@@ -848,4 +1247,27 @@ func (T *FieldsTerminate) Write(writer io.Writer) (length int, err error) {
 
 type Terminate struct {
 	fields FieldsTerminate
+}
+
+func (T *Terminate) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('X'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
 }

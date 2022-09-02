@@ -37,6 +37,29 @@ type CopyData struct {
 	fields FieldsCopyData
 }
 
+func (T *CopyData) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('d'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
+}
+
 type FieldsCopyDone struct {
 }
 
@@ -52,4 +75,27 @@ func (T *FieldsCopyDone) Write(writer io.Writer) (length int, err error) {
 
 type CopyDone struct {
 	fields FieldsCopyDone
+}
+
+func (T *CopyDone) Write(writer io.Writer) (length int, err error) {
+	// TODO replace with pool
+	var buf bytes.Buffer
+	length, err = T.fields.Write(&buf)
+	if err != nil {
+		length = 0
+		return
+	}
+	_, err = WriteByte(writer, byte('c'))
+	if err != nil {
+		length = 1
+		return
+	}
+	_, err = WriteInt32(writer, int32(length))
+	if err != nil {
+		length = 5
+		return
+	}
+	length += 5
+	_, err = writer.Write(buf.Bytes())
+	return
 }

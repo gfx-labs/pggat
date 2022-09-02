@@ -164,4 +164,29 @@ import "io"
         fields Fields{{$name}}
     }
 
+    func (T *{{$name}}) Write(writer io.Writer) (length int, err error) {
+        // TODO replace with pool
+        var buf bytes.Buffer
+        length, err = T.fields.Write(&buf)
+        if err != nil {
+            length = 0
+            return
+        }
+        {{if $packet.Identifier -}}
+            _, err = WriteByte(writer, byte('{{$packet.Identifier}}'))
+            if err != nil {
+                length = 1
+                return
+            }
+        {{end -}}
+        _, err = WriteInt32(writer, int32(length))
+        if err != nil {
+            length = 5
+            return
+        }
+        length += 5
+        _, err = writer.Write(buf.Bytes())
+        return
+    }
+
 {{end -}}
