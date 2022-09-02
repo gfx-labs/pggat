@@ -2,6 +2,7 @@ package gat
 
 import (
 	"context"
+	"fmt"
 	"net"
 
 	"gfx.cafe/gfx/pggat/lib/config"
@@ -32,7 +33,7 @@ func (g *Gatling) ApplyConfig(c *config.Global) error {
 }
 
 func (g *Gatling) ListenAndServe(ctx context.Context) error {
-	ln, err := net.Listen("tcp", g.c.General.Host)
+	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", g.c.General.Host, g.c.General.Port))
 	if err != nil {
 		return err
 	}

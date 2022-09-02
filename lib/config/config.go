@@ -1,5 +1,10 @@
 package config
 
+import (
+	"github.com/BurntSushi/toml"
+	"os"
+)
+
 type PoolMode string
 
 const (
@@ -90,4 +95,15 @@ func (o Server) Role() ServerRole {
 		}
 	}
 	return ServerRole(SERVERROLE_NONE)
+}
+
+func Load(path string) (conf *Global, err error) {
+	conf = new(Global)
+	var f []byte
+	f, err = os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	err = toml.Unmarshal(f, conf)
+	return
 }
