@@ -183,7 +183,9 @@ func (c *Client) Accept(ctx context.Context) error {
 		}
 	}
 	c.log.Debug().Msg("Password authentication successful")
-	err = WriteAuthOk(c.wr)
+	authOk := new(protocol.Authentication)
+	authOk.Fields.Data = []byte{0, 0, 0, 0}
+	_, err = authOk.Write(c.wr)
 	if err != nil {
 		return err
 	}
@@ -191,11 +193,16 @@ func (c *Client) Accept(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	err = WriteBackendKeyData(c.wr, c.pid, c.secret_key)
+	backendKeyData := new(protocol.BackendKeyData)
+	backendKeyData.Fields.ProcessID = c.pid
+	backendKeyData.Fields.SecretKey = c.secret_key
+	_, err = backendKeyData.Write(c.wr)
 	if err != nil {
 		return err
 	}
-	err = WriteReadyForQuery(c.wr)
+	readyForQuery := new(protocol.ReadyForQuery)
+	readyForQuery.Fields.Status = byte('I')
+	_, err = readyForQuery.Write(c.wr)
 	if err != nil {
 		return err
 	}

@@ -86,7 +86,7 @@ func Read(reader io.Reader) (packet Packet, err error) {
 	case byte('Q'):
 		packet = new(Query)
 	case byte('Z'):
-		packet = new(ReadForQuery)
+		packet = new(ReadyForQuery)
 	case byte('T'):
 		packet = new(RowDescription)
 	case byte('p'):

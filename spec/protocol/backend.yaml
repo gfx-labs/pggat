@@ -122,8 +122,11 @@ ParseComplete:
   Identifier: '1'
 PortalSuspended:
   Identifier: 's'
-ReadForQuery:
+ReadyForQuery:
   Identifier: 'Z'
+  Fields:
+    - Name: Status
+      Type: byte
 RowDescription:
   Identifier: 'T'
   Fields:

@@ -1553,26 +1553,36 @@ func (T *PortalSuspended) Write(writer io.Writer) (length int, err error) {
 
 var _ Packet = (*PortalSuspended)(nil)
 
-type FieldsReadForQuery struct {
+type FieldsReadyForQuery struct {
+	Status byte
 }
 
-func (T *FieldsReadForQuery) Read(payloadLength int, reader io.Reader) (err error) {
+func (T *FieldsReadyForQuery) Read(payloadLength int, reader io.Reader) (err error) {
+	T.Status, err = ReadByte(reader)
+	if err != nil {
+		return
+	}
 	return
 }
 
-func (T *FieldsReadForQuery) Write(writer io.Writer) (length int, err error) {
+func (T *FieldsReadyForQuery) Write(writer io.Writer) (length int, err error) {
 	var temp int
+	temp, err = WriteByte(writer, T.Status)
+	if err != nil {
+		return
+	}
+	length += temp
 	_ = temp
 	return
 }
 
-type ReadForQuery struct {
-	Fields FieldsReadForQuery
+type ReadyForQuery struct {
+	Fields FieldsReadyForQuery
 }
 
 // Read reads all but the packet identifier
 // WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
-func (T *ReadForQuery) Read(reader io.Reader) (err error) {
+func (T *ReadyForQuery) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
 	if err != nil {
@@ -1581,7 +1591,7 @@ func (T *ReadForQuery) Read(reader io.Reader) (err error) {
 	return T.Fields.Read(int(length-4), reader)
 }
 
-func (T *ReadForQuery) Write(writer io.Writer) (length int, err error) {
+func (T *ReadyForQuery) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
 	length, err = T.Fields.Write(&buf)
@@ -1604,7 +1614,7 @@ func (T *ReadForQuery) Write(writer io.Writer) (length int, err error) {
 	return
 }
 
-var _ Packet = (*ReadForQuery)(nil)
+var _ Packet = (*ReadyForQuery)(nil)
 
 type FieldsRowDescriptionFields struct {
 	Name            string
