@@ -21,11 +21,11 @@ func NewGatling() *Gatling {
 	}
 }
 
-// TODO: dynamic config reload?
 func (g *Gatling) ApplyConfig(c *config.Global) error {
 	if g.c == nil {
 		g.c = c
 	} else {
+		// TODO: dynamic config reload
 		g.c = c
 	}
 	return nil
