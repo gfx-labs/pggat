@@ -188,7 +188,10 @@ var _ io.Reader
         Fields Fields{{$name}}
     }
 
-    // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+    // Read reads all but the packet identifier
+    {{if $packet.Identifier -}}
+        // WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
+    {{end -}}
     func (T *{{$name}}) Read(reader io.Reader) (err error) {
         var length int32
         length, err = ReadInt32(reader)
@@ -222,5 +225,7 @@ var _ io.Reader
         _, err = writer.Write(buf.Bytes())
         return
     }
+
+    var _ Packet = (*{{$name}})(nil)
 
 {{end -}}

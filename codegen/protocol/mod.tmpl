@@ -1,0 +1,34 @@
+package protocol
+
+import "io"
+
+type Packet interface {
+    Read(reader io.Reader) error
+    Write(writer io.Writer) (int, error)
+}
+
+// Read switches on the identifier and returns the matching packet
+// DO NOT call this function if the packet in queue does not have an identifier
+func Read(reader io.Reader) (packet Packet, err error) {
+    var identifier byte
+    identifier, err = ReadByte(reader)
+    if err != nil {
+        return
+    }
+
+    switch identifier {
+        {{range $name, $packet := . -}}
+            {{if $packet.Identifier -}}
+                case byte('{{$packet.Identifier}}'):
+                    packet = new({{$name}})
+            {{end -}}
+        {{end -}}
+    }
+
+    err = packet.Read(reader)
+    if err != nil {
+        return
+    }
+
+    return
+}

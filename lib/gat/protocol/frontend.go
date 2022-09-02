@@ -172,7 +172,8 @@ type Bind struct {
 	Fields FieldsBind
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *Bind) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -204,6 +205,8 @@ func (T *Bind) Write(writer io.Writer) (length int, err error) {
 	_, err = writer.Write(buf.Bytes())
 	return
 }
+
+var _ Packet = (*Bind)(nil)
 
 type FieldsCancelRequest struct {
 	RequestCode int32
@@ -252,7 +255,8 @@ type CancelRequest struct {
 	Fields FieldsCancelRequest
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *CancelRequest) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -284,6 +288,8 @@ func (T *CancelRequest) Write(writer io.Writer) (length int, err error) {
 	_, err = writer.Write(buf.Bytes())
 	return
 }
+
+var _ Packet = (*CancelRequest)(nil)
 
 type FieldsClose struct {
 	Which byte
@@ -322,7 +328,8 @@ type Close struct {
 	Fields FieldsClose
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *Close) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -355,6 +362,8 @@ func (T *Close) Write(writer io.Writer) (length int, err error) {
 	return
 }
 
+var _ Packet = (*Close)(nil)
+
 type FieldsCopyFail struct {
 	Cause string
 }
@@ -382,7 +391,8 @@ type CopyFail struct {
 	Fields FieldsCopyFail
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *CopyFail) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -414,6 +424,8 @@ func (T *CopyFail) Write(writer io.Writer) (length int, err error) {
 	_, err = writer.Write(buf.Bytes())
 	return
 }
+
+var _ Packet = (*CopyFail)(nil)
 
 type FieldsDescribe struct {
 	Which byte
@@ -452,7 +464,8 @@ type Describe struct {
 	Fields FieldsDescribe
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *Describe) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -484,6 +497,8 @@ func (T *Describe) Write(writer io.Writer) (length int, err error) {
 	_, err = writer.Write(buf.Bytes())
 	return
 }
+
+var _ Packet = (*Describe)(nil)
 
 type FieldsExecute struct {
 	Name    string
@@ -522,7 +537,8 @@ type Execute struct {
 	Fields FieldsExecute
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *Execute) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -555,6 +571,8 @@ func (T *Execute) Write(writer io.Writer) (length int, err error) {
 	return
 }
 
+var _ Packet = (*Execute)(nil)
+
 type FieldsFlush struct {
 }
 
@@ -572,7 +590,8 @@ type Flush struct {
 	Fields FieldsFlush
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *Flush) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -604,6 +623,8 @@ func (T *Flush) Write(writer io.Writer) (length int, err error) {
 	_, err = writer.Write(buf.Bytes())
 	return
 }
+
+var _ Packet = (*Flush)(nil)
 
 type FieldsFunctionCallArguments struct {
 	Value []byte
@@ -739,7 +760,8 @@ type FunctionCall struct {
 	Fields FieldsFunctionCall
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *FunctionCall) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -772,6 +794,8 @@ func (T *FunctionCall) Write(writer io.Writer) (length int, err error) {
 	return
 }
 
+var _ Packet = (*FunctionCall)(nil)
+
 type FieldsGSSENCRequest struct {
 	EncryptionRequestCode int32
 }
@@ -799,7 +823,7 @@ type GSSENCRequest struct {
 	Fields FieldsGSSENCRequest
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
 func (T *GSSENCRequest) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -826,6 +850,8 @@ func (T *GSSENCRequest) Write(writer io.Writer) (length int, err error) {
 	_, err = writer.Write(buf.Bytes())
 	return
 }
+
+var _ Packet = (*GSSENCRequest)(nil)
 
 type FieldsGSSResponse struct {
 	Data []byte
@@ -860,7 +886,8 @@ type GSSResponse struct {
 	Fields FieldsGSSResponse
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *GSSResponse) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -892,6 +919,8 @@ func (T *GSSResponse) Write(writer io.Writer) (length int, err error) {
 	_, err = writer.Write(buf.Bytes())
 	return
 }
+
+var _ Packet = (*GSSResponse)(nil)
 
 type FieldsParse struct {
 	PreparedStatement  string
@@ -958,7 +987,8 @@ type Parse struct {
 	Fields FieldsParse
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *Parse) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -991,6 +1021,8 @@ func (T *Parse) Write(writer io.Writer) (length int, err error) {
 	return
 }
 
+var _ Packet = (*Parse)(nil)
+
 type FieldsPasswordMessage struct {
 	Password string
 }
@@ -1018,7 +1050,8 @@ type PasswordMessage struct {
 	Fields FieldsPasswordMessage
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *PasswordMessage) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -1051,6 +1084,8 @@ func (T *PasswordMessage) Write(writer io.Writer) (length int, err error) {
 	return
 }
 
+var _ Packet = (*PasswordMessage)(nil)
+
 type FieldsQuery struct {
 	Query string
 }
@@ -1078,7 +1113,8 @@ type Query struct {
 	Fields FieldsQuery
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *Query) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -1110,6 +1146,8 @@ func (T *Query) Write(writer io.Writer) (length int, err error) {
 	_, err = writer.Write(buf.Bytes())
 	return
 }
+
+var _ Packet = (*Query)(nil)
 
 type FieldsSASLInitialResponse struct {
 	Mechanism       string
@@ -1166,7 +1204,8 @@ type SASLInitialResponse struct {
 	Fields FieldsSASLInitialResponse
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *SASLInitialResponse) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -1198,6 +1237,8 @@ func (T *SASLInitialResponse) Write(writer io.Writer) (length int, err error) {
 	_, err = writer.Write(buf.Bytes())
 	return
 }
+
+var _ Packet = (*SASLInitialResponse)(nil)
 
 type FieldsSASLResponse struct {
 	Data []byte
@@ -1232,7 +1273,8 @@ type SASLResponse struct {
 	Fields FieldsSASLResponse
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *SASLResponse) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -1265,6 +1307,8 @@ func (T *SASLResponse) Write(writer io.Writer) (length int, err error) {
 	return
 }
 
+var _ Packet = (*SASLResponse)(nil)
+
 type FieldsSSLRequest struct {
 	SSLRequestCode int32
 }
@@ -1292,7 +1336,7 @@ type SSLRequest struct {
 	Fields FieldsSSLRequest
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
 func (T *SSLRequest) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -1319,6 +1363,8 @@ func (T *SSLRequest) Write(writer io.Writer) (length int, err error) {
 	_, err = writer.Write(buf.Bytes())
 	return
 }
+
+var _ Packet = (*SSLRequest)(nil)
 
 type FieldsStartupMessageParameters struct {
 	Name  string
@@ -1402,7 +1448,7 @@ type StartupMessage struct {
 	Fields FieldsStartupMessage
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
 func (T *StartupMessage) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -1430,6 +1476,8 @@ func (T *StartupMessage) Write(writer io.Writer) (length int, err error) {
 	return
 }
 
+var _ Packet = (*StartupMessage)(nil)
+
 type FieldsSync struct {
 }
 
@@ -1447,7 +1495,8 @@ type Sync struct {
 	Fields FieldsSync
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *Sync) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -1480,6 +1529,8 @@ func (T *Sync) Write(writer io.Writer) (length int, err error) {
 	return
 }
 
+var _ Packet = (*Sync)(nil)
+
 type FieldsTerminate struct {
 }
 
@@ -1497,7 +1548,8 @@ type Terminate struct {
 	Fields FieldsTerminate
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *Terminate) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -1529,3 +1581,5 @@ func (T *Terminate) Write(writer io.Writer) (length int, err error) {
 	_, err = writer.Write(buf.Bytes())
 	return
 }
+
+var _ Packet = (*Terminate)(nil)

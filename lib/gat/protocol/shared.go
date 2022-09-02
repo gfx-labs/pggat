@@ -43,7 +43,8 @@ type CopyData struct {
 	Fields FieldsCopyData
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *CopyData) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -76,6 +77,8 @@ func (T *CopyData) Write(writer io.Writer) (length int, err error) {
 	return
 }
 
+var _ Packet = (*CopyData)(nil)
+
 type FieldsCopyDone struct {
 }
 
@@ -93,7 +96,8 @@ type CopyDone struct {
 	Fields FieldsCopyDone
 }
 
-// Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
+// Read reads all but the packet identifier
+// WARNING: This packet DOES have an identifier. Call protocol.Read or trim the identifier first!
 func (T *CopyDone) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
@@ -125,3 +129,5 @@ func (T *CopyDone) Write(writer io.Writer) (length int, err error) {
 	_, err = writer.Write(buf.Bytes())
 	return
 }
+
+var _ Packet = (*CopyDone)(nil)
