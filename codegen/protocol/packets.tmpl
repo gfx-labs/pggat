@@ -1,6 +1,9 @@
 package protocol
 
-import "io"
+import (
+	"bytes"
+	"io"
+)
 
 // codegen: modify for debug only
 
