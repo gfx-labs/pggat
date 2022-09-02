@@ -169,7 +169,7 @@ func (T *FieldsBind) Write(writer io.Writer) (length int, err error) {
 }
 
 type Bind struct {
-	fields FieldsBind
+	Fields FieldsBind
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -179,13 +179,13 @@ func (T *Bind) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *Bind) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -249,7 +249,7 @@ func (T *FieldsCancelRequest) Write(writer io.Writer) (length int, err error) {
 }
 
 type CancelRequest struct {
-	fields FieldsCancelRequest
+	Fields FieldsCancelRequest
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -259,13 +259,13 @@ func (T *CancelRequest) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *CancelRequest) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -319,7 +319,7 @@ func (T *FieldsClose) Write(writer io.Writer) (length int, err error) {
 }
 
 type Close struct {
-	fields FieldsClose
+	Fields FieldsClose
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -329,13 +329,13 @@ func (T *Close) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *Close) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -379,7 +379,7 @@ func (T *FieldsCopyFail) Write(writer io.Writer) (length int, err error) {
 }
 
 type CopyFail struct {
-	fields FieldsCopyFail
+	Fields FieldsCopyFail
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -389,13 +389,13 @@ func (T *CopyFail) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *CopyFail) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -449,7 +449,7 @@ func (T *FieldsDescribe) Write(writer io.Writer) (length int, err error) {
 }
 
 type Describe struct {
-	fields FieldsDescribe
+	Fields FieldsDescribe
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -459,13 +459,13 @@ func (T *Describe) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *Describe) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -519,7 +519,7 @@ func (T *FieldsExecute) Write(writer io.Writer) (length int, err error) {
 }
 
 type Execute struct {
-	fields FieldsExecute
+	Fields FieldsExecute
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -529,13 +529,13 @@ func (T *Execute) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *Execute) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -569,7 +569,7 @@ func (T *FieldsFlush) Write(writer io.Writer) (length int, err error) {
 }
 
 type Flush struct {
-	fields FieldsFlush
+	Fields FieldsFlush
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -579,13 +579,13 @@ func (T *Flush) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *Flush) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -736,7 +736,7 @@ func (T *FieldsFunctionCall) Write(writer io.Writer) (length int, err error) {
 }
 
 type FunctionCall struct {
-	fields FieldsFunctionCall
+	Fields FieldsFunctionCall
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -746,13 +746,13 @@ func (T *FunctionCall) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *FunctionCall) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -796,7 +796,7 @@ func (T *FieldsGSSENCRequest) Write(writer io.Writer) (length int, err error) {
 }
 
 type GSSENCRequest struct {
-	fields FieldsGSSENCRequest
+	Fields FieldsGSSENCRequest
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -806,13 +806,13 @@ func (T *GSSENCRequest) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *GSSENCRequest) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -857,7 +857,7 @@ func (T *FieldsGSSResponse) Write(writer io.Writer) (length int, err error) {
 }
 
 type GSSResponse struct {
-	fields FieldsGSSResponse
+	Fields FieldsGSSResponse
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -867,13 +867,13 @@ func (T *GSSResponse) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *GSSResponse) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -955,7 +955,7 @@ func (T *FieldsParse) Write(writer io.Writer) (length int, err error) {
 }
 
 type Parse struct {
-	fields FieldsParse
+	Fields FieldsParse
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -965,13 +965,13 @@ func (T *Parse) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *Parse) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -1015,7 +1015,7 @@ func (T *FieldsPasswordMessage) Write(writer io.Writer) (length int, err error) 
 }
 
 type PasswordMessage struct {
-	fields FieldsPasswordMessage
+	Fields FieldsPasswordMessage
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -1025,13 +1025,13 @@ func (T *PasswordMessage) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *PasswordMessage) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -1075,7 +1075,7 @@ func (T *FieldsQuery) Write(writer io.Writer) (length int, err error) {
 }
 
 type Query struct {
-	fields FieldsQuery
+	Fields FieldsQuery
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -1085,13 +1085,13 @@ func (T *Query) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *Query) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -1163,7 +1163,7 @@ func (T *FieldsSASLInitialResponse) Write(writer io.Writer) (length int, err err
 }
 
 type SASLInitialResponse struct {
-	fields FieldsSASLInitialResponse
+	Fields FieldsSASLInitialResponse
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -1173,13 +1173,13 @@ func (T *SASLInitialResponse) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *SASLInitialResponse) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -1229,7 +1229,7 @@ func (T *FieldsSASLResponse) Write(writer io.Writer) (length int, err error) {
 }
 
 type SASLResponse struct {
-	fields FieldsSASLResponse
+	Fields FieldsSASLResponse
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -1239,13 +1239,13 @@ func (T *SASLResponse) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *SASLResponse) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -1289,7 +1289,7 @@ func (T *FieldsSSLRequest) Write(writer io.Writer) (length int, err error) {
 }
 
 type SSLRequest struct {
-	fields FieldsSSLRequest
+	Fields FieldsSSLRequest
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -1299,13 +1299,13 @@ func (T *SSLRequest) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *SSLRequest) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -1320,10 +1320,46 @@ func (T *SSLRequest) Write(writer io.Writer) (length int, err error) {
 	return
 }
 
+type FieldsStartupMessageParameters struct {
+	Name  string
+	Value string
+}
+
+func (T *FieldsStartupMessageParameters) Read(payloadLength int, reader io.Reader) (err error) {
+	T.Name, err = ReadString(reader)
+	if err != nil {
+		return
+	}
+	if T.Name != "" {
+		T.Value, err = ReadString(reader)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (T *FieldsStartupMessageParameters) Write(writer io.Writer) (length int, err error) {
+	var temp int
+	temp, err = WriteString(writer, T.Name)
+	if err != nil {
+		return
+	}
+	length += temp
+	if T.Name != "" {
+		temp, err = WriteString(writer, T.Value)
+		if err != nil {
+			return
+		}
+		length += temp
+	}
+	_ = temp
+	return
+}
+
 type FieldsStartupMessage struct {
 	ProtocolVersionNumber int32
-	ParameterName         string
-	ParameterValue        string
+	Parameters            []FieldsStartupMessageParameters
 }
 
 func (T *FieldsStartupMessage) Read(payloadLength int, reader io.Reader) (err error) {
@@ -1331,13 +1367,15 @@ func (T *FieldsStartupMessage) Read(payloadLength int, reader io.Reader) (err er
 	if err != nil {
 		return
 	}
-	T.ParameterName, err = ReadString(reader)
-	if err != nil {
-		return
-	}
-	T.ParameterValue, err = ReadString(reader)
-	if err != nil {
-		return
+	var P FieldsStartupMessageParameters
+	for ok := true; ok; ok = P.Name != "" {
+		err = P.Read(payloadLength, reader)
+		if err != nil {
+			return
+		}
+		T.Parameters = append(T.Parameters, P)
+		var newp FieldsStartupMessageParameters
+		P = newp
 	}
 	return
 }
@@ -1349,22 +1387,19 @@ func (T *FieldsStartupMessage) Write(writer io.Writer) (length int, err error) {
 		return
 	}
 	length += temp
-	temp, err = WriteString(writer, T.ParameterName)
-	if err != nil {
-		return
+	for _, v := range T.Parameters {
+		temp, err = v.Write(writer)
+		if err != nil {
+			return
+		}
+		length += temp
 	}
-	length += temp
-	temp, err = WriteString(writer, T.ParameterValue)
-	if err != nil {
-		return
-	}
-	length += temp
 	_ = temp
 	return
 }
 
 type StartupMessage struct {
-	fields FieldsStartupMessage
+	Fields FieldsStartupMessage
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -1374,13 +1409,13 @@ func (T *StartupMessage) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *StartupMessage) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -1409,7 +1444,7 @@ func (T *FieldsSync) Write(writer io.Writer) (length int, err error) {
 }
 
 type Sync struct {
-	fields FieldsSync
+	Fields FieldsSync
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -1419,13 +1454,13 @@ func (T *Sync) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *Sync) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -1459,7 +1494,7 @@ func (T *FieldsTerminate) Write(writer io.Writer) (length int, err error) {
 }
 
 type Terminate struct {
-	fields FieldsTerminate
+	Fields FieldsTerminate
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -1469,13 +1504,13 @@ func (T *Terminate) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *Terminate) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return

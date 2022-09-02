@@ -59,10 +59,15 @@ EmptyQueryResponse:
 ErrorResponse:
   Identifier: 'E'
   Fields:
-    - Name: Code
-      Type: byte
-    - Name: Value
-      Type: string
+    - Name: Responses
+      Struct:
+        Fields:
+          - Name: Code
+            Type: byte
+          - Name: Value
+            Type: string
+            If: 'T.Code != 0'
+      While: 'P.Code != 0'
 FunctionCallResponse:
   Identifier: 'V'
   Fields:
@@ -82,11 +87,15 @@ NoData:
 NoticeResponse:
   Identifier: 'N'
   Fields:
-    - Name: Type
-      Type: byte
-    - Name: Value
-      Type: string
-      If: 'T.Type != 0'
+    - Name: Responses
+      Struct:
+        Fields:
+          - Name: Code
+            Type: byte
+          - Name: Value
+            Type: string
+            If: 'T.Code != 0'
+      While: 'P.Code != 0'
 NotificationResponse:
   Identifier: 'A'
   Fields:

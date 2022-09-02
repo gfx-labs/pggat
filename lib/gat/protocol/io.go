@@ -3,6 +3,7 @@ package protocol
 import (
 	"encoding/binary"
 	"io"
+	"strings"
 )
 
 func ReadByte(reader io.Reader) (byte, error) {
@@ -50,14 +51,17 @@ func ReadInt64(reader io.Reader) (int64, error) {
 }
 
 func ReadString(reader io.Reader) (string, error) {
-	// TODO i actually have no idea how they format strings, but i'm guessing it's UTF-8 with an int32 length prefix
-	length, err := ReadInt32(reader)
-	if err != nil {
-		return "", err
+	var builder strings.Builder
+	for {
+		b, err := ReadByte(reader)
+		if err != nil {
+			return "", err
+		}
+		if b == 0 {
+			return builder.String(), nil
+		}
+		builder.WriteByte(b)
 	}
-	b := make([]byte, length)
-	_, err = reader.Read(b[:])
-	return string(b), err
 }
 
 func WriteByte(writer io.Writer, value byte) (int, error) {
@@ -101,14 +105,13 @@ func WriteInt64(writer io.Writer, value int64) (int, error) {
 }
 
 func WriteString(writer io.Writer, value string) (int, error) {
-	// TODO i actually have no idea how they format strings, but i'm guessing it's UTF-8 with an int32 length prefix
-	length, err := WriteInt32(writer, int32(len(value)))
+	_, err := writer.Write([]byte(value))
 	if err != nil {
 		return 0, err
 	}
-	_, err = writer.Write([]byte(value))
+	_, err = WriteByte(writer, 0)
 	if err != nil {
 		return 0, err
 	}
-	return length + len(value), nil
+	return len(value) + 1, nil
 }

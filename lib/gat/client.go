@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"io"
 	"math/big"
 	"net"
@@ -101,9 +102,15 @@ func NewClient(
 }
 
 func (c *Client) Accept(ctx context.Context) error {
-	params, err := ReadStartup(c.r)
+	startup := new(protocol.StartupMessage)
+	err := startup.Read(c.r)
 	if err != nil {
 		return err
+	}
+
+	params := make(map[string]string)
+	for _, v := range startup.Fields.Parameters {
+		params[v.Name] = v.Value
 	}
 
 	var ok bool

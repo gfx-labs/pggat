@@ -40,7 +40,7 @@ func (T *FieldsCopyData) Write(writer io.Writer) (length int, err error) {
 }
 
 type CopyData struct {
-	fields FieldsCopyData
+	Fields FieldsCopyData
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -50,13 +50,13 @@ func (T *CopyData) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *CopyData) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return
@@ -90,7 +90,7 @@ func (T *FieldsCopyDone) Write(writer io.Writer) (length int, err error) {
 }
 
 type CopyDone struct {
-	fields FieldsCopyDone
+	Fields FieldsCopyDone
 }
 
 // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -100,13 +100,13 @@ func (T *CopyDone) Read(reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	return T.fields.Read(int(length-4), reader)
+	return T.Fields.Read(int(length-4), reader)
 }
 
 func (T *CopyDone) Write(writer io.Writer) (length int, err error) {
 	// TODO replace with pool
 	var buf bytes.Buffer
-	length, err = T.fields.Write(&buf)
+	length, err = T.Fields.Write(&buf)
 	if err != nil {
 		length = 0
 		return

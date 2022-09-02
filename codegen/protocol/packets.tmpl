@@ -10,18 +10,25 @@ import (
 var _ bytes.Buffer
 var _ io.Reader
 
-{{define "fieldType" -}}
+{{define "fieldTypeNoArr" -}}
     {{$parent := (index . 0) -}}
     {{$field := (index . 1) -}}
 
-    {{if or $field.LengthPrefixed $field.ArrayLength -}}
-        []
-    {{- end -}}
     {{if $field.Struct -}}
         Fields{{$parent}}{{$field.Name}}
     {{- else if $field.Type -}}
         {{$field.Type}}
     {{- end -}}
+{{end -}}
+
+{{define "fieldType" -}}
+    {{$parent := (index . 0) -}}
+    {{$field := (index . 1) -}}
+
+    {{if or $field.LengthPrefixed $field.ArrayLength $field.While -}}
+        []
+    {{- end -}}
+    {{template "fieldTypeNoArr" (list $parent $field) -}}
 {{end -}}
 
 {{define "declareField" -}}
@@ -75,6 +82,14 @@ var _ io.Reader
         for i := 0; i < int({{$field.Name}}Length); i++ {
             {{template "readFieldL1" (list $parent $field (printf "T.%s[i]" $field.Name))}}
         }
+    {{else if $field.While -}}
+        var P {{template "fieldTypeNoArr" (list $parent $field)}}
+        for ok := true; ok; ok = {{$field.While}} {
+            {{template "readFieldL1" (list $parent $field "P")}}
+            T.{{$field.Name}} = append(T.{{$field.Name}}, P)
+            var newp {{template "fieldTypeNoArr" (list $parent $field)}}
+            P = newp
+        }
     {{else -}}
         {{template "readFieldL1" (list $parent $field (printf "T.%s" $field.Name))}}
     {{end -}}
@@ -120,7 +135,7 @@ var _ io.Reader
         length += temp
     {{end -}}
 
-    {{if or $field.LengthPrefixed $field.ArrayLength -}}
+    {{if or $field.LengthPrefixed $field.ArrayLength $field.While -}}
         for _, v := range T.{{$field.Name}} {
             {{template "writeFieldL1" (list $parent $field "v")}}
         }
@@ -170,7 +185,7 @@ var _ io.Reader
     {{template "declareFields" (list $name $packet) -}}
 
     type {{$name}} struct {
-        fields Fields{{$name}}
+        Fields Fields{{$name}}
     }
 
     // Read reads all but the packet identifier. Be sure to read that beforehand (if it exists)
@@ -180,13 +195,13 @@ var _ io.Reader
         if err != nil {
             return
         }
-        return T.fields.Read(int(length - 4), reader)
+        return T.Fields.Read(int(length - 4), reader)
     }
 
     func (T *{{$name}}) Write(writer io.Writer) (length int, err error) {
         // TODO replace with pool
         var buf bytes.Buffer
-        length, err = T.fields.Write(&buf)
+        length, err = T.Fields.Write(&buf)
         if err != nil {
             length = 0
             return

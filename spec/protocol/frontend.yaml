@@ -124,10 +124,15 @@ StartupMessage:
   Fields:
     - Name: ProtocolVersionNumber
       Type: int32
-    - Name: ParameterName
-      Type: string
-    - Name: ParameterValue
-      Type: string
+    - Name: Parameters
+      Struct:
+        Fields:
+          - Name: Name
+            Type: string
+          - Name: Value
+            Type: string
+            If: 'T.Name != ""'
+      While: 'P.Name != ""'
 Sync:
   Identifier: 'S'
 Terminate:
