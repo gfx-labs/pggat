@@ -24,6 +24,10 @@ type General struct {
 	Host string `toml:"host" yaml:"host" json:"host"`
 	Port uint16 `toml:"port" yaml:"port" json:"port"`
 
+	AdminOnly     bool   `toml:"admin_only" yaml:"admin_only" json:"admin_only"`
+	AdminUsername string `toml:"admin_username" yaml:"admin_username" json:"admin_username"`
+	AdminPassword string `toml:"admin_password" yaml:"admin_password" json:"admin_password"`
+
 	EnableMetrics bool   `toml:"enable_prometheus_exporter" yaml:"enable_prometheus_exporter" json:"enable_prometheus_exporter"`
 	MetricsPort   uint16 `toml:"prometheus_exporter_port" yaml:"prometheus_exporter_port" json:"prometheus_exporter_port"`
 
