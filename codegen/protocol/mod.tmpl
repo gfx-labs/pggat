@@ -2,6 +2,8 @@ package protocol
 
 import "io"
 
+// codegen: modify for debug only
+
 type Packet interface {
     Read(reader io.Reader) error
     Write(writer io.Writer) (int, error)
