@@ -1,124 +1,28 @@
 package gat
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/md5"
 	"crypto/rand"
-	"encoding/binary"
 	"encoding/hex"
-	"errors"
-	"io"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 )
 
 // TODO: decide which of these we need and don't need.
 // impelement the ones we need
 
-// Tell the client that authentication handshake completed successfully.
-func WriteAuthOk(w io.Writer) error {
-	auth_ok := bufio.NewWriterSize(w, 9)
-	auth_ok.WriteByte('R')
-	auth_ok.Write([]byte{0, 0, 0, 8})
-	auth_ok.Write([]byte{0, 0, 0, 0})
-	return auth_ok.Flush()
-}
-
 // / Generate md5 password challenge.
-func WriteMd5Challenge(w io.Writer) ([4]byte, error) {
+func CreateMd5Challenge() (*protocol.Authentication, [4]byte, error) {
 	salt := [4]byte{}
 	_, err := rand.Read(salt[:])
 	if err != nil {
-		return salt, err
-	}
-	wr := bufio.NewWriter(w)
-	wr.WriteByte('R')
-	wr.Write([]byte{0, 0, 0, 12})
-	wr.Write([]byte{0, 0, 0, 5})
-	wr.Write(salt[:])
-
-	return salt, wr.Flush()
-}
-
-// / Give the client the process_id and secret we generated
-// / used in query cancellation.
-func WriteBackendKeyData(
-	w io.Writer,
-	backend_id int32,
-	secret_key int32,
-) error {
-	buf := bufio.NewWriter(w)
-	buf.WriteByte('K')
-	binary.Write(buf, ENDIAN, int32(12))
-	binary.Write(buf, ENDIAN, backend_id)
-	binary.Write(buf, ENDIAN, secret_key)
-	return buf.Flush()
-}
-
-// /// Construct a `Q`: Query message.
-//
-//	pub fn simple_query(query: &str)  BytesMut {
-//	    res = BytesMut::from(&b"Q"[..])
-//	   let query = format!("{}\0", query)
-//
-//	   res.put_i32(query.len() as i32 + 4)
-//	   res.put_slice(&query.as_bytes())
-//
-//	   res
-//	}
-//
-// /// Tell the client we're ready for another query.
-func WriteReadyForQuery(w io.Writer) error {
-	_, err := w.Write([]byte{'Z', 0, 0, 0, 5, 'I'})
-	return err
-}
-
-// / Read Startup
-func ReadStartup(r io.Reader) (map[string]string, error) {
-	result := map[string]string{}
-
-	// get package length
-	var mlen int32
-	err := binary.Read(r, ENDIAN, &mlen)
-	if err != nil {
-		return nil, err
-	}
-	// read the packet into a buffer
-	pkt := make([]byte, mlen)
-	_, err = io.ReadFull(r, pkt)
-	if err != nil {
-		return nil, err
-	}
-	buf := bufio.NewReader(bytes.NewBuffer(pkt))
-	// now read the protocol number
-	var protocol int32
-	err = binary.Read(buf, ENDIAN, &protocol)
-	if err != nil {
-		return nil, err
+		return nil, salt, err
 	}
 
-	for {
-		b, err := buf.ReadByte()
-		if err != nil {
-			return nil, err
-		}
-		// done
-		if b == 0 {
-			break
-		}
-		key, err := buf.ReadString(0)
-		if err != nil {
-			return nil, err
-		}
-		value, err := buf.ReadString(0)
-		if err != nil {
-			return nil, err
-		}
-		result[key] = value
-	}
-	if len(result) < 2 {
-		return nil, errors.New("not enough parameters sent")
-	}
-	return result, nil
+	pkt := new(protocol.Authentication)
+	pkt.Fields.Data = append([]byte{0, 0, 0, 5}, salt[:]...)
+
+	return pkt, salt, nil
 }
 
 // Create md5 password hash given a salt.
@@ -130,22 +34,6 @@ func Md5HashPassword(user string, password string, salt []byte) []byte {
 	)
 	hsh2.Write(salt)
 	return append([]byte("md5"), hsh2.Sum(nil)...)
-}
-
-// / Send password challenge response to the server.
-// / This is the MD5 challenge.
-func Md5Password(
-	w io.Writer,
-	user string,
-	password string,
-	salt []byte,
-) error {
-	hashpw := Md5HashPassword(user, password, salt)
-	mw := bufio.NewWriterSize(w, 24)
-	mw.WriteByte('p')
-	binary.Write(mw, ENDIAN, int32(len(hashpw)+4))
-	mw.Write(hashpw)
-	return mw.Flush()
 }
 
 // /// Implements a response to our custom `SET SHARDING KEY`
@@ -426,14 +314,10 @@ func Md5Password(
 //	}
 func ServerParameterMessage(key, value string) []byte {
 	buf := new(bytes.Buffer)
-	ulen := 1 + 4 + len(key) + 1 + len(value) + 1
-	buf.Grow(ulen)
-	buf.WriteByte('S')
-	binary.Write(buf, ENDIAN, int32(ulen))
-	buf.WriteString(key)
-	buf.WriteByte(0)
-	buf.WriteString(value)
-	buf.WriteByte(0)
+	pkt := new(protocol.ParameterStatus)
+	pkt.Fields.Parameter = key
+	pkt.Fields.Value = value
+	_, _ = pkt.Write(buf)
 
 	return buf.Bytes()
 }

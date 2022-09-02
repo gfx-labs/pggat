@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
@@ -145,40 +144,39 @@ func (c *Client) Accept(ctx context.Context) error {
 	// TODO: Add SASL support.
 
 	// Perform MD5 authentication.
-	salt, err := WriteMd5Challenge(c.wr)
+	pkt, salt, err := CreateMd5Challenge()
 	if err != nil {
 		return err
 	}
-	code, err := c.r.ReadByte()
+	_, err = pkt.Write(c.wr)
 	if err != nil {
 		return err
 	}
-	if code != 'p' {
-		return fmt.Errorf("invalid response, wanted byte 'p', got '%v'", code)
+
+	var rsp protocol.Packet
+	rsp, err = protocol.ReadFrontend(c.r)
+
+	var passwordResponse []byte
+	switch r := rsp.(type) {
+	case *protocol.AuthenticationResponse:
+		passwordResponse = r.Fields.Data
+	default:
+		return fmt.Errorf("wanted AuthenticationResponse packet, got '%+v'", rsp)
 	}
-	var mlen int32
-	err = binary.Read(c.r, ENDIAN, &mlen)
-	if err != nil {
-		return err
-	}
-	password_response := make([]byte, mlen-4)
-	_, err = io.ReadFull(c.r, password_response)
-	if err != nil {
-		return err
-	}
+
 	// Authenticate admin user.
 
 	if c.admin {
 		c.server_info = AdminServerInfo()
 		pw_hash := Md5HashPassword(c.conf.General.AdminUsername, c.conf.General.AdminPassword, salt[:])
-		if !reflect.DeepEqual(pw_hash, password_response) {
+		if !reflect.DeepEqual(pw_hash, passwordResponse) {
 			return fmt.Errorf("password denied")
 		}
 	} else {
 		// TODO: actually get a server pool
 		pool := ServerPool{}
 		pw_hash := Md5HashPassword(c.username, pool.user.Password, salt[:])
-		if !reflect.DeepEqual(pw_hash, password_response) {
+		if !reflect.DeepEqual(pw_hash, passwordResponse) {
 			return fmt.Errorf("password denied")
 		}
 	}
