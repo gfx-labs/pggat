@@ -7,6 +7,9 @@ import (
 
 // codegen: modify for debug only
 
+var _ bytes.Buffer
+var _ io.Reader
+
 type FieldsAuthentication struct {
 	Data []byte
 }
