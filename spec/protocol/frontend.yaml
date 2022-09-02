@@ -1,0 +1,134 @@
+Bind:
+  Identifier: 'B'
+  Fields:
+    - Name: Destination
+      Type: string
+    - Name: PreparedStatement
+      Type: string
+    - Name: FormatCodes
+      Type: int16
+      LengthPrefixed: int16
+    - Name: ParameterValues
+      Struct:
+        Fields:
+          - Name: Value
+            Type: byte
+            LengthPrefixed: int32
+      LengthPrefixed: int16
+    - Name: ResultColumnFormatCodes
+      Type: int16
+      LengthPrefixed: int16
+CancelRequest:
+  Identifier: 'F'
+  Fields:
+    - Name: RequestCode
+      Type: int32
+    - Name: ProcessID
+      Type: int32
+    - Name: SecretKey
+      Type: int32
+Close:
+  Identifier: 'C'
+  Fields:
+    - Name: Which
+      Type: byte
+    - Name: Name
+      Type: string
+CopyFail:
+  Identifier: 'f'
+  Fields:
+    - Name: Cause
+      Type: string
+Describe:
+  Identifier: 'D'
+  Fields:
+    - Name: Which
+      Type: byte
+    - Name: Name
+      Type: string
+Execute:
+  Identifier: 'E'
+  Fields:
+    - Name: Name
+      Type: string
+    - Name: MaxRows
+      Type: int32
+Flush:
+  Identifier: 'H'
+FunctionCall:
+  Identifier: 'F'
+  Fields:
+    - Name: Function
+      Type: int32
+    - Name: ArgumentFormatCodes
+      Type: int16
+      LengthPrefixed: int16
+    - Name: Arguments
+      Struct:
+        Fields:
+          - Name: Value
+            Type: byte
+            LengthPrefixed: int32
+      LengthPrefixed: int16
+    - Name: ResultFormatCode
+      Type: int16
+GSSENCRequest:
+  Fields:
+    - Name: EncryptionRequestCode
+      Type: int32
+GSSResponse:
+  Identifier: 'p'
+  Fields:
+    - Name: Data
+      Type: byte
+      ArrayLength: payloadLength
+Parse:
+  Identifier: 'P'
+  Fields:
+    - Name: PreparedStatement
+      Type: string
+    - Name: Query
+      Type: string
+    - Name: ParameterDataTypes
+      Type: int32
+      LengthPrefixed: int32
+PasswordMessage:
+  Identifier: 'p'
+  Fields:
+    - Name: Password
+      Type: string
+Query:
+  Identifier: 'Q'
+  Fields:
+    - Name: Query
+      Type: string
+SASLInitialResponse:
+  Identifier: 'p'
+  Fields:
+    - Name: Mechanism
+      Type: string
+    - Name: InitialResponse
+      Type: byte
+      LengthPrefixed: int32
+SASLResponse:
+  Identifier: 'p'
+  Fields:
+    - Name: Data
+      Type: byte
+      ArrayLength: payloadLength
+SSLRequest:
+  Fields:
+    - Name: SSLRequestCode
+      Type: int32
+StartupMessage:
+  Fields:
+    - Name: ProtocolVersionNumber
+      Type: int32
+    - Name: ParameterName
+      Type: string
+    - Name: ParameterValue
+      Type: string
+Sync:
+  Identifier: 'S'
+Terminate:
+  Identifier: 'X'

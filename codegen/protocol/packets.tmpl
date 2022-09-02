@@ -1,0 +1,109 @@
+package protocol
+
+import "io"
+
+// codegen: modify for debug only
+
+{{define "fieldType" -}}
+    {{$parent := (index . 0) -}}
+    {{$field := (index . 1) -}}
+
+    {{if or $field.LengthPrefixed $field.ArrayLength -}}
+        []
+    {{- end -}}
+    {{if $field.Struct -}}
+        Fields{{$parent}}{{$field.Name}}
+    {{- else if $field.Type -}}
+        {{$field.Type}}
+    {{- end -}}
+{{end -}}
+
+{{define "declareField" -}}
+    {{$parent := (index . 0) -}}
+    {{$field := (index . 1) -}}
+
+    {{$field.Name}} {{template "fieldType" (list $parent $field)}}
+{{end -}}
+
+{{define "readFieldL1" -}}
+    {{$parent := (index . 0) -}}
+    {{$field := (index . 1) -}}
+    {{$location := (index . 2) -}}
+
+    {{if $field.Struct -}}
+        err = {{$location}}.Read(payloadLength, reader)
+        if err != nil {
+            return
+        }
+    {{- else if $field.Type -}}
+        {{$location}}, err = Read{{camelCase $field.Type}}(reader)
+        if err != nil {
+            return
+        }
+    {{- end -}}
+{{end -}}
+
+{{define "readField" -}}
+    {{$parent := (index . 0) -}}
+    {{$field := (index . 1) -}}
+
+    {{if $field.If -}}
+        if {{$field.If}} {
+    {{end -}}
+
+    {{if $field.LengthPrefixed -}}
+        var {{$field.Name}}Length {{$field.LengthPrefixed}}
+        {{$field.Name}}Length, err = Read{{camelCase $field.LengthPrefixed}}(reader)
+        if err != nil {
+            return
+        }
+    {{else if $field.ArrayLength -}}
+        {{$field.Name}}Length := {{$field.ArrayLength}}
+    {{end -}}
+
+    {{if or $field.LengthPrefixed $field.ArrayLength -}}
+        T.{{$field.Name}} = make({{template "fieldType" (list $parent $field)}}, int({{$field.Name}}Length))
+        for i := 0; i < int({{$field.Name}}Length); i++ {
+            {{template "readFieldL1" (list $parent $field (printf "T.%s[i]" $field.Name))}}
+        }
+    {{else -}}
+        {{template "readFieldL1" (list $parent $field (printf "T.%s" $field.Name))}}
+    {{end -}}
+
+    {{if $field.If -}}
+        }
+    {{end -}}
+{{end -}}
+
+{{define "declareFields" -}}
+    {{$parent := (index . 0) -}}
+    {{$struct := (index . 1) -}}
+
+    {{range $idx, $field := $struct.Fields -}}
+        {{if $field.Struct -}}
+            {{template "declareFields" (list (printf "%s%s" $parent $field.Name) $field.Struct)}}
+        {{- end -}}
+    {{end -}}
+
+    type Fields{{$parent}} struct {
+        {{range $idx, $field := $struct.Fields -}}
+            {{template "declareField" (list $parent $field) -}}
+        {{end -}}
+    }
+
+    func (T *Fields{{$parent}}) Read(payloadLength int, reader io.Reader) (err error) {
+        {{range $idx, $field := $struct.Fields -}}
+            {{template "readField" (list $parent $field) -}}
+        {{end -}}
+        return
+    }
+{{end -}}
+
+{{range $name, $packet := . -}}
+    {{template "declareFields" (list $name $packet) -}}
+
+    type {{$name}} struct {
+        fields Fields{{$name}}
+    }
+
+{{end -}}

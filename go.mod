@@ -6,8 +6,10 @@ require (
 	git.tuxpa.in/a/zlog v1.32.0
 	github.com/BurntSushi/toml v1.2.0
 	github.com/ethereum/go-ethereum v1.10.23
+	github.com/iancoleman/strcase v0.2.0
 	github.com/xdg-go/scram v1.1.1
 	golang.org/x/net v0.0.0-20220826154423-83b083e8dc8b
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (

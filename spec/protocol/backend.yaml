@@ -1,0 +1,138 @@
+Authentication:
+  Identifier: 'R'
+  Fields:
+    - Name: Data
+      Type: byte
+      ArrayLength: payloadLength
+BackendKeyData:
+  Identifier: 'K'
+  Fields:
+    - Name: ProcessID
+      Type: int32
+    - Name: SecretKey
+      Type: int32
+BindComplete:
+  Identifier: '2'
+CloseComplete:
+  Identifier: '3'
+CommandComplete:
+  Identifier: 'C'
+  Fields:
+    - Name: Data
+      Type: string
+CopyInResponse:
+  Identifier: 'G'
+  Fields:
+    - Name: Format
+      Type: int8
+    - Name: ColumnFormats
+      Type: int16
+      LengthPrefixed: int16
+CopyOutResponse:
+  Identifier: 'H'
+  Fields:
+    - Name: Format
+      Type: int8
+    - Name: ColumnFormats
+      Type: int16
+      LengthPrefixed: int16
+CopyBothResponse:
+  Identifier: 'W'
+  Fields:
+    - Name: Format
+      Type: int8
+    - Name: ColumnFormats
+      Type: int16
+      LengthPrefixed: int16
+DataRow:
+  Identifier: 'D'
+  Fields:
+    - Name: Columns
+      Struct:
+        Fields:
+          - Name: Bytes
+            Type: int8
+            LengthPrefixed: int32
+      LengthPrefixed: int16
+EmptyQueryResponse:
+  Identifier: 'I'
+ErrorResponse:
+  Identifier: 'E'
+  Fields:
+    - Name: Code
+      Type: byte
+    - Name: Value
+      Type: string
+FunctionCallResponse:
+  Identifier: 'V'
+  Fields:
+    - Name: Result
+      Type: byte
+      LengthPrefixed: int32
+NegotiateProtocolVersion:
+  Identifier: 'v'
+  Fields:
+    - Name: MinorVersion
+      Type: int32
+    - Name: NotRecognized
+      Type: string
+      LengthPrefixed: int32
+NoData:
+  Identifier: 'n'
+NoticeResponse:
+  Identifier: 'N'
+  Fields:
+    - Name: Type
+      Type: byte
+    - Name: Value
+      Type: string
+      If: 'T.Type != 0'
+NotificationResponse:
+  Identifier: 'A'
+  Fields:
+    - Name: ProcessID
+      Type: int32
+    - Name: Channel
+      Type: string
+    - Name: Payload
+      Type: string
+ParameterDescription:
+  Identifier: 't'
+  Fields:
+    - Name: Parameters
+      Type: int32
+      LengthPrefixed: int16
+ParameterStatus:
+  Identifier: 'S'
+  Fields:
+    - Name: Parameter
+      Type: string
+    - Name: Value
+      Type: string
+ParseComplete:
+  Identifier: '1'
+PortalSuspended:
+  Identifier: 's'
+ReadForQuery:
+  Identifier: 'Z'
+RowDescription:
+  Identifier: 'T'
+  Fields:
+    - Name: Fields
+      Struct:
+        Fields:
+          - Name: Name
+            Type: string
+          - Name: TableId
+            Type: int32
+          - Name: AttributeNumber
+            Type: int16
+          - Name: DataType
+            Type: int32
+          - Name: DataTypeSize
+            Type: int16
+          - Name: TypeModifier
+            Type: int32
+          - Name: FormatCode
+            Type: int16
+      LengthPrefixed: int16
