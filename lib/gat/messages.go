@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
+
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 )
 
@@ -33,7 +34,8 @@ func Md5HashPassword(user string, password string, salt []byte) []byte {
 		[]byte(hex.EncodeToString(hsh1.Sum(nil))),
 	)
 	hsh2.Write(salt)
-	return append([]byte("md5"), hsh2.Sum(nil)...)
+	sum := hsh2.Sum(nil)
+	return append([]byte("md5"+hex.EncodeToString(sum)), 0)
 }
 
 // /// Implements a response to our custom `SET SHARDING KEY`

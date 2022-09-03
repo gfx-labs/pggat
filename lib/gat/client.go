@@ -5,13 +5,16 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"errors"
 	"fmt"
-	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"io"
 	"math/big"
 	"net"
 	"reflect"
+	"strings"
+
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 
 	"gfx.cafe/gfx/pggat/lib/config"
 	"git.tuxpa.in/a/zlog"
@@ -101,12 +104,52 @@ func NewClient(
 }
 
 func (c *Client) Accept(ctx context.Context) error {
+	// read a packet
 	startup := new(protocol.StartupMessage)
 	err := startup.Read(c.r)
 	if err != nil {
 		return err
 	}
-
+	switch startup.Fields.ProtocolVersionNumber {
+	case 196608:
+	case 80877102:
+		return c.handle_cancel(ctx, startup)
+	case 80877103:
+		// ssl stuff now
+		useSsl := (c.conf.General.TlsCertificate != "")
+		if !useSsl {
+			_, err = protocol.WriteByte(c.wr, 'N')
+			if err != nil {
+				return err
+			}
+			startup = new(protocol.StartupMessage)
+			err := startup.Read(c.r)
+			if err != nil {
+				return err
+			}
+		} else {
+			_, err = protocol.WriteByte(c.wr, 'S')
+			if err != nil {
+				return err
+			}
+			//TODO: we need to do an ssl handshake here.
+			cert, err := tls.LoadX509KeyPair(c.conf.General.TlsCertificate, c.conf.General.TlsPrivateKey)
+			if err != nil {
+				return err
+			}
+			cfg := &tls.Config{
+				Certificates:       []tls.Certificate{cert},
+				InsecureSkipVerify: true,
+			}
+			c.conn = tls.Server(c.conn, cfg)
+			c.r = bufio.NewReader(c.conn)
+			c.wr = c.conn
+			err = startup.Read(c.r)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	params := make(map[string]string)
 	for _, v := range startup.Fields.Parameters {
 		params[v.Name] = v.Value
@@ -155,7 +198,9 @@ func (c *Client) Accept(ctx context.Context) error {
 
 	var rsp protocol.Packet
 	rsp, err = protocol.ReadFrontend(c.r)
-
+	if err != nil {
+		return err
+	}
 	var passwordResponse []byte
 	switch r := rsp.(type) {
 	case *protocol.AuthenticationResponse:
@@ -165,19 +210,24 @@ func (c *Client) Accept(ctx context.Context) error {
 	}
 
 	// Authenticate admin user.
-
 	if c.admin {
 		c.server_info = AdminServerInfo()
 		pw_hash := Md5HashPassword(c.conf.General.AdminUsername, c.conf.General.AdminPassword, salt[:])
 		if !reflect.DeepEqual(pw_hash, passwordResponse) {
-			return fmt.Errorf("password denied")
+			return fmt.Errorf("password denied for admin")
 		}
 	} else {
 		// TODO: actually get a server pool
-		pool := ServerPool{}
+		c.server_info = AdminServerInfo()
+		pool := ServerPool{
+			user: config.User{
+				Name:     "postgres",
+				Password: "postgres",
+			},
+		}
 		pw_hash := Md5HashPassword(c.username, pool.user.Password, salt[:])
 		if !reflect.DeepEqual(pw_hash, passwordResponse) {
-			return fmt.Errorf("password denied")
+			return fmt.Errorf("password denied for %s", c.username)
 		}
 	}
 	c.log.Debug().Msg("Password authentication successful")
@@ -187,6 +237,8 @@ func (c *Client) Accept(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	//
 	_, err = c.wr.Write(c.server_info)
 	if err != nil {
 		return err
@@ -205,6 +257,57 @@ func (c *Client) Accept(ctx context.Context) error {
 		return err
 	}
 	c.log.Debug().Msg("Ready for Query")
+	for {
+		err := c.tick(ctx)
+		if err != nil {
+			return err
+		}
+	}
+}
+
+// TODO: we need to keep track of queries so we can handle cancels
+func (c *Client) handle_cancel(ctx context.Context, p *protocol.StartupMessage) error {
+	log.Println("cancel msg", p)
+	return nil
+}
+
+// reads a packet from stream and handles it
+func (c *Client) tick(ctx context.Context) error {
+	rsp, err := protocol.ReadFrontend(c.r)
+	if err != nil {
+		return err
+	}
+	log.Println("(%v): %s", reflect.TypeOf(c), c)
+	switch cast := rsp.(type) {
+	case *protocol.Describe:
+	case *protocol.Query:
+		return c.handle_query(ctx, cast)
+	default:
+	}
+	return nil
+}
+
+func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
+	//TODO: use the query router here
+	// get the first word of the query
+	ans := &protocol.CommandComplete{}
+	words := strings.Split(strings.ToLower(strings.TrimSpace(q.Fields.Query)), " ")
+	switch words[0] {
+	case "set":
+		ans.Fields.Data = "SET"
+	case "select":
+		ans.Fields.Data = "SELECT"
+	}
+	_, err := ans.Write(c.wr)
+	if err != nil {
+		return err
+	}
+	ready := &protocol.ReadyForQuery{}
+	ready.Fields.Status = 'I'
+	_, err = ready.Write(c.wr)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

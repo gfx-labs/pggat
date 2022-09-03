@@ -1,45 +1,54 @@
 package gat
 
-//TODO: adapt tests
-//#[cfg(test)]
-//mod test {
-//    use super::*;
-//    use crate::messages::simple_query;
-//    use crate::pool::PoolMode;
-//    use crate::sharding::ShardingFunction;
-//    use bytes::BufMut;
-//
-//    #[test]
-//    fn test_defaults() {
-//        QueryRouter::setup();
-//        let qr = QueryRouter::new();
-//
-//        assert_eq!(qr.role(), None);
-//    }
-//
-//    #[test]
-//    fn test_infer_role_replica() {
-//        QueryRouter::setup();
-//        let mut qr = QueryRouter::new();
-//        assert!(qr.try_execute_command(simple_query("SET SERVER ROLE TO 'auto'")) != None);
-//        assert_eq!(qr.query_parser_enabled(), true);
-//
-//        assert!(qr.try_execute_command(simple_query("SET PRIMARY READS TO off")) != None);
-//
-//        let queries = vec![
-//            simple_query("SELECT * FROM items WHERE id = 5"),
-//            simple_query(
-//                "SELECT id, name, value FROM items INNER JOIN prices ON item.id = prices.item_id",
-//            ),
-//            simple_query("WITH t AS (SELECT * FROM items) SELECT * FROM t"),
-//        ];
-//
-//        for query in queries {
-//            // It's a recognized query
-//            assert!(qr.infer_role(query));
-//            assert_eq!(qr.role(), Some(Role::Replica));
-//        }
-//    }
+import (
+	"testing"
+
+	"gfx.cafe/gfx/pggat/lib/config"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+)
+
+// TODO: adapt tests
+func TestQueryRouterInterRoleReplica(t *testing.T) {
+	qr := &QueryRouter{}
+	pkt := &protocol.Parse{}
+	pkt.Fields.Query = `UPDATE items SET name = 'pumpkin' WHERE id = 5`
+	err := qr.InferRole(pkt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if qr.active_role != config.SERVERROLE_PRIMARY {
+		t.Error("expect primary")
+	}
+	pkt.Fields.Query = `select * from items WHERE id = 5`
+	err = qr.InferRole(pkt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if qr.active_role != config.SERVERROLE_REPLICA {
+		t.Error("expect replica")
+	}
+
+}
+
+//      assert!(qr.try_execute_command(simple_query("SET SERVER ROLE TO 'auto'")) != None);
+//      assert_eq!(qr.query_parser_enabled(), true);
+
+//      assert!(qr.try_execute_command(simple_query("SET PRIMARY READS TO off")) != None);
+
+//      let queries = vec![
+//          simple_query("SELECT * FROM items WHERE id = 5"),
+//          simple_query(
+//              "SELECT id, name, value FROM items INNER JOIN prices ON item.id = prices.item_id",
+//          ),
+//          simple_query("WITH t AS (SELECT * FROM items) SELECT * FROM t"),
+//      ];
+
+//      for query in queries {
+//          // It's a recognized query
+//          assert!(qr.infer_role(query));
+//          assert_eq!(qr.role(), Some(Role::Replica));
+//      }
+//  }
 //
 //    #[test]
 //    fn test_infer_role_primary() {

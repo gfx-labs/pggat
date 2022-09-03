@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"log"
+
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 )
 
 // test config, should be changed
-const CONFIG = "./lib/config/config_data.toml"
+const CONFIG = "./config_data.toml"
 
 func main() {
 	conf, err := config.Load(CONFIG)
@@ -20,6 +22,7 @@ func main() {
 		panic(err)
 	}
 
+	log.Println("listening on port", conf.General.Port)
 	err = gatling.ListenAndServe(context.Background())
 	if err != nil {
 		panic(err)

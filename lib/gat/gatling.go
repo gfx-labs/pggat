@@ -3,9 +3,11 @@ package gat
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 
 	"gfx.cafe/gfx/pggat/lib/config"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 )
 
 type Gatling struct {
@@ -42,12 +44,32 @@ func (g *Gatling) ListenAndServe(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		go g.handleConnection(ctx, c)
+		go func() {
+			err := g.handleConnection(ctx, c)
+			if err != nil {
+				log.Println("disconnected:", err)
+			}
+		}()
 	}
 }
 
 // TODO: TLS
 func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) error {
 	cl := NewClient(g.c, c, g.csm, false)
-	return cl.Accept(ctx)
+	err := cl.Accept(ctx)
+	if err != nil {
+		resp := &protocol.ErrorResponse{
+			Fields: protocol.FieldsErrorResponse{
+				Responses: []protocol.FieldsErrorResponseResponses{
+					{
+						Code:  0,
+						Value: err.Error(),
+					},
+				},
+			},
+		}
+		log.Println(err.Error())
+		resp.Write(cl.wr)
+	}
+	return nil
 }

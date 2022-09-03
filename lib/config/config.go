@@ -1,8 +1,9 @@
 package config
 
 import (
-	"github.com/BurntSushi/toml"
 	"os"
+
+	"github.com/BurntSushi/toml"
 )
 
 type PoolMode string
@@ -44,6 +45,9 @@ type General struct {
 	ShutdownTimeout    int `toml:"shutdown_timeout" yaml:"shutdown_timeout" json:"shutdown_timeout"`
 
 	BanTime int `toml:"ban_time" yaml:"ban_time" json:"ban_time"`
+
+	TlsCertificate string `toml:"tls_certificate" yaml:"tls_certificate" json:"tls_certificate"`
+	TlsPrivateKey  string `toml:"tls_private_key" yaml:"tls_private_key" json:"tls_private_key"`
 
 	AutoReload bool `toml:"autoreload" yaml:"autoreload" json:"autoreload"`
 }

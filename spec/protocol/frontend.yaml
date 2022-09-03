@@ -104,7 +104,14 @@ StartupMessage:
   Fields:
     - Name: ProtocolVersionNumber
       Type: int32
+    - Name: ProcessKey
+      Type: int32
+      If: 'T.ProtocolVersionNumber == 80877102'
+    - Name: SecretKey
+      Type: int32
+      If: 'T.ProtocolVersionNumber == 80877102'
     - Name: Parameters
+      If: 'T.ProtocolVersionNumber == 196608'
       Struct:
         Fields:
           - Name: Name

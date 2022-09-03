@@ -85,10 +85,10 @@ var _ io.Reader
     {{else if $field.While -}}
         var P {{template "fieldTypeNoArr" (list $parent $field)}}
         for ok := true; ok; ok = {{$field.While}} {
-            {{template "readFieldL1" (list $parent $field "P")}}
-            T.{{$field.Name}} = append(T.{{$field.Name}}, P)
-            var newp {{template "fieldTypeNoArr" (list $parent $field)}}
-            P = newp
+            var newP {{template "fieldTypeNoArr" (list $parent $field)}}
+            {{template "readFieldL1" (list $parent $field "newP")}}
+            T.{{$field.Name}} = append(T.{{$field.Name}}, newP)
+            P = newP
         }
     {{else -}}
         {{template "readFieldL1" (list $parent $field (printf "T.%s" $field.Name))}}
@@ -216,9 +216,9 @@ var _ io.Reader
                 return
             }
         {{end -}}
-        _, err = WriteInt32(writer, int32(length))
+        _, err = WriteInt32(writer, int32(length) + 4)
         if err != nil {
-            length = 5
+            length += 5
             return
         }
         length += 5

@@ -67,9 +67,9 @@ func (T *CopyData) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -120,9 +120,9 @@ func (T *CopyDone) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5

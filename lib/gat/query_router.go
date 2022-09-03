@@ -1,10 +1,17 @@
 package gat
 
 import (
+	"fmt"
 	"log"
 	"regexp"
+	"strings"
 
 	"gfx.cafe/gfx/pggat/lib/config"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+
+	"github.com/auxten/postgresql-parser/pkg/sql/parser"
+	"github.com/auxten/postgresql-parser/pkg/sql/sem/tree"
+	"github.com/auxten/postgresql-parser/pkg/walk"
 )
 
 var compiler = regexp.MustCompile
@@ -54,17 +61,13 @@ func (r *QueryRouter) UpdatePoolSettings(pool_settings PoolSettings) {
 }
 
 // / Try to parse a command and execute it.
-func (r *QueryRouter) try_execute_command(buf []byte) (Command, string) {
+func (r *QueryRouter) try_execute_command(pkt protocol.Query) (Command, string) {
 	// Only simple protocol supported for commands.
-	if buf[0] != 'Q' {
-		return nil, ""
-	}
-	msglen := 0
 	// TODO: read msg len
 	// msglen := buf.get_i32()
 	custom := false
 	for _, v := range CustomSqlRegex {
-		if v.Match(buf[:msglen-5]) {
+		if v.MatchString(pkt.Fields.Query) {
 			custom = true
 			break
 		}
@@ -72,7 +75,7 @@ func (r *QueryRouter) try_execute_command(buf []byte) (Command, string) {
 	// This is not a custom query, try to infer which
 	// server it'll go to if the query parser is enabled.
 	if !custom {
-		log.Println("Regular query, not a command")
+		log.Println("regular query, not a command")
 		return nil, ""
 	}
 
@@ -198,80 +201,43 @@ func (r *QueryRouter) try_execute_command(buf []byte) (Command, string) {
 
 // / Try to infer which server to connect to based on the contents of the query.
 // TODO: implement
-func (r *QueryRouter) InferRole(buf []byte) bool {
-	log.Println("Inferring role")
-
-	//code := buf.get_u8() as char
-	//len := buf.get_i32() as usize
-
-	//query := switch code {
-	//	// Query
-	//	'Q' => {
-	//		query := string(&buf[:len - 5]).to_string()
-	//		log.Println("Query: '%v'", query)
-	//		query
-	//	}
-
-	//	// Parse (prepared statement)
-	//	'P' => {
-	//		mut start := 0
-	//		mut end
-
-	//		// Skip the name of the prepared statement.
-	//		while buf[start] != 0 && start < buf.len() {
-	//			start += 1
-	//		}
-	//		start += 1 // Skip terminating null
-
-	//		// Find the end of the prepared stmt (\0)
-	//		end := start
-	//		while buf[end] != 0 && end < buf.len() {
-	//			end += 1
-	//		}
-
-	//		query := string(&buf[start:end]).to_string()
-
-	//		log.Println("Prepared statement: '%v'", query)
-
-	//		query.replace("$", "") // Remove placeholders turning them into "values"
-	//	}
-
-	//	_ => return false,
-	//}
-
-	//ast := switch Parser::parse_sql(&PostgreSqlDialect %v, &query) {
-	//	Ok(ast) => ast,
-	//	Err(err) => {
-	//		log.Println("%v", err.to_string())
-	//		return false
-	//	}
-	//}
-
-	//if ast.len() == 0 {
-	//	return false
-	//}
-
-	//switch ast[0] {
-	//	// All transactions go to the primary, probably a write.
-	//	StartTransaction { : } => {
-	//		self.active_role := Some(Role::Primary)
-	//	}
-
-	//	// Likely a read-only query
-	//	Query { : } => {
-	//		self.active_role := switch self.primary_reads_enabled {
-	//			false => Some(Role::Replica), // If primary should not be receiving reads, use a replica.
-	//			true => None,                 // Any server role is fine in this case.
-	//		}
-	//	}
-
-	//	// Likely a write
-	//	_ => {
-	//		self.active_role := Some(Role::Primary)
-	//	}
-	//}
-
-	return true
+func (r *QueryRouter) InferRole(pkt protocol.Packet) error {
+	var query string
+	switch c := pkt.(type) {
+	case *protocol.Query:
+		r.active_role = config.SERVERROLE_REPLICA
+	case *protocol.Parse:
+		query = c.Fields.Query
+		query = strings.ReplaceAll(query, "$", "")
+	default:
+		return fmt.Errorf("unknown packet %v", pkt)
+	}
+	// ok now parse the query
+	wk := &walk.AstWalker{
+		Fn: func(ctx, node any) (stop bool) {
+			switch n := node.(type) {
+			case *tree.Update, *tree.UpdateExpr,
+				*tree.BeginTransaction, *tree.CommitTransaction, *tree.RollbackTransaction,
+				*tree.SetTransaction, *tree.ShowTransactionStatus, *tree.Delete, *tree.Insert:
+				//
+				r.active_role = config.SERVERROLE_PRIMARY
+				return true
+			default:
+				_ = n
+			}
+			return false
+		},
+	}
+	r.active_role = config.SERVERROLE_REPLICA
+	stmts, err := parser.Parse(query)
+	if err != nil {
+		return err
+	}
+	_, err = wk.Walk(stmts, nil)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // / Get the current desired server role we should be talking to.

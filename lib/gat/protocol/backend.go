@@ -67,9 +67,9 @@ func (T *Authentication) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -140,9 +140,9 @@ func (T *BackendKeyData) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -193,9 +193,9 @@ func (T *BindComplete) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -246,9 +246,9 @@ func (T *CloseComplete) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -309,9 +309,9 @@ func (T *CommandComplete) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -400,9 +400,9 @@ func (T *CopyBothResponse) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -491,9 +491,9 @@ func (T *CopyInResponse) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -582,9 +582,9 @@ func (T *CopyOutResponse) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -704,9 +704,9 @@ func (T *DataRow) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -757,9 +757,9 @@ func (T *EmptyQueryResponse) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -813,13 +813,13 @@ type FieldsErrorResponse struct {
 func (T *FieldsErrorResponse) Read(payloadLength int, reader io.Reader) (err error) {
 	var P FieldsErrorResponseResponses
 	for ok := true; ok; ok = P.Code != 0 {
-		err = P.Read(payloadLength, reader)
+		var newP FieldsErrorResponseResponses
+		err = newP.Read(payloadLength, reader)
 		if err != nil {
 			return
 		}
-		T.Responses = append(T.Responses, P)
-		var newp FieldsErrorResponseResponses
-		P = newp
+		T.Responses = append(T.Responses, newP)
+		P = newP
 	}
 	return
 }
@@ -865,9 +865,9 @@ func (T *ErrorResponse) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -946,9 +946,9 @@ func (T *FunctionCallResponse) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -1037,9 +1037,9 @@ func (T *NegotiateProtocolVersion) Write(writer io.Writer) (length int, err erro
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -1090,9 +1090,9 @@ func (T *NoData) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -1146,13 +1146,13 @@ type FieldsNoticeResponse struct {
 func (T *FieldsNoticeResponse) Read(payloadLength int, reader io.Reader) (err error) {
 	var P FieldsNoticeResponseResponses
 	for ok := true; ok; ok = P.Code != 0 {
-		err = P.Read(payloadLength, reader)
+		var newP FieldsNoticeResponseResponses
+		err = newP.Read(payloadLength, reader)
 		if err != nil {
 			return
 		}
-		T.Responses = append(T.Responses, P)
-		var newp FieldsNoticeResponseResponses
-		P = newp
+		T.Responses = append(T.Responses, newP)
+		P = newP
 	}
 	return
 }
@@ -1198,9 +1198,9 @@ func (T *NoticeResponse) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -1281,9 +1281,9 @@ func (T *NotificationResponse) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -1362,9 +1362,9 @@ func (T *ParameterDescription) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -1435,9 +1435,9 @@ func (T *ParameterStatus) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -1488,9 +1488,9 @@ func (T *ParseComplete) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -1541,9 +1541,9 @@ func (T *PortalSuspended) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -1604,9 +1604,9 @@ func (T *ReadyForQuery) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
@@ -1768,9 +1768,9 @@ func (T *RowDescription) Write(writer io.Writer) (length int, err error) {
 		length = 1
 		return
 	}
-	_, err = WriteInt32(writer, int32(length))
+	_, err = WriteInt32(writer, int32(length)+4)
 	if err != nil {
-		length = 5
+		length += 5
 		return
 	}
 	length += 5
