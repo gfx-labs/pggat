@@ -61,7 +61,7 @@ func (r *QueryRouter) UpdatePoolSettings(pool_settings PoolSettings) {
 }
 
 // / Try to parse a command and execute it.
-func (r *QueryRouter) try_execute_command(pkt protocol.Query) (Command, string) {
+func (r *QueryRouter) try_execute_command(pkt *protocol.Query) (Command, string) {
 	// Only simple protocol supported for commands.
 	// TODO: read msg len
 	// msglen := buf.get_i32()
