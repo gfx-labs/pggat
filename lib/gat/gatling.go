@@ -3,11 +3,10 @@ package gat
 import (
 	"context"
 	"fmt"
-	"log"
+	"git.tuxpa.in/a/zlog/log"
 	"net"
 
 	"gfx.cafe/gfx/pggat/lib/config"
-	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 )
 
 type Gatling struct {
@@ -58,18 +57,18 @@ func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) error {
 	cl := NewClient(g.c, c, g.csm, false)
 	err := cl.Accept(ctx)
 	if err != nil {
-		resp := &protocol.ErrorResponse{
-			Fields: protocol.FieldsErrorResponse{
-				Responses: []protocol.FieldsErrorResponseResponses{
-					{
-						Code:  0,
-						Value: err.Error(),
-					},
-				},
-			},
-		}
 		log.Println(err.Error())
-		resp.Write(cl.wr)
+		switch e := err.(type) {
+		case *PostgresError:
+			e.Packet().Write(cl.wr)
+		default:
+			pgErr := &PostgresError{
+				Severity: Error,
+				Code:     InternalError,
+				Message:  e.Error(),
+			}
+			pgErr.Packet().Write(cl.wr)
+		}
 	}
 	return nil
 }

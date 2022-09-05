@@ -6,7 +6,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -159,19 +158,31 @@ func (c *Client) Accept(ctx context.Context) error {
 	var ok bool
 	c.pool_name, ok = params["database"]
 	if !ok {
-		return fmt.Errorf("param database required")
+		return &PostgresError{
+			Severity: Fatal,
+			Code:     InvalidAuthorizationSpecification,
+			Message:  "param database required",
+		}
 	}
 
 	c.username, ok = params["user"]
 	if !ok {
-		return fmt.Errorf("param user required")
+		return &PostgresError{
+			Severity: Fatal,
+			Code:     InvalidAuthorizationSpecification,
+			Message:  "param user required",
+		}
 	}
 
 	c.admin = (c.pool_name == "pgcat" || c.pool_name == "pgbouncer")
 
 	if c.conf.General.AdminOnly && !c.admin {
 		c.log.Debug().Msg("rejected non admin, since admin only mode")
-		return errors.New("rejected non admin")
+		return &PostgresError{
+			Severity: Fatal,
+			Code:     InvalidAuthorizationSpecification,
+			Message:  "rejected non admin",
+		}
 	}
 
 	pid, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt32))
@@ -207,7 +218,11 @@ func (c *Client) Accept(ctx context.Context) error {
 	case *protocol.AuthenticationResponse:
 		passwordResponse = r.Fields.Data
 	default:
-		return fmt.Errorf("wanted AuthenticationResponse packet, got '%+v'", rsp)
+		return &PostgresError{
+			Severity: Fatal,
+			Code:     InvalidAuthorizationSpecification,
+			Message:  fmt.Sprintf("wanted AuthenticationResponse packet, got '%+v'", rsp),
+		}
 	}
 
 	// Authenticate admin user.
@@ -215,7 +230,11 @@ func (c *Client) Accept(ctx context.Context) error {
 		c.server_info = AdminServerInfo()
 		pw_hash := Md5HashPassword(c.conf.General.AdminUsername, c.conf.General.AdminPassword, salt[:])
 		if !reflect.DeepEqual(pw_hash, passwordResponse) {
-			return fmt.Errorf("password denied for admin")
+			return &PostgresError{
+				Severity: Fatal,
+				Code:     InvalidPassword,
+				Message:  "invalid password",
+			}
 		}
 	} else {
 		// TODO: actually get a server pool
@@ -228,7 +247,11 @@ func (c *Client) Accept(ctx context.Context) error {
 		}
 		pw_hash := Md5HashPassword(c.username, pool.user.Password, salt[:])
 		if !reflect.DeepEqual(pw_hash, passwordResponse) {
-			return fmt.Errorf("password denied for %s", c.username)
+			return &PostgresError{
+				Severity: Fatal,
+				Code:     InvalidPassword,
+				Message:  "invalid password",
+			}
 		}
 	}
 	c.log.Debug().Msg("Password authentication successful")

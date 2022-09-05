@@ -2,7 +2,7 @@ package gat
 
 import (
 	"fmt"
-	"log"
+	"git.tuxpa.in/a/zlog/log"
 	"regexp"
 	"strings"
 

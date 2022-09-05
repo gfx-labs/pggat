@@ -2,7 +2,7 @@ package gat
 
 import (
 	"context"
-	"log"
+	"git.tuxpa.in/a/zlog/log"
 	"testing"
 
 	"gfx.cafe/gfx/pggat/lib/config"

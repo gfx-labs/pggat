@@ -2,10 +2,9 @@ package main
 
 import (
 	"context"
-	"log"
-
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
+	"git.tuxpa.in/a/zlog/log"
 )
 
 // test config, should be changed
