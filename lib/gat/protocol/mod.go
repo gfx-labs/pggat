@@ -1,6 +1,9 @@
 package protocol
 
-import "io"
+import (
+	"errors"
+	"io"
+)
 
 // codegen: modify for debug only
 
@@ -8,6 +11,8 @@ type Packet interface {
 	Read(reader io.Reader) error
 	Write(writer io.Writer) (int, error)
 }
+
+var NoSuchIdentifier = errors.New("no such packet with identifier in namespace")
 
 // ReadFrontend switches on frontend packet identifiers and returns the matching packet
 // DO NOT call this function if the packet in queue does not have an identifier
@@ -47,6 +52,9 @@ func ReadFrontend(reader io.Reader) (packet Packet, err error) {
 		packet = new(Sync)
 	case byte('X'):
 		packet = new(Terminate)
+	default:
+		err = NoSuchIdentifier
+		return
 	}
 
 	err = packet.Read(reader)
@@ -115,6 +123,9 @@ func ReadBackend(reader io.Reader) (packet Packet, err error) {
 		packet = new(ReadyForQuery)
 	case byte('T'):
 		packet = new(RowDescription)
+	default:
+		err = NoSuchIdentifier
+		return
 	}
 
 	err = packet.Read(reader)

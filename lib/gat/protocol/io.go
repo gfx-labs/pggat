@@ -111,7 +111,7 @@ func WriteString(writer io.Writer, value string) (int, error) {
 	}
 	_, err = WriteByte(writer, 0)
 	if err != nil {
-		return 0, err
+		return len(value), err
 	}
 	return len(value) + 1, nil
 }

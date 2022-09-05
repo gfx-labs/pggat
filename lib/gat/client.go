@@ -123,7 +123,7 @@ func (c *Client) Accept(ctx context.Context) error {
 				return err
 			}
 			startup = new(protocol.StartupMessage)
-			err := startup.Read(c.r)
+			err = startup.Read(c.r)
 			if err != nil {
 				return err
 			}
@@ -133,7 +133,8 @@ func (c *Client) Accept(ctx context.Context) error {
 				return err
 			}
 			//TODO: we need to do an ssl handshake here.
-			cert, err := tls.LoadX509KeyPair(c.conf.General.TlsCertificate, c.conf.General.TlsPrivateKey)
+			var cert tls.Certificate
+			cert, err = tls.LoadX509KeyPair(c.conf.General.TlsCertificate, c.conf.General.TlsPrivateKey)
 			if err != nil {
 				return err
 			}
@@ -258,7 +259,7 @@ func (c *Client) Accept(ctx context.Context) error {
 	}
 	c.log.Debug().Msg("Ready for Query")
 	for {
-		err := c.tick(ctx)
+		err = c.tick(ctx)
 		if err != nil {
 			return err
 		}
