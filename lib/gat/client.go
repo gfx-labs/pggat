@@ -321,7 +321,6 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	log.Printf("%#v", rsp)
 	switch cast := rsp.(type) {
 	case *protocol.Describe:
 	case *protocol.FunctionCall:
@@ -350,7 +349,6 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 		switch r := rsp.(type) {
 		case *protocol.ReadyForQuery:
 			if r.Fields.Status == 'I' {
-				log.Println("done")
 				_, err = r.Write(c.wr)
 				if err != nil {
 					return err
@@ -358,14 +356,12 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 				return nil
 			}
 		case *protocol.CopyInResponse, *protocol.CopyOutResponse, *protocol.CopyBothResponse:
-			log.Println("moving to copy mode")
 			err = c.handle_copy(ctx, rsp)
 			if err != nil {
 				return err
 			}
 			continue
 		}
-		log.Printf("response %#v", rsp)
 		_, err = rsp.Write(c.wr)
 		if err != nil {
 			return err

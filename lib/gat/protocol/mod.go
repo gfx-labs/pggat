@@ -3,7 +3,6 @@ package protocol
 import (
 	"fmt"
 	"io"
-	"log"
 )
 
 // codegen: modify for debug only
@@ -126,8 +125,6 @@ func ReadBackend(reader io.Reader) (packet Packet, err error) {
 		err = fmt.Errorf("no such packet with identifier 0x%x in Backend", identifier)
 		return
 	}
-
-	log.Println("IDENTIFIER", identifier)
 
 	err = packet.Read(reader)
 	if err != nil {

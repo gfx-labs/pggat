@@ -8,7 +8,7 @@ import (
 
 func ReadByte(reader io.Reader) (byte, error) {
 	var b [1]byte
-	_, err := reader.Read(b[:])
+	_, err := io.ReadFull(reader, b[:])
 	return b[0], err
 }
 
@@ -19,7 +19,7 @@ func ReadInt8(reader io.Reader) (int8, error) {
 
 func ReadUint16(reader io.Reader) (uint16, error) {
 	var b [2]byte
-	_, err := reader.Read(b[:])
+	_, err := io.ReadFull(reader, b[:])
 	return binary.BigEndian.Uint16(b[:]), err
 }
 
@@ -30,7 +30,7 @@ func ReadInt16(reader io.Reader) (int16, error) {
 
 func ReadUint32(reader io.Reader) (uint32, error) {
 	var b [4]byte
-	_, err := reader.Read(b[:])
+	_, err := io.ReadFull(reader, b[:])
 	return binary.BigEndian.Uint32(b[:]), err
 }
 
@@ -41,7 +41,7 @@ func ReadInt32(reader io.Reader) (int32, error) {
 
 func ReadUint64(reader io.Reader) (uint64, error) {
 	var b [8]byte
-	_, err := reader.Read(b[:])
+	_, err := io.ReadFull(reader, b[:])
 	return binary.BigEndian.Uint64(b[:]), err
 }
 

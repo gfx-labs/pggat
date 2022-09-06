@@ -3,7 +3,6 @@ package protocol
 import (
 	"bytes"
 	"gfx.cafe/util/go/bufpool"
-	"git.tuxpa.in/a/zlog/log"
 	"io"
 )
 
@@ -710,7 +709,6 @@ func (T *FieldsDataRowColumns) Read(payloadLength int, reader io.Reader) (err er
 	if err != nil {
 		return
 	}
-	log.Println("Bytes length", BytesLength)
 	if BytesLength == int32(-1) {
 		BytesLength = 0
 	}
@@ -721,7 +719,6 @@ func (T *FieldsDataRowColumns) Read(payloadLength int, reader io.Reader) (err er
 			return
 		}
 	}
-	log.Println(string(T.Bytes))
 	return
 }
 
@@ -753,7 +750,6 @@ func (T *FieldsDataRow) Read(payloadLength int, reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	log.Println("columns length", ColumnsLength)
 	if ColumnsLength == int16(-1) {
 		ColumnsLength = 0
 	}
@@ -794,7 +790,6 @@ type DataRow struct {
 func (T *DataRow) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
-	log.Println("LENGTH", length)
 	if err != nil {
 		return
 	}
