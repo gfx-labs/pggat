@@ -57,6 +57,7 @@ func (T *CopyData) Read(reader io.Reader) (err error) {
 
 func (T *CopyData) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -110,6 +111,7 @@ func (T *CopyDone) Read(reader io.Reader) (err error) {
 
 func (T *CopyDone) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {

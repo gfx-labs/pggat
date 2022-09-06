@@ -29,7 +29,8 @@ func CreateMd5Challenge() (*protocol.Authentication, [4]byte, error) {
 // Create md5 password hash given a salt.
 func Md5HashPassword(user string, password string, salt []byte) []byte {
 	hsh1, hsh2 := md5.New(), md5.New()
-	hsh1.Write([]byte(user + password))
+	hsh1.Write([]byte(password))
+	hsh1.Write([]byte(user))
 	hsh2.Write(
 		[]byte(hex.EncodeToString(hsh1.Sum(nil))),
 	)

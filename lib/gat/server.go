@@ -54,7 +54,7 @@ type Server struct {
 
 var ENDIAN = binary.BigEndian
 
-func DialServer(ctx context.Context, addr string, user *config.User, db string, csm map[ClientInfo]ClientInfo, stats any) (*Server, error) {
+func DialServer(ctx context.Context, addr string, user *config.User, db string, csm map[ClientKey]ClientInfo, stats any) (*Server, error) {
 	s := &Server{}
 	var err error
 	s.conn, err = net.Dial("tcp", addr)
@@ -144,7 +144,6 @@ func (s *Server) connect(ctx context.Context) error {
 					_, _ = protocol.WriteInt32(buf, int32(len(bts)))
 					buf.Write(bts)
 					rsp.Fields.Data = buf.Bytes()
-					log.Printf("rsp %+v", rsp)
 					_, err = rsp.Write(s.wr)
 				}()
 				if err != nil {

@@ -7,14 +7,12 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"fmt"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/util/maps"
 	"io"
 	"math/big"
 	"net"
 	"reflect"
-	"strings"
-
-	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 
 	"gfx.cafe/gfx/pggat/lib/config"
 	"git.tuxpa.in/a/zlog"
@@ -70,14 +68,13 @@ type Client struct {
 	stats      any // TODO: Reporter
 	admin      bool
 
-	server_info []*protocol.ParameterStatus
+	server *Server
 
 	last_addr_id int
 	last_srv_id  int
 
-	connected_to_server bool
-	pool_name           string
-	username            string
+	pool_name string
+	username  string
 
 	conf *config.Global
 
@@ -226,9 +223,27 @@ func (c *Client) Accept(ctx context.Context) error {
 		}
 	}
 
+	pool, ok := c.conf.Pools[c.pool_name]
+	if !ok {
+		return &PostgresError{
+			Severity: Fatal,
+			Code:     InvalidAuthorizationSpecification,
+			Message:  "no such pool",
+		}
+	}
+	_, user, ok := maps.FirstWhere(pool.Users, func(_ string, user config.User) bool {
+		return user.Name == c.username
+	})
+	if !ok {
+		return &PostgresError{
+			Severity: Fatal,
+			Code:     InvalidPassword,
+			Message:  "user not found",
+		}
+	}
+
 	// Authenticate admin user.
 	if c.admin {
-		c.server_info = AdminServerInfo()
 		pw_hash := Md5HashPassword(c.conf.General.AdminUsername, c.conf.General.AdminPassword, salt[:])
 		if !reflect.DeepEqual(pw_hash, passwordResponse) {
 			return &PostgresError{
@@ -238,25 +253,6 @@ func (c *Client) Accept(ctx context.Context) error {
 			}
 		}
 	} else {
-		c.server_info = AdminServerInfo()
-		pool, ok := c.conf.Pools[c.pool_name]
-		if !ok {
-			return &PostgresError{
-				Severity: Fatal,
-				Code:     InvalidAuthorizationSpecification,
-				Message:  "no such pool",
-			}
-		}
-		_, user, ok := maps.FirstWhere(pool.Users, func(_ string, user config.User) bool {
-			return user.Name == c.username
-		})
-		if !ok {
-			return &PostgresError{
-				Severity: Fatal,
-				Code:     InvalidPassword,
-				Message:  "invalid password",
-			}
-		}
 		pw_hash := Md5HashPassword(c.username, user.Password, salt[:])
 		if !reflect.DeepEqual(pw_hash, passwordResponse) {
 			return &PostgresError{
@@ -266,6 +262,14 @@ func (c *Client) Accept(ctx context.Context) error {
 			}
 		}
 	}
+
+	shard := pool.Shards["0"]
+	serv := shard.Servers[0]
+	c.server, err = DialServer(context.TODO(), fmt.Sprintf("%s:%d", serv.Host(), serv.Port()), &user, shard.Database, c.csm, nil)
+	if err != nil {
+		return err
+	}
+
 	c.log.Debug().Msg("Password authentication successful")
 	authOk := new(protocol.Authentication)
 	authOk.Fields.Code = 0
@@ -275,7 +279,7 @@ func (c *Client) Accept(ctx context.Context) error {
 	}
 
 	//
-	for _, inf := range c.server_info {
+	for _, inf := range c.server.server_info {
 		_, err = inf.Write(c.wr)
 		if err != nil {
 			return err
@@ -317,7 +321,7 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	log.Printf("%#v", rsp, rsp)
+	log.Printf("%#v", rsp)
 	switch cast := rsp.(type) {
 	case *protocol.Describe:
 	case *protocol.Query:
@@ -330,20 +334,29 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 }
 
 func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
-	//TODO: use the query router here
-	// get the first word of the query
-	ans := &protocol.CommandComplete{}
-	words := strings.Split(strings.ToLower(strings.TrimSpace(q.Fields.Query)), " ")
-	switch words[0] {
-	case "set":
-		ans.Fields.Data = "SET"
-	case "select":
-		ans.Fields.Data = "SELECT"
-	}
-	_, err := ans.Write(c.wr)
+	// TODO extract query and do stuff based on it
+	_, err := q.Write(c.server.wr)
 	if err != nil {
 		return err
 	}
+	for {
+		var rsp protocol.Packet
+		rsp, err = protocol.ReadBackend(c.server.r)
+		if err != nil {
+			return err
+		}
+		if r, ok := rsp.(*protocol.ReadyForQuery); ok {
+			if r.Fields.Status == 'I' {
+				break
+			}
+		}
+		log.Printf("response %#v", rsp)
+		_, err = rsp.Write(c.wr)
+		if err != nil {
+			return err
+		}
+	}
+
 	ready := &protocol.ReadyForQuery{}
 	ready.Fields.Status = 'I'
 	_, err = ready.Write(c.wr)

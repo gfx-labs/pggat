@@ -57,6 +57,7 @@ func (T *AuthenticationResponse) Read(reader io.Reader) (err error) {
 
 func (T *AuthenticationResponse) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -255,6 +256,7 @@ func (T *Bind) Read(reader io.Reader) (err error) {
 
 func (T *Bind) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -337,6 +339,7 @@ func (T *CancelRequest) Read(reader io.Reader) (err error) {
 
 func (T *CancelRequest) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -405,6 +408,7 @@ func (T *Close) Read(reader io.Reader) (err error) {
 
 func (T *Close) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -468,6 +472,7 @@ func (T *CopyFail) Read(reader io.Reader) (err error) {
 
 func (T *CopyFail) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -541,6 +546,7 @@ func (T *Describe) Read(reader io.Reader) (err error) {
 
 func (T *Describe) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -614,6 +620,7 @@ func (T *Execute) Read(reader io.Reader) (err error) {
 
 func (T *Execute) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -667,6 +674,7 @@ func (T *Flush) Read(reader io.Reader) (err error) {
 
 func (T *Flush) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -837,6 +845,7 @@ func (T *FunctionCall) Read(reader io.Reader) (err error) {
 
 func (T *FunctionCall) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -899,6 +908,7 @@ func (T *GSSENCRequest) Read(reader io.Reader) (err error) {
 
 func (T *GSSENCRequest) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -995,6 +1005,7 @@ func (T *Parse) Read(reader io.Reader) (err error) {
 
 func (T *Parse) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -1058,6 +1069,7 @@ func (T *Query) Read(reader io.Reader) (err error) {
 
 func (T *Query) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -1120,6 +1132,7 @@ func (T *SSLRequest) Read(reader io.Reader) (err error) {
 
 func (T *SSLRequest) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -1264,6 +1277,7 @@ func (T *StartupMessage) Read(reader io.Reader) (err error) {
 
 func (T *StartupMessage) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -1312,6 +1326,7 @@ func (T *Sync) Read(reader io.Reader) (err error) {
 
 func (T *Sync) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
@@ -1365,6 +1380,7 @@ func (T *Terminate) Read(reader io.Reader) (err error) {
 
 func (T *Terminate) Write(writer io.Writer) (length int, err error) {
 	buf := bufpool.Get(0)
+	buf.Reset()
 	defer bufpool.Put(buf)
 	length, err = T.Fields.Write(buf)
 	if err != nil {
