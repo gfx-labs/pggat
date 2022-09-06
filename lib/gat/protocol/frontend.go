@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"bytes"
+	"gfx.cafe/util/go/bufpool"
 	"io"
 )
 
@@ -55,9 +56,9 @@ func (T *AuthenticationResponse) Read(reader io.Reader) (err error) {
 }
 
 func (T *AuthenticationResponse) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -253,9 +254,9 @@ func (T *Bind) Read(reader io.Reader) (err error) {
 }
 
 func (T *Bind) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -335,9 +336,9 @@ func (T *CancelRequest) Read(reader io.Reader) (err error) {
 }
 
 func (T *CancelRequest) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -403,9 +404,9 @@ func (T *Close) Read(reader io.Reader) (err error) {
 }
 
 func (T *Close) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -466,9 +467,9 @@ func (T *CopyFail) Read(reader io.Reader) (err error) {
 }
 
 func (T *CopyFail) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -539,9 +540,9 @@ func (T *Describe) Read(reader io.Reader) (err error) {
 }
 
 func (T *Describe) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -612,9 +613,9 @@ func (T *Execute) Read(reader io.Reader) (err error) {
 }
 
 func (T *Execute) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -665,9 +666,9 @@ func (T *Flush) Read(reader io.Reader) (err error) {
 }
 
 func (T *Flush) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -835,9 +836,9 @@ func (T *FunctionCall) Read(reader io.Reader) (err error) {
 }
 
 func (T *FunctionCall) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -897,9 +898,9 @@ func (T *GSSENCRequest) Read(reader io.Reader) (err error) {
 }
 
 func (T *GSSENCRequest) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -993,9 +994,9 @@ func (T *Parse) Read(reader io.Reader) (err error) {
 }
 
 func (T *Parse) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -1056,9 +1057,9 @@ func (T *Query) Read(reader io.Reader) (err error) {
 }
 
 func (T *Query) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -1118,9 +1119,9 @@ func (T *SSLRequest) Read(reader io.Reader) (err error) {
 }
 
 func (T *SSLRequest) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -1262,9 +1263,9 @@ func (T *StartupMessage) Read(reader io.Reader) (err error) {
 }
 
 func (T *StartupMessage) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -1310,9 +1311,9 @@ func (T *Sync) Read(reader io.Reader) (err error) {
 }
 
 func (T *Sync) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -1363,9 +1364,9 @@ func (T *Terminate) Read(reader io.Reader) (err error) {
 }
 
 func (T *Terminate) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return

@@ -3,6 +3,7 @@ module gfx.cafe/gfx/pggat
 go 1.19
 
 require (
+	gfx.cafe/util/go/bufpool v0.0.0-20220906091724-3a24b7f40ccf
 	git.tuxpa.in/a/zlog v1.32.0
 	github.com/BurntSushi/toml v1.2.0
 	github.com/auxten/postgresql-parser v1.0.1

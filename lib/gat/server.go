@@ -62,7 +62,7 @@ func DialServer(ctx context.Context, addr string, user *config.User, db string, 
 	s.remote = s.conn.RemoteAddr()
 	s.r = bufio.NewReader(s.conn)
 	s.wr = s.conn
-	s.server_info = []byte{}
+	s.server_info = []*protocol.ParameterStatus{}
 	s.user = *user
 	s.db = db
 
@@ -76,7 +76,6 @@ func DialServer(ctx context.Context, addr string, user *config.User, db string, 
 
 func (s *Server) startup(ctx context.Context) error {
 	s.log.Debug().Msg("sending startup")
-	//TODO: grow / bufpool
 	start := new(protocol.StartupMessage)
 	start.Fields.ProtocolVersionNumber = 196608
 	start.Fields.Parameters = []protocol.FieldsStartupMessageParameters{

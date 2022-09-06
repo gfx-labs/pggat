@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"bytes"
+	"gfx.cafe/util/go/bufpool"
 	"io"
 )
 
@@ -55,9 +56,9 @@ func (T *CopyData) Read(reader io.Reader) (err error) {
 }
 
 func (T *CopyData) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return
@@ -108,9 +109,9 @@ func (T *CopyDone) Read(reader io.Reader) (err error) {
 }
 
 func (T *CopyDone) Write(writer io.Writer) (length int, err error) {
-	// TODO replace with pool
-	var buf bytes.Buffer
-	length, err = T.Fields.Write(&buf)
+	buf := bufpool.Get(0)
+	defer bufpool.Put(buf)
+	length, err = T.Fields.Write(buf)
 	if err != nil {
 		length = 0
 		return

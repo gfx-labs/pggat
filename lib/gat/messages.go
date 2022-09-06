@@ -21,7 +21,8 @@ func CreateMd5Challenge() (*protocol.Authentication, [4]byte, error) {
 	}
 
 	pkt := new(protocol.Authentication)
-	pkt.Fields.Data = append([]byte{0, 0, 0, 5}, salt[:]...)
+	pkt.Fields.Code = 5
+	pkt.Fields.Salt = salt[:]
 
 	return pkt, salt, nil
 }

@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"io"
+	"gfx.cafe/util/go/bufpool"
 )
 
 // codegen: modify for debug only
@@ -202,9 +203,9 @@ var _ io.Reader
     }
 
     func (T *{{$name}}) Write(writer io.Writer) (length int, err error) {
-        // TODO replace with pool
-        var buf bytes.Buffer
-        length, err = T.Fields.Write(&buf)
+        buf := bufpool.Get(0)
+        defer bufpool.Put(buf)
+        length, err = T.Fields.Write(buf)
         if err != nil {
             length = 0
             return

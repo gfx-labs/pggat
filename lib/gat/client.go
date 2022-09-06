@@ -256,7 +256,7 @@ func (c *Client) Accept(ctx context.Context) error {
 	}
 	c.log.Debug().Msg("Password authentication successful")
 	authOk := new(protocol.Authentication)
-	authOk.Fields.Data = []byte{0, 0, 0, 0}
+	authOk.Fields.Code = 0
 	_, err = authOk.Write(c.wr)
 	if err != nil {
 		return err
