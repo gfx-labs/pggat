@@ -324,6 +324,8 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	log.Printf("%#v", rsp)
 	switch cast := rsp.(type) {
 	case *protocol.Describe:
+	case *protocol.FunctionCall:
+		return true, c.handle_function(ctx, cast)
 	case *protocol.Query:
 		return true, c.handle_query(ctx, cast)
 	case *protocol.Terminate:
@@ -345,10 +347,23 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 		if err != nil {
 			return err
 		}
-		if r, ok := rsp.(*protocol.ReadyForQuery); ok {
+		switch r := rsp.(type) {
+		case *protocol.ReadyForQuery:
 			if r.Fields.Status == 'I' {
-				break
+				log.Println("done")
+				_, err = r.Write(c.wr)
+				if err != nil {
+					return err
+				}
+				return nil
 			}
+		case *protocol.CopyInResponse, *protocol.CopyOutResponse, *protocol.CopyBothResponse:
+			log.Println("moving to copy mode")
+			err = c.handle_copy(ctx, rsp)
+			if err != nil {
+				return err
+			}
+			continue
 		}
 		log.Printf("response %#v", rsp)
 		_, err = rsp.Write(c.wr)
@@ -356,14 +371,95 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 			return err
 		}
 	}
+}
 
-	ready := &protocol.ReadyForQuery{}
-	ready.Fields.Status = 'I'
-	_, err = ready.Write(c.wr)
+func (c *Client) handle_function(ctx context.Context, f *protocol.FunctionCall) error {
+	_, err := f.Write(c.wr)
 	if err != nil {
 		return err
 	}
+	for {
+		var rsp protocol.Packet
+		rsp, err = protocol.ReadBackend(c.server.r)
+		if err != nil {
+			return err
+		}
+		_, err = rsp.Write(c.wr)
+		if err != nil {
+			return err
+		}
+		if r, ok := rsp.(*protocol.ReadyForQuery); ok {
+			if r.Fields.Status == 'I' {
+				break
+			}
+		}
+	}
+
 	return nil
+}
+
+func (c *Client) handle_copy(ctx context.Context, p protocol.Packet) error {
+	_, err := p.Write(c.wr)
+	if err != nil {
+		return err
+	}
+	switch p.(type) {
+	case *protocol.CopyInResponse:
+	outer:
+		for {
+			var rsp protocol.Packet
+			rsp, err = protocol.ReadFrontend(c.r)
+			if err != nil {
+				return err
+			}
+			// forward packet
+			_, err = rsp.Write(c.server.wr)
+			if err != nil {
+				return err
+			}
+
+			switch rsp.(type) {
+			case *protocol.CopyDone, *protocol.CopyFail:
+				break outer
+			}
+		}
+		return nil
+	case *protocol.CopyOutResponse:
+		for {
+			var rsp protocol.Packet
+			rsp, err = protocol.ReadBackend(c.server.r)
+			if err != nil {
+				return err
+			}
+			// forward packet
+			_, err = rsp.Write(c.wr)
+			if err != nil {
+				return err
+			}
+
+			switch r := rsp.(type) {
+			case *protocol.CopyDone:
+				return nil
+			case *protocol.ErrorResponse:
+				e := new(PostgresError)
+				e.Read(r)
+				return e
+			}
+		}
+	case *protocol.CopyBothResponse:
+		// TODO fix this filthy hack, instead of going in parallel (like normal), read fields serially
+		err = c.handle_copy(ctx, new(protocol.CopyInResponse))
+		if err != nil {
+			return err
+		}
+		err = c.handle_copy(ctx, new(protocol.CopyOutResponse))
+		if err != nil {
+			return err
+		}
+		return nil
+	default:
+		panic("unreachable")
+	}
 }
 
 func todo() {

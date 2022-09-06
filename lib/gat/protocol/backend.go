@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"gfx.cafe/util/go/bufpool"
+	"git.tuxpa.in/a/zlog/log"
 	"io"
 )
 
@@ -700,7 +701,7 @@ func (T *CopyOutResponse) Write(writer io.Writer) (length int, err error) {
 var _ Packet = (*CopyOutResponse)(nil)
 
 type FieldsDataRowColumns struct {
-	Bytes []int8
+	Bytes []byte
 }
 
 func (T *FieldsDataRowColumns) Read(payloadLength int, reader io.Reader) (err error) {
@@ -709,16 +710,18 @@ func (T *FieldsDataRowColumns) Read(payloadLength int, reader io.Reader) (err er
 	if err != nil {
 		return
 	}
+	log.Println("Bytes length", BytesLength)
 	if BytesLength == int32(-1) {
 		BytesLength = 0
 	}
-	T.Bytes = make([]int8, int(BytesLength))
+	T.Bytes = make([]byte, int(BytesLength))
 	for i := 0; i < int(BytesLength); i++ {
-		T.Bytes[i], err = ReadInt8(reader)
+		T.Bytes[i], err = ReadByte(reader)
 		if err != nil {
 			return
 		}
 	}
+	log.Println(string(T.Bytes))
 	return
 }
 
@@ -730,7 +733,7 @@ func (T *FieldsDataRowColumns) Write(writer io.Writer) (length int, err error) {
 	}
 	length += temp
 	for _, v := range T.Bytes {
-		temp, err = WriteInt8(writer, v)
+		temp, err = WriteByte(writer, v)
 		if err != nil {
 			return
 		}
@@ -750,6 +753,7 @@ func (T *FieldsDataRow) Read(payloadLength int, reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
+	log.Println("columns length", ColumnsLength)
 	if ColumnsLength == int16(-1) {
 		ColumnsLength = 0
 	}
@@ -790,6 +794,7 @@ type DataRow struct {
 func (T *DataRow) Read(reader io.Reader) (err error) {
 	var length int32
 	length, err = ReadInt32(reader)
+	log.Println("LENGTH", length)
 	if err != nil {
 		return
 	}

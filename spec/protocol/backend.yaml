@@ -70,7 +70,7 @@ DataRow:
       Struct:
         Fields:
           - Name: Bytes
-            Type: int8
+            Type: byte
             LengthPrefixed: int32
       LengthPrefixed: int16
 EmptyQueryResponse:
