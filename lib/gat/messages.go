@@ -1,7 +1,6 @@
 package gat
 
 import (
-	"bytes"
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
@@ -315,12 +314,3 @@ func Md5HashPassword(user string, password string, salt []byte) []byte {
 //
 //	   Ok(bytes)
 //	}
-func ServerParameterMessage(key, value string) []byte {
-	buf := new(bytes.Buffer)
-	pkt := new(protocol.ParameterStatus)
-	pkt.Fields.Parameter = key
-	pkt.Fields.Value = value
-	_, _ = pkt.Write(buf)
-
-	return buf.Bytes()
-}

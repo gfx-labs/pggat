@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"fmt"
+	"gfx.cafe/gfx/pggat/lib/util/maps"
 	"io"
 	"math/big"
 	"net"
@@ -69,7 +70,7 @@ type Client struct {
 	stats      any // TODO: Reporter
 	admin      bool
 
-	server_info []byte
+	server_info []*protocol.ParameterStatus
 
 	last_addr_id int
 	last_srv_id  int
@@ -237,15 +238,26 @@ func (c *Client) Accept(ctx context.Context) error {
 			}
 		}
 	} else {
-		// TODO: actually get a server pool
 		c.server_info = AdminServerInfo()
-		pool := ServerPool{
-			user: config.User{
-				Name:     "postgres",
-				Password: "postgres",
-			},
+		pool, ok := c.conf.Pools[c.pool_name]
+		if !ok {
+			return &PostgresError{
+				Severity: Fatal,
+				Code:     InvalidAuthorizationSpecification,
+				Message:  "no such pool",
+			}
 		}
-		pw_hash := Md5HashPassword(c.username, pool.user.Password, salt[:])
+		_, user, ok := maps.FirstWhere(pool.Users, func(_ string, user config.User) bool {
+			return user.Name == c.username
+		})
+		if !ok {
+			return &PostgresError{
+				Severity: Fatal,
+				Code:     InvalidPassword,
+				Message:  "invalid password",
+			}
+		}
+		pw_hash := Md5HashPassword(c.username, user.Password, salt[:])
 		if !reflect.DeepEqual(pw_hash, passwordResponse) {
 			return &PostgresError{
 				Severity: Fatal,
@@ -263,9 +275,11 @@ func (c *Client) Accept(ctx context.Context) error {
 	}
 
 	//
-	_, err = c.wr.Write(c.server_info)
-	if err != nil {
-		return err
+	for _, inf := range c.server_info {
+		_, err = inf.Write(c.wr)
+		if err != nil {
+			return err
+		}
 	}
 	backendKeyData := new(protocol.BackendKeyData)
 	backendKeyData.Fields.ProcessID = c.pid
@@ -303,7 +317,7 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	log.Printf("%T %+v", rsp, rsp)
+	log.Printf("%#v", rsp, rsp)
 	switch cast := rsp.(type) {
 	case *protocol.Describe:
 	case *protocol.Query:

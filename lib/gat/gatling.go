@@ -39,7 +39,8 @@ func (g *Gatling) ListenAndServe(ctx context.Context) error {
 		return err
 	}
 	for {
-		c, err := ln.Accept()
+		var c net.Conn
+		c, err = ln.Accept()
 		if err != nil {
 			return err
 		}

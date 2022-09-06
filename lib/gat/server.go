@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
-	"gfx.cafe/gfx/pggat/lib/util"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
 	"gfx.cafe/util/go/bufpool"
 	"io"
 	"net"
@@ -111,7 +111,6 @@ func (s *Server) connect(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		log.Printf("pkt %T %+v", pkt, pkt)
 		switch p := pkt.(type) {
 		case *protocol.Authentication:
 			switch p.Fields.Code {
@@ -120,7 +119,7 @@ func (s *Server) connect(ctx context.Context) error {
 			case 0: // AUTH SUCCESS
 			case 10: // SASL
 				s.log.Debug().Msg("starting sasl auth")
-				if util.Contains(p.Fields.SASLMechanism, scram.SHA256.Name()) {
+				if slices.Contains(p.Fields.SASLMechanism, scram.SHA256.Name()) {
 					s.log.Debug().Str("method", "scram256").Msg("valid protocol")
 				} else {
 					return fmt.Errorf("unsupported scram version: %s", p.Fields.SASLMechanism)

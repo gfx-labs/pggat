@@ -1,17 +1,50 @@
 package gat
 
-import "bytes"
+import (
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+)
 
 const SERVER_VERSION = "0.0.1"
 
-func AdminServerInfo() []byte {
-	buf := new(bytes.Buffer)
-	buf.Write(ServerParameterMessage("application_name", ""))
-	buf.Write(ServerParameterMessage("client_encoding", "UTF8"))
-	buf.Write(ServerParameterMessage("server_encoding", "UTF8"))
-	buf.Write(ServerParameterMessage("server_version", SERVER_VERSION))
-	buf.Write(ServerParameterMessage("DateStyle", "ISO, MDY"))
-	return buf.Bytes()
+func AdminServerInfo() []*protocol.ParameterStatus {
+	return []*protocol.ParameterStatus{
+		{
+			Fields: protocol.FieldsParameterStatus{
+				Parameter: "application_name",
+				Value:     "",
+			},
+		},
+		{
+			Fields: protocol.FieldsParameterStatus{
+				Parameter: "client_encoding",
+				Value:     "UTF8",
+			},
+		},
+		{
+			Fields: protocol.FieldsParameterStatus{
+				Parameter: "server_encoding",
+				Value:     "UTF8",
+			},
+		},
+		{
+			Fields: protocol.FieldsParameterStatus{
+				Parameter: "server_encoding",
+				Value:     "UTF8",
+			},
+		},
+		{
+			Fields: protocol.FieldsParameterStatus{
+				Parameter: "server_version",
+				Value:     SERVER_VERSION,
+			},
+		},
+		{
+			Fields: protocol.FieldsParameterStatus{
+				Parameter: "DataStyle",
+				Value:     "ISO, MDY",
+			},
+		},
+	}
 }
 
 ///// Handle admin client.

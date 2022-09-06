@@ -64,7 +64,7 @@ type Pool struct {
 }
 
 type User struct {
-	Name             string `toml:"name" yaml:"name" json:"name"`
+	Name             string `toml:"username" yaml:"name" json:"name"`
 	Password         string `toml:"password" yaml:"password" json:"password"`
 	PoolSize         int    `toml:"pool_size" yaml:"pool_size" json:"pool_size"`
 	StatementTimeout int    `toml:"statement_timeout" yaml:"statement_timeout" json:"statement_timeout"`
