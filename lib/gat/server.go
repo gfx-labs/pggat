@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/util"
+	"gfx.cafe/util/go/bufpool"
 	"io"
 	"net"
 	"time"
@@ -110,6 +111,7 @@ func (s *Server) connect(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		log.Printf("pkt %T %+v", pkt, pkt)
 		switch p := pkt.(type) {
 		case *protocol.Authentication:
 			switch p.Fields.Code {
@@ -134,13 +136,18 @@ func (s *Server) connect(ctx context.Context) error {
 					return err
 				}
 
-				rsp := new(protocol.AuthenticationResponse)
-				buf := new(bytes.Buffer)
-				_, _ = protocol.WriteString(buf, scrm.Name())
-				_, _ = protocol.WriteInt32(buf, int32(len(bts)))
-				buf.Write(bts)
-				rsp.Fields.Data = buf.Bytes()
-				_, err = rsp.Write(s.wr)
+				func() {
+					rsp := new(protocol.AuthenticationResponse)
+					buf := bufpool.Get(len(scrm.Name()) + 1 + 4 + len(bts))
+					buf.Reset()
+					defer bufpool.Put(buf)
+					_, _ = protocol.WriteString(buf, scrm.Name())
+					_, _ = protocol.WriteInt32(buf, int32(len(bts)))
+					buf.Write(bts)
+					rsp.Fields.Data = buf.Bytes()
+					log.Printf("rsp %+v", rsp)
+					_, err = rsp.Write(s.wr)
+				}()
 				if err != nil {
 					return err
 				}

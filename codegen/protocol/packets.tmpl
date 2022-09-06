@@ -204,6 +204,7 @@ var _ io.Reader
 
     func (T *{{$name}}) Write(writer io.Writer) (length int, err error) {
         buf := bufpool.Get(0)
+        buf.Reset()
         defer bufpool.Put(buf)
         length, err = T.Fields.Write(buf)
         if err != nil {
