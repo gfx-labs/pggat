@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"io"
 	"net"
 	"time"
@@ -25,7 +26,7 @@ type Server struct {
 
 	buf bytes.Buffer
 
-	server_info []byte
+	server_info []*protocol.ParameterStatus
 
 	process_id int32
 	secret_key int32
@@ -76,48 +77,20 @@ func DialServer(ctx context.Context, addr string, user *config.User, db string, 
 func (s *Server) startup(ctx context.Context) error {
 	s.log.Debug().Msg("sending startup")
 	//TODO: grow / bufpool
-	buf := new(bytes.Buffer)
-	err := binary.Write(buf, ENDIAN, int32(196608))
-	if err != nil {
-		return err
+	start := new(protocol.StartupMessage)
+	start.Fields.ProtocolVersionNumber = 196608
+	start.Fields.Parameters = []protocol.FieldsStartupMessageParameters{
+		{
+			Name:  "user",
+			Value: s.user.Name,
+		},
+		{
+			Name:  "database",
+			Value: s.db,
+		},
+		{},
 	}
-	_, err = buf.WriteString("user\000")
-	if err != nil {
-		return err
-	}
-	_, err = buf.WriteString(s.user.Name)
-	if err != nil {
-		return err
-	}
-	err = buf.WriteByte(0)
-	if err != nil {
-		return err
-	}
-	_, err = buf.WriteString("database\000")
-	if err != nil {
-		return err
-	}
-	_, err = buf.WriteString(s.db)
-	if err != nil {
-		return err
-	}
-	err = buf.WriteByte(0)
-	if err != nil {
-		return err
-	}
-	err = buf.WriteByte(0)
-	if err != nil {
-		return err
-	}
-	//TODO: grow / bufpool
-	buf2 := new(bytes.Buffer)
-	buf2.Grow(buf.Len() + 4)
-	err = binary.Write(buf2, ENDIAN, int32(buf.Len())+4)
-	if err != nil {
-		return err
-	}
-	buf2.Write(buf.Bytes())
-	_, err = s.wr.Write(buf2.Bytes())
+	_, err := start.Write(s.wr)
 	if err != nil {
 		return err
 	}
@@ -132,126 +105,61 @@ func (s *Server) connect(ctx context.Context) error {
 	var scrm sasl.Mechanism
 	var sm sasl.StateMachine
 	for {
-		code, err := s.r.ReadByte()
+		var pkt protocol.Packet
+		pkt, err = protocol.ReadBackend(s.r)
 		if err != nil {
 			return err
 		}
-		var msglen32 int32
-		err = binary.Read(s.r, ENDIAN, &msglen32)
-		if err != nil {
-			return err
-		}
-		msglen := int(msglen32)
-		s.log.Debug().Str("code", string(code)).Int("len", msglen).Msg("startup msg")
-		switch code {
-		case 'R':
-			var auth_code int32
-			err = binary.Read(s.r, ENDIAN, &auth_code)
-			if err != nil {
-				return err
-			}
-			//TODO: move these into constants
-			switch auth_code {
+		switch p := pkt.(type) {
+		case *protocol.Authentication:
+			switch p.Fields.Code {
 			case 5: //MD5_ENCRYPTED_PASSWORD
-				salt := make([]byte, 4)
-				_, err := io.ReadFull(s.r, salt)
-				if err != nil {
-					return err
-				}
+
 			case 0: // AUTH SUCCESS
 			case 10: // SASL
 				s.log.Debug().Msg("starting sasl auth")
-				sasl_len := (msglen) - 8
-				sasl_auth := make([]byte, sasl_len)
-				_, err := io.ReadFull(s.r, sasl_auth)
+				switch p.Fields.SASLMechanism {
+				case scram.SHA256.Name():
+					s.log.Debug().Str("method", "scram256").Msg("valid protocol")
+				default:
+					return fmt.Errorf("unsupported scram version: %s", p.Fields.SASLMechanism)
+				}
+
+				scrm, err = scram.Mechanism(scram.SHA256, s.user.Name, s.user.Password)
 				if err != nil {
 					return err
 				}
-				sasl_type := string(sasl_auth[:len(sasl_auth)-2])
-				switch sasl_type {
-				case scram.SHA256.Name():
-					s.log.Debug().Str("method", "scram256").Msg("valid protocol")
-					scrm, err = scram.Mechanism(scram.SHA256, s.user.Name, s.user.Password)
-					if err != nil {
-						return err
-					}
-					var bts []byte
-					sm, bts, err = scrm.Start(ctx)
-					if err != nil {
-						return err
-					}
-					resp := new(bytes.Buffer)
-					//TODO: grow buffer or use bufpool
-					err = resp.WriteByte('p')
-					if err != nil {
-						return err
-					}
-					err = binary.Write(resp, ENDIAN, int32(4+len(scrm.Name())+1+4+len(bts)))
-					if err != nil {
-						return err
-					}
-					// write header
-					_, err = resp.WriteString(scrm.Name())
-					if err != nil {
-						return err
-					}
-					err = resp.WriteByte(0)
-					if err != nil {
-						return err
-					}
-					// write length
-					err = binary.Write(resp, ENDIAN, int32(len(bts)))
-					if err != nil {
-						return err
-					}
-					_, err = resp.Write(bts)
-					if err != nil {
-						return err
-					}
-					_, err = resp.WriteTo(s.wr)
-					if err != nil {
-						return err
-					}
-				default:
-					return fmt.Errorf("unsupported scram version: %s", sasl_type)
+				var bts []byte
+				sm, bts, err = scrm.Start(ctx)
+				if err != nil {
+					return err
+				}
+
+				rsp := new(protocol.AuthenticationResponse)
+				buf := new(bytes.Buffer)
+				_, _ = protocol.WriteString(buf, scrm.Name())
+				_, _ = protocol.WriteInt32(buf, int32(len(bts)))
+				buf.Write(bts)
+				rsp.Fields.Data = buf.Bytes()
+				_, err = rsp.Write(s.wr)
+				if err != nil {
+					return err
 				}
 			case 11: // SASL_CONTINUE
 				s.log.Debug().Str("method", "scram256").Msg("sasl continue")
-				sasl_data := make([]byte, msglen-8)
-				_, err := io.ReadFull(s.r, sasl_data)
-				if err != nil {
-					return err
-				}
-				_, bts, err := sm.Next(ctx, sasl_data)
-				if err != nil {
-					return err
-				}
-				sbuf := new(bytes.Buffer)
-				//TODO: grow buffer or use bufpool
-				sbuf.WriteByte('p')
-				if err != nil {
-					return err
-				}
-				err = binary.Write(sbuf, ENDIAN, int32(4+len(bts)))
-				if err != nil {
-					return err
-				}
-				_, err = sbuf.Write(bts)
-				if err != nil {
-					return err
-				}
-				_, err = sbuf.WriteTo(s.wr)
+				var bts []byte
+				_, bts, err = sm.Next(ctx, p.Fields.SASLChallenge)
+
+				rsp := new(protocol.AuthenticationResponse)
+				rsp.Fields.Data = bts
+				_, err = rsp.Write(s.wr)
 				if err != nil {
 					return err
 				}
 			case 12: // SASL_FINAL
 				s.log.Debug().Str("method", "scram256").Msg("sasl final")
-				sasl_final := make([]byte, msglen-8)
-				_, err := io.ReadFull(s.r, sasl_final)
-				if err != nil {
-					return err
-				}
-				done, _, err := sm.Next(ctx, sasl_final)
+				var done bool
+				done, _, err = sm.Next(ctx, p.Fields.SASLAdditionalData)
 				if err != nil {
 					return err
 				}
@@ -261,41 +169,16 @@ func (s *Server) connect(ctx context.Context) error {
 
 				s.log.Debug().Str("method", "scram256").Msg("sasl success")
 			}
-		case 'E':
-			var error_code int32
-			err = binary.Read(s.r, ENDIAN, &error_code)
-			if err != nil {
-				return err
-			}
-			switch error_code {
-			case 0: //msg terminator
-			default:
-				err_data := make([]byte, msglen-4-1)
-				_, err := io.ReadFull(s.r, err_data)
-				if err != nil {
-					return err
-				}
-				return fmt.Errorf("pg error: %s", string(err_data))
-			}
-		case 'S':
-			param_data := make([]byte, msglen-4)
-			_, err := io.ReadFull(s.r, param_data)
-			if err != nil {
-				return err
-			}
-			s.server_info = append(s.server_info, 'S')
-			s.server_info = ENDIAN.AppendUint32(s.server_info, uint32(msglen))
-			s.server_info = append(s.server_info, param_data...)
-		case 'K':
-			err = binary.Read(s.r, ENDIAN, &s.process_id)
-			if err != nil {
-				return err
-			}
-			err = binary.Read(s.r, ENDIAN, &s.secret_key)
-			if err != nil {
-				return err
-			}
-		case 'Z':
+		case *protocol.ErrorResponse:
+			pgErr := new(PostgresError)
+			pgErr.Read(p)
+			return pgErr
+		case *protocol.ParameterStatus:
+			s.server_info = append(s.server_info, p)
+		case *protocol.BackendKeyData:
+			s.process_id = p.Fields.ProcessID
+			s.secret_key = p.Fields.SecretKey
+		case *protocol.ReadyForQuery:
 			s.last_activity = time.Now()
 			s.connected_at = time.Now().UTC()
 			s.bad = false

@@ -1,9 +1,26 @@
 Authentication:
   Identifier: 'R'
   Fields:
-    - Name: Data
+    - Name: Code
+      Type: int32
+    - Name: Salt
       Type: byte
-      ArrayLength: payloadLength
+      ArrayLength: 4
+      If: 'T.Code == 5'
+    - Name: GSSAuthData
+      Type: byte
+      ArrayLength: 'payloadLength - 4'
+    - Name: SASLMechanism
+      Type: string
+      If: 'T.Code == 10'
+    - Name: SASLChallenge
+      Type: byte
+      ArrayLength: 'payloadLength - 4'
+      If: 'T.Code == 11'
+    - Name: SASLAdditionalData
+      Type: byte
+      ArrayLength: 'payloadLength - 4'
+      If: 'T.Code == 12'
 BackendKeyData:
   Identifier: 'K'
   Fields:

@@ -11,16 +11,61 @@ var _ bytes.Buffer
 var _ io.Reader
 
 type FieldsAuthentication struct {
-	Data []byte
+	Code               int32
+	Salt               []byte
+	GSSAuthData        []byte
+	SASLMechanism      string
+	SASLChallenge      []byte
+	SASLAdditionalData []byte
 }
 
 func (T *FieldsAuthentication) Read(payloadLength int, reader io.Reader) (err error) {
-	DataLength := payloadLength
-	T.Data = make([]byte, int(DataLength))
-	for i := 0; i < int(DataLength); i++ {
-		T.Data[i], err = ReadByte(reader)
+	T.Code, err = ReadInt32(reader)
+	if err != nil {
+		return
+	}
+	if T.Code == 5 {
+		SaltLength := 4
+		T.Salt = make([]byte, int(SaltLength))
+		for i := 0; i < int(SaltLength); i++ {
+			T.Salt[i], err = ReadByte(reader)
+			if err != nil {
+				return
+			}
+		}
+	}
+	GSSAuthDataLength := payloadLength - 4
+	T.GSSAuthData = make([]byte, int(GSSAuthDataLength))
+	for i := 0; i < int(GSSAuthDataLength); i++ {
+		T.GSSAuthData[i], err = ReadByte(reader)
 		if err != nil {
 			return
+		}
+	}
+	if T.Code == 10 {
+		T.SASLMechanism, err = ReadString(reader)
+		if err != nil {
+			return
+		}
+	}
+	if T.Code == 11 {
+		SASLChallengeLength := payloadLength - 4
+		T.SASLChallenge = make([]byte, int(SASLChallengeLength))
+		for i := 0; i < int(SASLChallengeLength); i++ {
+			T.SASLChallenge[i], err = ReadByte(reader)
+			if err != nil {
+				return
+			}
+		}
+	}
+	if T.Code == 12 {
+		SASLAdditionalDataLength := payloadLength - 4
+		T.SASLAdditionalData = make([]byte, int(SASLAdditionalDataLength))
+		for i := 0; i < int(SASLAdditionalDataLength); i++ {
+			T.SASLAdditionalData[i], err = ReadByte(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -28,12 +73,51 @@ func (T *FieldsAuthentication) Read(payloadLength int, reader io.Reader) (err er
 
 func (T *FieldsAuthentication) Write(writer io.Writer) (length int, err error) {
 	var temp int
-	for _, v := range T.Data {
+	temp, err = WriteInt32(writer, T.Code)
+	if err != nil {
+		return
+	}
+	length += temp
+	if T.Code == 5 {
+		for _, v := range T.Salt {
+			temp, err = WriteByte(writer, v)
+			if err != nil {
+				return
+			}
+			length += temp
+		}
+	}
+	for _, v := range T.GSSAuthData {
 		temp, err = WriteByte(writer, v)
 		if err != nil {
 			return
 		}
 		length += temp
+	}
+	if T.Code == 10 {
+		temp, err = WriteString(writer, T.SASLMechanism)
+		if err != nil {
+			return
+		}
+		length += temp
+	}
+	if T.Code == 11 {
+		for _, v := range T.SASLChallenge {
+			temp, err = WriteByte(writer, v)
+			if err != nil {
+				return
+			}
+			length += temp
+		}
+	}
+	if T.Code == 12 {
+		for _, v := range T.SASLAdditionalData {
+			temp, err = WriteByte(writer, v)
+			if err != nil {
+				return
+			}
+			length += temp
+		}
 	}
 	_ = temp
 	return

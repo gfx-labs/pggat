@@ -1,6 +1,7 @@
 package gat
 
 import (
+	"fmt"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"strconv"
 )
@@ -304,6 +305,47 @@ type PostgresError struct {
 	Routine          string
 }
 
+func (E *PostgresError) Read(pkt *protocol.ErrorResponse) {
+	for _, field := range pkt.Fields.Responses {
+		switch field.Code {
+		case byte('S'):
+			E.Severity = Severity(field.Value)
+		case byte('C'):
+			E.Code = Code(field.Value)
+		case byte('M'):
+			E.Message = field.Value
+		case byte('D'):
+			E.Detail = field.Value
+		case byte('H'):
+			E.Hint = field.Value
+		case byte('P'):
+			E.Position, _ = strconv.Atoi(field.Value)
+		case byte('p'):
+			E.InternalPosition, _ = strconv.Atoi(field.Value)
+		case byte('q'):
+			E.InternalQuery = field.Value
+		case byte('W'):
+			E.Where = field.Value
+		case byte('s'):
+			E.Schema = field.Value
+		case byte('t'):
+			E.Table = field.Value
+		case byte('c'):
+			E.Column = field.Value
+		case byte('d'):
+			E.DataType = field.Value
+		case byte('n'):
+			E.Constraint = field.Value
+		case byte('F'):
+			E.File = field.Value
+		case byte('L'):
+			E.Line, _ = strconv.Atoi(field.Value)
+		case byte('R'):
+			E.Routine = field.Value
+		}
+	}
+}
+
 func (E *PostgresError) Packet() *protocol.ErrorResponse {
 	var fields []protocol.FieldsErrorResponseResponses
 	fields = append(fields, protocol.FieldsErrorResponseResponses{
@@ -407,5 +449,5 @@ func (E *PostgresError) Packet() *protocol.ErrorResponse {
 }
 
 func (E *PostgresError) Error() string {
-	return E.Message
+	return fmt.Sprintf("%s: %s", E.Severity, E.Message)
 }

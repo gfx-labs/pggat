@@ -60,14 +60,16 @@ func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) error {
 		log.Println(err.Error())
 		switch e := err.(type) {
 		case *PostgresError:
-			e.Packet().Write(cl.wr)
+			_, err = e.Packet().Write(cl.wr)
+			return err
 		default:
 			pgErr := &PostgresError{
 				Severity: Error,
 				Code:     InternalError,
 				Message:  e.Error(),
 			}
-			pgErr.Packet().Write(cl.wr)
+			_, err = pgErr.Packet().Write(cl.wr)
+			return err
 		}
 	}
 	return nil

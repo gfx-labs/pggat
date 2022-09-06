@@ -281,12 +281,14 @@ func (c *Client) Accept(ctx context.Context) error {
 		return err
 	}
 	c.log.Debug().Msg("Ready for Query")
-	for {
-		err = c.tick(ctx)
+	open := true
+	for open {
+		open, err = c.tick(ctx)
 		if err != nil {
 			return err
 		}
 	}
+	return nil
 }
 
 // TODO: we need to keep track of queries so we can handle cancels
@@ -296,19 +298,21 @@ func (c *Client) handle_cancel(ctx context.Context, p *protocol.StartupMessage) 
 }
 
 // reads a packet from stream and handles it
-func (c *Client) tick(ctx context.Context) error {
+func (c *Client) tick(ctx context.Context) (bool, error) {
 	rsp, err := protocol.ReadFrontend(c.r)
 	if err != nil {
-		return err
+		return true, err
 	}
-	log.Println("(%v): %s", reflect.TypeOf(c), c)
+	log.Printf("%T %+v", rsp, rsp)
 	switch cast := rsp.(type) {
 	case *protocol.Describe:
 	case *protocol.Query:
-		return c.handle_query(ctx, cast)
+		return true, c.handle_query(ctx, cast)
+	case *protocol.Terminate:
+		return false, nil
 	default:
 	}
-	return nil
+	return true, nil
 }
 
 func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
