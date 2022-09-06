@@ -8,11 +8,11 @@ import (
 	"gfx.cafe/gfx/pggat/lib/config"
 )
 
-var test_address = "localhost:5444"
+var test_address = "localhost:5432"
 
 var test_user = config.User{
 	Name:             "postgres",
-	Password:         "test",
+	Password:         "password",
 	PoolSize:         4,
 	StatementTimeout: 250,
 }

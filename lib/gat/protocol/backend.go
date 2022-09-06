@@ -15,7 +15,7 @@ type FieldsAuthentication struct {
 	Code               int32
 	Salt               []byte
 	GSSAuthData        []byte
-	SASLMechanism      string
+	SASLMechanism      []string
 	SASLChallenge      []byte
 	SASLAdditionalData []byte
 }
@@ -35,18 +35,26 @@ func (T *FieldsAuthentication) Read(payloadLength int, reader io.Reader) (err er
 			}
 		}
 	}
-	GSSAuthDataLength := payloadLength - 4
-	T.GSSAuthData = make([]byte, int(GSSAuthDataLength))
-	for i := 0; i < int(GSSAuthDataLength); i++ {
-		T.GSSAuthData[i], err = ReadByte(reader)
-		if err != nil {
-			return
+	if T.Code == 8 {
+		GSSAuthDataLength := payloadLength - 4
+		T.GSSAuthData = make([]byte, int(GSSAuthDataLength))
+		for i := 0; i < int(GSSAuthDataLength); i++ {
+			T.GSSAuthData[i], err = ReadByte(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	if T.Code == 10 {
-		T.SASLMechanism, err = ReadString(reader)
-		if err != nil {
-			return
+		var P string
+		for ok := true; ok; ok = P != "" {
+			var newP string
+			newP, err = ReadString(reader)
+			if err != nil {
+				return
+			}
+			T.SASLMechanism = append(T.SASLMechanism, newP)
+			P = newP
 		}
 	}
 	if T.Code == 11 {
@@ -88,19 +96,23 @@ func (T *FieldsAuthentication) Write(writer io.Writer) (length int, err error) {
 			length += temp
 		}
 	}
-	for _, v := range T.GSSAuthData {
-		temp, err = WriteByte(writer, v)
-		if err != nil {
-			return
+	if T.Code == 8 {
+		for _, v := range T.GSSAuthData {
+			temp, err = WriteByte(writer, v)
+			if err != nil {
+				return
+			}
+			length += temp
 		}
-		length += temp
 	}
 	if T.Code == 10 {
-		temp, err = WriteString(writer, T.SASLMechanism)
-		if err != nil {
-			return
+		for _, v := range T.SASLMechanism {
+			temp, err = WriteString(writer, v)
+			if err != nil {
+				return
+			}
+			length += temp
 		}
-		length += temp
 	}
 	if T.Code == 11 {
 		for _, v := range T.SASLChallenge {

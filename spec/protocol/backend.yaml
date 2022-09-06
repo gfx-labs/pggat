@@ -10,9 +10,11 @@ Authentication:
     - Name: GSSAuthData
       Type: byte
       ArrayLength: 'payloadLength - 4'
+      If: 'T.Code == 8'
     - Name: SASLMechanism
       Type: string
       If: 'T.Code == 10'
+      While: 'P != ""'
     - Name: SASLChallenge
       Type: byte
       ArrayLength: 'payloadLength - 4'
