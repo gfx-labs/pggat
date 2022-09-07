@@ -23,14 +23,14 @@ type servers struct {
 	primary  *server.Server
 	replicas []*server.Server
 
-	sync.Mutex
+	mu sync.Mutex
 }
 
 type shard struct {
 	conf    *config.Shard
 	servers []*servers
 
-	sync.Mutex
+	mu sync.Mutex
 }
 
 type ConnectionPool struct {
@@ -40,7 +40,7 @@ type ConnectionPool struct {
 	shards  []shard
 	queries chan query
 
-	sync.RWMutex
+	mu sync.RWMutex
 }
 
 func NewConnectionPool(pool gat.Pool, conf *config.Pool, user *config.User) *ConnectionPool {
@@ -57,8 +57,8 @@ func NewConnectionPool(pool gat.Pool, conf *config.Pool, user *config.User) *Con
 }
 
 func (c *ConnectionPool) EnsureConfig(conf *config.Pool) {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	c.c = conf
 	for idx, s := range conf.Shards {
@@ -80,8 +80,8 @@ func (c *ConnectionPool) EnsureConfig(conf *config.Pool) {
 }
 
 func (c *ConnectionPool) chooseShard(query string) *shard {
-	c.RLock()
-	defer c.RUnlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	if len(c.shards) == 0 {
 		return nil
@@ -99,19 +99,20 @@ func (c *ConnectionPool) chooseServer(query string) *servers {
 		return nil
 	}
 
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// TODO ideally this would choose the server based on load, capabilities, etc
 	// TODO protect this server from being used by other workers while we use it
 	// TODO use c.pool.query_router to route queries
 	for _, srv := range s.servers {
-		if srv.TryLock() {
+		if srv.mu.TryLock() {
 			return srv
 		}
 	}
 
 	// connect to primary server
+	// TODO primary server might not be 0, could have no primary server so should fall back to server with role None
 	primary, err := server.Dial(context.Background(), fmt.Sprintf("%s:%d", s.conf.Servers[0].Host(), s.conf.Servers[0].Port()), c.user, s.conf.Database, nil)
 	if err != nil {
 		log.Println("failed to connect to server", err)
@@ -121,7 +122,7 @@ func (c *ConnectionPool) chooseServer(query string) *servers {
 	srv := &servers{
 		primary: primary,
 	}
-	srv.Lock()
+	srv.mu.Lock()
 
 	s.servers = append(s.servers, srv)
 
@@ -140,7 +141,7 @@ func (c *ConnectionPool) worker() {
 
 		// run the query
 		err := srv.primary.Query(q.query, q.rep)
-		srv.Unlock()
+		srv.mu.Unlock()
 
 		if err != nil {
 			log.Println(err)
@@ -155,7 +156,7 @@ func (c *ConnectionPool) GetUser() *config.User {
 
 func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
 	srv := c.chooseServer("")
-	defer srv.Unlock()
+	defer srv.mu.Unlock()
 	if srv == nil {
 		return nil
 	}

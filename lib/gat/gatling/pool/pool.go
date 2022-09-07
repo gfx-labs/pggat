@@ -6,6 +6,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/conn_pool"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/query_router"
+	"sync"
 )
 
 type Pool struct {
@@ -14,6 +15,8 @@ type Pool struct {
 	connPools map[string]*conn_pool.ConnectionPool
 
 	router query_router.QueryRouter
+
+	mu sync.RWMutex
 }
 
 func NewPool(conf *config.Pool) *Pool {
@@ -25,6 +28,8 @@ func NewPool(conf *config.Pool) *Pool {
 }
 
 func (p *Pool) EnsureConfig(conf *config.Pool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.c = conf
 	p.users = make(map[string]config.User)
 	for _, user := range conf.Users {
@@ -42,6 +47,8 @@ func (p *Pool) EnsureConfig(conf *config.Pool) {
 }
 
 func (p *Pool) GetUser(name string) (*config.User, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	user, ok := p.users[name]
 	if !ok {
 		return nil, fmt.Errorf("user '%s' not found", name)
@@ -50,6 +57,8 @@ func (p *Pool) GetUser(name string) (*config.User, error) {
 }
 
 func (p *Pool) WithUser(name string) (gat.ConnectionPool, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	pool, ok := p.connPools[name]
 	if !ok {
 		return nil, fmt.Errorf("no pool for '%s'", name)
