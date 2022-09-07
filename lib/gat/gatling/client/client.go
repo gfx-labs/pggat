@@ -6,20 +6,20 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/messages"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
+	"git.tuxpa.in/a/zlog"
+	"git.tuxpa.in/a/zlog/log"
+	"github.com/ethereum/go-ethereum/common/math"
 	"io"
 	"math/big"
 	"net"
 	"reflect"
-
-	"gfx.cafe/gfx/pggat/lib/gat/protocol"
-	"git.tuxpa.in/a/zlog"
-	"git.tuxpa.in/a/zlog/log"
-	"github.com/ethereum/go-ethereum/common/math"
 )
 
 // / client state, one per client
@@ -27,6 +27,7 @@ type Client struct {
 	conn net.Conn
 	r    *bufio.Reader
 	wr   io.Writer
+	recv chan protocol.Packet
 
 	buf bytes.Buffer
 
@@ -66,6 +67,7 @@ func NewClient(
 		conn:    conn,
 		r:       bufio.NewReader(conn),
 		wr:      conn,
+		recv:    make(chan protocol.Packet),
 		addr:    conn.RemoteAddr(),
 		gatling: gatling,
 		conf:    conf,
@@ -267,6 +269,7 @@ func (c *Client) Accept(ctx context.Context) error {
 		return err
 	}
 	c.log.Debug().Msg("Ready for Query")
+	go c.recvLoop()
 	open := true
 	for open {
 		open, err = c.tick(ctx)
@@ -277,6 +280,19 @@ func (c *Client) Accept(ctx context.Context) error {
 	return nil
 }
 
+func (c *Client) recvLoop() {
+	for {
+		recv, err := protocol.ReadFrontend(c.r)
+		if err != nil {
+			if !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
+				log.Println("backend read err:", err)
+			}
+			break
+		}
+		c.recv <- recv
+	}
+}
+
 // TODO: we need to keep track of queries so we can handle cancels
 func (c *Client) handle_cancel(ctx context.Context, p *protocol.StartupMessage) error {
 	log.Println("cancel msg", p)
@@ -285,9 +301,11 @@ func (c *Client) handle_cancel(ctx context.Context, p *protocol.StartupMessage) 
 
 // reads a packet from stream and handles it
 func (c *Client) tick(ctx context.Context) (bool, error) {
-	rsp, err := c.Recv()
-	if err != nil {
-		return true, err
+	var rsp protocol.Packet
+	select {
+	case rsp = <-c.Recv():
+	case <-ctx.Done():
+		return false, ctx.Err()
 	}
 	switch cast := rsp.(type) {
 	case *protocol.Query:
@@ -301,33 +319,30 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (c *Client) forward(pkts <-chan protocol.Packet) error {
-	for {
-		rsp := <-pkts
-		if rsp == nil {
-			return nil
-		}
-		err := c.Send(rsp)
-		if err != nil {
-			return err
-		}
-	}
-}
-
 func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
-	rep, err := c.server.Query(ctx, q.Fields.Query)
+	done, err := c.server.Query(c, ctx, q.Fields.Query)
 	if err != nil {
 		return err
 	}
-	return c.forward(rep)
+	<-done.Done()
+	err = done.Err()
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
+	return err
 }
 
 func (c *Client) handle_function(ctx context.Context, f *protocol.FunctionCall) error {
-	rep, err := c.server.CallFunction(ctx, f)
+	done, err := c.server.CallFunction(c, ctx, f)
 	if err != nil {
 		return err
 	}
-	return c.forward(rep)
+	<-done.Done()
+	err = done.Err()
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
+	return err
 }
 
 /*
@@ -462,9 +477,8 @@ func (c *Client) Send(pkt protocol.Packet) error {
 	return err
 }
 
-func (c *Client) Recv() (protocol.Packet, error) {
-	pkt, err := protocol.ReadFrontend(c.r)
-	return pkt, err
+func (c *Client) Recv() <-chan protocol.Packet {
+	return c.recv
 }
 
 var _ gat.Client = (*Client)(nil)

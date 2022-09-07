@@ -12,11 +12,14 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type request[T any] struct {
+	client  gat.Client
 	payload T
-	rep     chan<- protocol.Packet
+	ctx     context.Context
+	done    context.CancelFunc
 }
 
 type servers struct {
@@ -135,38 +138,40 @@ func (c *ConnectionPool) chooseServer(query string) *servers {
 
 func (c *ConnectionPool) worker() {
 	for {
-		select {
-		case q := <-c.queries:
-			srv := c.chooseServer(q.payload)
-			if srv == nil {
-				log.Printf("call to query '%s' failed", q.payload)
-				continue
-			}
+		func() {
+			select {
+			case q := <-c.queries:
+				defer q.done()
+				srv := c.chooseServer(q.payload)
+				if srv == nil {
+					log.Printf("call to query '%s' failed", q.payload)
+					return
+				}
 
-			// run the query
-			err := srv.primary.Query(q.payload, q.rep)
-			srv.mu.Unlock()
+				defer srv.mu.Unlock()
 
-			if err != nil {
-				log.Println(err)
-			}
-			close(q.rep)
-		case f := <-c.functionCalls:
-			srv := c.chooseServer("")
-			if srv == nil {
-				log.Printf("function call '%+v' failed", f.payload)
-				continue
-			}
+				// run the query
+				err := srv.primary.Query(q.client, q.ctx, q.payload)
+				if err != nil {
+					log.Println("error executing query:", err)
+				}
+			case f := <-c.functionCalls:
+				defer f.done()
+				srv := c.chooseServer("")
+				if srv == nil {
+					log.Printf("function call '%+v' failed", f.payload)
+					return
+				}
 
-			// run the query
-			err := srv.primary.CallFunction(f.payload, f.rep)
-			srv.mu.Unlock()
+				defer srv.mu.Unlock()
 
-			if err != nil {
-				log.Println(err)
+				// call the function
+				err := srv.primary.CallFunction(f.client, f.payload)
+				if err != nil {
+					log.Println("error calling function:", err)
+				}
 			}
-			close(f.rep)
-		}
+		}()
 	}
 }
 
@@ -183,26 +188,30 @@ func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
 	return srv.primary.GetServerInfo()
 }
 
-func (c *ConnectionPool) Query(ctx context.Context, q string) (<-chan protocol.Packet, error) {
-	rep := make(chan protocol.Packet)
+func (c *ConnectionPool) Query(client gat.Client, ctx context.Context, q string) (context.Context, error) {
+	cmdCtx, done := context.WithDeadline(ctx, time.Now().Add(1*time.Second))
 
 	c.queries <- request[string]{
+		client:  client,
 		payload: q,
-		rep:     rep,
+		ctx:     cmdCtx,
+		done:    done,
 	}
 
-	return rep, nil
+	return cmdCtx, nil
 }
 
-func (c *ConnectionPool) CallFunction(ctx context.Context, f *protocol.FunctionCall) (<-chan protocol.Packet, error) {
-	rep := make(chan protocol.Packet)
+func (c *ConnectionPool) CallFunction(client gat.Client, ctx context.Context, f *protocol.FunctionCall) (context.Context, error) {
+	cmdCtx, done := context.WithDeadline(ctx, time.Now().Add(1*time.Second))
 
 	c.functionCalls <- request[*protocol.FunctionCall]{
+		client:  client,
 		payload: f,
-		rep:     rep,
+		ctx:     cmdCtx,
+		done:    done,
 	}
 
-	return rep, nil
+	return cmdCtx, nil
 }
 
 var _ gat.ConnectionPool = (*ConnectionPool)(nil)

@@ -9,6 +9,6 @@ import (
 type ConnectionPool interface {
 	GetUser() *config.User
 	GetServerInfo() []*protocol.ParameterStatus
-	Query(ctx context.Context, query string) (<-chan protocol.Packet, error)
-	CallFunction(ctx context.Context, payload *protocol.FunctionCall) (<-chan protocol.Packet, error)
+	Query(client Client, ctx context.Context, query string) (context.Context, error)
+	CallFunction(client Client, ctx context.Context, payload *protocol.FunctionCall) (context.Context, error)
 }

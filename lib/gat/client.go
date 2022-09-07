@@ -6,5 +6,5 @@ import (
 
 type Client interface {
 	Send(pkt protocol.Packet) error
-	Recv() (protocol.Packet, error)
+	Recv() <-chan protocol.Packet
 }

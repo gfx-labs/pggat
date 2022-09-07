@@ -18,14 +18,6 @@ Bind:
     - Name: ResultColumnFormatCodes
       Type: int16
       LengthPrefixed: int16
-CancelRequest:
-  Fields:
-    - Name: RequestCode
-      Type: int32
-    - Name: ProcessID
-      Type: int32
-    - Name: SecretKey
-      Type: int32
 Close:
   Identifier: 'C'
   Fields:

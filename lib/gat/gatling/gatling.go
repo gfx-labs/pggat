@@ -125,16 +125,17 @@ func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) error {
 		log.Println(err.Error())
 		switch e := err.(type) {
 		case *pg_error.Error:
-			return cl.Send(e.Packet())
+			_ = cl.Send(e.Packet())
 		default:
 			pgErr := &pg_error.Error{
 				Severity: pg_error.Err,
 				Code:     pg_error.InternalError,
 				Message:  e.Error(),
 			}
-			return cl.Send(pgErr.Packet())
+			_ = cl.Send(pgErr.Packet())
 		}
 	}
+	_ = c.Close()
 	return nil
 }
 

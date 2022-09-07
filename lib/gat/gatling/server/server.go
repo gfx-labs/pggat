@@ -3,8 +3,9 @@ package server
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
+	"errors"
 	"fmt"
+	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
 	"io"
 	"net"
@@ -23,6 +24,7 @@ import (
 )
 
 type Server struct {
+	addr   string
 	remote net.Addr
 	conn   net.Conn
 	r      *bufio.Reader
@@ -50,10 +52,10 @@ type Server struct {
 	log zlog.Logger
 }
 
-var ENDIAN = binary.BigEndian
-
 func Dial(ctx context.Context, addr string, user *config.User, db string, stats any) (*Server, error) {
-	s := &Server{}
+	s := &Server{
+		addr: addr,
+	}
 	var err error
 	s.conn, err = net.Dial("tcp", addr)
 	if err != nil {
@@ -71,6 +73,20 @@ func Dial(ctx context.Context, addr string, user *config.User, db string, stats 
 		Str("db", db).
 		Logger()
 	return s, s.connect(ctx)
+}
+
+func (s *Server) Cancel() error {
+	conn, err := net.Dial("tcp", s.addr)
+	if err != nil {
+		return err
+	}
+	cancel := new(protocol.StartupMessage)
+	cancel.Fields.ProtocolVersionNumber = 80877102
+	cancel.Fields.ProcessKey = s.process_id
+	cancel.Fields.SecretKey = s.secret_key
+	_, err = cancel.Write(conn)
+	_ = conn.Close()
+	return err
 }
 
 func (s *Server) GetServerInfo() []*protocol.ParameterStatus {
@@ -194,7 +210,7 @@ func (s *Server) connect(ctx context.Context) error {
 	}
 }
 
-func (s *Server) forwardTo(rep chan<- protocol.Packet, predicate func(pkt protocol.Packet) (forward bool, finish bool)) error {
+func (s *Server) forwardTo(client gat.Client, predicate func(pkt protocol.Packet) (forward bool, finish bool)) error {
 	for {
 		var rsp protocol.Packet
 		rsp, err := protocol.ReadBackend(s.r)
@@ -203,7 +219,10 @@ func (s *Server) forwardTo(rep chan<- protocol.Packet, predicate func(pkt protoc
 		}
 		forward, finish := predicate(rsp)
 		if forward {
-			rep <- rsp
+			err = client.Send(rsp)
+			if err != nil {
+				return err
+			}
 		}
 		if finish {
 			return nil
@@ -211,7 +230,7 @@ func (s *Server) forwardTo(rep chan<- protocol.Packet, predicate func(pkt protoc
 	}
 }
 
-func (s *Server) Query(query string, rep chan<- protocol.Packet) error {
+func (s *Server) Query(client gat.Client, ctx context.Context, query string) error {
 	// send to server
 	q := new(protocol.Query)
 	q.Fields.Query = query
@@ -220,28 +239,63 @@ func (s *Server) Query(query string, rep chan<- protocol.Packet) error {
 		return err
 	}
 
+	// this function seems wild but it has to be the way it is so we read the whole response, even if the
+	// client fails midway
 	// read responses
-	return s.forwardTo(rep, func(pkt protocol.Packet) (forward bool, finish bool) {
+	e := s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
 		switch r := pkt.(type) {
 		case *protocol.ReadyForQuery:
-			return true, r.Fields.Status == 'I'
-		case *protocol.CopyInResponse, *protocol.CopyOutResponse, *protocol.CopyBothResponse:
-			log.Println("client tried to enter copy mode")
-			return false, true
+			return err == nil, r.Fields.Status == 'I'
+		case *protocol.CopyInResponse:
+			err = client.Send(pkt)
+			if err != nil {
+				return false, false
+			}
+			err = s.CopyIn(client, ctx)
+			if err != nil {
+				return false, false
+			}
+			return false, false
 		default:
-			return true, false
+			return err == nil, false
 		}
 	})
+	if e != nil {
+		return e
+	}
+	return err
 }
 
-func (s *Server) CallFunction(payload *protocol.FunctionCall, rep chan<- protocol.Packet) error {
+func (s *Server) CopyIn(client gat.Client, ctx context.Context) error {
+	for {
+		var pkt protocol.Packet
+		select {
+		case pkt = <-client.Recv():
+		case <-ctx.Done():
+			_, _ = new(protocol.CopyFail).Write(s.wr)
+			return ctx.Err()
+		}
+		_, err := pkt.Write(s.wr)
+		if err != nil {
+			return err
+		}
+		switch p := pkt.(type) {
+		case *protocol.CopyDone:
+			return nil
+		case *protocol.CopyFail:
+			return errors.New(p.Fields.Cause)
+		}
+	}
+}
+
+func (s *Server) CallFunction(client gat.Client, payload *protocol.FunctionCall) error {
 	_, err := payload.Write(s.wr)
 	if err != nil {
 		return err
 	}
 
 	// read responses
-	return s.forwardTo(rep, func(pkt protocol.Packet) (forward bool, finish bool) {
+	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
 		switch r := pkt.(type) {
 		case *protocol.ReadyForQuery:
 			return true, r.Fields.Status == 'I'
