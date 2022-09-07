@@ -33,7 +33,7 @@ var _ []Command = []Command{
 	&CommandSetShardingKey{},
 	&CommandSetShard{},
 	&CommandShowShard{},
-	CommandSetServerRole{},
+	&CommandSetServerRole{},
 	&CommandShowServerRole{},
 	&CommandSetPrimaryReads{},
 	&CommandShowPrimaryReads{},

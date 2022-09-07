@@ -5,12 +5,15 @@ import (
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/conn_pool"
+	"gfx.cafe/gfx/pggat/lib/gat/gatling/query_router"
 )
 
 type Pool struct {
 	c         *config.Pool
 	users     map[string]config.User
 	connPools map[string]*conn_pool.ConnectionPool
+
+	router query_router.QueryRouter
 }
 
 func NewPool(conf *config.Pool) *Pool {

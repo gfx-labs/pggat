@@ -8,7 +8,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/server"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"log"
-	"sync"
 )
 
 type query struct {
@@ -22,8 +21,6 @@ type ConnectionPool struct {
 	pool    gat.Pool
 	servers []*server.Server
 	queries chan query
-
-	sync.Mutex
 }
 
 const workerCount = 2
@@ -59,6 +56,8 @@ func (c *ConnectionPool) worker() {
 	for {
 		q := <-c.queries
 		// TODO ideally this would choose the server based on load, capabilities, etc
+		// TODO protect this server from being used by other workers while we use it
+		// TODO use c.pool.query_router to route queries
 		err := c.servers[0].Query(q.query, q.rep)
 		if err != nil {
 			log.Println(err)

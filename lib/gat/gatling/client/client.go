@@ -22,15 +22,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 )
 
-type ClientKey [2]int
-
-type ClientInfo struct {
-	A int
-	B int
-	C string
-	D uint16
-}
-
 // / client state, one per client
 type Client struct {
 	conn net.Conn

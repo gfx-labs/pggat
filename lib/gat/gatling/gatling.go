@@ -86,7 +86,6 @@ func (g *Gatling) ensureAdmin(c *config.Global) error {
 	return nil
 }
 
-// TODO: should connect to & load pools from config
 func (g *Gatling) ensurePools(c *config.Global) error {
 	for name, p := range c.Pools {
 		if existing, ok := g.pools[name]; ok {
