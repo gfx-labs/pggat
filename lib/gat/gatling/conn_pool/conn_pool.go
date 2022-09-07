@@ -111,6 +111,8 @@ func (c *ConnectionPool) chooseServer(query string) *servers {
 		}
 	}
 
+	// there are no servers available in the pool, let's make a new connection
+
 	// connect to primary server
 	// TODO primary server might not be 0, could have no primary server so should fall back to server with role None
 	primary, err := server.Dial(context.Background(), fmt.Sprintf("%s:%d", s.conf.Servers[0].Host(), s.conf.Servers[0].Port()), c.user, s.conf.Database, nil)
@@ -156,10 +158,10 @@ func (c *ConnectionPool) GetUser() *config.User {
 
 func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
 	srv := c.chooseServer("")
-	defer srv.mu.Unlock()
 	if srv == nil {
 		return nil
 	}
+	defer srv.mu.Unlock()
 	return srv.primary.GetServerInfo()
 }
 
