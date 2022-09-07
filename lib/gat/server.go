@@ -5,12 +5,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"gfx.cafe/gfx/pggat/lib/gat/protocol"
-	"gfx.cafe/gfx/pggat/lib/util/slices"
-	"gfx.cafe/util/go/bufpool"
 	"io"
 	"net"
 	"time"
+
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
+	"gfx.cafe/util/go/bufpool"
 
 	"gfx.cafe/gfx/pggat/lib/auth/sasl"
 	"gfx.cafe/gfx/pggat/lib/auth/scram"
@@ -33,15 +34,11 @@ type Server struct {
 	process_id int32
 	secret_key int32
 
-	bad bool
-
+	bad    bool
 	in_txn bool
-	csm    map[ClientKey]ClientInfo
 
-	connected_at time.Time
-
-	stats any // TODO: stats
-
+	connected_at     time.Time
+	stats            any // TODO: stats
 	application_name string
 
 	last_activity time.Time
@@ -54,7 +51,7 @@ type Server struct {
 
 var ENDIAN = binary.BigEndian
 
-func DialServer(ctx context.Context, addr string, user *config.User, db string, csm map[ClientKey]ClientInfo, stats any) (*Server, error) {
+func DialServer(ctx context.Context, addr string, user *config.User, db string, stats any) (*Server, error) {
 	s := &Server{}
 	var err error
 	s.conn, err = net.Dial("tcp", addr)
@@ -192,7 +189,11 @@ func (s *Server) connect(ctx context.Context) error {
 	}
 }
 
-// TODO: implement drop - we should rename to close.
+func (s *Server) Close(ctx context.Context) error {
+	<-ctx.Done()
+	return nil
+}
+
 //impl Drop for Server {
 //    /// Try to do a clean shut down. Best effort because
 //    /// the socket is in non-blocking mode, so it may not be ready

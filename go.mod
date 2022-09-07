@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	gfx.cafe/util/go/bufpool v0.0.0-20220906091724-3a24b7f40ccf
+	gfx.cafe/util/go/lambda v0.0.0-20220906200602-98a6b35a1b42
 	git.tuxpa.in/a/zlog v1.32.0
 	github.com/BurntSushi/toml v1.2.0
 	github.com/auxten/postgresql-parser v1.0.1
@@ -37,6 +38,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/stringprep v1.0.3 // indirect
+	golang.org/x/exp v0.0.0-20220827204233-334a2380cb91 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
 	golang.org/x/text v0.3.7 // indirect

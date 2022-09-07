@@ -2,29 +2,29 @@ package gat
 
 import (
 	"fmt"
-	"git.tuxpa.in/a/zlog/log"
 	"regexp"
 	"strings"
 
+	"git.tuxpa.in/a/zlog/log"
+
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"gfx.cafe/util/go/lambda"
 
 	"github.com/auxten/postgresql-parser/pkg/sql/parser"
 	"github.com/auxten/postgresql-parser/pkg/sql/sem/tree"
 	"github.com/auxten/postgresql-parser/pkg/walk"
 )
 
-var compiler = regexp.MustCompile
-
-var CustomSqlRegex = []*regexp.Regexp{
-	compiler("(?i)^ *SET SHARDING KEY TO '?([0-9]+)'? *;? *$"),
-	compiler("(?i)^ *SET SHARD TO '?([0-9]+|ANY)'? *;? *$"),
-	compiler("(?i)^ *SHOW SHARD *;? *$"),
-	compiler("(?i)^ *SET SERVER ROLE TO '(PRIMARY|REPLICA|ANY|AUTO|DEFAULT)' *;? *$"),
-	compiler("(?i)^ *SHOW SERVER ROLE *;? *$"),
-	compiler("(?i)^ *SET PRIMARY READS TO '?(on|off|default)'? *;? *$"),
-	compiler("(?i)^ *SHOW PRIMARY READS *;? *$"),
-}
+var CustomSqlRegex = lambda.MapV([]string{
+	"(?i)^ *SET SHARDING KEY TO '?([0-9]+)'? *;? *$",
+	"(?i)^ *SET SHARD TO '?([0-9]+|ANY)'? *;? *$",
+	"(?i)^ *SHOW SHARD *;? *$",
+	"(?i)^ *SET SERVER ROLE TO '(PRIMARY|REPLICA|ANY|AUTO|DEFAULT)' *;? *$",
+	"(?i)^ *SHOW SERVER ROLE *;? *$",
+	"(?i)^ *SET PRIMARY READS TO '?(on|off|default)'? *;? *$",
+	"(?i)^ *SHOW PRIMARY READS *;? *$",
+}, regexp.MustCompile)
 
 type Command interface {
 }
@@ -33,7 +33,7 @@ var _ []Command = []Command{
 	&CommandSetShardingKey{},
 	&CommandSetShard{},
 	&CommandShowShard{},
-	&CommandSetServerRole{},
+	CommandSetServerRole{},
 	&CommandShowServerRole{},
 	&CommandSetPrimaryReads{},
 	&CommandShowPrimaryReads{},
@@ -49,8 +49,6 @@ type CommandShowPrimaryReads struct{}
 
 type QueryRouter struct {
 	active_shard          int
-	active_role           config.ServerRole
-	query_parser_enabled  bool
 	primary_reads_enabled bool
 	pool_settings         PoolSettings
 }
@@ -61,6 +59,7 @@ func (r *QueryRouter) UpdatePoolSettings(pool_settings PoolSettings) {
 }
 
 // / Try to parse a command and execute it.
+// TODO: needs to just provide the execution function and so gatling can then plug in the client, server, etc
 func (r *QueryRouter) try_execute_command(pkt *protocol.Query) (Command, string) {
 	// Only simple protocol supported for commands.
 	// TODO: read msg len
@@ -201,17 +200,20 @@ func (r *QueryRouter) try_execute_command(pkt *protocol.Query) (Command, string)
 
 // / Try to infer which server to connect to based on the contents of the query.
 // TODO: implement
-func (r *QueryRouter) InferRole(pkt protocol.Packet) error {
+func (r *QueryRouter) InferRole(pkt protocol.Packet) (config.ServerRole, error) {
 	var query string
+	var active_role config.ServerRole
 	switch c := pkt.(type) {
 	case *protocol.Query:
-		r.active_role = config.SERVERROLE_REPLICA
+		active_role = config.SERVERROLE_REPLICA
 	case *protocol.Parse:
 		query = c.Fields.Query
 		query = strings.ReplaceAll(query, "$", "")
 	default:
-		return fmt.Errorf("unknown packet %v", pkt)
+		return config.SERVERROLE_REPLICA, fmt.Errorf("unknown packet %v", pkt)
 	}
+	// by default it will hit a replica
+	active_role = config.SERVERROLE_REPLICA
 	// ok now parse the query
 	wk := &walk.AstWalker{
 		Fn: func(ctx, node any) (stop bool) {
@@ -220,7 +222,7 @@ func (r *QueryRouter) InferRole(pkt protocol.Packet) error {
 				*tree.BeginTransaction, *tree.CommitTransaction, *tree.RollbackTransaction,
 				*tree.SetTransaction, *tree.ShowTransactionStatus, *tree.Delete, *tree.Insert:
 				//
-				r.active_role = config.SERVERROLE_PRIMARY
+				active_role = config.SERVERROLE_PRIMARY
 				return true
 			default:
 				_ = n
@@ -228,21 +230,15 @@ func (r *QueryRouter) InferRole(pkt protocol.Packet) error {
 			return false
 		},
 	}
-	r.active_role = config.SERVERROLE_REPLICA
 	stmts, err := parser.Parse(query)
 	if err != nil {
-		return err
+		return config.SERVERROLE_REPLICA, err
 	}
 	_, err = wk.Walk(stmts, nil)
 	if err != nil {
-		return err
+		return config.SERVERROLE_REPLICA, err
 	}
-	return nil
-}
-
-// / Get the current desired server role we should be talking to.
-func (r *QueryRouter) Role() config.ServerRole {
-	return r.active_role
+	return active_role, nil
 }
 
 // / Get desired shard we should be talking to.
@@ -252,8 +248,4 @@ func (r *QueryRouter) Shard() int {
 
 func (r *QueryRouter) SetShard(shard int) {
 	r.active_shard = shard
-}
-
-func (r *QueryRouter) QueryParserEnabled() bool {
-	return r.query_parser_enabled
 }

@@ -7,36 +7,19 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"fmt"
-	"gfx.cafe/gfx/pggat/lib/gat/protocol"
-	"gfx.cafe/gfx/pggat/lib/util/maps"
 	"io"
 	"math/big"
 	"net"
 	"reflect"
+
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"gfx.cafe/gfx/pggat/lib/util/maps"
 
 	"gfx.cafe/gfx/pggat/lib/config"
 	"git.tuxpa.in/a/zlog"
 	"git.tuxpa.in/a/zlog/log"
 	"github.com/ethereum/go-ethereum/common/math"
 )
-
-type ClientConnectionType interface {
-}
-
-var _ []ClientConnectionType = []ClientConnectionType{
-	&StartupConnection{},
-	&TLSConnection{},
-	&CancelQueryConnection{},
-}
-
-type StartupConnection struct {
-}
-
-type TLSConnection struct {
-}
-
-type CancelQueryConnection struct {
-}
 
 type ClientKey [2]int
 
@@ -63,7 +46,6 @@ type Client struct {
 	pid        int32
 	secret_key int32
 
-	csm        map[ClientKey]ClientInfo
 	parameters map[string]string
 	stats      any // TODO: Reporter
 	admin      bool
@@ -84,7 +66,6 @@ type Client struct {
 func NewClient(
 	conf *config.Global,
 	conn net.Conn,
-	csm map[ClientKey]ClientInfo,
 	admin_only bool,
 ) *Client {
 	c := &Client{
@@ -92,7 +73,6 @@ func NewClient(
 		r:    bufio.NewReader(conn),
 		wr:   conn,
 		addr: conn.RemoteAddr(),
-		csm:  csm,
 		conf: conf,
 	}
 	c.log = log.With().
@@ -265,7 +245,7 @@ func (c *Client) Accept(ctx context.Context) error {
 
 	shard := pool.Shards["0"]
 	serv := shard.Servers[0]
-	c.server, err = DialServer(context.TODO(), fmt.Sprintf("%s:%d", serv.Host(), serv.Port()), &user, shard.Database, c.csm, nil)
+	c.server, err = DialServer(context.TODO(), fmt.Sprintf("%s:%d", serv.Host(), serv.Port()), &user, shard.Database, nil)
 	if err != nil {
 		return err
 	}
