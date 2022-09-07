@@ -292,6 +292,8 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	switch cast := rsp.(type) {
 	case *protocol.Query:
 		return true, c.handle_query(ctx, cast)
+	case *protocol.FunctionCall:
+		return true, c.handle_function(ctx, cast)
 	case *protocol.Terminate:
 		return false, nil
 	default:
@@ -299,22 +301,33 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+func (c *Client) forward(pkts <-chan protocol.Packet) error {
+	for {
+		rsp := <-pkts
+		if rsp == nil {
+			return nil
+		}
+		err := c.Send(rsp)
+		if err != nil {
+			return err
+		}
+	}
+}
+
 func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 	rep, err := c.server.Query(ctx, q.Fields.Query)
 	if err != nil {
 		return err
 	}
-	for {
-		rsp := <-rep
-		if rsp == nil {
-			break
-		}
-		err = c.Send(rsp)
-		if err != nil {
-			return err
-		}
+	return c.forward(rep)
+}
+
+func (c *Client) handle_function(ctx context.Context, f *protocol.FunctionCall) error {
+	rep, err := c.server.CallFunction(ctx, f)
+	if err != nil {
+		return err
 	}
-	return nil
+	return c.forward(rep)
 }
 
 /*

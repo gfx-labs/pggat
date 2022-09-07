@@ -14,9 +14,9 @@ import (
 	"sync"
 )
 
-type query struct {
-	query string
-	rep   chan<- protocol.Packet
+type request[T any] struct {
+	payload T
+	rep     chan<- protocol.Packet
 }
 
 type servers struct {
@@ -34,20 +34,22 @@ type shard struct {
 }
 
 type ConnectionPool struct {
-	c       *config.Pool
-	user    *config.User
-	pool    gat.Pool
-	shards  []shard
-	queries chan query
+	c             *config.Pool
+	user          *config.User
+	pool          gat.Pool
+	shards        []shard
+	queries       chan request[string]
+	functionCalls chan request[*protocol.FunctionCall]
 
 	mu sync.RWMutex
 }
 
 func NewConnectionPool(pool gat.Pool, conf *config.Pool, user *config.User) *ConnectionPool {
 	p := &ConnectionPool{
-		user:    user,
-		pool:    pool,
-		queries: make(chan query),
+		user:          user,
+		pool:          pool,
+		queries:       make(chan request[string]),
+		functionCalls: make(chan request[*protocol.FunctionCall]),
 	}
 	p.EnsureConfig(conf)
 	for i := 0; i < user.PoolSize; i++ {
@@ -133,22 +135,38 @@ func (c *ConnectionPool) chooseServer(query string) *servers {
 
 func (c *ConnectionPool) worker() {
 	for {
-		q := <-c.queries
+		select {
+		case q := <-c.queries:
+			srv := c.chooseServer(q.payload)
+			if srv == nil {
+				log.Printf("call to query '%s' failed", q.payload)
+				continue
+			}
 
-		srv := c.chooseServer(q.query)
-		if srv == nil {
-			log.Printf("call to query '%s' failed", q.query)
-			continue
+			// run the query
+			err := srv.primary.Query(q.payload, q.rep)
+			srv.mu.Unlock()
+
+			if err != nil {
+				log.Println(err)
+			}
+			close(q.rep)
+		case f := <-c.functionCalls:
+			srv := c.chooseServer("")
+			if srv == nil {
+				log.Printf("function call '%+v' failed", f.payload)
+				continue
+			}
+
+			// run the query
+			err := srv.primary.CallFunction(f.payload, f.rep)
+			srv.mu.Unlock()
+
+			if err != nil {
+				log.Println(err)
+			}
+			close(f.rep)
 		}
-
-		// run the query
-		err := srv.primary.Query(q.query, q.rep)
-		srv.mu.Unlock()
-
-		if err != nil {
-			log.Println(err)
-		}
-		close(q.rep)
 	}
 }
 
@@ -168,9 +186,20 @@ func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
 func (c *ConnectionPool) Query(ctx context.Context, q string) (<-chan protocol.Packet, error) {
 	rep := make(chan protocol.Packet)
 
-	c.queries <- query{
-		query: q,
-		rep:   rep,
+	c.queries <- request[string]{
+		payload: q,
+		rep:     rep,
+	}
+
+	return rep, nil
+}
+
+func (c *ConnectionPool) CallFunction(ctx context.Context, f *protocol.FunctionCall) (<-chan protocol.Packet, error) {
+	rep := make(chan protocol.Packet)
+
+	c.functionCalls <- request[*protocol.FunctionCall]{
+		payload: f,
+		rep:     rep,
 	}
 
 	return rep, nil

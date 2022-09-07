@@ -194,6 +194,23 @@ func (s *Server) connect(ctx context.Context) error {
 	}
 }
 
+func (s *Server) forwardTo(rep chan<- protocol.Packet, predicate func(pkt protocol.Packet) (forward bool, finish bool)) error {
+	for {
+		var rsp protocol.Packet
+		rsp, err := protocol.ReadBackend(s.r)
+		if err != nil {
+			return err
+		}
+		forward, finish := predicate(rsp)
+		if forward {
+			rep <- rsp
+		}
+		if finish {
+			return nil
+		}
+	}
+}
+
 func (s *Server) Query(query string, rep chan<- protocol.Packet) error {
 	// send to server
 	q := new(protocol.Query)
@@ -204,23 +221,34 @@ func (s *Server) Query(query string, rep chan<- protocol.Packet) error {
 	}
 
 	// read responses
-	for {
-		var rsp protocol.Packet
-		rsp, err = protocol.ReadBackend(s.r)
-		if err != nil {
-			return err
-		}
-		switch r := rsp.(type) {
+	return s.forwardTo(rep, func(pkt protocol.Packet) (forward bool, finish bool) {
+		switch r := pkt.(type) {
 		case *protocol.ReadyForQuery:
-			if r.Fields.Status == 'I' {
-				rep <- rsp
-				return nil
-			}
+			return true, r.Fields.Status == 'I'
 		case *protocol.CopyInResponse, *protocol.CopyOutResponse, *protocol.CopyBothResponse:
-			return fmt.Errorf("unsuported")
+			log.Println("client tried to enter copy mode")
+			return false, true
+		default:
+			return true, false
 		}
-		rep <- rsp
+	})
+}
+
+func (s *Server) CallFunction(payload *protocol.FunctionCall, rep chan<- protocol.Packet) error {
+	_, err := payload.Write(s.wr)
+	if err != nil {
+		return err
 	}
+
+	// read responses
+	return s.forwardTo(rep, func(pkt protocol.Packet) (forward bool, finish bool) {
+		switch r := pkt.(type) {
+		case *protocol.ReadyForQuery:
+			return true, r.Fields.Status == 'I'
+		default:
+			return true, false
+		}
+	})
 }
 
 func (s *Server) Close(ctx context.Context) error {
