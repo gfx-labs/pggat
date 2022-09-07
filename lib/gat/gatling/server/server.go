@@ -1,10 +1,11 @@
-package gat
+package server
 
 import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
 	"io"
 	"net"
 	"time"
@@ -51,7 +52,7 @@ type Server struct {
 
 var ENDIAN = binary.BigEndian
 
-func DialServer(ctx context.Context, addr string, user *config.User, db string, stats any) (*Server, error) {
+func Dial(ctx context.Context, addr string, user *config.User, db string, stats any) (*Server, error) {
 	s := &Server{}
 	var err error
 	s.conn, err = net.Dial("tcp", addr)
@@ -61,7 +62,6 @@ func DialServer(ctx context.Context, addr string, user *config.User, db string, 
 	s.remote = s.conn.RemoteAddr()
 	s.r = bufio.NewReader(s.conn)
 	s.wr = s.conn
-	s.server_info = []*protocol.ParameterStatus{}
 	s.user = *user
 	s.db = db
 
@@ -71,6 +71,10 @@ func DialServer(ctx context.Context, addr string, user *config.User, db string, 
 		Str("db", db).
 		Logger()
 	return s, s.connect(ctx)
+}
+
+func (s *Server) GetServerInfo() []*protocol.ParameterStatus {
+	return s.server_info
 }
 
 func (s *Server) startup(ctx context.Context) error {
@@ -94,6 +98,7 @@ func (s *Server) startup(ctx context.Context) error {
 	}
 	return nil
 }
+
 func (s *Server) connect(ctx context.Context) error {
 	err := s.startup(ctx)
 	if err != nil {
@@ -171,7 +176,7 @@ func (s *Server) connect(ctx context.Context) error {
 				s.log.Debug().Str("method", "scram256").Msg("sasl success")
 			}
 		case *protocol.ErrorResponse:
-			pgErr := new(PostgresError)
+			pgErr := new(pg_error.Error)
 			pgErr.Read(p)
 			return pgErr
 		case *protocol.ParameterStatus:
@@ -186,6 +191,35 @@ func (s *Server) connect(ctx context.Context) error {
 			s.in_txn = false
 			return nil
 		}
+	}
+}
+
+func (s *Server) Query(query string, rep chan<- protocol.Packet) error {
+	// send to server
+	q := new(protocol.Query)
+	q.Fields.Query = query
+	_, err := q.Write(s.wr)
+	if err != nil {
+		return err
+	}
+
+	// read responses
+	for {
+		var rsp protocol.Packet
+		rsp, err = protocol.ReadBackend(s.r)
+		if err != nil {
+			return err
+		}
+		switch r := rsp.(type) {
+		case *protocol.ReadyForQuery:
+			if r.Fields.Status == 'I' {
+				rep <- rsp
+				return nil
+			}
+		case *protocol.CopyInResponse, *protocol.CopyOutResponse, *protocol.CopyBothResponse:
+			return fmt.Errorf("unsuported")
+		}
+		rep <- rsp
 	}
 }
 

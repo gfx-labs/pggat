@@ -1,4 +1,4 @@
-package gat
+package sharding
 
 const PARTITION_HASH_SEED = 0x7A5B22367996DCFD
 

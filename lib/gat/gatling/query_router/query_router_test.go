@@ -1,4 +1,4 @@
-package gat
+package query_router
 
 import (
 	"testing"

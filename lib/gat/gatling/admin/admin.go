@@ -1,4 +1,4 @@
-package gat
+package admin
 
 import (
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
@@ -52,14 +52,14 @@ func AdminServerInfo() []*protocol.ParameterStatus {
 //    stream: &mut T,
 //    mut query: BytesMut,
 //    client_server_map: ClientServerMap,
-//) -> Result<(), Error>
+//) -> Result<(), Err>
 //where
 //    T: tokio::io::AsyncWrite + std::marker::Unpin,
 //{
 //    let code = query.get_u8() as char;
 //
 //    if code != 'Q' {
-//        return Err(Error::ProtocolSyncError);
+//        return Err(Err::ProtocolSyncError);
 //    }
 //
 //    let len = query.get_i32() as usize;
@@ -112,7 +112,7 @@ func AdminServerInfo() []*protocol.ParameterStatus {
 //}
 //
 ///// Column-oriented statistics.
-//async fn show_lists<T>(stream: &mut T) -> Result<(), Error>
+//async fn show_lists<T>(stream: &mut T) -> Result<(), Err>
 //where
 //    T: tokio::io::AsyncWrite + std::marker::Unpin,
 //{
@@ -185,7 +185,7 @@ func AdminServerInfo() []*protocol.ParameterStatus {
 //}
 //
 ///// Show PgCat version.
-//async fn show_version<T>(stream: &mut T) -> Result<(), Error>
+//async fn show_version<T>(stream: &mut T) -> Result<(), Err>
 //where
 //    T: tokio::io::AsyncWrite + std::marker::Unpin,
 //{
@@ -203,7 +203,7 @@ func AdminServerInfo() []*protocol.ParameterStatus {
 //}
 //
 ///// Show utilization of connection pools for each shard and replicas.
-//async fn show_pools<T>(stream: &mut T) -> Result<(), Error>
+//async fn show_pools<T>(stream: &mut T) -> Result<(), Err>
 //where
 //    T: tokio::io::AsyncWrite + std::marker::Unpin,
 //{
@@ -262,7 +262,7 @@ func AdminServerInfo() []*protocol.ParameterStatus {
 //}
 //
 ///// Show shards and replicas.
-//async fn show_databases<T>(stream: &mut T) -> Result<(), Error>
+//async fn show_databases<T>(stream: &mut T) -> Result<(), Err>
 //where
 //    T: tokio::io::AsyncWrite + std::marker::Unpin,
 //{
@@ -330,7 +330,7 @@ func AdminServerInfo() []*protocol.ParameterStatus {
 //
 ///// Ignore any SET commands the client sends.
 ///// This is common initialization done by ORMs.
-//async fn ignore_set<T>(stream: &mut T) -> Result<(), Error>
+//async fn ignore_set<T>(stream: &mut T) -> Result<(), Err>
 //where
 //    T: tokio::io::AsyncWrite + std::marker::Unpin,
 //{
@@ -338,7 +338,7 @@ func AdminServerInfo() []*protocol.ParameterStatus {
 //}
 //
 ///// Reload the configuration file without restarting the process.
-//async fn reload<T>(stream: &mut T, client_server_map: ClientServerMap) -> Result<(), Error>
+//async fn reload<T>(stream: &mut T, client_server_map: ClientServerMap) -> Result<(), Err>
 //where
 //    T: tokio::io::AsyncWrite + std::marker::Unpin,
 //{
@@ -361,7 +361,7 @@ func AdminServerInfo() []*protocol.ParameterStatus {
 //}
 //
 ///// Shows current configuration.
-//async fn show_config<T>(stream: &mut T) -> Result<(), Error>
+//async fn show_config<T>(stream: &mut T) -> Result<(), Err>
 //where
 //    T: tokio::io::AsyncWrite + std::marker::Unpin,
 //{
@@ -407,7 +407,7 @@ func AdminServerInfo() []*protocol.ParameterStatus {
 //}
 //
 ///// Show shard and replicas statistics.
-//async fn show_stats<T>(stream: &mut T) -> Result<(), Error>
+//async fn show_stats<T>(stream: &mut T) -> Result<(), Err>
 //where
 //    T: tokio::io::AsyncWrite + std::marker::Unpin,
 //{

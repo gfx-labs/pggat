@@ -1,7 +1,8 @@
-package gat
+package server
 
 import (
 	"context"
+	"gfx.cafe/gfx/pggat/lib/gat/gatling/client"
 	"git.tuxpa.in/a/zlog/log"
 	"testing"
 
@@ -18,8 +19,8 @@ var test_user = config.User{
 }
 
 func TestServerDial(t *testing.T) {
-	csm := make(map[ClientInfo]ClientInfo)
-	srv, err := DialServer(context.TODO(), test_address, &test_user, "postgres", csm, nil)
+	csm := make(map[client.ClientInfo]client.ClientInfo)
+	srv, err := Dial(context.TODO(), test_address, &test_user, "postgres", csm, nil)
 	if err != nil {
 		t.Error(err)
 	}

@@ -1,4 +1,4 @@
-package gat
+package messages
 
 import (
 	"crypto/md5"

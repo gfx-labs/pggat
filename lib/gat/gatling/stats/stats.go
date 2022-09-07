@@ -1,4 +1,4 @@
-package gat
+package stats
 
 //TODO: metrics
 // let's do this last. we can use the go package for prometheus, its way better than anything we could do

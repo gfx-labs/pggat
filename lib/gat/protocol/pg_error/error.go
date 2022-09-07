@@ -1,4 +1,4 @@
-package gat
+package pg_error
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 type Severity string
 
 const (
-	Error  Severity = "ERROR"
+	Err    Severity = "ERROR"
 	Fatal           = "FATAL"
 	Panic           = "PANIC"
 	Warn            = "WARNING"
@@ -285,7 +285,7 @@ const (
 	IndexCorrupted                                               = "XX002"
 )
 
-type PostgresError struct {
+type Error struct {
 	Severity         Severity
 	Code             Code
 	Message          string
@@ -305,7 +305,7 @@ type PostgresError struct {
 	Routine          string
 }
 
-func (E *PostgresError) Read(pkt *protocol.ErrorResponse) {
+func (E *Error) Read(pkt *protocol.ErrorResponse) {
 	for _, field := range pkt.Fields.Responses {
 		switch field.Code {
 		case byte('S'):
@@ -346,7 +346,7 @@ func (E *PostgresError) Read(pkt *protocol.ErrorResponse) {
 	}
 }
 
-func (E *PostgresError) Packet() *protocol.ErrorResponse {
+func (E *Error) Packet() *protocol.ErrorResponse {
 	var fields []protocol.FieldsErrorResponseResponses
 	fields = append(fields, protocol.FieldsErrorResponseResponses{
 		Code:  byte('S'),
@@ -448,6 +448,6 @@ func (E *PostgresError) Packet() *protocol.ErrorResponse {
 	return pkt
 }
 
-func (E *PostgresError) Error() string {
+func (E *Error) Error() string {
 	return fmt.Sprintf("%s: %s", E.Severity, E.Message)
 }

@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"gfx.cafe/gfx/pggat/lib/config"
-	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/gatling"
 	"git.tuxpa.in/a/zlog/log"
 )
 
@@ -15,14 +15,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	gatling := gat.NewGatling()
-	err = gatling.ApplyConfig(conf)
-	if err != nil {
-		panic(err)
-	}
+	g := gatling.NewGatling(conf)
 
 	log.Println("listening on port", conf.General.Port)
-	err = gatling.ListenAndServe(context.Background())
+	err = g.ListenAndServe(context.Background())
 	if err != nil {
 		panic(err)
 	}

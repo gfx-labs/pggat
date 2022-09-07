@@ -1,4 +1,4 @@
-package gat
+package query_router
 
 import (
 	"fmt"
@@ -50,13 +50,16 @@ type CommandShowPrimaryReads struct{}
 type QueryRouter struct {
 	active_shard          int
 	primary_reads_enabled bool
-	pool_settings         PoolSettings
+	//pool_settings         pool.PoolSettings
 }
 
+/* TODO
 // / Pool settings can change because of a config reload.
-func (r *QueryRouter) UpdatePoolSettings(pool_settings PoolSettings) {
+func (r *QueryRouter) UpdatePoolSettings(pool_settings pool.PoolSettings) {
 	r.pool_settings = pool_settings
 }
+
+*/
 
 // / Try to parse a command and execute it.
 // TODO: needs to just provide the execution function and so gatling can then plug in the client, server, etc
