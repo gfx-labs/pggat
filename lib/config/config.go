@@ -92,9 +92,10 @@ func (o Server) Port() uint16 {
 }
 
 func (o Server) Role() ServerRole {
-	if v, ok := o[0].(string); ok {
+	if v, ok := o[2].(string); ok {
 		switch ServerRole(v) {
 		case SERVERROLE_PRIMARY, SERVERROLE_REPLICA:
+			return ServerRole(v)
 		default:
 		}
 	}

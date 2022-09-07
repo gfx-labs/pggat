@@ -12,19 +12,19 @@ func TestQueryRouterInterRoleReplica(t *testing.T) {
 	qr := &QueryRouter{}
 	pkt := &protocol.Parse{}
 	pkt.Fields.Query = `UPDATE items SET name = 'pumpkin' WHERE id = 5`
-	err := qr.InferRole(pkt)
+	role, err := qr.InferRole(pkt)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if qr.active_role != config.SERVERROLE_PRIMARY {
+	if role != config.SERVERROLE_PRIMARY {
 		t.Error("expect primary")
 	}
 	pkt.Fields.Query = `select * from items WHERE id = 5`
-	err = qr.InferRole(pkt)
+	role, err = qr.InferRole(pkt)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if qr.active_role != config.SERVERROLE_REPLICA {
+	if role != config.SERVERROLE_REPLICA {
 		t.Error("expect replica")
 	}
 

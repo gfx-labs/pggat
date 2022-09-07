@@ -23,10 +23,25 @@ type request[T any] struct {
 }
 
 type servers struct {
-	primary  *server.Server
-	replicas []*server.Server
+	primary *server.Server
+	replica *server.Server
 
 	mu sync.Mutex
+}
+
+func (s *servers) choose(role config.ServerRole) *server.Server {
+	switch role {
+	case config.SERVERROLE_PRIMARY:
+		return s.primary
+	case config.SERVERROLE_REPLICA:
+		if s.replica == nil {
+			// fallback to primary
+			return s.primary
+		}
+		return s.replica
+	default:
+		return nil
+	}
 }
 
 type shard struct {
@@ -84,7 +99,7 @@ func (c *ConnectionPool) EnsureConfig(conf *config.Pool) {
 	}
 }
 
-func (c *ConnectionPool) chooseShard(query string) *shard {
+func (c *ConnectionPool) chooseShard() *shard {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -97,8 +112,8 @@ func (c *ConnectionPool) chooseShard(query string) *shard {
 }
 
 // chooseServer locks and returns a server for you to use
-func (c *ConnectionPool) chooseServer(query string) *servers {
-	s := c.chooseShard(query)
+func (c *ConnectionPool) chooseServer() *servers {
+	s := c.chooseShard()
 	if s == nil {
 		log.Println("no available shard for query!")
 		return nil
@@ -108,8 +123,6 @@ func (c *ConnectionPool) chooseServer(query string) *servers {
 	defer s.mu.Unlock()
 
 	// TODO ideally this would choose the server based on load, capabilities, etc
-	// TODO protect this server from being used by other workers while we use it
-	// TODO use c.pool.query_router to route queries
 	for _, srv := range s.servers {
 		if srv.mu.TryLock() {
 			return srv
@@ -119,21 +132,30 @@ func (c *ConnectionPool) chooseServer(query string) *servers {
 	// there are no servers available in the pool, let's make a new connection
 
 	// connect to primary server
-	// TODO primary server might not be 0, could have no primary server so should fall back to server with role None
-	primary, err := server.Dial(context.Background(), fmt.Sprintf("%s:%d", s.conf.Servers[0].Host(), s.conf.Servers[0].Port()), c.user, s.conf.Database, nil)
-	if err != nil {
-		log.Println("failed to connect to server", err)
+	srvs := &servers{}
+	for _, srvConf := range s.conf.Servers {
+		srv, err := server.Dial(context.Background(), fmt.Sprintf("%s:%d", srvConf.Host(), srvConf.Port()), c.user, s.conf.Database, nil)
+		if err != nil {
+			log.Println("failed to connect to server", err)
+			continue
+		}
+		switch srvConf.Role() {
+		case config.SERVERROLE_PRIMARY:
+			srvs.primary = srv
+		case config.SERVERROLE_REPLICA:
+			srvs.replica = srv
+		}
+	}
+
+	if srvs.primary == nil {
 		return nil
 	}
 
-	srv := &servers{
-		primary: primary,
-	}
-	srv.mu.Lock()
+	srvs.mu.Lock()
 
-	s.servers = append(s.servers, srv)
+	s.servers = append(s.servers, srvs)
 
-	return srv
+	return srvs
 }
 
 func (c *ConnectionPool) worker() {
@@ -142,7 +164,7 @@ func (c *ConnectionPool) worker() {
 			select {
 			case q := <-c.queries:
 				defer q.done()
-				srv := c.chooseServer(q.payload)
+				srv := c.chooseServer()
 				if srv == nil {
 					log.Printf("call to query '%s' failed", q.payload)
 					return
@@ -151,13 +173,23 @@ func (c *ConnectionPool) worker() {
 				defer srv.mu.Unlock()
 
 				// run the query
-				err := srv.primary.Query(q.client, q.ctx, q.payload)
+				which, err := c.pool.GetRouter().InferRole(q.payload)
+				if err != nil {
+					log.Println("error parsing query:", err)
+					return
+				}
+				target := srv.choose(which)
+				if target == nil {
+					log.Printf("call to query '%s' failed", q.payload)
+					return
+				}
+				err = target.Query(q.client, q.ctx, q.payload)
 				if err != nil {
 					log.Println("error executing query:", err)
 				}
 			case f := <-c.functionCalls:
 				defer f.done()
-				srv := c.chooseServer("")
+				srv := c.chooseServer()
 				if srv == nil {
 					log.Printf("function call '%+v' failed", f.payload)
 					return
@@ -166,6 +198,11 @@ func (c *ConnectionPool) worker() {
 				defer srv.mu.Unlock()
 
 				// call the function
+				target := srv.primary
+				if target == nil {
+					log.Printf("function call '%+v' failed", f.payload)
+					return
+				}
 				err := srv.primary.CallFunction(f.client, f.payload)
 				if err != nil {
 					log.Println("error calling function:", err)
@@ -180,7 +217,7 @@ func (c *ConnectionPool) GetUser() *config.User {
 }
 
 func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
-	srv := c.chooseServer("")
+	srv := c.chooseServer()
 	if srv == nil {
 		return nil
 	}

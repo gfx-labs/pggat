@@ -56,6 +56,10 @@ func (p *Pool) GetUser(name string) (*config.User, error) {
 	return &user, nil
 }
 
+func (p *Pool) GetRouter() gat.QueryRouter {
+	return &p.router
+}
+
 func (p *Pool) WithUser(name string) (gat.ConnectionPool, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()

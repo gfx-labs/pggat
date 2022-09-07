@@ -307,6 +307,7 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	case <-ctx.Done():
 		return false, ctx.Err()
 	}
+
 	switch cast := rsp.(type) {
 	case *protocol.Query:
 		return true, c.handle_query(ctx, cast)
@@ -324,6 +325,7 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 	if err != nil {
 		return err
 	}
+	// wait for query to finish
 	<-done.Done()
 	err = done.Err()
 	if errors.Is(err, context.Canceled) {
@@ -337,6 +339,7 @@ func (c *Client) handle_function(ctx context.Context, f *protocol.FunctionCall) 
 	if err != nil {
 		return err
 	}
+	// wait for function call to finish
 	<-done.Done()
 	err = done.Err()
 	if errors.Is(err, context.Canceled) {

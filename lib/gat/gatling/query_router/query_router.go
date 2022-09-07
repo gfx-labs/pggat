@@ -1,11 +1,8 @@
 package query_router
 
 import (
-	"fmt"
-	"regexp"
-	"strings"
-
 	"git.tuxpa.in/a/zlog/log"
+	"regexp"
 
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
@@ -203,18 +200,8 @@ func (r *QueryRouter) try_execute_command(pkt *protocol.Query) (Command, string)
 
 // / Try to infer which server to connect to based on the contents of the query.
 // TODO: implement
-func (r *QueryRouter) InferRole(pkt protocol.Packet) (config.ServerRole, error) {
-	var query string
+func (r *QueryRouter) InferRole(query string) (config.ServerRole, error) {
 	var active_role config.ServerRole
-	switch c := pkt.(type) {
-	case *protocol.Query:
-		active_role = config.SERVERROLE_REPLICA
-	case *protocol.Parse:
-		query = c.Fields.Query
-		query = strings.ReplaceAll(query, "$", "")
-	default:
-		return config.SERVERROLE_REPLICA, fmt.Errorf("unknown packet %v", pkt)
-	}
 	// by default it will hit a replica
 	active_role = config.SERVERROLE_REPLICA
 	// ok now parse the query
