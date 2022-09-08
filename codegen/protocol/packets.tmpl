@@ -71,14 +71,20 @@ var _ io.Reader
         if err != nil {
             return
         }
-        if {{$field.Name}}Length == {{$field.LengthPrefixed}}(-1) {
-            {{$field.Name}}Length = 0
-        }
     {{else if $field.ArrayLength -}}
         {{$field.Name}}Length := {{$field.ArrayLength}}
     {{end -}}
 
-    {{if or $field.LengthPrefixed $field.ArrayLength -}}
+    {{if $field.LengthPrefixed -}}
+        if {{$field.Name}}Length == {{$field.LengthPrefixed}}(-1) {
+            T.{{$field.Name}} = nil
+        } else {
+            T.{{$field.Name}} = make({{template "fieldType" (list $parent $field)}}, int({{$field.Name}}Length))
+            for i := 0; i < int({{$field.Name}}Length); i++ {
+                {{template "readFieldL1" (list $parent $field (printf "T.%s[i]" $field.Name))}}
+            }
+        }
+    {{else if $field.ArrayLength -}}
         T.{{$field.Name}} = make({{template "fieldType" (list $parent $field)}}, int({{$field.Name}}Length))
         for i := 0; i < int({{$field.Name}}Length); i++ {
             {{template "readFieldL1" (list $parent $field (printf "T.%s[i]" $field.Name))}}
@@ -129,7 +135,11 @@ var _ io.Reader
     {{end -}}
 
     {{if $field.LengthPrefixed -}}
-        temp, err = Write{{camelCase $field.LengthPrefixed}}(writer, {{$field.LengthPrefixed}}(len(T.{{$field.Name}})))
+        if T.{{$field.Name}} == nil {
+            temp, err = Write{{camelCase $field.LengthPrefixed}}(writer, {{$field.LengthPrefixed}}(-1))
+        } else {
+            temp, err = Write{{camelCase $field.LengthPrefixed}}(writer, {{$field.LengthPrefixed}}(len(T.{{$field.Name}})))
+        }
         if err != nil {
             return
         }

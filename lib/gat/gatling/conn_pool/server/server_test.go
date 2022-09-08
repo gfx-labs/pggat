@@ -18,7 +18,7 @@ var test_user = config.User{
 }
 
 func TestServerDial(t *testing.T) {
-	srv, err := Dial(context.TODO(), test_address, &test_user, "postgres", nil)
+	srv, err := Dial(context.TODO(), test_address, &test_user, "postgres", test_user.Name, test_user.Password, nil)
 	if err != nil {
 		t.Error(err)
 	}

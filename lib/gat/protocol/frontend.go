@@ -92,13 +92,14 @@ func (T *FieldsBindParameterValues) Read(payloadLength int, reader io.Reader) (e
 		return
 	}
 	if ValueLength == int32(-1) {
-		ValueLength = 0
-	}
-	T.Value = make([]byte, int(ValueLength))
-	for i := 0; i < int(ValueLength); i++ {
-		T.Value[i], err = ReadByte(reader)
-		if err != nil {
-			return
+		T.Value = nil
+	} else {
+		T.Value = make([]byte, int(ValueLength))
+		for i := 0; i < int(ValueLength); i++ {
+			T.Value[i], err = ReadByte(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -106,7 +107,11 @@ func (T *FieldsBindParameterValues) Read(payloadLength int, reader io.Reader) (e
 
 func (T *FieldsBindParameterValues) Write(writer io.Writer) (length int, err error) {
 	var temp int
-	temp, err = WriteInt32(writer, int32(len(T.Value)))
+	if T.Value == nil {
+		temp, err = WriteInt32(writer, int32(-1))
+	} else {
+		temp, err = WriteInt32(writer, int32(len(T.Value)))
+	}
 	if err != nil {
 		return
 	}
@@ -145,13 +150,14 @@ func (T *FieldsBind) Read(payloadLength int, reader io.Reader) (err error) {
 		return
 	}
 	if FormatCodesLength == int16(-1) {
-		FormatCodesLength = 0
-	}
-	T.FormatCodes = make([]int16, int(FormatCodesLength))
-	for i := 0; i < int(FormatCodesLength); i++ {
-		T.FormatCodes[i], err = ReadInt16(reader)
-		if err != nil {
-			return
+		T.FormatCodes = nil
+	} else {
+		T.FormatCodes = make([]int16, int(FormatCodesLength))
+		for i := 0; i < int(FormatCodesLength); i++ {
+			T.FormatCodes[i], err = ReadInt16(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	var ParameterValuesLength int16
@@ -160,13 +166,14 @@ func (T *FieldsBind) Read(payloadLength int, reader io.Reader) (err error) {
 		return
 	}
 	if ParameterValuesLength == int16(-1) {
-		ParameterValuesLength = 0
-	}
-	T.ParameterValues = make([]FieldsBindParameterValues, int(ParameterValuesLength))
-	for i := 0; i < int(ParameterValuesLength); i++ {
-		err = T.ParameterValues[i].Read(payloadLength, reader)
-		if err != nil {
-			return
+		T.ParameterValues = nil
+	} else {
+		T.ParameterValues = make([]FieldsBindParameterValues, int(ParameterValuesLength))
+		for i := 0; i < int(ParameterValuesLength); i++ {
+			err = T.ParameterValues[i].Read(payloadLength, reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	var ResultColumnFormatCodesLength int16
@@ -175,13 +182,14 @@ func (T *FieldsBind) Read(payloadLength int, reader io.Reader) (err error) {
 		return
 	}
 	if ResultColumnFormatCodesLength == int16(-1) {
-		ResultColumnFormatCodesLength = 0
-	}
-	T.ResultColumnFormatCodes = make([]int16, int(ResultColumnFormatCodesLength))
-	for i := 0; i < int(ResultColumnFormatCodesLength); i++ {
-		T.ResultColumnFormatCodes[i], err = ReadInt16(reader)
-		if err != nil {
-			return
+		T.ResultColumnFormatCodes = nil
+	} else {
+		T.ResultColumnFormatCodes = make([]int16, int(ResultColumnFormatCodesLength))
+		for i := 0; i < int(ResultColumnFormatCodesLength); i++ {
+			T.ResultColumnFormatCodes[i], err = ReadInt16(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -199,7 +207,11 @@ func (T *FieldsBind) Write(writer io.Writer) (length int, err error) {
 		return
 	}
 	length += temp
-	temp, err = WriteInt16(writer, int16(len(T.FormatCodes)))
+	if T.FormatCodes == nil {
+		temp, err = WriteInt16(writer, int16(-1))
+	} else {
+		temp, err = WriteInt16(writer, int16(len(T.FormatCodes)))
+	}
 	if err != nil {
 		return
 	}
@@ -211,7 +223,11 @@ func (T *FieldsBind) Write(writer io.Writer) (length int, err error) {
 		}
 		length += temp
 	}
-	temp, err = WriteInt16(writer, int16(len(T.ParameterValues)))
+	if T.ParameterValues == nil {
+		temp, err = WriteInt16(writer, int16(-1))
+	} else {
+		temp, err = WriteInt16(writer, int16(len(T.ParameterValues)))
+	}
 	if err != nil {
 		return
 	}
@@ -223,7 +239,11 @@ func (T *FieldsBind) Write(writer io.Writer) (length int, err error) {
 		}
 		length += temp
 	}
-	temp, err = WriteInt16(writer, int16(len(T.ResultColumnFormatCodes)))
+	if T.ResultColumnFormatCodes == nil {
+		temp, err = WriteInt16(writer, int16(-1))
+	} else {
+		temp, err = WriteInt16(writer, int16(len(T.ResultColumnFormatCodes)))
+	}
 	if err != nil {
 		return
 	}
@@ -631,13 +651,14 @@ func (T *FieldsFunctionCallArguments) Read(payloadLength int, reader io.Reader) 
 		return
 	}
 	if ValueLength == int32(-1) {
-		ValueLength = 0
-	}
-	T.Value = make([]byte, int(ValueLength))
-	for i := 0; i < int(ValueLength); i++ {
-		T.Value[i], err = ReadByte(reader)
-		if err != nil {
-			return
+		T.Value = nil
+	} else {
+		T.Value = make([]byte, int(ValueLength))
+		for i := 0; i < int(ValueLength); i++ {
+			T.Value[i], err = ReadByte(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -645,7 +666,11 @@ func (T *FieldsFunctionCallArguments) Read(payloadLength int, reader io.Reader) 
 
 func (T *FieldsFunctionCallArguments) Write(writer io.Writer) (length int, err error) {
 	var temp int
-	temp, err = WriteInt32(writer, int32(len(T.Value)))
+	if T.Value == nil {
+		temp, err = WriteInt32(writer, int32(-1))
+	} else {
+		temp, err = WriteInt32(writer, int32(len(T.Value)))
+	}
 	if err != nil {
 		return
 	}
@@ -679,13 +704,14 @@ func (T *FieldsFunctionCall) Read(payloadLength int, reader io.Reader) (err erro
 		return
 	}
 	if ArgumentFormatCodesLength == int16(-1) {
-		ArgumentFormatCodesLength = 0
-	}
-	T.ArgumentFormatCodes = make([]int16, int(ArgumentFormatCodesLength))
-	for i := 0; i < int(ArgumentFormatCodesLength); i++ {
-		T.ArgumentFormatCodes[i], err = ReadInt16(reader)
-		if err != nil {
-			return
+		T.ArgumentFormatCodes = nil
+	} else {
+		T.ArgumentFormatCodes = make([]int16, int(ArgumentFormatCodesLength))
+		for i := 0; i < int(ArgumentFormatCodesLength); i++ {
+			T.ArgumentFormatCodes[i], err = ReadInt16(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	var ArgumentsLength int16
@@ -694,13 +720,14 @@ func (T *FieldsFunctionCall) Read(payloadLength int, reader io.Reader) (err erro
 		return
 	}
 	if ArgumentsLength == int16(-1) {
-		ArgumentsLength = 0
-	}
-	T.Arguments = make([]FieldsFunctionCallArguments, int(ArgumentsLength))
-	for i := 0; i < int(ArgumentsLength); i++ {
-		err = T.Arguments[i].Read(payloadLength, reader)
-		if err != nil {
-			return
+		T.Arguments = nil
+	} else {
+		T.Arguments = make([]FieldsFunctionCallArguments, int(ArgumentsLength))
+		for i := 0; i < int(ArgumentsLength); i++ {
+			err = T.Arguments[i].Read(payloadLength, reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	T.ResultFormatCode, err = ReadInt16(reader)
@@ -717,7 +744,11 @@ func (T *FieldsFunctionCall) Write(writer io.Writer) (length int, err error) {
 		return
 	}
 	length += temp
-	temp, err = WriteInt16(writer, int16(len(T.ArgumentFormatCodes)))
+	if T.ArgumentFormatCodes == nil {
+		temp, err = WriteInt16(writer, int16(-1))
+	} else {
+		temp, err = WriteInt16(writer, int16(len(T.ArgumentFormatCodes)))
+	}
 	if err != nil {
 		return
 	}
@@ -729,7 +760,11 @@ func (T *FieldsFunctionCall) Write(writer io.Writer) (length int, err error) {
 		}
 		length += temp
 	}
-	temp, err = WriteInt16(writer, int16(len(T.Arguments)))
+	if T.Arguments == nil {
+		temp, err = WriteInt16(writer, int16(-1))
+	} else {
+		temp, err = WriteInt16(writer, int16(len(T.Arguments)))
+	}
 	if err != nil {
 		return
 	}
@@ -870,13 +905,14 @@ func (T *FieldsParse) Read(payloadLength int, reader io.Reader) (err error) {
 		return
 	}
 	if ParameterDataTypesLength == int16(-1) {
-		ParameterDataTypesLength = 0
-	}
-	T.ParameterDataTypes = make([]int32, int(ParameterDataTypesLength))
-	for i := 0; i < int(ParameterDataTypesLength); i++ {
-		T.ParameterDataTypes[i], err = ReadInt32(reader)
-		if err != nil {
-			return
+		T.ParameterDataTypes = nil
+	} else {
+		T.ParameterDataTypes = make([]int32, int(ParameterDataTypesLength))
+		for i := 0; i < int(ParameterDataTypesLength); i++ {
+			T.ParameterDataTypes[i], err = ReadInt32(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -894,7 +930,11 @@ func (T *FieldsParse) Write(writer io.Writer) (length int, err error) {
 		return
 	}
 	length += temp
-	temp, err = WriteInt16(writer, int16(len(T.ParameterDataTypes)))
+	if T.ParameterDataTypes == nil {
+		temp, err = WriteInt16(writer, int16(-1))
+	} else {
+		temp, err = WriteInt16(writer, int16(len(T.ParameterDataTypes)))
+	}
 	if err != nil {
 		return
 	}

@@ -69,12 +69,9 @@ DataRow:
     - Name: Columns
       Struct:
         Fields:
-          - Name: BytesLen
-            Type: int32
           - Name: Bytes
-            If: 'T.BytesLen != -1'
             Type: byte
-            ArrayLength: 'T.BytesLen'
+            LengthPrefixed: int32
       LengthPrefixed: int16
 EmptyQueryResponse:
   Identifier: 'I'

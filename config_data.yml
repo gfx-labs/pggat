@@ -20,11 +20,6 @@ pools:
     sharding_function: pg_bigint_hash
     users:
       - username: postgres
-        password: postgres
-        role: reader
-        pool_size: 5
-        statement_timeout: 0
-      - username: postgres
         password: password
         role: writer
         pool_size: 20
@@ -38,12 +33,12 @@ pools:
             port: 5432
             role: primary
             username: postgres
-            password: postgres
+            password: password
           - host: localhost
             role: replica
             port: 5432
             username: postgres
-            password: postgres
+            password: password
   sharded:
     pool_mode: transaction
     default_role: any

@@ -439,13 +439,14 @@ func (T *FieldsCopyBothResponse) Read(payloadLength int, reader io.Reader) (err 
 		return
 	}
 	if ColumnFormatsLength == int16(-1) {
-		ColumnFormatsLength = 0
-	}
-	T.ColumnFormats = make([]int16, int(ColumnFormatsLength))
-	for i := 0; i < int(ColumnFormatsLength); i++ {
-		T.ColumnFormats[i], err = ReadInt16(reader)
-		if err != nil {
-			return
+		T.ColumnFormats = nil
+	} else {
+		T.ColumnFormats = make([]int16, int(ColumnFormatsLength))
+		for i := 0; i < int(ColumnFormatsLength); i++ {
+			T.ColumnFormats[i], err = ReadInt16(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -458,7 +459,11 @@ func (T *FieldsCopyBothResponse) Write(writer io.Writer) (length int, err error)
 		return
 	}
 	length += temp
-	temp, err = WriteInt16(writer, int16(len(T.ColumnFormats)))
+	if T.ColumnFormats == nil {
+		temp, err = WriteInt16(writer, int16(-1))
+	} else {
+		temp, err = WriteInt16(writer, int16(len(T.ColumnFormats)))
+	}
 	if err != nil {
 		return
 	}
@@ -531,13 +536,14 @@ func (T *FieldsCopyInResponse) Read(payloadLength int, reader io.Reader) (err er
 		return
 	}
 	if ColumnFormatsLength == int16(-1) {
-		ColumnFormatsLength = 0
-	}
-	T.ColumnFormats = make([]int16, int(ColumnFormatsLength))
-	for i := 0; i < int(ColumnFormatsLength); i++ {
-		T.ColumnFormats[i], err = ReadInt16(reader)
-		if err != nil {
-			return
+		T.ColumnFormats = nil
+	} else {
+		T.ColumnFormats = make([]int16, int(ColumnFormatsLength))
+		for i := 0; i < int(ColumnFormatsLength); i++ {
+			T.ColumnFormats[i], err = ReadInt16(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -550,7 +556,11 @@ func (T *FieldsCopyInResponse) Write(writer io.Writer) (length int, err error) {
 		return
 	}
 	length += temp
-	temp, err = WriteInt16(writer, int16(len(T.ColumnFormats)))
+	if T.ColumnFormats == nil {
+		temp, err = WriteInt16(writer, int16(-1))
+	} else {
+		temp, err = WriteInt16(writer, int16(len(T.ColumnFormats)))
+	}
 	if err != nil {
 		return
 	}
@@ -623,13 +633,14 @@ func (T *FieldsCopyOutResponse) Read(payloadLength int, reader io.Reader) (err e
 		return
 	}
 	if ColumnFormatsLength == int16(-1) {
-		ColumnFormatsLength = 0
-	}
-	T.ColumnFormats = make([]int16, int(ColumnFormatsLength))
-	for i := 0; i < int(ColumnFormatsLength); i++ {
-		T.ColumnFormats[i], err = ReadInt16(reader)
-		if err != nil {
-			return
+		T.ColumnFormats = nil
+	} else {
+		T.ColumnFormats = make([]int16, int(ColumnFormatsLength))
+		for i := 0; i < int(ColumnFormatsLength); i++ {
+			T.ColumnFormats[i], err = ReadInt16(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -642,7 +653,11 @@ func (T *FieldsCopyOutResponse) Write(writer io.Writer) (length int, err error) 
 		return
 	}
 	length += temp
-	temp, err = WriteInt16(writer, int16(len(T.ColumnFormats)))
+	if T.ColumnFormats == nil {
+		temp, err = WriteInt16(writer, int16(-1))
+	} else {
+		temp, err = WriteInt16(writer, int16(len(T.ColumnFormats)))
+	}
 	if err != nil {
 		return
 	}
@@ -700,17 +715,18 @@ func (T *CopyOutResponse) Write(writer io.Writer) (length int, err error) {
 var _ Packet = (*CopyOutResponse)(nil)
 
 type FieldsDataRowColumns struct {
-	BytesLen int32
-	Bytes    []byte
+	Bytes []byte
 }
 
 func (T *FieldsDataRowColumns) Read(payloadLength int, reader io.Reader) (err error) {
-	T.BytesLen, err = ReadInt32(reader)
+	var BytesLength int32
+	BytesLength, err = ReadInt32(reader)
 	if err != nil {
 		return
 	}
-	if T.BytesLen != -1 {
-		BytesLength := T.BytesLen
+	if BytesLength == int32(-1) {
+		T.Bytes = nil
+	} else {
 		T.Bytes = make([]byte, int(BytesLength))
 		for i := 0; i < int(BytesLength); i++ {
 			T.Bytes[i], err = ReadByte(reader)
@@ -724,19 +740,21 @@ func (T *FieldsDataRowColumns) Read(payloadLength int, reader io.Reader) (err er
 
 func (T *FieldsDataRowColumns) Write(writer io.Writer) (length int, err error) {
 	var temp int
-	temp, err = WriteInt32(writer, T.BytesLen)
+	if T.Bytes == nil {
+		temp, err = WriteInt32(writer, int32(-1))
+	} else {
+		temp, err = WriteInt32(writer, int32(len(T.Bytes)))
+	}
 	if err != nil {
 		return
 	}
 	length += temp
-	if T.BytesLen != -1 {
-		for _, v := range T.Bytes {
-			temp, err = WriteByte(writer, v)
-			if err != nil {
-				return
-			}
-			length += temp
+	for _, v := range T.Bytes {
+		temp, err = WriteByte(writer, v)
+		if err != nil {
+			return
 		}
+		length += temp
 	}
 	_ = temp
 	return
@@ -753,13 +771,14 @@ func (T *FieldsDataRow) Read(payloadLength int, reader io.Reader) (err error) {
 		return
 	}
 	if ColumnsLength == int16(-1) {
-		ColumnsLength = 0
-	}
-	T.Columns = make([]FieldsDataRowColumns, int(ColumnsLength))
-	for i := 0; i < int(ColumnsLength); i++ {
-		err = T.Columns[i].Read(payloadLength, reader)
-		if err != nil {
-			return
+		T.Columns = nil
+	} else {
+		T.Columns = make([]FieldsDataRowColumns, int(ColumnsLength))
+		for i := 0; i < int(ColumnsLength); i++ {
+			err = T.Columns[i].Read(payloadLength, reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -767,7 +786,11 @@ func (T *FieldsDataRow) Read(payloadLength int, reader io.Reader) (err error) {
 
 func (T *FieldsDataRow) Write(writer io.Writer) (length int, err error) {
 	var temp int
-	temp, err = WriteInt16(writer, int16(len(T.Columns)))
+	if T.Columns == nil {
+		temp, err = WriteInt16(writer, int16(-1))
+	} else {
+		temp, err = WriteInt16(writer, int16(len(T.Columns)))
+	}
 	if err != nil {
 		return
 	}
@@ -998,13 +1021,14 @@ func (T *FieldsFunctionCallResponse) Read(payloadLength int, reader io.Reader) (
 		return
 	}
 	if ResultLength == int32(-1) {
-		ResultLength = 0
-	}
-	T.Result = make([]byte, int(ResultLength))
-	for i := 0; i < int(ResultLength); i++ {
-		T.Result[i], err = ReadByte(reader)
-		if err != nil {
-			return
+		T.Result = nil
+	} else {
+		T.Result = make([]byte, int(ResultLength))
+		for i := 0; i < int(ResultLength); i++ {
+			T.Result[i], err = ReadByte(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -1012,7 +1036,11 @@ func (T *FieldsFunctionCallResponse) Read(payloadLength int, reader io.Reader) (
 
 func (T *FieldsFunctionCallResponse) Write(writer io.Writer) (length int, err error) {
 	var temp int
-	temp, err = WriteInt32(writer, int32(len(T.Result)))
+	if T.Result == nil {
+		temp, err = WriteInt32(writer, int32(-1))
+	} else {
+		temp, err = WriteInt32(writer, int32(len(T.Result)))
+	}
 	if err != nil {
 		return
 	}
@@ -1085,13 +1113,14 @@ func (T *FieldsNegotiateProtocolVersion) Read(payloadLength int, reader io.Reade
 		return
 	}
 	if NotRecognizedLength == int32(-1) {
-		NotRecognizedLength = 0
-	}
-	T.NotRecognized = make([]string, int(NotRecognizedLength))
-	for i := 0; i < int(NotRecognizedLength); i++ {
-		T.NotRecognized[i], err = ReadString(reader)
-		if err != nil {
-			return
+		T.NotRecognized = nil
+	} else {
+		T.NotRecognized = make([]string, int(NotRecognizedLength))
+		for i := 0; i < int(NotRecognizedLength); i++ {
+			T.NotRecognized[i], err = ReadString(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -1104,7 +1133,11 @@ func (T *FieldsNegotiateProtocolVersion) Write(writer io.Writer) (length int, er
 		return
 	}
 	length += temp
-	temp, err = WriteInt32(writer, int32(len(T.NotRecognized)))
+	if T.NotRecognized == nil {
+		temp, err = WriteInt32(writer, int32(-1))
+	} else {
+		temp, err = WriteInt32(writer, int32(len(T.NotRecognized)))
+	}
 	if err != nil {
 		return
 	}
@@ -1419,13 +1452,14 @@ func (T *FieldsParameterDescription) Read(payloadLength int, reader io.Reader) (
 		return
 	}
 	if ParametersLength == int16(-1) {
-		ParametersLength = 0
-	}
-	T.Parameters = make([]int32, int(ParametersLength))
-	for i := 0; i < int(ParametersLength); i++ {
-		T.Parameters[i], err = ReadInt32(reader)
-		if err != nil {
-			return
+		T.Parameters = nil
+	} else {
+		T.Parameters = make([]int32, int(ParametersLength))
+		for i := 0; i < int(ParametersLength); i++ {
+			T.Parameters[i], err = ReadInt32(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -1433,7 +1467,11 @@ func (T *FieldsParameterDescription) Read(payloadLength int, reader io.Reader) (
 
 func (T *FieldsParameterDescription) Write(writer io.Writer) (length int, err error) {
 	var temp int
-	temp, err = WriteInt16(writer, int16(len(T.Parameters)))
+	if T.Parameters == nil {
+		temp, err = WriteInt16(writer, int16(-1))
+	} else {
+		temp, err = WriteInt16(writer, int16(len(T.Parameters)))
+	}
 	if err != nil {
 		return
 	}
@@ -1830,13 +1868,14 @@ func (T *FieldsRowDescription) Read(payloadLength int, reader io.Reader) (err er
 		return
 	}
 	if FieldsLength == int16(-1) {
-		FieldsLength = 0
-	}
-	T.Fields = make([]FieldsRowDescriptionFields, int(FieldsLength))
-	for i := 0; i < int(FieldsLength); i++ {
-		err = T.Fields[i].Read(payloadLength, reader)
-		if err != nil {
-			return
+		T.Fields = nil
+	} else {
+		T.Fields = make([]FieldsRowDescriptionFields, int(FieldsLength))
+		for i := 0; i < int(FieldsLength); i++ {
+			err = T.Fields[i].Read(payloadLength, reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -1844,7 +1883,11 @@ func (T *FieldsRowDescription) Read(payloadLength int, reader io.Reader) (err er
 
 func (T *FieldsRowDescription) Write(writer io.Writer) (length int, err error) {
 	var temp int
-	temp, err = WriteInt16(writer, int16(len(T.Fields)))
+	if T.Fields == nil {
+		temp, err = WriteInt16(writer, int16(-1))
+	} else {
+		temp, err = WriteInt16(writer, int16(len(T.Fields)))
+	}
 	if err != nil {
 		return
 	}
