@@ -256,7 +256,7 @@ func (s *Server) Query(ctx context.Context, client gat.Client, query string) err
 	// client fails midway
 	// read responses
 	e := s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
-		log.Printf("got pkt(%s): %+v ", reflect.TypeOf(pkt), pkt)
+		log.Printf("forwarding pkt pkt(%s): %+v ", reflect.TypeOf(pkt), pkt)
 		switch r := pkt.(type) {
 		case *protocol.ReadyForQuery:
 			finished := (r.Fields.Status == 'I') || (r.Fields.Status == 'E') || (r.Fields.Status == 'T')
@@ -316,7 +316,6 @@ func (s *Server) CallFunction(client gat.Client, payload *protocol.FunctionCall)
 	if err != nil {
 		return err
 	}
-
 	// read responses
 	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
 		switch r := pkt.(type) {

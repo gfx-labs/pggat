@@ -284,7 +284,7 @@ func (c *Client) recvLoop() {
 		recv, err := protocol.ReadFrontend(c.r)
 		if err != nil {
 			if !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
-				log.Println("backend read err:", err)
+				log.Err(err)
 			}
 			break
 		}
@@ -336,6 +336,7 @@ func (c *Client) handle_function(ctx context.Context, f *protocol.FunctionCall) 
 }
 
 func (c *Client) Send(pkt protocol.Packet) error {
+	log.Printf("sent packet(%s) %+v", reflect.TypeOf(pkt), pkt)
 	_, err := pkt.Write(c.wr)
 	return err
 }

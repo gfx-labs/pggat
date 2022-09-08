@@ -82,7 +82,7 @@ Parse:
       Type: string
     - Name: ParameterDataTypes
       Type: int32
-      LengthPrefixed: int32
+      LengthPrefixed: int16
 Query:
   Identifier: 'Q'
   Fields:

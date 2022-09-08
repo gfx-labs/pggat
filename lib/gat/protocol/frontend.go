@@ -864,12 +864,12 @@ func (T *FieldsParse) Read(payloadLength int, reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	var ParameterDataTypesLength int32
-	ParameterDataTypesLength, err = ReadInt32(reader)
+	var ParameterDataTypesLength int16
+	ParameterDataTypesLength, err = ReadInt16(reader)
 	if err != nil {
 		return
 	}
-	if ParameterDataTypesLength == int32(-1) {
+	if ParameterDataTypesLength == int16(-1) {
 		ParameterDataTypesLength = 0
 	}
 	T.ParameterDataTypes = make([]int32, int(ParameterDataTypesLength))
@@ -894,7 +894,7 @@ func (T *FieldsParse) Write(writer io.Writer) (length int, err error) {
 		return
 	}
 	length += temp
-	temp, err = WriteInt32(writer, int32(len(T.ParameterDataTypes)))
+	temp, err = WriteInt16(writer, int16(len(T.ParameterDataTypes)))
 	if err != nil {
 		return
 	}
