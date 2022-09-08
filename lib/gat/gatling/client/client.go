@@ -28,7 +28,9 @@ type Client struct {
 	conn net.Conn
 	r    *bufio.Reader
 	wr   io.Writer
-	recv chan protocol.Packet
+
+	bufwr *bufio.Writer
+	recv  chan protocol.Packet
 
 	buf bytes.Buffer
 
@@ -68,6 +70,7 @@ func NewClient(
 		conn:    conn,
 		r:       bufio.NewReader(conn),
 		wr:      conn,
+		bufwr:   bufio.NewWriter(conn),
 		recv:    make(chan protocol.Packet),
 		addr:    conn.RemoteAddr(),
 		gatling: gatling,
@@ -288,6 +291,7 @@ func (c *Client) recvLoop() {
 			}
 			break
 		}
+		log.Printf("got packet(%s) %+v", reflect.TypeOf(recv), recv)
 		c.recv <- recv
 	}
 }
@@ -337,8 +341,12 @@ func (c *Client) handle_function(ctx context.Context, f *protocol.FunctionCall) 
 
 func (c *Client) Send(pkt protocol.Packet) error {
 	log.Printf("sent packet(%s) %+v", reflect.TypeOf(pkt), pkt)
-	_, err := pkt.Write(c.wr)
-	return err
+	_, err := pkt.Write(c.bufwr)
+	if err != nil {
+		c.bufwr.Reset(c.wr)
+		return err
+	}
+	return c.bufwr.Flush()
 }
 
 func (c *Client) Recv() <-chan protocol.Packet {

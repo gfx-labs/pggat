@@ -8,10 +8,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/util/go/lambda"
-
-	"github.com/auxten/postgresql-parser/pkg/sql/parser"
-	"github.com/auxten/postgresql-parser/pkg/sql/sem/tree"
-	"github.com/auxten/postgresql-parser/pkg/walk"
 )
 
 var CustomSqlRegex = lambda.MapV([]string{
@@ -205,33 +201,33 @@ func (r *QueryRouter) try_execute_command(pkt *protocol.Query) (Command, string)
 // TODO: implement
 func (r *QueryRouter) InferRole(query string) (config.ServerRole, error) {
 	var active_role config.ServerRole
-	// by default it will hit a replica
-	active_role = config.SERVERROLE_REPLICA
-	// ok now parse the query
-	wk := &walk.AstWalker{
-		Fn: func(ctx, node any) (stop bool) {
-			switch n := node.(type) {
-			case *tree.Update, *tree.UpdateExpr,
-				*tree.BeginTransaction, *tree.CommitTransaction, *tree.RollbackTransaction,
-				*tree.SetTransaction, *tree.ShowTransactionStatus, *tree.Delete, *tree.Insert:
-				//
-				active_role = config.SERVERROLE_PRIMARY
-				return true
-			default:
-				_ = n
-			}
-			return false
-		},
-	}
-	stmts, err := parser.Parse(query)
-	if err != nil {
-		log.Println("failed to parse (%query), assuming primary required", err)
-		return config.SERVERROLE_PRIMARY, nil
-	}
-	_, err = wk.Walk(stmts, nil)
-	if err != nil {
-		return config.SERVERROLE_PRIMARY, err
-	}
+	// by default it will hit a primary (for now)
+	active_role = config.SERVERROLE_PRIMARY
+	//// ok now parse the query
+	//wk := &walk.AstWalker{
+	//	Fn: func(ctx, node any) (stop bool) {
+	//		switch n := node.(type) {
+	//		case *tree.Update, *tree.UpdateExpr,
+	//			*tree.BeginTransaction, *tree.CommitTransaction, *tree.RollbackTransaction,
+	//			*tree.SetTransaction, *tree.ShowTransactionStatus, *tree.Delete, *tree.Insert:
+	//			//
+	//			active_role = config.SERVERROLE_PRIMARY
+	//			return true
+	//		default:
+	//			_ = n
+	//		}
+	//		return false
+	//	},
+	//}
+	//stmts, err := parser.Parse(query)
+	//if err != nil {
+	//	log.Println("failed to parse (%query), assuming primary required", err)
+	//	return config.SERVERROLE_PRIMARY, nil
+	//}
+	//_, err = wk.Walk(stmts, nil)
+	//if err != nil {
+	//	return config.SERVERROLE_PRIMARY, err
+	//}
 	return active_role, nil
 }
 

@@ -5,6 +5,7 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling"
+	"git.tuxpa.in/a/zlog"
 	"git.tuxpa.in/a/zlog/log"
 
 	"net/http"
@@ -15,6 +16,7 @@ import (
 const CONFIG = "./config_data.yml"
 
 func main() {
+	zlog.SetGlobalLevel(zlog.PanicLevel)
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()

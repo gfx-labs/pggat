@@ -32,6 +32,7 @@ type Server struct {
 	conn   net.Conn
 	r      *bufio.Reader
 	wr     io.Writer
+	bufwr  *bufio.Writer
 
 	buf bytes.Buffer
 
@@ -76,6 +77,7 @@ func Dial(ctx context.Context,
 	s.remote = s.conn.RemoteAddr()
 	s.r = bufio.NewReader(s.conn)
 	s.wr = s.conn
+	s.bufwr = bufio.NewWriter(s.wr)
 	s.user = *user
 	s.db = db
 
@@ -238,11 +240,20 @@ func (s *Server) forwardTo(client gat.Client, predicate func(pkt protocol.Packet
 	}
 }
 
+func (s *Server) writePacket(pkt protocol.Packet) error {
+	_, err := pkt.Write(s.bufwr)
+	if err != nil {
+		s.bufwr.Reset(s.wr)
+		return err
+	}
+	return s.bufwr.Flush()
+}
+
 func (s *Server) Query(ctx context.Context, client gat.Client, query string) error {
 	// send to server
 	q := new(protocol.Query)
 	q.Fields.Query = query
-	_, err := q.Write(s.wr)
+	err := s.writePacket(q)
 	if err != nil {
 		return err
 	}
