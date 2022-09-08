@@ -123,6 +123,7 @@ func (c *Client) Accept(ctx context.Context) error {
 			c.conn = tls.Server(c.conn, cfg)
 			c.r = bufio.NewReader(c.conn)
 			c.wr = c.conn
+			c.bufwr.Reset(c.wr)
 			err = startup.Read(c.r)
 			if err != nil {
 				return err
