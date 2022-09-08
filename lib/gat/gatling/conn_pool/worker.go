@@ -38,14 +38,14 @@ func (w *worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.
 	return <-errch
 }
 
-func (w *worker) HandleQuery(ctx context.Context, c gat.Client, query string) error {
+func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query string) error {
 	defer func() {
 		// return self to the connection pool after
 		w.w.workerPool <- w
 	}()
 	errch := make(chan error)
 	go func() {
-		err := w.z_actually_do_query(ctx, c, query)
+		err := w.z_actually_do_simple_query(ctx, c, query)
 		errch <- err
 	}()
 
@@ -76,7 +76,7 @@ func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payloa
 	}
 	return nil
 }
-func (w *worker) z_actually_do_query(ctx context.Context, client gat.Client, payload string) error {
+func (w *worker) z_actually_do_simple_query(ctx context.Context, client gat.Client, payload string) error {
 	c := w.w
 	// chose a server
 	srv := c.chooseConnections()
@@ -96,7 +96,7 @@ func (w *worker) z_actually_do_query(ctx context.Context, client gat.Client, pay
 		return fmt.Errorf("call to query '%s' failed", payload)
 	}
 	// actually do the query
-	err = target.Query(ctx, client, payload)
+	err = target.SimpleQuery(ctx, client, payload)
 	if err != nil {
 		return fmt.Errorf("error executing query: %w", err)
 	}

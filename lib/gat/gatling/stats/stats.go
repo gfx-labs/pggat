@@ -31,7 +31,7 @@ package stats
 //#[derive(Debug, Clone, Copy)]
 //enum EventName {
 //    CheckoutTime,
-//    Query,
+//    SimpleQuery,
 //    Transaction,
 //    DataSent,
 //    DataReceived,
@@ -109,7 +109,7 @@ package stats
 //    /// a server identified by the `address_id`.
 //    pub fn query(&self, process_id: i32, address_id: usize) {
 //        let event = Event {
-//            name: EventName::Query,
+//            name: EventName::SimpleQuery,
 //            value: 1,
 //            process_id: process_id,
 //            address_id: address_id,
@@ -408,7 +408,7 @@ package stats
 //
 //            // Some are counters, some are gauges...
 //            match stat.name {
-//                EventName::Query => {
+//                EventName::SimpleQuery => {
 //                    let counter = stats.entry("total_query_count").or_insert(0);
 //                    *counter += stat.value;
 //                }

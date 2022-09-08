@@ -15,7 +15,7 @@ type Client interface {
 type ConnectionPool interface {
 	GetUser() *config.User
 	GetServerInfo() []*protocol.ParameterStatus
-	Query(ctx context.Context, client Client, query string) error
+	SimpleQuery(ctx context.Context, client Client, query string) error
 	CallFunction(ctx context.Context, client Client, payload *protocol.FunctionCall) error
 }
 

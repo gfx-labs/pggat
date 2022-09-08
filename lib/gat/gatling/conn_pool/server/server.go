@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"reflect"
 	"strings"
 	"time"
 
@@ -249,7 +248,7 @@ func (s *Server) writePacket(pkt protocol.Packet) error {
 	return s.bufwr.Flush()
 }
 
-func (s *Server) Query(ctx context.Context, client gat.Client, query string) error {
+func (s *Server) SimpleQuery(ctx context.Context, client gat.Client, query string) error {
 	// send to server
 	q := new(protocol.Query)
 	q.Fields.Query = query
@@ -267,11 +266,11 @@ func (s *Server) Query(ctx context.Context, client gat.Client, query string) err
 	// client fails midway
 	// read responses
 	e := s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
-		log.Printf("forwarding pkt pkt(%s): %+v ", reflect.TypeOf(pkt), pkt)
-		switch r := pkt.(type) {
+		//log.Printf("forwarding pkt pkt(%s): %+v ", reflect.TypeOf(pkt), pkt)
+		switch pkt.(type) {
 		case *protocol.ReadyForQuery:
-			finished := (r.Fields.Status == 'I') || (r.Fields.Status == 'E') || (r.Fields.Status == 'T')
-			return err == nil, finished
+			// all ReadyForQuery packets end a simple query, regardless of type
+			return err == nil, true
 		case *protocol.CopyInResponse:
 			err = client.Send(pkt)
 			if err != nil {

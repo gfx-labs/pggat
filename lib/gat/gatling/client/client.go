@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"gfx.cafe/gfx/pggat/lib/parse"
 	"io"
 	"math/big"
 	"net"
@@ -292,7 +293,7 @@ func (c *Client) recvLoop() {
 			}
 			break
 		}
-		log.Printf("got packet(%s) %+v", reflect.TypeOf(recv), recv)
+		//log.Printf("got packet(%s) %+v", reflect.TypeOf(recv), recv)
 		c.recv <- recv
 	}
 }
@@ -313,7 +314,12 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	}
 	switch cast := rsp.(type) {
 	case *protocol.Query:
-		return true, c.handle_query(ctx, cast)
+		parsed, err := parse.Parse(cast.Fields.Query)
+		if err != nil {
+			return false, err
+		}
+		log.Printf("%#v", parsed)
+		return true, c.handle_simple_query(ctx, cast)
 	case *protocol.FunctionCall:
 		return true, c.handle_function(ctx, cast)
 	case *protocol.Terminate:
@@ -323,9 +329,9 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
-	log.Println("query: ", q.Fields.Query)
-	err := c.server.Query(ctx, c, q.Fields.Query)
+func (c *Client) handle_simple_query(ctx context.Context, q *protocol.Query) error {
+	//log.Println("query: ", q.Fields.Query)
+	err := c.server.SimpleQuery(ctx, c, q.Fields.Query)
 	if err != nil {
 		return err
 	}
@@ -341,7 +347,7 @@ func (c *Client) handle_function(ctx context.Context, f *protocol.FunctionCall) 
 }
 
 func (c *Client) Send(pkt protocol.Packet) error {
-	log.Printf("sent packet(%s) %+v", reflect.TypeOf(pkt), pkt)
+	//log.Printf("sent packet(%s) %+v", reflect.TypeOf(pkt), pkt)
 	_, err := pkt.Write(c.bufwr)
 	if err != nil {
 		c.bufwr.Reset(c.wr)
