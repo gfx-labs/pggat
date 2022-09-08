@@ -226,6 +226,9 @@ func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
 }
 
 func (c *ConnectionPool) Query(client gat.Client, ctx context.Context, q string) (context.Context, error) {
+	// note: these deadlines aren't the time to complete the query, that should be controlled by postgres
+	// instead, this is the amount of time we allow the client to send extra data for a command
+	// (mainly so the server doesn't hang indefinitely waiting for client data)
 	cmdCtx, done := context.WithDeadline(ctx, time.Now().Add(1*time.Second))
 
 	c.queries <- request[string]{
