@@ -3,12 +3,13 @@ package gatling
 import (
 	"context"
 	"fmt"
+	"net"
+	"sync"
+
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/client"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
-	"net"
-	"sync"
 
 	"git.tuxpa.in/a/zlog/log"
 
@@ -89,9 +90,9 @@ func (g *Gatling) ensureAdmin(c *config.Global) error {
 func (g *Gatling) ensurePools(c *config.Global) error {
 	for name, p := range c.Pools {
 		if existing, ok := g.pools[name]; ok {
-			existing.EnsureConfig(&p)
+			existing.EnsureConfig(p)
 		} else {
-			g.pools[name] = pool.NewPool(&p)
+			g.pools[name] = pool.NewPool(p)
 		}
 	}
 	return nil

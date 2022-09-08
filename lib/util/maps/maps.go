@@ -6,7 +6,5 @@ func FirstWhere[K comparable, V any](haystack map[K]V, predicate func(K, V) bool
 			return k, v, true
 		}
 	}
-	var k K
-	var v V
-	return k, v, false
+	return *new(K), *new(V), false
 }

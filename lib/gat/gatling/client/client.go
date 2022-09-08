@@ -8,6 +8,11 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
+	"math/big"
+	"net"
+	"reflect"
+
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/messages"
@@ -16,10 +21,6 @@ import (
 	"git.tuxpa.in/a/zlog"
 	"git.tuxpa.in/a/zlog/log"
 	"github.com/ethereum/go-ethereum/common/math"
-	"io"
-	"math/big"
-	"net"
-	"reflect"
 )
 
 // / client state, one per client
@@ -239,7 +240,6 @@ func (c *Client) Accept(ctx context.Context) error {
 		return err
 	}
 
-	c.log.Debug().Msg("Password authentication successful")
 	authOk := new(protocol.Authentication)
 	authOk.Fields.Code = 0
 	_, err = authOk.Write(c.wr)
@@ -268,7 +268,6 @@ func (c *Client) Accept(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	c.log.Debug().Msg("Ready for Query")
 	go c.recvLoop()
 	open := true
 	for open {
@@ -307,7 +306,6 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	case <-ctx.Done():
 		return false, ctx.Err()
 	}
-
 	switch cast := rsp.(type) {
 	case *protocol.Query:
 		return true, c.handle_query(ctx, cast)
@@ -321,29 +319,17 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 }
 
 func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
-	done, err := c.server.Query(c, ctx, q.Fields.Query)
+	err := c.server.Query(ctx, c, q.Fields.Query)
 	if err != nil {
 		return err
-	}
-	// wait for query to finish
-	<-done.Done()
-	err = done.Err()
-	if errors.Is(err, context.Canceled) {
-		return nil
 	}
 	return err
 }
 
 func (c *Client) handle_function(ctx context.Context, f *protocol.FunctionCall) error {
-	done, err := c.server.CallFunction(c, ctx, f)
+	err := c.server.CallFunction(ctx, c, f)
 	if err != nil {
 		return err
-	}
-	// wait for function call to finish
-	<-done.Done()
-	err = done.Err()
-	if errors.Is(err, context.Canceled) {
-		return nil
 	}
 	return err
 }

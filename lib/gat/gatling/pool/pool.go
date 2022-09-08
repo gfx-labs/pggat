@@ -2,11 +2,12 @@ package pool
 
 import (
 	"fmt"
+	"sync"
+
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/conn_pool"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/query_router"
-	"sync"
 )
 
 type Pool struct {
@@ -33,7 +34,7 @@ func (p *Pool) EnsureConfig(conf *config.Pool) {
 	p.c = conf
 	p.users = make(map[string]config.User)
 	for _, user := range conf.Users {
-		p.users[user.Name] = user
+		p.users[user.Name] = *user
 	}
 	// ensure conn pools
 	for name, user := range p.users {

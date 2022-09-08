@@ -2,8 +2,10 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/BurntSushi/toml"
+	"gopkg.in/yaml.v3"
 )
 
 type PoolMode string
@@ -21,9 +23,41 @@ const (
 	SERVERROLE_NONE    ServerRole = "NONE"
 )
 
+type UserRole string
+
+const (
+	USERROLE_ADMIN  ServerRole = "admin"
+	USERROLE_WRITER ServerRole = "writer"
+	USERROLE_READER ServerRole = "reader"
+)
+
+func Load(path string) (*Global, error) {
+	var g Global
+	ext := filepath.Ext(path)
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	switch ext {
+	case "toml":
+		err := toml.Unmarshal(file, &g)
+		if err != nil {
+			return nil, err
+		}
+	case "yml", "yaml", "json":
+		fallthrough
+	default:
+		err := yaml.Unmarshal(file, &g)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &g, nil
+}
+
 type Global struct {
-	General General         `toml:"general" yaml:"general" json:"general"`
-	Pools   map[string]Pool `toml:"pools" yaml:"pools" json:"pools"`
+	General General          `toml:"general" yaml:"general" json:"general"`
+	Pools   map[string]*Pool `toml:"pools" yaml:"pools" json:"pools"`
 }
 
 type General struct {
@@ -59,56 +93,29 @@ type Pool struct {
 	PrimaryReadsEnabled bool     `toml:"primary_reads_enabled" yaml:"primary_reads_enabled" json:"primary_reads_enabled"`
 	ShardingFunction    string   `toml:"sharding_function" yaml:"sharding_function" json:"sharding_function"`
 
-	Shards map[string]Shard `toml:"shards" yaml:"shards" json:"shards"`
-	Users  map[string]User  `toml:"users" yaml:"users" json:"users"`
+	Shards []*Shard `toml:"shards" yaml:"shards" json:"shards"`
+	Users  []*User  `toml:"users" yaml:"users" json:"users"`
 }
 
 type User struct {
-	Name             string `toml:"username" yaml:"name" json:"name"`
-	Password         string `toml:"password" yaml:"password" json:"password"`
-	PoolSize         int    `toml:"pool_size" yaml:"pool_size" json:"pool_size"`
-	StatementTimeout int    `toml:"statement_timeout" yaml:"statement_timeout" json:"statement_timeout"`
+	Name     string `toml:"username" yaml:"username" json:"username"`
+	Password string `toml:"password" yaml:"password" json:"password"`
+
+	Role             UserRole `toml:"role" yaml:"role" json:"role"`
+	PoolSize         int      `toml:"pool_size" yaml:"pool_size" json:"pool_size"`
+	StatementTimeout int      `toml:"statement_timeout" yaml:"statement_timeout" json:"statement_timeout"`
 }
 
 type Shard struct {
-	Database string   `toml:"database" yaml:"database" json:"database"`
-	Servers  []Server `toml:"servers" yaml:"servers" json:"servers"`
+	Database string    `toml:"database" yaml:"database" json:"database"`
+	Servers  []*Server `toml:"servers" yaml:"servers" json:"servers"`
 }
 
-type Server [3]any
+type Server struct {
+	Host string     `toml:"host" yaml:"host" json:"host"`
+	Port uint16     `toml:"port" yaml:"port" json:"port"`
+	Role ServerRole `toml:"role" yaml:"role" json:"role"`
 
-func (o Server) Host() string {
-	if v, ok := o[0].(string); ok {
-		return v
-	}
-	return ""
-}
-
-func (o Server) Port() uint16 {
-	if v, ok := o[1].(int); ok {
-		return uint16(v)
-	}
-	return 5432
-}
-
-func (o Server) Role() ServerRole {
-	if v, ok := o[2].(string); ok {
-		switch ServerRole(v) {
-		case SERVERROLE_PRIMARY, SERVERROLE_REPLICA:
-			return ServerRole(v)
-		default:
-		}
-	}
-	return ServerRole(SERVERROLE_NONE)
-}
-
-func Load(path string) (conf *Global, err error) {
-	conf = new(Global)
-	var f []byte
-	f, err = os.ReadFile(path)
-	if err != nil {
-		return
-	}
-	err = toml.Unmarshal(f, conf)
-	return
+	Username string `toml:"username" yaml:"username" json:"username"`
+	Password string `toml:"password" yaml:"password" json:"password"`
 }

@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"gfx.cafe/gfx/pggat/lib/gat"
-	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
 	"io"
 	"net"
+	"strings"
 	"time"
+
+	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
 
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
@@ -46,15 +48,24 @@ type Server struct {
 
 	last_activity time.Time
 
-	db   string
-	user config.User
+	db     string
+	dbuser string
+	dbpass string
+	user   config.User
 
 	log zlog.Logger
 }
 
-func Dial(ctx context.Context, addr string, user *config.User, db string, stats any) (*Server, error) {
+func Dial(ctx context.Context,
+	addr string,
+	user *config.User,
+	db string, dbuser string, dbpass string,
+	stats any,
+) (*Server, error) {
 	s := &Server{
-		addr: addr,
+		addr:   addr,
+		dbuser: dbuser,
+		dbpass: dbpass,
 	}
 	var err error
 	s.conn, err = net.Dial("tcp", addr)
@@ -100,7 +111,7 @@ func (s *Server) startup(ctx context.Context) error {
 	start.Fields.Parameters = []protocol.FieldsStartupMessageParameters{
 		{
 			Name:  "user",
-			Value: s.user.Name,
+			Value: s.dbuser,
 		},
 		{
 			Name:  "database",
@@ -133,17 +144,14 @@ func (s *Server) connect(ctx context.Context) error {
 		case *protocol.Authentication:
 			switch p.Fields.Code {
 			case 5: //MD5_ENCRYPTED_PASSWORD
-
 			case 0: // AUTH SUCCESS
 			case 10: // SASL
-				s.log.Debug().Msg("starting sasl auth")
 				if slices.Contains(p.Fields.SASLMechanism, scram.SHA256.Name()) {
 					s.log.Debug().Str("method", "scram256").Msg("valid protocol")
 				} else {
 					return fmt.Errorf("unsupported scram version: %s", p.Fields.SASLMechanism)
 				}
-
-				scrm, err = scram.Mechanism(scram.SHA256, s.user.Name, s.user.Password)
+				scrm, err = scram.Mechanism(scram.SHA256, s.dbuser, s.dbpass)
 				if err != nil {
 					return err
 				}
@@ -152,7 +160,6 @@ func (s *Server) connect(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
-
 				func() {
 					rsp := new(protocol.AuthenticationResponse)
 					buf := bufpool.Get(len(scrm.Name()) + 1 + 4 + len(bts))
@@ -230,7 +237,7 @@ func (s *Server) forwardTo(client gat.Client, predicate func(pkt protocol.Packet
 	}
 }
 
-func (s *Server) Query(client gat.Client, ctx context.Context, query string) error {
+func (s *Server) Query(ctx context.Context, client gat.Client, query string) error {
 	// send to server
 	q := new(protocol.Query)
 	q.Fields.Query = query
@@ -238,20 +245,27 @@ func (s *Server) Query(client gat.Client, ctx context.Context, query string) err
 	if err != nil {
 		return err
 	}
-
+	if strings.Contains(query, "pg_sleep") {
+		go func() {
+			time.Sleep(1 * time.Second)
+			log.Println("cancel: ", s.Cancel())
+		}()
+	}
 	// this function seems wild but it has to be the way it is so we read the whole response, even if the
 	// client fails midway
 	// read responses
 	e := s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
+		log.Println(pkt)
 		switch r := pkt.(type) {
 		case *protocol.ReadyForQuery:
+
 			return err == nil, r.Fields.Status == 'I'
 		case *protocol.CopyInResponse:
 			err = client.Send(pkt)
 			if err != nil {
 				return false, false
 			}
-			err = s.CopyIn(client, ctx)
+			err = s.CopyIn(ctx, client)
 			if err != nil {
 				return false, false
 			}
@@ -266,19 +280,26 @@ func (s *Server) Query(client gat.Client, ctx context.Context, query string) err
 	return err
 }
 
-func (s *Server) CopyIn(client gat.Client, ctx context.Context) error {
+func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 	for {
+		cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		var pkt protocol.Packet
+		// receive a packet, or done if the ctx gets canceled
 		select {
 		case pkt = <-client.Recv():
-		case <-ctx.Done():
+		case <-cctx.Done():
 			_, _ = new(protocol.CopyFail).Write(s.wr)
-			return ctx.Err()
+			rfq := new(protocol.ReadyForQuery)
+			rfq.Fields.Status = 'I'
+			return client.Send(rfq)
 		}
+		cancel()
+
 		_, err := pkt.Write(s.wr)
 		if err != nil {
 			return err
 		}
+
 		switch p := pkt.(type) {
 		case *protocol.CopyDone:
 			return nil
