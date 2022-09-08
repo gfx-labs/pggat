@@ -255,10 +255,8 @@ func (s *Server) Query(ctx context.Context, client gat.Client, query string) err
 	// client fails midway
 	// read responses
 	e := s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
-		log.Println(pkt)
 		switch r := pkt.(type) {
 		case *protocol.ReadyForQuery:
-
 			return err == nil, r.Fields.Status == 'I'
 		case *protocol.CopyInResponse:
 			err = client.Send(pkt)
@@ -282,7 +280,9 @@ func (s *Server) Query(ctx context.Context, client gat.Client, query string) err
 
 func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 	for {
-		cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		// detect a disconneted /hanging client by waiting 30 seoncds, else timeout
+		// otherwise, just keep reading packets until a done or error is received
+		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		var pkt protocol.Packet
 		// receive a packet, or done if the ctx gets canceled
 		select {
@@ -294,7 +294,6 @@ func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 			return client.Send(rfq)
 		}
 		cancel()
-
 		_, err := pkt.Write(s.wr)
 		if err != nil {
 			return err
