@@ -15,21 +15,14 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 )
 
-type request[T any] struct {
-	client  gat.Client
-	payload T
-	ctx     context.Context
-	done    context.CancelFunc
-}
-
-type servers struct {
+type connections struct {
 	primary *server.Server
 	replica *server.Server
 
 	mu sync.Mutex
 }
 
-func (s *servers) choose(role config.ServerRole) *server.Server {
+func (s *connections) choose(role config.ServerRole) *server.Server {
 	switch role {
 	case config.SERVERROLE_PRIMARY:
 		return s.primary
@@ -45,8 +38,8 @@ func (s *servers) choose(role config.ServerRole) *server.Server {
 }
 
 type shard struct {
-	conf    *config.Shard
-	servers []*servers
+	conf  *config.Shard
+	conns []*connections
 
 	mu sync.Mutex
 }
@@ -95,8 +88,8 @@ func (c *ConnectionPool) EnsureConfig(conf *config.Pool) {
 		}
 		sc := s
 		if !reflect.DeepEqual(c.shards[i].conf, &sc) {
-			// disconnect all connections, switch to new conf
-			c.shards[i].servers = nil
+			// disconnect all conns, switch to new conf
+			c.shards[i].conns = nil
 			c.shards[i].conf = sc
 		}
 	}
@@ -114,8 +107,8 @@ func (c *ConnectionPool) chooseShard() *shard {
 	return &c.shards[rand.Intn(len(c.shards))]
 }
 
-// chooseServer locks and returns a server for you to use
-func (c *ConnectionPool) chooseServer() *servers {
+// chooseConnections locks and returns connections for you to use
+func (c *ConnectionPool) chooseConnections() *connections {
 	s := c.chooseShard()
 	if s == nil {
 		log.Println("no available shard for query :(")
@@ -125,14 +118,14 @@ func (c *ConnectionPool) chooseServer() *servers {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// TODO ideally this would choose the server based on load, capabilities, etc. for now we just trylock
-	for _, srv := range s.servers {
+	for _, srv := range s.conns {
 		if srv.mu.TryLock() {
 			return srv
 		}
 	}
-	// there are no servers available in the pool, let's make a new connection
-	// connect to primary server
-	srvs := &servers{}
+	// there are no conns available in the shard, let's make a new connection
+	// connect to servers in shard config
+	srvs := &connections{}
 	for _, srvConf := range s.conf.Servers {
 		srv, err := server.Dial(
 			context.Background(),
@@ -155,7 +148,7 @@ func (c *ConnectionPool) chooseServer() *servers {
 		return nil
 	}
 	srvs.mu.Lock()
-	s.servers = append(s.servers, srvs)
+	s.conns = append(s.conns, srvs)
 	return srvs
 }
 
@@ -164,7 +157,7 @@ func (c *ConnectionPool) GetUser() *config.User {
 }
 
 func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
-	srv := c.chooseServer()
+	srv := c.chooseConnections()
 	if srv == nil {
 		return nil
 	}

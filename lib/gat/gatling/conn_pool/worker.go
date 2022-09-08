@@ -60,7 +60,7 @@ func (w *worker) HandleQuery(ctx context.Context, c gat.Client, query string) er
 
 func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
 	c := w.w
-	srv := c.chooseServer()
+	srv := c.chooseConnections()
 	if srv == nil {
 		return fmt.Errorf("fn('%+v') fail: no server", payload)
 	}
@@ -79,7 +79,7 @@ func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payloa
 func (w *worker) z_actually_do_query(ctx context.Context, client gat.Client, payload string) error {
 	c := w.w
 	// chose a server
-	srv := c.chooseServer()
+	srv := c.chooseConnections()
 	if srv == nil {
 		return fmt.Errorf("call to query '%s' failed", payload)
 	}
