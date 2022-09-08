@@ -1,8 +1,9 @@
 package query_router
 
 import (
-	"git.tuxpa.in/a/zlog/log"
 	"regexp"
+
+	"git.tuxpa.in/a/zlog/log"
 
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
@@ -198,7 +199,9 @@ func (r *QueryRouter) try_execute_command(pkt *protocol.Query) (Command, string)
 	return nil, ""
 }
 
-// / Try to infer which server to connect to based on the contents of the query.
+// Try to infer the server role to try to  connect to
+// based on the contents of the query.
+// note that the user needs to be checked to see if they are allowed to access.
 // TODO: implement
 func (r *QueryRouter) InferRole(query string) (config.ServerRole, error) {
 	var active_role config.ServerRole
@@ -222,11 +225,12 @@ func (r *QueryRouter) InferRole(query string) (config.ServerRole, error) {
 	}
 	stmts, err := parser.Parse(query)
 	if err != nil {
-		return config.SERVERROLE_REPLICA, err
+		log.Println("failed to parse (%query), assuming primary required", err)
+		return config.SERVERROLE_PRIMARY, nil
 	}
 	_, err = wk.Walk(stmts, nil)
 	if err != nil {
-		return config.SERVERROLE_REPLICA, err
+		return config.SERVERROLE_PRIMARY, err
 	}
 	return active_role, nil
 }

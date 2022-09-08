@@ -319,6 +319,7 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 }
 
 func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
+	log.Println("query: ", q.Fields.Query)
 	err := c.server.Query(ctx, c, q.Fields.Query)
 	if err != nil {
 		return err

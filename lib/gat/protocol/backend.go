@@ -700,23 +700,23 @@ func (T *CopyOutResponse) Write(writer io.Writer) (length int, err error) {
 var _ Packet = (*CopyOutResponse)(nil)
 
 type FieldsDataRowColumns struct {
-	Bytes []byte
+	BytesLen int32
+	Bytes    []byte
 }
 
 func (T *FieldsDataRowColumns) Read(payloadLength int, reader io.Reader) (err error) {
-	var BytesLength int32
-	BytesLength, err = ReadInt32(reader)
+	T.BytesLen, err = ReadInt32(reader)
 	if err != nil {
 		return
 	}
-	if BytesLength == int32(-1) {
-		BytesLength = 0
-	}
-	T.Bytes = make([]byte, int(BytesLength))
-	for i := 0; i < int(BytesLength); i++ {
-		T.Bytes[i], err = ReadByte(reader)
-		if err != nil {
-			return
+	if T.BytesLen != -1 {
+		BytesLength := T.BytesLen
+		T.Bytes = make([]byte, int(BytesLength))
+		for i := 0; i < int(BytesLength); i++ {
+			T.Bytes[i], err = ReadByte(reader)
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -724,17 +724,19 @@ func (T *FieldsDataRowColumns) Read(payloadLength int, reader io.Reader) (err er
 
 func (T *FieldsDataRowColumns) Write(writer io.Writer) (length int, err error) {
 	var temp int
-	temp, err = WriteInt32(writer, int32(len(T.Bytes)))
+	temp, err = WriteInt32(writer, T.BytesLen)
 	if err != nil {
 		return
 	}
 	length += temp
-	for _, v := range T.Bytes {
-		temp, err = WriteByte(writer, v)
-		if err != nil {
-			return
+	if T.BytesLen != -1 {
+		for _, v := range T.Bytes {
+			temp, err = WriteByte(writer, v)
+			if err != nil {
+				return
+			}
+			length += temp
 		}
-		length += temp
 	}
 	_ = temp
 	return

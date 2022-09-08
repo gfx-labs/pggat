@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"reflect"
 	"strings"
 	"time"
 
@@ -255,9 +256,11 @@ func (s *Server) Query(ctx context.Context, client gat.Client, query string) err
 	// client fails midway
 	// read responses
 	e := s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
+		log.Printf("got pkt(%s): %+v ", reflect.TypeOf(pkt), pkt)
 		switch r := pkt.(type) {
 		case *protocol.ReadyForQuery:
-			return err == nil, r.Fields.Status == 'I'
+			finished := (r.Fields.Status == 'I') || (r.Fields.Status == 'E') || (r.Fields.Status == 'T')
+			return err == nil, finished
 		case *protocol.CopyInResponse:
 			err = client.Send(pkt)
 			if err != nil {
