@@ -4,23 +4,19 @@ import (
 	"testing"
 
 	"gfx.cafe/gfx/pggat/lib/config"
-	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 )
 
 // TODO: adapt tests
 func TestQueryRouterInterRoleReplica(t *testing.T) {
 	qr := &QueryRouter{}
-	pkt := &protocol.Parse{}
-	pkt.Fields.Query = `UPDATE items SET name = 'pumpkin' WHERE id = 5`
-	role, err := qr.InferRole(pkt)
+	role, err := qr.InferRole(`UPDATE items SET name = 'pumpkin' WHERE id = 5`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if role != config.SERVERROLE_PRIMARY {
 		t.Error("expect primary")
 	}
-	pkt.Fields.Query = `select * from items WHERE id = 5`
-	role, err = qr.InferRole(pkt)
+	role, err = qr.InferRole(`select * from items WHERE id = 5`)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -291,6 +291,69 @@ func (s *Server) SimpleQuery(ctx context.Context, client gat.Client, query strin
 	return err
 }
 
+func (s *Server) Transaction(ctx context.Context, client gat.Client, query string) error {
+	q := new(protocol.Query)
+	q.Fields.Query = query
+	err := s.writePacket(q)
+	if err != nil {
+		return err
+	}
+	e := s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
+		//log.Printf("got server pkt pkt(%s): %+v ", reflect.TypeOf(pkt), pkt)
+		switch p := pkt.(type) {
+		case *protocol.ReadyForQuery:
+			// all ReadyForQuery packets end a simple query, regardless of type
+			if p.Fields.Status != 'I' {
+				// send to client and wait for next query
+				if err == nil {
+					err = client.Send(pkt)
+				}
+
+				if err == nil {
+					select {
+					case r := <-client.Recv():
+						//log.Printf("got client pkt pkt(%s): %+v", reflect.TypeOf(r), r)
+						switch r.(type) {
+						case *protocol.Query:
+							//forward to server
+							_, _ = r.Write(s.bufwr)
+							err = s.bufwr.Flush()
+						default:
+							err = fmt.Errorf("expected an error in transaction state but got something else")
+						}
+					case <-ctx.Done():
+						err = ctx.Err()
+					}
+				}
+
+				if err != nil {
+					end := new(protocol.Query)
+					end.Fields.Query = "END;"
+					_, _ = end.Write(s.bufwr)
+					_ = s.bufwr.Flush()
+				}
+			}
+			return p.Fields.Status == 'I', p.Fields.Status == 'I'
+		case *protocol.CopyInResponse:
+			err = client.Send(pkt)
+			if err != nil {
+				return false, false
+			}
+			err = s.CopyIn(ctx, client)
+			if err != nil {
+				return false, false
+			}
+			return false, false
+		default:
+			return err == nil, false
+		}
+	})
+	if e != nil {
+		return e
+	}
+	return err
+}
+
 func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 	for {
 		// detect a disconneted /hanging client by waiting 30 seoncds, else timeout
@@ -301,7 +364,8 @@ func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 		select {
 		case pkt = <-client.Recv():
 		case <-cctx.Done():
-			_, _ = new(protocol.CopyFail).Write(s.wr)
+			_, _ = new(protocol.CopyFail).Write(s.bufwr)
+			_ = s.bufwr.Flush()
 			rfq := new(protocol.ReadyForQuery)
 			rfq.Fields.Status = 'I'
 			return client.Send(rfq)

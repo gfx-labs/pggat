@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"net"
 	"reflect"
+	"strings"
 
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
@@ -314,12 +315,7 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	}
 	switch cast := rsp.(type) {
 	case *protocol.Query:
-		parsed, err := parse.Parse(cast.Fields.Query)
-		if err != nil {
-			return false, err
-		}
-		log.Printf("%#v", parsed)
-		return true, c.handle_simple_query(ctx, cast)
+		return true, c.handle_query(ctx, cast)
 	case *protocol.FunctionCall:
 		return true, c.handle_function(ctx, cast)
 	case *protocol.Terminate:
@@ -329,13 +325,80 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (c *Client) handle_simple_query(ctx context.Context, q *protocol.Query) error {
-	//log.Println("query: ", q.Fields.Query)
-	err := c.server.SimpleQuery(ctx, c, q.Fields.Query)
+func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
+	parsed, err := parse.Parse(q.Fields.Query)
 	if err != nil {
 		return err
 	}
+
+	// we can handle empty queries here
+	if len(parsed) == 0 {
+		err = c.Send(&protocol.EmptyQueryResponse{})
+		if err != nil {
+			return err
+		}
+		ready := new(protocol.ReadyForQuery)
+		ready.Fields.Status = 'I'
+		return c.Send(ready)
+	}
+
+	prev := 0
+	transaction := false
+	for idx, cmd := range parsed {
+		switch strings.ToUpper(cmd.Command) {
+		case "START":
+			if len(cmd.Arguments) < 1 || strings.ToUpper(cmd.Arguments[0]) != "TRANSACTION" {
+				break
+			}
+			fallthrough
+		case "BEGIN":
+			// begin transaction
+			if prev != cmd.Index {
+				query := q.Fields.Query[prev:cmd.Index]
+				err = c.handle_simple_query(ctx, query)
+				prev = cmd.Index
+				if err != nil {
+					return err
+				}
+			}
+			transaction = true
+		case "END":
+			// end transaction block
+			var query string
+			if idx+1 >= len(parsed) {
+				query = q.Fields.Query[prev:]
+			} else {
+				query = q.Fields.Query[prev:parsed[idx+1].Index]
+			}
+			if query != "" {
+				err = c.handle_transaction(ctx, query)
+				prev = cmd.Index
+				if err != nil {
+					return err
+				}
+			}
+			transaction = false
+
+		}
+	}
+	query := q.Fields.Query[prev:]
+	if transaction {
+		err = c.handle_transaction(ctx, query)
+	} else {
+		err = c.handle_simple_query(ctx, query)
+	}
 	return err
+}
+
+func (c *Client) handle_simple_query(ctx context.Context, q string) error {
+	log.Println("query", q)
+	//log.Println("query: ", q.Fields.Query)
+	return c.server.SimpleQuery(ctx, c, q)
+}
+
+func (c *Client) handle_transaction(ctx context.Context, q string) error {
+	log.Println("transaction", q)
+	return c.server.Transaction(ctx, c, q)
 }
 
 func (c *Client) handle_function(ctx context.Context, f *protocol.FunctionCall) error {

@@ -169,6 +169,10 @@ func (c *ConnectionPool) SimpleQuery(ctx context.Context, client gat.Client, q s
 	return (<-c.workerPool).HandleSimpleQuery(ctx, client, q)
 }
 
+func (c *ConnectionPool) Transaction(ctx context.Context, client gat.Client, q string) error {
+	return (<-c.workerPool).HandleTransaction(ctx, client, q)
+}
+
 func (c *ConnectionPool) CallFunction(ctx context.Context, client gat.Client, f *protocol.FunctionCall) error {
 	return (<-c.workerPool).HandleFunction(ctx, client, f)
 }
