@@ -308,7 +308,7 @@ func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 			return client.Send(rfq)
 		}
 		cancel()
-		_, err := pkt.Write(s.wr)
+		err := s.writePacket(pkt)
 		if err != nil {
 			return err
 		}

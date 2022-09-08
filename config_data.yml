@@ -27,7 +27,7 @@ pools:
       - username: postgres
         password: password
         role: writer
-        pool_size: 10
+        pool_size: 20
         statement_timeout: 0
     shards:
       - pool_size: 5
