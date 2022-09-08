@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 type Command struct {
@@ -14,7 +15,7 @@ type Command struct {
 }
 
 type reader struct {
-	v []rune
+	v string
 	p int
 }
 
@@ -31,49 +32,43 @@ func (r *reader) nextRune() (rune, bool) {
 	if r.p >= len(r.v) {
 		return '-', false
 	}
-	c := r.v[r.p]
-	r.p += 1
+	c, l := utf8.DecodeRuneInString(r.v[r.p:])
+	r.p += l
 	return c, true
 }
 
-func (r *reader) nextComment() (string, error) {
-	var stack strings.Builder
+func (r *reader) nextComment() error {
 	c, ok := r.nextRune()
 	if !ok {
-		return "", EndOfSQL
+		return EndOfSQL
 	}
-	stack.WriteRune(c)
 	switch {
 	case c == ';':
-		return stack.String(), EndOfStatement
+		return EndOfStatement
 	case c == '-':
 		// we good
 	default:
-		return stack.String(), NotThisToken
+		return NotThisToken
 	}
 
-	_, err := r.nextString([]rune{'\n'})
-	return "", err
+	return r.nextString("\n")
 }
 
-func (r *reader) nextMultiLineComment() (string, error) {
-	var stack strings.Builder
+func (r *reader) nextMultiLineComment() error {
 	c, ok := r.nextRune()
 	if !ok {
-		return "", EndOfSQL
+		return EndOfSQL
 	}
-	stack.WriteRune(c)
 	switch {
 	case c == ';':
-		return stack.String(), EndOfStatement
+		return EndOfStatement
 	case c == '*':
 		// we good
 	default:
-		return stack.String(), NotThisToken
+		return NotThisToken
 	}
 
-	_, err := r.nextString([]rune("*/"))
-	return "", err
+	return r.nextString("*/")
 }
 
 func (r *reader) nextIdentifier() (string, error) {
@@ -101,7 +96,7 @@ func (r *reader) nextIdentifier() (string, error) {
 		case unicode.IsLetter(c), c == '_', c == '$':
 			stack.WriteRune(c)
 		case c == '-' && stack.Len() == 0:
-			if _, err := r.nextComment(); err != nil {
+			if r.nextComment() != nil {
 				return "", newUnexpectedCharacter(c)
 			}
 		default:
@@ -112,24 +107,23 @@ func (r *reader) nextIdentifier() (string, error) {
 	return stack.String(), EndOfSQL
 }
 
-func (r *reader) nextString(delim []rune) (string, error) {
-	var stack strings.Builder
+func (r *reader) nextString(delim string) error {
 	di := 0
 	escaping := false
 	for {
+		d, l := utf8.DecodeRuneInString(delim[di:])
 		c, ok := r.nextRune()
 		if !ok {
-			return stack.String(), EndOfSQL
+			return EndOfSQL
 		}
 
-		stack.WriteRune(c)
 		switch c {
-		case delim[di]:
-			di += 1
+		case d:
+			di += l
 			if di >= len(delim) {
 				di = 0
 				if !escaping {
-					return stack.String(), nil
+					return nil
 				}
 			}
 			escaping = false
@@ -143,44 +137,40 @@ func (r *reader) nextString(delim []rune) (string, error) {
 	}
 }
 
-func (r *reader) nextDollarIdentifier() (string, error) {
-	var stack strings.Builder
-	stack.WriteRune('$')
+func (r *reader) nextDollarIdentifier() error {
+	start := r.p
 	for {
+		pre := r.p
 		c, ok := r.nextRune()
 		if !ok {
-			return stack.String(), EndOfSQL
+			return EndOfSQL
 		}
 
 		switch {
 		case c == ';':
-			return stack.String(), EndOfStatement
+			return EndOfStatement
 		case unicode.IsSpace(c):
 			// this identifier is done
-			return stack.String(), NotThisToken
+			return NotThisToken
 		case unicode.IsDigit(c):
-			if stack.Len() == 0 {
-				stack.WriteRune(c)
-				return stack.String(), NotThisToken
+			if start == pre {
+				return NotThisToken
 			}
-			fallthrough
 		case unicode.IsLetter(c), c == '_':
-			stack.WriteRune(c)
 		case c == '$':
-			stack.WriteRune(c)
-			return stack.String(), nil
+			return nil
 		default:
-			stack.WriteRune(c)
-			return stack.String(), NotThisToken
+			return NotThisToken
 		}
 	}
 }
 
 func (r *reader) nextArgument() (string, error) {
 	// just read everything up to spaces or the end token, being mindful of strings and end of statements
-	var stack strings.Builder
+	start := r.p
 
 	for {
+		pre := r.p
 		c, ok := r.nextRune()
 		if !ok {
 			break
@@ -188,73 +178,64 @@ func (r *reader) nextArgument() (string, error) {
 
 		switch {
 		case unicode.IsSpace(c):
-			if stack.Len() == 0 {
+			if pre == start {
+				start = r.p
 				continue
 			}
 
 			// this argument is done
-			return stack.String(), nil
+			return r.v[start:pre], nil
 		case c == ';':
-			return stack.String(), EndOfStatement
+			return r.v[start:pre], EndOfStatement
 		case c == '\'', c == '"':
-			stack.WriteRune(c)
-			str, err := r.nextString([]rune{c})
-			stack.WriteString(str)
+			err := r.nextString(string(c))
 			if err != nil {
-				return stack.String(), err
+				return r.v[start:r.p], err
 			}
-		case c == '$' && stack.Len() == 0:
+		case c == '$' && pre == start:
 			// try the dollar string
-			delim, err := r.nextDollarIdentifier()
-			stack.WriteString(delim)
+			err := r.nextDollarIdentifier()
 			if err != nil {
-				if errors.Is(err, NotThisToken) {
+				if err == NotThisToken {
 					err = nil
 					continue
 				}
-				return stack.String(), err
+				return r.v[start:r.p], err
 			}
 
-			str, err := r.nextString([]rune(delim))
-			stack.WriteString(str)
+			err = r.nextString(r.v[pre:r.p])
 			if err != nil {
-				return stack.String(), err
+				return r.v[start:r.p], err
 			}
-		case c == '-' && stack.Len() == 0:
-			comment, err := r.nextComment()
+		case c == '-' && pre == start:
+			err := r.nextComment()
 			if err != nil {
-				stack.WriteRune('-')
-				stack.WriteString(comment)
-				if errors.Is(err, NotThisToken) {
+				if err == NotThisToken {
 					err = nil
 					continue
 				}
-				return stack.String(), err
+				return r.v[start:r.p], err
 			}
 		case c == '/':
-			comment, err := r.nextMultiLineComment()
+			err := r.nextMultiLineComment()
 			if err != nil {
-				stack.WriteRune('/')
-				stack.WriteString(comment)
-				if errors.Is(err, NotThisToken) {
+				if err == NotThisToken {
 					err = nil
 					continue
 				}
-				return stack.String(), err
+				return r.v[start:r.p], err
 			}
-		default:
-			stack.WriteRune(c)
 		}
 	}
 
-	return stack.String(), EndOfSQL
+	return r.v[start:], EndOfSQL
 }
 
 func (r *reader) nextCommand() (cmd Command, err error) {
 	cmd.Index = r.p
 	cmd.Command, err = r.nextIdentifier()
 	if err != nil {
-		if errors.Is(err, EndOfStatement) {
+		if err == EndOfStatement {
 			err = nil
 		}
 		return
@@ -280,8 +261,8 @@ func (r *reader) nextCommand() (cmd Command, err error) {
 // Parse parses an sql query in a single pass. Because all we really care about is the commands, this can be very fast
 // based on https://www.postgresql.org/docs/current/sql-syntax-lexical.html
 func Parse(sql string) (cmds []Command, err error) {
-	r := &reader{
-		v: []rune(sql),
+	r := reader{
+		v: sql,
 	}
 	for {
 		var cmd Command
