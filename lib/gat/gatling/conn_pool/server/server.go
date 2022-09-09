@@ -121,7 +121,7 @@ func (s *Server) startup(ctx context.Context) error {
 		},
 		{},
 	}
-	_, err := start.Write(s.wr)
+	err := s.writePacket(start)
 	if err != nil {
 		return err
 	}
@@ -171,7 +171,7 @@ func (s *Server) connect(ctx context.Context) error {
 					_, _ = protocol.WriteInt32(buf, int32(len(bts)))
 					buf.Write(bts)
 					rsp.Fields.Data = buf.Bytes()
-					_, err = rsp.Write(s.wr)
+					err = s.writePacket(rsp)
 				}()
 				if err != nil {
 					return err
@@ -183,7 +183,7 @@ func (s *Server) connect(ctx context.Context) error {
 
 				rsp := new(protocol.AuthenticationResponse)
 				rsp.Fields.Data = bts
-				_, err = rsp.Write(s.wr)
+				err = s.writePacket(rsp)
 				if err != nil {
 					return err
 				}
@@ -246,6 +246,160 @@ func (s *Server) writePacket(pkt protocol.Packet) error {
 		return err
 	}
 	return s.bufwr.Flush()
+}
+
+func (s *Server) ensurePreparedStatement(client gat.Client, name string) error {
+	// send prepared statement
+	stmt := client.GetPreparedStatement(name)
+	if stmt == nil {
+		return &pg_error.Error{
+			Severity: pg_error.Err,
+			Code:     pg_error.ProtocolViolation,
+			Message:  fmt.Sprintf("prepared statement '%s' does not exist", name),
+		}
+	}
+
+	// send prepared statement to server
+	err := s.writePacket(stmt)
+	if err != nil {
+		return err
+	}
+
+	/*log.Println("wait for server to accept prepared statement")
+	// make sure server accepted it
+	var rsp protocol.Packet
+	rsp, err = protocol.ReadBackend(s.r)
+	if err != nil {
+		return err
+	}
+	log.Println("received from server", rsp)
+	if _, ok := rsp.(*protocol.ParseComplete); !ok {
+		return fmt.Errorf("backend failed to parse prepared statement: %+v", rsp)
+	}*/
+
+	return nil
+}
+
+func (s *Server) ensurePortal(client gat.Client, name string) error {
+	portal := client.GetPortal(name)
+	if portal == nil {
+		return &pg_error.Error{
+			Severity: pg_error.Err,
+			Code:     pg_error.ProtocolViolation,
+			Message:  fmt.Sprintf("portal '%s' does not exist", name),
+		}
+	}
+
+	err := s.ensurePreparedStatement(client, portal.Fields.PreparedStatement)
+	if err != nil {
+		return err
+	}
+
+	err = s.writePacket(portal)
+	if err != nil {
+		return err
+	}
+
+	/*var rsp protocol.Packet
+	rsp, err = protocol.ReadBackend(s.r)
+	if err != nil {
+		return err
+	}
+	if _, ok := rsp.(*protocol.BindComplete); !ok {
+		return fmt.Errorf("backend failed to bind portal: %+v", rsp)
+	}*/
+
+	return nil
+}
+
+func (s *Server) destructPreparedStatement(client gat.Client, name string) {
+	query := new(protocol.Query)
+	query.Fields.Query = fmt.Sprintf("DEALLOCATE \"%s\"", name)
+	_ = s.writePacket(query)
+	// await server ready
+	for {
+		r, _ := protocol.ReadBackend(s.r)
+		if _, ok := r.(*protocol.ReadyForQuery); ok {
+			return
+		}
+	}
+}
+
+func (s *Server) destructPortal(client gat.Client, name string) {
+	portal := client.GetPortal(name)
+	s.destructPreparedStatement(client, portal.Fields.PreparedStatement)
+}
+
+func (s *Server) Describe(client gat.Client, d *protocol.Describe) error {
+	// TODO for now, we're actually just going to send the query and it's binding
+	// TODO(Garet) keep track of which connections have which prepared statements and portals
+	switch d.Fields.Which {
+	case 'S': // prepared statement
+		err := s.ensurePreparedStatement(client, d.Fields.Name)
+		if err != nil {
+			return err
+		}
+		defer s.destructPreparedStatement(client, d.Fields.Name)
+	case 'P': // portal
+		err := s.ensurePortal(client, d.Fields.Name)
+		if err != nil {
+			return err
+		}
+		defer s.destructPortal(client, d.Fields.Name)
+	default:
+		return &pg_error.Error{
+			Severity: pg_error.Err,
+			Code:     pg_error.ProtocolViolation,
+			Message:  fmt.Sprintf("expected 'S' or 'P' for describe target, got '%c'", d.Fields.Which),
+		}
+	}
+
+	// now we actually execute the thing the client wants
+	err := s.writePacket(d)
+	if err != nil {
+		return err
+	}
+	err = s.writePacket(new(protocol.Sync))
+	if err != nil {
+		return err
+	}
+
+	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
+		switch pkt.(type) {
+		case *protocol.BindComplete, *protocol.ParseComplete:
+			return false, false
+		case *protocol.ReadyForQuery:
+			return false, true
+		default:
+			return true, false
+		}
+	})
+}
+
+func (s *Server) Execute(client gat.Client, e *protocol.Execute) error {
+	err := s.ensurePortal(client, e.Fields.Name)
+	if err != nil {
+		return err
+	}
+	defer s.destructPortal(client, e.Fields.Name)
+
+	err = s.writePacket(e)
+	if err != nil {
+		return err
+	}
+	err = s.writePacket(new(protocol.Sync))
+	if err != nil {
+		return err
+	}
+
+	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
+		switch pkt.(type) {
+		case *protocol.ReadyForQuery:
+			return false, true
+		default:
+			return true, false
+		}
+	})
 }
 
 func (s *Server) SimpleQuery(ctx context.Context, client gat.Client, query string) error {
@@ -316,8 +470,7 @@ func (s *Server) Transaction(ctx context.Context, client gat.Client, query strin
 						switch r.(type) {
 						case *protocol.Query:
 							//forward to server
-							_, _ = r.Write(s.bufwr)
-							err = s.bufwr.Flush()
+							_ = s.writePacket(r)
 						default:
 							err = fmt.Errorf("expected an error in transaction state but got something else")
 						}
@@ -329,8 +482,7 @@ func (s *Server) Transaction(ctx context.Context, client gat.Client, query strin
 				if err != nil {
 					end := new(protocol.Query)
 					end.Fields.Query = "END;"
-					_, _ = end.Write(s.bufwr)
-					_ = s.bufwr.Flush()
+					_ = s.writePacket(end)
 				}
 			}
 			return p.Fields.Status == 'I', p.Fields.Status == 'I'
@@ -364,8 +516,7 @@ func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 		select {
 		case pkt = <-client.Recv():
 		case <-cctx.Done():
-			_, _ = new(protocol.CopyFail).Write(s.bufwr)
-			_ = s.bufwr.Flush()
+			_ = s.writePacket(new(protocol.CopyFail))
 			rfq := new(protocol.ReadyForQuery)
 			rfq.Fields.Status = 'I'
 			return client.Send(rfq)
@@ -386,7 +537,7 @@ func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 }
 
 func (s *Server) CallFunction(client gat.Client, payload *protocol.FunctionCall) error {
-	_, err := payload.Write(s.wr)
+	err := s.writePacket(payload)
 	if err != nil {
 		return err
 	}

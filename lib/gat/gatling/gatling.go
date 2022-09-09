@@ -123,7 +123,7 @@ func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) error {
 	cl := client.NewClient(g, g.c, c, false)
 	err := cl.Accept(ctx)
 	if err != nil {
-		log.Println(err.Error())
+		log.Println("err in connection:", err.Error())
 		switch e := err.(type) {
 		case *pg_error.Error:
 			_ = cl.Send(e.Packet())

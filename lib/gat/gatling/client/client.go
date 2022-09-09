@@ -326,6 +326,10 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 		return true, c.handle_describe(ctx, cast)
 	case *protocol.Execute:
 		return true, c.handle_execute(ctx, cast)
+	case *protocol.Sync:
+		pkt := new(protocol.ReadyForQuery)
+		pkt.Fields.Status = 'I'
+		return true, c.Send(pkt)
 	case *protocol.Query:
 		return true, c.handle_query(ctx, cast)
 	case *protocol.FunctionCall:
@@ -333,6 +337,7 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	case *protocol.Terminate:
 		return false, nil
 	default:
+		log.Printf("unhandled packet %#v", rsp)
 	}
 	return true, nil
 }
@@ -421,13 +426,11 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 }
 
 func (c *Client) handle_simple_query(ctx context.Context, q string) error {
-	log.Println("query", q)
-	//log.Println("query: ", q.Fields.Query)
+	//log.Println("query:", q)
 	return c.server.SimpleQuery(ctx, c, q)
 }
 
 func (c *Client) handle_transaction(ctx context.Context, q string) error {
-	log.Println("transaction", q)
 	return c.server.Transaction(ctx, c, q)
 }
 
@@ -437,6 +440,14 @@ func (c *Client) handle_function(ctx context.Context, f *protocol.FunctionCall) 
 		return err
 	}
 	return err
+}
+
+func (c *Client) GetPreparedStatement(name string) *protocol.Parse {
+	return c.statements[name]
+}
+
+func (c *Client) GetPortal(name string) *protocol.Bind {
+	return c.portals[name]
 }
 
 func (c *Client) Send(pkt protocol.Packet) error {

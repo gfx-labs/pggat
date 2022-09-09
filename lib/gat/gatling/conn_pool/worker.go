@@ -3,6 +3,7 @@ package conn_pool
 import (
 	"context"
 	"fmt"
+	"gfx.cafe/gfx/pggat/lib/config"
 	"log"
 
 	"gfx.cafe/gfx/pggat/lib/gat"
@@ -111,12 +112,10 @@ func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query stri
 	errch := make(chan error)
 	go func() {
 		defer close(errch)
-		//log.Println("performing transaction...")
 		select {
 		case errch <- w.z_actually_do_transaction(ctx, c, query):
 		case <-ctx.Done():
 		}
-		//log.Println("done", err)
 	}()
 
 	// wait until query or close
@@ -129,10 +128,36 @@ func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query stri
 }
 
 func (w *worker) z_actually_do_describe(ctx context.Context, client gat.Client, payload *protocol.Describe) error {
-	return nil
+	c := w.w
+	srv := c.chooseConnections()
+	if srv == nil {
+		return fmt.Errorf("describe('%+v') fail: no server", payload)
+	}
+	defer srv.mu.Unlock()
+	// describe the portal
+	// we can use a replica because we are just describing what this query will return, query content doesn't matter
+	// because nothing is actually executed yet
+	target := srv.choose(config.SERVERROLE_REPLICA)
+	if target == nil {
+		return fmt.Errorf("describe('%+v') fail: no server", payload)
+	}
+	return target.Describe(client, payload)
 }
 func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, payload *protocol.Execute) error {
-	return nil
+	c := w.w
+	srv := c.chooseConnections()
+	if srv == nil {
+		return fmt.Errorf("describe('%+v') fail: no server", payload)
+	}
+	defer srv.mu.Unlock()
+	// execute the query
+	// for now, use primary
+	// TODO read the query of the underlying prepared statement and choose server accordingly
+	target := srv.primary
+	if target == nil {
+		return fmt.Errorf("describe('%+v') fail: no server", payload)
+	}
+	return target.Execute(client, payload)
 }
 func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
 	c := w.w

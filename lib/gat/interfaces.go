@@ -8,6 +8,9 @@ import (
 )
 
 type Client interface {
+	GetPreparedStatement(name string) *protocol.Parse
+	GetPortal(name string) *protocol.Bind
+
 	Send(pkt protocol.Packet) error
 	Recv() <-chan protocol.Packet
 }
