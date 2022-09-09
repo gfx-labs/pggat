@@ -29,10 +29,18 @@ func (w *worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.D
 	errch := make(chan error)
 	go func() {
 		defer close(errch)
-		errch <- w.z_actually_do_describe(ctx, c, d)
+		select {
+		case errch <- w.z_actually_do_describe(ctx, c, d):
+		case <-ctx.Done():
+		}
 	}()
 
-	return <-errch
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errch:
+		return err
+	}
 }
 
 func (w *worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Execute) error {
@@ -41,10 +49,18 @@ func (w *worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Ex
 	errch := make(chan error)
 	go func() {
 		defer close(errch)
-		errch <- w.z_actually_do_execute(ctx, c, e)
+		select {
+		case errch <- w.z_actually_do_execute(ctx, c, e):
+		case <-ctx.Done():
+		}
 	}()
 
-	return <-errch
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errch:
+		return err
+	}
 }
 
 func (w *worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.FunctionCall) error {
@@ -54,9 +70,18 @@ func (w *worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.
 	errch := make(chan error)
 	go func() {
 		defer close(errch)
-		errch <- w.z_actually_do_fn(ctx, c, fn)
+		select {
+		case errch <- w.z_actually_do_fn(ctx, c, fn):
+		case <-ctx.Done():
+		}
 	}()
-	return <-errch
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errch:
+		return err
+	}
 }
 
 func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query string) error {
@@ -65,7 +90,10 @@ func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query stri
 	errch := make(chan error)
 	go func() {
 		defer close(errch)
-		errch <- w.z_actually_do_simple_query(ctx, c, query)
+		select {
+		case errch <- w.z_actually_do_simple_query(ctx, c, query):
+		case <-ctx.Done():
+		}
 	}()
 
 	// wait until query or close
@@ -84,7 +112,10 @@ func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query stri
 	go func() {
 		defer close(errch)
 		//log.Println("performing transaction...")
-		errch <- w.z_actually_do_transaction(ctx, c, query)
+		select {
+		case errch <- w.z_actually_do_transaction(ctx, c, query):
+		case <-ctx.Done():
+		}
 		//log.Println("done", err)
 	}()
 
