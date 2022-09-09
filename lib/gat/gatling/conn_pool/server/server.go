@@ -2,11 +2,10 @@ package server
 
 import (
 	"bufio"
-	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"net"
+	"reflect"
 	"strings"
 	"time"
 
@@ -33,21 +32,19 @@ type Server struct {
 	wr     io.Writer
 	bufwr  *bufio.Writer
 
-	buf bytes.Buffer
-
 	server_info []*protocol.ParameterStatus
 
 	process_id int32
 	secret_key int32
-
-	bad    bool
-	in_txn bool
 
 	connected_at     time.Time
 	stats            any // TODO: stats
 	application_name string
 
 	last_activity time.Time
+
+	bound_prepared_statments map[string]*protocol.Parse
+	bound_portals            map[string]*protocol.Bind
 
 	db     string
 	dbuser string
@@ -64,7 +61,11 @@ func Dial(ctx context.Context,
 	stats any,
 ) (*Server, error) {
 	s := &Server{
-		addr:   addr,
+		addr: addr,
+
+		bound_prepared_statments: make(map[string]*protocol.Parse),
+		bound_portals:            make(map[string]*protocol.Bind),
+
 		dbuser: dbuser,
 		dbpass: dbpass,
 	}
@@ -212,8 +213,6 @@ func (s *Server) connect(ctx context.Context) error {
 		case *protocol.ReadyForQuery:
 			s.last_activity = time.Now()
 			s.connected_at = time.Now().UTC()
-			s.bad = false
-			s.in_txn = false
 			return nil
 		}
 	}
@@ -259,23 +258,21 @@ func (s *Server) ensurePreparedStatement(client gat.Client, name string) error {
 		}
 	}
 
-	// send prepared statement to server
-	err := s.writePacket(stmt)
-	if err != nil {
-		return err
+	// test if prepared statement is the same
+	if prev, ok := s.bound_prepared_statments[name]; ok {
+		if reflect.DeepEqual(prev, stmt) {
+			// we don't need to bind, we're good
+			return nil
+		}
+
+		// there is a statement bound that needs to be unbound
+		s.destructPreparedStatement(name)
 	}
 
-	/*log.Println("wait for server to accept prepared statement")
-	// make sure server accepted it
-	var rsp protocol.Packet
-	rsp, err = protocol.ReadBackend(s.r)
-	if err != nil {
-		return err
-	}
-	log.Println("received from server", rsp)
-	if _, ok := rsp.(*protocol.ParseComplete); !ok {
-		return fmt.Errorf("backend failed to parse prepared statement: %+v", rsp)
-	}*/
+	s.bound_prepared_statments[name] = stmt
+
+	// send prepared statement to server
+	_, _ = stmt.Write(s.bufwr)
 
 	return nil
 }
@@ -295,24 +292,20 @@ func (s *Server) ensurePortal(client gat.Client, name string) error {
 		return err
 	}
 
-	err = s.writePacket(portal)
-	if err != nil {
-		return err
+	if prev, ok := s.bound_portals[name]; ok {
+		if reflect.DeepEqual(prev, portal) {
+			return nil
+		}
 	}
 
-	/*var rsp protocol.Packet
-	rsp, err = protocol.ReadBackend(s.r)
-	if err != nil {
-		return err
-	}
-	if _, ok := rsp.(*protocol.BindComplete); !ok {
-		return fmt.Errorf("backend failed to bind portal: %+v", rsp)
-	}*/
+	s.bound_portals[name] = portal
+	_, _ = portal.Write(s.bufwr)
 
 	return nil
 }
 
-func (s *Server) destructPreparedStatement(client gat.Client, name string) {
+func (s *Server) destructPreparedStatement(name string) {
+	delete(s.bound_prepared_statments, name)
 	query := new(protocol.Query)
 	query.Fields.Query = fmt.Sprintf("DEALLOCATE \"%s\"", name)
 	_ = s.writePacket(query)
@@ -325,27 +318,27 @@ func (s *Server) destructPreparedStatement(client gat.Client, name string) {
 	}
 }
 
-func (s *Server) destructPortal(client gat.Client, name string) {
-	portal := client.GetPortal(name)
-	s.destructPreparedStatement(client, portal.Fields.PreparedStatement)
+func (s *Server) destructPortal(name string) {
+	portal, ok := s.bound_portals[name]
+	if !ok {
+		return
+	}
+	delete(s.bound_portals, name)
+	s.destructPreparedStatement(portal.Fields.PreparedStatement)
 }
 
 func (s *Server) Describe(client gat.Client, d *protocol.Describe) error {
-	// TODO for now, we're actually just going to send the query and it's binding
-	// TODO(Garet) keep track of which connections have which prepared statements and portals
 	switch d.Fields.Which {
 	case 'S': // prepared statement
 		err := s.ensurePreparedStatement(client, d.Fields.Name)
 		if err != nil {
 			return err
 		}
-		defer s.destructPreparedStatement(client, d.Fields.Name)
 	case 'P': // portal
 		err := s.ensurePortal(client, d.Fields.Name)
 		if err != nil {
 			return err
 		}
-		defer s.destructPortal(client, d.Fields.Name)
 	default:
 		return &pg_error.Error{
 			Severity: pg_error.Err,
@@ -355,11 +348,8 @@ func (s *Server) Describe(client gat.Client, d *protocol.Describe) error {
 	}
 
 	// now we actually execute the thing the client wants
-	err := s.writePacket(d)
-	if err != nil {
-		return err
-	}
-	err = s.writePacket(new(protocol.Sync))
+	_, _ = d.Write(s.bufwr)
+	err := s.writePacket(new(protocol.Sync))
 	if err != nil {
 		return err
 	}
@@ -381,12 +371,8 @@ func (s *Server) Execute(client gat.Client, e *protocol.Execute) error {
 	if err != nil {
 		return err
 	}
-	defer s.destructPortal(client, e.Fields.Name)
 
-	err = s.writePacket(e)
-	if err != nil {
-		return err
-	}
+	_, _ = e.Write(s.bufwr)
 	err = s.writePacket(new(protocol.Sync))
 	if err != nil {
 		return err
@@ -517,9 +503,7 @@ func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 		case pkt = <-client.Recv():
 		case <-cctx.Done():
 			_ = s.writePacket(new(protocol.CopyFail))
-			rfq := new(protocol.ReadyForQuery)
-			rfq.Fields.Status = 'I'
-			return client.Send(rfq)
+			return cctx.Err()
 		}
 		cancel()
 		err := s.writePacket(pkt)
@@ -527,11 +511,10 @@ func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 			return err
 		}
 
-		switch p := pkt.(type) {
-		case *protocol.CopyDone:
+		switch pkt.(type) {
+		case *protocol.CopyDone, *protocol.CopyFail:
+			// don't error on copyfail because the client is the one that errored, it already knows
 			return nil
-		case *protocol.CopyFail:
-			return errors.New(p.Fields.Cause)
 		}
 	}
 }
@@ -543,9 +526,9 @@ func (s *Server) CallFunction(client gat.Client, payload *protocol.FunctionCall)
 	}
 	// read responses
 	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
-		switch r := pkt.(type) {
-		case *protocol.ReadyForQuery:
-			return true, r.Fields.Status == 'I'
+		switch pkt.(type) {
+		case *protocol.ReadyForQuery: // status 'I' should only be encountered here
+			return true, true
 		default:
 			return true, false
 		}
