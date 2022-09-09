@@ -8,21 +8,20 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"gfx.cafe/gfx/pggat/lib/parse"
-	"io"
-	"math/big"
-	"net"
-	"reflect"
-	"strings"
-
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/messages"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
+	"gfx.cafe/gfx/pggat/lib/parse"
 	"git.tuxpa.in/a/zlog"
 	"git.tuxpa.in/a/zlog/log"
-	"github.com/ethereum/go-ethereum/common/math"
+	"io"
+	"math"
+	"math/big"
+	"net"
+	"reflect"
+	"strings"
 )
 
 // / client state, one per client
@@ -56,11 +55,12 @@ type Client struct {
 	pool_name string
 	username  string
 
-	gatling    gat.Gat
-	statements map[string]*protocol.Parse
-	portals    map[string]*protocol.Bind
-	conf       *config.Global
-	state      rune
+	gatling     gat.Gat
+	currentConn gat.Connection
+	statements  map[string]*protocol.Parse
+	portals     map[string]*protocol.Bind
+	conf        *config.Global
+	state       rune
 
 	log zlog.Logger
 }
@@ -71,6 +71,9 @@ func NewClient(
 	conn net.Conn,
 	admin_only bool,
 ) *Client {
+	pid, _ := rand.Int(rand.Reader, big.NewInt(math.MaxInt32))
+	skey, _ := rand.Int(rand.Reader, big.NewInt(math.MaxInt32))
+
 	c := &Client{
 		conn:       conn,
 		r:          bufio.NewReader(conn),
@@ -78,6 +81,8 @@ func NewClient(
 		bufwr:      bufio.NewWriter(conn),
 		recv:       make(chan protocol.Packet),
 		addr:       conn.RemoteAddr(),
+		pid:        int32(pid.Int64()),
+		secret_key: int32(skey.Int64()),
 		gatling:    gatling,
 		statements: make(map[string]*protocol.Parse),
 		portals:    make(map[string]*protocol.Bind),
@@ -87,6 +92,24 @@ func NewClient(
 	c.log = log.With().
 		Stringer("clientaddr", c.addr).Logger()
 	return c
+}
+
+func (c *Client) Id() gat.ClientID {
+	return gat.ClientID{
+		PID:       c.pid,
+		SecretKey: c.secret_key,
+	}
+}
+
+func (c *Client) GetCurrentConn() (gat.Connection, error) {
+	if c.currentConn == nil {
+		return nil, errors.New("not connected to a server")
+	}
+	return c.currentConn, nil
+}
+
+func (c *Client) SetCurrentConn(conn gat.Connection) {
+	c.currentConn = conn
 }
 
 func (c *Client) Accept(ctx context.Context) error {
@@ -173,17 +196,6 @@ func (c *Client) Accept(ctx context.Context) error {
 		}
 	}
 
-	pid, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt32))
-	if err != nil {
-		return err
-	}
-	c.pid = int32(pid.Int64())
-	skey, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt32))
-	if err != nil {
-		return err
-	}
-
-	c.secret_key = int32(skey.Int64())
 	// TODO: Add SASL support.
 
 	// Perform MD5 authentication.
@@ -319,10 +331,20 @@ func (c *Client) recvLoop() {
 	}
 }
 
-// TODO: we need to keep track of queries so we can handle cancels
 func (c *Client) handle_cancel(ctx context.Context, p *protocol.StartupMessage) error {
-	log.Println("cancel msg", p)
-	return nil
+	cl, err := c.gatling.GetClient(gat.ClientID{
+		PID:       p.Fields.ProcessKey,
+		SecretKey: p.Fields.SecretKey,
+	})
+	if err != nil {
+		return err
+	}
+	var conn gat.Connection
+	conn, err = cl.GetCurrentConn()
+	if err != nil {
+		return err
+	}
+	return conn.Cancel()
 }
 
 // reads a packet from stream and handles it

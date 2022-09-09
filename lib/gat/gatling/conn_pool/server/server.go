@@ -533,6 +533,8 @@ func (s *Server) Close(ctx context.Context) error {
 	return nil
 }
 
+var _ gat.Connection = (*Server)(nil)
+
 //impl Drop for Server {
 //    /// Try to do a clean shut down. Best effort because
 //    /// the socket is in non-blocking mode, so it may not be ready

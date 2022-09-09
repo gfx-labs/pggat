@@ -142,6 +142,8 @@ func (w *worker) z_actually_do_describe(ctx context.Context, client gat.Client, 
 	if target == nil {
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
 	}
+	client.SetCurrentConn(target)
+	defer client.SetCurrentConn(nil)
 	return target.Describe(client, payload)
 }
 func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, payload *protocol.Execute) error {
@@ -176,6 +178,8 @@ func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, p
 		return err
 	}
 	target := srv.choose(which)
+	client.SetCurrentConn(target)
+	defer client.SetCurrentConn(nil)
 	if target == nil {
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
 	}
@@ -193,6 +197,8 @@ func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payloa
 	if target == nil {
 		return fmt.Errorf("fn('%+v') fail: no target ", payload)
 	}
+	client.SetCurrentConn(target)
+	defer client.SetCurrentConn(nil)
 	err := srv.primary.CallFunction(client, payload)
 	if err != nil {
 		return fmt.Errorf("fn('%+v') fail: %w ", payload, err)
@@ -218,6 +224,8 @@ func (w *worker) z_actually_do_simple_query(ctx context.Context, client gat.Clie
 	if target == nil {
 		return fmt.Errorf("call to query '%s' failed", payload)
 	}
+	client.SetCurrentConn(target)
+	defer client.SetCurrentConn(nil)
 	// actually do the query
 	err = target.SimpleQuery(ctx, client, payload)
 	if err != nil {
@@ -244,6 +252,8 @@ func (w *worker) z_actually_do_transaction(ctx context.Context, client gat.Clien
 	if target == nil {
 		return fmt.Errorf("call to transaction '%s' failed", payload)
 	}
+	client.SetCurrentConn(target)
+	defer client.SetCurrentConn(nil)
 	// actually do the query
 	err = target.Transaction(ctx, client, payload)
 	if err != nil {

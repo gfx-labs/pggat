@@ -2,6 +2,7 @@ package gatling
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -22,13 +23,15 @@ type Gatling struct {
 
 	chConfig chan *config.Global
 
-	pools map[string]*pool.Pool
+	pools   map[string]*pool.Pool
+	clients map[gat.ClientID]*client.Client
 }
 
 func NewGatling(conf *config.Global) *Gatling {
 	g := &Gatling{
 		chConfig: make(chan *config.Global, 1),
-		pools:    map[string]*pool.Pool{},
+		pools:    make(map[string]*pool.Pool),
+		clients:  make(map[gat.ClientID]*client.Client),
 	}
 	err := g.ensureConfig(conf)
 	if err != nil {
@@ -56,6 +59,16 @@ func (g *Gatling) GetPool(name string) (gat.Pool, error) {
 		return nil, fmt.Errorf("pool '%s' not found", name)
 	}
 	return srv, nil
+}
+
+func (g *Gatling) GetClient(id gat.ClientID) (gat.Client, error) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	c, ok := g.clients[id]
+	if !ok {
+		return nil, errors.New("client not found")
+	}
+	return c, nil
 }
 
 func (g *Gatling) ensureConfig(c *config.Global) error {
@@ -121,6 +134,18 @@ func (g *Gatling) ListenAndServe(ctx context.Context) error {
 // TODO: TLS
 func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) error {
 	cl := client.NewClient(g, g.c, c, false)
+
+	func() {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		g.clients[cl.Id()] = cl
+	}()
+	defer func() {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		delete(g.clients, cl.Id())
+	}()
+
 	err := cl.Accept(ctx)
 	if err != nil {
 		log.Println("err in connection:", err.Error())

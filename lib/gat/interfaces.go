@@ -7,9 +7,16 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 )
 
+type ClientID struct {
+	PID       int32
+	SecretKey int32
+}
+
 type Client interface {
 	GetPreparedStatement(name string) *protocol.Parse
 	GetPortal(name string) *protocol.Bind
+	GetCurrentConn() (Connection, error)
+	SetCurrentConn(conn Connection)
 
 	Send(pkt protocol.Packet) error
 	Recv() <-chan protocol.Packet
@@ -29,8 +36,14 @@ type ConnectionPool interface {
 	CallFunction(ctx context.Context, client Client, payload *protocol.FunctionCall) error
 }
 
+type Connection interface {
+	// Cancel the current running query
+	Cancel() error
+}
+
 type Gat interface {
 	GetPool(name string) (Pool, error)
+	GetClient(id ClientID) (Client, error)
 }
 
 type Pool interface {
