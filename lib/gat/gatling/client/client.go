@@ -56,8 +56,10 @@ type Client struct {
 	pool_name string
 	username  string
 
-	gatling gat.Gat
-	conf    *config.Global
+	gatling    gat.Gat
+	statements map[string]*protocol.Parse
+	portals    map[string]*protocol.Bind
+	conf       *config.Global
 
 	log zlog.Logger
 }
@@ -69,14 +71,16 @@ func NewClient(
 	admin_only bool,
 ) *Client {
 	c := &Client{
-		conn:    conn,
-		r:       bufio.NewReader(conn),
-		wr:      conn,
-		bufwr:   bufio.NewWriter(conn),
-		recv:    make(chan protocol.Packet),
-		addr:    conn.RemoteAddr(),
-		gatling: gatling,
-		conf:    conf,
+		conn:       conn,
+		r:          bufio.NewReader(conn),
+		wr:         conn,
+		bufwr:      bufio.NewWriter(conn),
+		recv:       make(chan protocol.Packet),
+		addr:       conn.RemoteAddr(),
+		gatling:    gatling,
+		statements: make(map[string]*protocol.Parse),
+		portals:    make(map[string]*protocol.Bind),
+		conf:       conf,
 	}
 	c.log = log.With().
 		Stringer("clientaddr", c.addr).Logger()
@@ -314,6 +318,14 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 		return false, ctx.Err()
 	}
 	switch cast := rsp.(type) {
+	case *protocol.Parse:
+		return true, c.parse(ctx, cast)
+	case *protocol.Bind:
+		return true, c.bind(ctx, cast)
+	case *protocol.Describe:
+		return true, c.handle_describe(ctx, cast)
+	case *protocol.Execute:
+		return true, c.handle_execute(ctx, cast)
 	case *protocol.Query:
 		return true, c.handle_query(ctx, cast)
 	case *protocol.FunctionCall:
@@ -323,6 +335,24 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	default:
 	}
 	return true, nil
+}
+
+func (c *Client) parse(ctx context.Context, q *protocol.Parse) error {
+	c.statements[q.Fields.PreparedStatement] = q
+	return c.Send(new(protocol.ParseComplete))
+}
+
+func (c *Client) bind(ctx context.Context, b *protocol.Bind) error {
+	c.portals[b.Fields.Destination] = b
+	return c.Send(new(protocol.BindComplete))
+}
+
+func (c *Client) handle_describe(ctx context.Context, d *protocol.Describe) error {
+	return c.server.Describe(ctx, c, d)
+}
+
+func (c *Client) handle_execute(ctx context.Context, e *protocol.Execute) error {
+	return c.server.Execute(ctx, c, e)
 }
 
 func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {

@@ -3,7 +3,6 @@ package parse
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -72,39 +71,43 @@ func (r *reader) nextMultiLineComment() error {
 }
 
 func (r *reader) nextIdentifier() (string, error) {
-	var stack strings.Builder
+	start := r.p
+
 	for {
+		pre := r.p
+
 		c, ok := r.nextRune()
 		if !ok {
 			break
 		}
 		switch {
 		case c == ';':
-			return stack.String(), EndOfStatement
+			return r.v[start:pre], EndOfStatement
 		case unicode.IsSpace(c):
-			if stack.Len() == 0 {
+			if pre == start {
+				start = r.p
 				continue
 			}
 
 			// this identifier is done
-			return stack.String(), nil
+			return r.v[start:pre], nil
 		case unicode.IsDigit(c):
-			if stack.Len() == 0 {
+			if pre == start {
 				return "", newUnexpectedCharacter(c)
 			}
 			fallthrough
 		case unicode.IsLetter(c), c == '_', c == '$':
-			stack.WriteRune(c)
-		case c == '-' && stack.Len() == 0:
+		case c == '-' && pre == start:
 			if r.nextComment() != nil {
 				return "", newUnexpectedCharacter(c)
 			}
+			start = r.p
 		default:
 			return "", newUnexpectedCharacter(c)
 		}
 	}
 
-	return stack.String(), EndOfSQL
+	return r.v[start:r.p], EndOfSQL
 }
 
 func (r *reader) nextString(delim string) error {
@@ -149,9 +152,6 @@ func (r *reader) nextDollarIdentifier() error {
 		switch {
 		case c == ';':
 			return EndOfStatement
-		case unicode.IsSpace(c):
-			// this identifier is done
-			return NotThisToken
 		case unicode.IsDigit(c):
 			if start == pre {
 				return NotThisToken
@@ -187,8 +187,13 @@ func (r *reader) nextArgument() (string, error) {
 			return r.v[start:pre], nil
 		case c == ';':
 			return r.v[start:pre], EndOfStatement
-		case c == '\'', c == '"':
-			err := r.nextString(string(c))
+		case c == '\'':
+			err := r.nextString("'")
+			if err != nil {
+				return r.v[start:r.p], err
+			}
+		case c == '"':
+			err := r.nextString("\"")
 			if err != nil {
 				return r.v[start:r.p], err
 			}
@@ -250,7 +255,7 @@ func (r *reader) nextCommand() (cmd Command, err error) {
 		}
 
 		if err != nil {
-			if errors.Is(err, EndOfStatement) {
+			if err == EndOfStatement {
 				err = nil
 			}
 			return
@@ -274,7 +279,7 @@ func Parse(sql string) (cmds []Command, err error) {
 		}
 
 		if err != nil {
-			if errors.Is(err, EndOfSQL) {
+			if err == EndOfSQL {
 				err = nil
 			}
 			return

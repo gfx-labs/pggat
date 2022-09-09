@@ -5,7 +5,7 @@ Bind:
       Type: string
     - Name: PreparedStatement
       Type: string
-    - Name: FormatCodes
+    - Name: ParameterFormatCodes
       Type: int16
       LengthPrefixed: int16
     - Name: ParameterValues
@@ -15,7 +15,7 @@ Bind:
             Type: byte
             LengthPrefixed: int32
       LengthPrefixed: int16
-    - Name: ResultColumnFormatCodes
+    - Name: ResultFormatCodes
       Type: int16
       LengthPrefixed: int16
 Close:

@@ -18,35 +18,54 @@ type worker struct {
 	w *ConnectionPool
 }
 
-func (w *worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.FunctionCall) error {
-	log.Println("worker selected for fn")
-	defer func() {
-		// return self to the connection pool after
-		log.Println("worker returned for fn")
-		w.w.workerPool <- w
-	}()
+// ret urn worker to pool
+func (w *worker) ret() {
+	w.w.workerPool <- w
+}
+
+func (w *worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.Describe) error {
+	defer w.ret()
 
 	errch := make(chan error)
 	go func() {
-		err := w.z_actually_do_fn(ctx, c, fn)
-		if err != nil {
-			ctx.Done()
-		}
-		errch <- err
-		close(errch)
+		defer close(errch)
+		errch <- w.z_actually_do_describe(ctx, c, d)
+	}()
+
+	return <-errch
+}
+
+func (w *worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Execute) error {
+	defer w.ret()
+
+	errch := make(chan error)
+	go func() {
+		defer close(errch)
+		errch <- w.z_actually_do_execute(ctx, c, e)
+	}()
+
+	return <-errch
+}
+
+func (w *worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.FunctionCall) error {
+	log.Println("worker selected for fn")
+	defer w.ret()
+
+	errch := make(chan error)
+	go func() {
+		defer close(errch)
+		errch <- w.z_actually_do_fn(ctx, c, fn)
 	}()
 	return <-errch
 }
 
 func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query string) error {
-	defer func() {
-		// return self to the connection pool after
-		w.w.workerPool <- w
-	}()
+	defer w.ret()
+
 	errch := make(chan error)
 	go func() {
-		err := w.z_actually_do_simple_query(ctx, c, query)
-		errch <- err
+		defer close(errch)
+		errch <- w.z_actually_do_simple_query(ctx, c, query)
 	}()
 
 	// wait until query or close
@@ -59,16 +78,14 @@ func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query stri
 }
 
 func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query string) error {
-	defer func() {
-		// return self to the connection pool after
-		w.w.workerPool <- w
-	}()
+	defer w.ret()
+
 	errch := make(chan error)
 	go func() {
+		defer close(errch)
 		//log.Println("performing transaction...")
-		err := w.z_actually_do_transaction(ctx, c, query)
+		errch <- w.z_actually_do_transaction(ctx, c, query)
 		//log.Println("done", err)
-		errch <- err
 	}()
 
 	// wait until query or close
@@ -80,6 +97,12 @@ func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query stri
 	}
 }
 
+func (w *worker) z_actually_do_describe(ctx context.Context, client gat.Client, payload *protocol.Describe) error {
+	return nil
+}
+func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, payload *protocol.Execute) error {
+	return nil
+}
 func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
 	c := w.w
 	srv := c.chooseConnections()

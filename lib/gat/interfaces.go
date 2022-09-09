@@ -15,6 +15,12 @@ type Client interface {
 type ConnectionPool interface {
 	GetUser() *config.User
 	GetServerInfo() []*protocol.ParameterStatus
+
+	// extended queries
+	Describe(ctx context.Context, client Client, describe *protocol.Describe) error
+	Execute(ctx context.Context, client Client, execute *protocol.Execute) error
+
+	// simple queries
 	SimpleQuery(ctx context.Context, client Client, query string) error
 	Transaction(ctx context.Context, client Client, query string) error
 	CallFunction(ctx context.Context, client Client, payload *protocol.FunctionCall) error

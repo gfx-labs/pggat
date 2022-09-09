@@ -128,11 +128,11 @@ func (T *FieldsBindParameterValues) Write(writer io.Writer) (length int, err err
 }
 
 type FieldsBind struct {
-	Destination             string
-	PreparedStatement       string
-	FormatCodes             []int16
-	ParameterValues         []FieldsBindParameterValues
-	ResultColumnFormatCodes []int16
+	Destination          string
+	PreparedStatement    string
+	ParameterFormatCodes []int16
+	ParameterValues      []FieldsBindParameterValues
+	ResultFormatCodes    []int16
 }
 
 func (T *FieldsBind) Read(payloadLength int, reader io.Reader) (err error) {
@@ -144,17 +144,17 @@ func (T *FieldsBind) Read(payloadLength int, reader io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	var FormatCodesLength int16
-	FormatCodesLength, err = ReadInt16(reader)
+	var ParameterFormatCodesLength int16
+	ParameterFormatCodesLength, err = ReadInt16(reader)
 	if err != nil {
 		return
 	}
-	if FormatCodesLength == int16(-1) {
-		T.FormatCodes = nil
+	if ParameterFormatCodesLength == int16(-1) {
+		T.ParameterFormatCodes = nil
 	} else {
-		T.FormatCodes = make([]int16, int(FormatCodesLength))
-		for i := 0; i < int(FormatCodesLength); i++ {
-			T.FormatCodes[i], err = ReadInt16(reader)
+		T.ParameterFormatCodes = make([]int16, int(ParameterFormatCodesLength))
+		for i := 0; i < int(ParameterFormatCodesLength); i++ {
+			T.ParameterFormatCodes[i], err = ReadInt16(reader)
 			if err != nil {
 				return
 			}
@@ -176,17 +176,17 @@ func (T *FieldsBind) Read(payloadLength int, reader io.Reader) (err error) {
 			}
 		}
 	}
-	var ResultColumnFormatCodesLength int16
-	ResultColumnFormatCodesLength, err = ReadInt16(reader)
+	var ResultFormatCodesLength int16
+	ResultFormatCodesLength, err = ReadInt16(reader)
 	if err != nil {
 		return
 	}
-	if ResultColumnFormatCodesLength == int16(-1) {
-		T.ResultColumnFormatCodes = nil
+	if ResultFormatCodesLength == int16(-1) {
+		T.ResultFormatCodes = nil
 	} else {
-		T.ResultColumnFormatCodes = make([]int16, int(ResultColumnFormatCodesLength))
-		for i := 0; i < int(ResultColumnFormatCodesLength); i++ {
-			T.ResultColumnFormatCodes[i], err = ReadInt16(reader)
+		T.ResultFormatCodes = make([]int16, int(ResultFormatCodesLength))
+		for i := 0; i < int(ResultFormatCodesLength); i++ {
+			T.ResultFormatCodes[i], err = ReadInt16(reader)
 			if err != nil {
 				return
 			}
@@ -207,16 +207,16 @@ func (T *FieldsBind) Write(writer io.Writer) (length int, err error) {
 		return
 	}
 	length += temp
-	if T.FormatCodes == nil {
+	if T.ParameterFormatCodes == nil {
 		temp, err = WriteInt16(writer, int16(-1))
 	} else {
-		temp, err = WriteInt16(writer, int16(len(T.FormatCodes)))
+		temp, err = WriteInt16(writer, int16(len(T.ParameterFormatCodes)))
 	}
 	if err != nil {
 		return
 	}
 	length += temp
-	for _, v := range T.FormatCodes {
+	for _, v := range T.ParameterFormatCodes {
 		temp, err = WriteInt16(writer, v)
 		if err != nil {
 			return
@@ -239,16 +239,16 @@ func (T *FieldsBind) Write(writer io.Writer) (length int, err error) {
 		}
 		length += temp
 	}
-	if T.ResultColumnFormatCodes == nil {
+	if T.ResultFormatCodes == nil {
 		temp, err = WriteInt16(writer, int16(-1))
 	} else {
-		temp, err = WriteInt16(writer, int16(len(T.ResultColumnFormatCodes)))
+		temp, err = WriteInt16(writer, int16(len(T.ResultFormatCodes)))
 	}
 	if err != nil {
 		return
 	}
 	length += temp
-	for _, v := range T.ResultColumnFormatCodes {
+	for _, v := range T.ResultFormatCodes {
 		temp, err = WriteInt16(writer, v)
 		if err != nil {
 			return

@@ -165,6 +165,14 @@ func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
 	return srv.primary.GetServerInfo()
 }
 
+func (c *ConnectionPool) Describe(ctx context.Context, client gat.Client, d *protocol.Describe) error {
+	return (<-c.workerPool).HandleDescribe(ctx, client, d)
+}
+
+func (c *ConnectionPool) Execute(ctx context.Context, client gat.Client, e *protocol.Execute) error {
+	return (<-c.workerPool).HandleExecute(ctx, client, e)
+}
+
 func (c *ConnectionPool) SimpleQuery(ctx context.Context, client gat.Client, q string) error {
 	return (<-c.workerPool).HandleSimpleQuery(ctx, client, q)
 }
