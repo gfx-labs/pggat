@@ -123,9 +123,10 @@ func (g *Gatling) ListenAndServe(ctx context.Context) error {
 			return err
 		}
 		go func() {
-			err := g.handleConnection(ctx, c)
+			err = g.handleConnection(ctx, c)
 			if err != nil {
 				log.Println("disconnected:", err)
+				return
 			}
 		}()
 	}
@@ -133,6 +134,11 @@ func (g *Gatling) ListenAndServe(ctx context.Context) error {
 
 // TODO: TLS
 func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) error {
+	err := c.(*net.TCPConn).SetNoDelay(false)
+	if err != nil {
+		return err
+	}
+
 	cl := client.NewClient(g, g.c, c, false)
 
 	func() {
@@ -146,7 +152,7 @@ func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) error {
 		delete(g.clients, cl.Id())
 	}()
 
-	err := cl.Accept(ctx)
+	err = cl.Accept(ctx)
 	if err != nil {
 		log.Println("err in connection:", err.Error())
 		_ = cl.Send(pg_error.IntoPacket(err))

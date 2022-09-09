@@ -29,7 +29,6 @@ type Server struct {
 	conn   net.Conn
 	r      *bufio.Reader
 	wr     io.Writer
-	bufwr  *bufio.Writer
 
 	server_info []*protocol.ParameterStatus
 
@@ -73,10 +72,13 @@ func Dial(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
+	err = s.conn.(*net.TCPConn).SetNoDelay(false)
+	if err != nil {
+		return nil, err
+	}
 	s.remote = s.conn.RemoteAddr()
 	s.r = bufio.NewReader(s.conn)
 	s.wr = s.conn
-	s.bufwr = bufio.NewWriter(s.wr)
 	s.user = *user
 	s.db = db
 
@@ -237,19 +239,9 @@ func (s *Server) forwardTo(client gat.Client, predicate func(pkt protocol.Packet
 	}
 }
 
-func (s *Server) writeNoFlush(pkt protocol.Packet) error {
-	//log.Printf("send backend packet(%s) %+v", reflect.TypeOf(pkt), pkt)
-	_, err := pkt.Write(s.bufwr)
-	return err
-}
-
 func (s *Server) writePacket(pkt protocol.Packet) error {
-	err := s.writeNoFlush(pkt)
-	if err != nil {
-		s.bufwr.Reset(s.wr)
-		return err
-	}
-	return s.bufwr.Flush()
+	_, err := pkt.Write(s.wr)
+	return err
 }
 
 func (s *Server) readPacket() (protocol.Packet, error) {
@@ -281,9 +273,7 @@ func (s *Server) ensurePreparedStatement(client gat.Client, name string) error {
 	s.bound_prepared_statments[name] = stmt
 
 	// send prepared statement to server
-	_ = s.writeNoFlush(stmt)
-
-	return nil
+	return s.writePacket(stmt)
 }
 
 func (s *Server) ensurePortal(client gat.Client, name string) error {
@@ -310,9 +300,7 @@ func (s *Server) ensurePortal(client gat.Client, name string) error {
 	}
 
 	s.bound_portals[name] = portal
-	_ = s.writeNoFlush(portal)
-
-	return nil
+	return s.writePacket(portal)
 }
 
 func (s *Server) destructPreparedStatement(name string) {
@@ -362,8 +350,11 @@ func (s *Server) Describe(client gat.Client, d *protocol.Describe) error {
 	}
 
 	// now we actually execute the thing the client wants
-	_ = s.writeNoFlush(d)
-	err := s.writePacket(new(protocol.Sync))
+	err := s.writePacket(d)
+	if err != nil {
+		return err
+	}
+	err = s.writePacket(new(protocol.Sync))
 	if err != nil {
 		return err
 	}
@@ -387,7 +378,10 @@ func (s *Server) Execute(client gat.Client, e *protocol.Execute) error {
 		return err
 	}
 
-	_ = s.writeNoFlush(e)
+	err = s.writePacket(e)
+	if err != nil {
+		return err
+	}
 	err = s.writePacket(new(protocol.Sync))
 	if err != nil {
 		return err

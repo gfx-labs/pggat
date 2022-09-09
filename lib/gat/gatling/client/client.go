@@ -30,8 +30,7 @@ type Client struct {
 	r    *bufio.Reader
 	wr   io.Writer
 
-	bufwr *bufio.Writer
-	recv  chan protocol.Packet
+	recv chan protocol.Packet
 
 	buf bytes.Buffer
 
@@ -78,7 +77,6 @@ func NewClient(
 		conn:       conn,
 		r:          bufio.NewReader(conn),
 		wr:         conn,
-		bufwr:      bufio.NewWriter(conn),
 		recv:       make(chan protocol.Packet),
 		addr:       conn.RemoteAddr(),
 		pid:        int32(pid.Int64()),
@@ -154,7 +152,6 @@ func (c *Client) Accept(ctx context.Context) error {
 			c.conn = tls.Server(c.conn, cfg)
 			c.r = bufio.NewReader(c.conn)
 			c.wr = c.conn
-			c.bufwr.Reset(c.wr)
 			err = startup.Read(c.r)
 			if err != nil {
 				return err
@@ -496,12 +493,8 @@ func (c *Client) GetPortal(name string) *protocol.Bind {
 
 func (c *Client) Send(pkt protocol.Packet) error {
 	//log.Printf("sent packet(%s) %+v", reflect.TypeOf(pkt), pkt)
-	_, err := pkt.Write(c.bufwr)
-	if err != nil {
-		c.bufwr.Reset(c.wr)
-		return err
-	}
-	return c.bufwr.Flush()
+	_, err := pkt.Write(c.wr)
+	return err
 }
 
 func (c *Client) Recv() <-chan protocol.Packet {
