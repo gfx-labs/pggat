@@ -451,3 +451,17 @@ func (E *Error) Packet() *protocol.ErrorResponse {
 func (E *Error) Error() string {
 	return fmt.Sprintf("%s: %s", E.Severity, E.Message)
 }
+
+func IntoPacket(err error) *protocol.ErrorResponse {
+	switch e := err.(type) {
+	case *Error:
+		return e.Packet()
+	default:
+		er := Error{
+			Severity: Err,
+			Code:     InternalError,
+			Message:  e.Error(),
+		}
+		return er.Packet()
+	}
+}

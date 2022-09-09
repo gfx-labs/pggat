@@ -60,6 +60,7 @@ type Client struct {
 	statements map[string]*protocol.Parse
 	portals    map[string]*protocol.Bind
 	conf       *config.Global
+	state      rune
 
 	log zlog.Logger
 }
@@ -80,6 +81,7 @@ func NewClient(
 		gatling:    gatling,
 		statements: make(map[string]*protocol.Parse),
 		portals:    make(map[string]*protocol.Bind),
+		state:      'I',
 		conf:       conf,
 	}
 	c.log = log.With().
@@ -282,8 +284,22 @@ func (c *Client) Accept(ctx context.Context) error {
 	open := true
 	for open {
 		open, err = c.tick(ctx)
+		if !open {
+			break
+		}
 		if err != nil {
-			return err
+			err = c.Send(pg_error.IntoPacket(err))
+			if err != nil {
+				return err
+			}
+		}
+		if c.state == 'I' {
+			rq := new(protocol.ReadyForQuery)
+			rq.Fields.Status = 'I'
+			err = c.Send(rq)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -327,9 +343,8 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	case *protocol.Execute:
 		return true, c.handle_execute(ctx, cast)
 	case *protocol.Sync:
-		pkt := new(protocol.ReadyForQuery)
-		pkt.Fields.Status = 'I'
-		return true, c.Send(pkt)
+		c.state = 'I'
+		return true, nil
 	case *protocol.Query:
 		return true, c.handle_query(ctx, cast)
 	case *protocol.FunctionCall:
@@ -344,19 +359,25 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 
 func (c *Client) parse(ctx context.Context, q *protocol.Parse) error {
 	c.statements[q.Fields.PreparedStatement] = q
+	c.state = 'T'
 	return c.Send(new(protocol.ParseComplete))
 }
 
 func (c *Client) bind(ctx context.Context, b *protocol.Bind) error {
 	c.portals[b.Fields.Destination] = b
+	c.state = 'T'
 	return c.Send(new(protocol.BindComplete))
 }
 
 func (c *Client) handle_describe(ctx context.Context, d *protocol.Describe) error {
+	//log.Println("describe")
+	c.state = 'T'
 	return c.server.Describe(ctx, c, d)
 }
 
 func (c *Client) handle_execute(ctx context.Context, e *protocol.Execute) error {
+	//log.Println("execute")
+	c.state = 'T'
 	return c.server.Execute(ctx, c, e)
 }
 
@@ -431,6 +452,7 @@ func (c *Client) handle_simple_query(ctx context.Context, q string) error {
 }
 
 func (c *Client) handle_transaction(ctx context.Context, q string) error {
+	//log.Println("transaction:", q)
 	return c.server.Transaction(ctx, c, q)
 }
 

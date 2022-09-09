@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"reflect"
-	"strings"
 	"time"
 
 	"gfx.cafe/gfx/pggat/lib/gat"
@@ -139,7 +138,7 @@ func (s *Server) connect(ctx context.Context) error {
 	var sm sasl.StateMachine
 	for {
 		var pkt protocol.Packet
-		pkt, err = protocol.ReadBackend(s.r)
+		pkt, err = s.readPacket()
 		if err != nil {
 			return err
 		}
@@ -218,33 +217,43 @@ func (s *Server) connect(ctx context.Context) error {
 	}
 }
 
-func (s *Server) forwardTo(client gat.Client, predicate func(pkt protocol.Packet) (forward bool, finish bool)) error {
+func (s *Server) forwardTo(client gat.Client, predicate func(pkt protocol.Packet) (forward bool, finish bool, err error)) error {
+	var e error
 	for {
 		var rsp protocol.Packet
-		rsp, err := protocol.ReadBackend(s.r)
+		rsp, err := s.readPacket()
 		if err != nil {
 			return err
 		}
-		forward, finish := predicate(rsp)
-		if forward {
-			err = client.Send(rsp)
-			if err != nil {
-				return err
-			}
+		//log.Printf("backend packet(%s) %+v", reflect.TypeOf(rsp), rsp)
+		var forward, finish bool
+		forward, finish, e = predicate(rsp)
+		if forward && e == nil {
+			e = client.Send(rsp)
 		}
 		if finish {
-			return nil
+			return e
 		}
 	}
 }
 
-func (s *Server) writePacket(pkt protocol.Packet) error {
+func (s *Server) writeNoFlush(pkt protocol.Packet) error {
+	//log.Printf("send backend packet(%s) %+v", reflect.TypeOf(pkt), pkt)
 	_, err := pkt.Write(s.bufwr)
+	return err
+}
+
+func (s *Server) writePacket(pkt protocol.Packet) error {
+	err := s.writeNoFlush(pkt)
 	if err != nil {
 		s.bufwr.Reset(s.wr)
 		return err
 	}
 	return s.bufwr.Flush()
+}
+
+func (s *Server) readPacket() (protocol.Packet, error) {
+	return protocol.ReadBackend(s.r)
 }
 
 func (s *Server) ensurePreparedStatement(client gat.Client, name string) error {
@@ -272,7 +281,7 @@ func (s *Server) ensurePreparedStatement(client gat.Client, name string) error {
 	s.bound_prepared_statments[name] = stmt
 
 	// send prepared statement to server
-	_, _ = stmt.Write(s.bufwr)
+	_ = s.writeNoFlush(stmt)
 
 	return nil
 }
@@ -292,26 +301,31 @@ func (s *Server) ensurePortal(client gat.Client, name string) error {
 		return err
 	}
 
-	if prev, ok := s.bound_portals[name]; ok {
-		if reflect.DeepEqual(prev, portal) {
-			return nil
+	if name != "" {
+		if prev, ok := s.bound_portals[name]; ok {
+			if reflect.DeepEqual(prev, portal) {
+				return nil
+			}
 		}
 	}
 
 	s.bound_portals[name] = portal
-	_, _ = portal.Write(s.bufwr)
+	_ = s.writeNoFlush(portal)
 
 	return nil
 }
 
 func (s *Server) destructPreparedStatement(name string) {
+	if name == "" {
+		return
+	}
 	delete(s.bound_prepared_statments, name)
 	query := new(protocol.Query)
 	query.Fields.Query = fmt.Sprintf("DEALLOCATE \"%s\"", name)
 	_ = s.writePacket(query)
 	// await server ready
 	for {
-		r, _ := protocol.ReadBackend(s.r)
+		r, _ := s.readPacket()
 		if _, ok := r.(*protocol.ReadyForQuery); ok {
 			return
 		}
@@ -348,21 +362,22 @@ func (s *Server) Describe(client gat.Client, d *protocol.Describe) error {
 	}
 
 	// now we actually execute the thing the client wants
-	_, _ = d.Write(s.bufwr)
+	_ = s.writeNoFlush(d)
 	err := s.writePacket(new(protocol.Sync))
 	if err != nil {
 		return err
 	}
 
-	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
+	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool, err error) {
+		//log.Println("forward packet(%s) %+v", reflect.TypeOf(pkt), pkt)
 		switch pkt.(type) {
 		case *protocol.BindComplete, *protocol.ParseComplete:
-			return false, false
 		case *protocol.ReadyForQuery:
-			return false, true
+			finish = true
 		default:
-			return true, false
+			forward = true
 		}
+		return
 	})
 }
 
@@ -372,19 +387,22 @@ func (s *Server) Execute(client gat.Client, e *protocol.Execute) error {
 		return err
 	}
 
-	_, _ = e.Write(s.bufwr)
+	_ = s.writeNoFlush(e)
 	err = s.writePacket(new(protocol.Sync))
 	if err != nil {
 		return err
 	}
 
-	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
+	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool, err error) {
+		//log.Println("forward packet(%s) %+v", reflect.TypeOf(pkt), pkt)
 		switch pkt.(type) {
+		case *protocol.BindComplete, *protocol.ParseComplete:
 		case *protocol.ReadyForQuery:
-			return false, true
+			finish = true
 		default:
-			return true, false
+			forward = true
 		}
+		return
 	})
 }
 
@@ -396,39 +414,24 @@ func (s *Server) SimpleQuery(ctx context.Context, client gat.Client, query strin
 	if err != nil {
 		return err
 	}
-	if strings.Contains(query, "pg_sleep") {
-		go func() {
-			time.Sleep(1 * time.Second)
-			log.Println("cancel: ", s.Cancel())
-		}()
-	}
+
 	// this function seems wild but it has to be the way it is so we read the whole response, even if the
 	// client fails midway
 	// read responses
-	e := s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
+	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool, err error) {
 		//log.Printf("forwarding pkt pkt(%s): %+v ", reflect.TypeOf(pkt), pkt)
 		switch pkt.(type) {
 		case *protocol.ReadyForQuery:
 			// all ReadyForQuery packets end a simple query, regardless of type
-			return err == nil, true
+			finish = true
 		case *protocol.CopyInResponse:
-			err = client.Send(pkt)
-			if err != nil {
-				return false, false
-			}
+			_ = client.Send(pkt)
 			err = s.CopyIn(ctx, client)
-			if err != nil {
-				return false, false
-			}
-			return false, false
 		default:
-			return err == nil, false
+			forward = true
 		}
+		return
 	})
-	if e != nil {
-		return e
-	}
-	return err
 }
 
 func (s *Server) Transaction(ctx context.Context, client gat.Client, query string) error {
@@ -438,16 +441,14 @@ func (s *Server) Transaction(ctx context.Context, client gat.Client, query strin
 	if err != nil {
 		return err
 	}
-	e := s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
+	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool, err error) {
 		//log.Printf("got server pkt pkt(%s): %+v ", reflect.TypeOf(pkt), pkt)
 		switch p := pkt.(type) {
 		case *protocol.ReadyForQuery:
 			// all ReadyForQuery packets end a simple query, regardless of type
 			if p.Fields.Status != 'I' {
 				// send to client and wait for next query
-				if err == nil {
-					err = client.Send(pkt)
-				}
+				err = client.Send(pkt)
 
 				if err == nil {
 					select {
@@ -470,26 +471,17 @@ func (s *Server) Transaction(ctx context.Context, client gat.Client, query strin
 					end.Fields.Query = "END;"
 					_ = s.writePacket(end)
 				}
+			} else {
+				finish = true
 			}
-			return p.Fields.Status == 'I', p.Fields.Status == 'I'
 		case *protocol.CopyInResponse:
-			err = client.Send(pkt)
-			if err != nil {
-				return false, false
-			}
+			_ = client.Send(pkt)
 			err = s.CopyIn(ctx, client)
-			if err != nil {
-				return false, false
-			}
-			return false, false
 		default:
-			return err == nil, false
+			forward = true
 		}
+		return
 	})
-	if e != nil {
-		return e
-	}
-	return err
 }
 
 func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
@@ -525,13 +517,14 @@ func (s *Server) CallFunction(client gat.Client, payload *protocol.FunctionCall)
 		return err
 	}
 	// read responses
-	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool) {
+	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool, err error) {
 		switch pkt.(type) {
 		case *protocol.ReadyForQuery: // status 'I' should only be encountered here
-			return true, true
+			finish = true
 		default:
-			return true, false
+			forward = true
 		}
+		return
 	})
 }
 
