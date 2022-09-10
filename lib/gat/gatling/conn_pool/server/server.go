@@ -3,7 +3,6 @@ package server
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"net"
 	"reflect"
 	"time"
@@ -28,7 +27,7 @@ type Server struct {
 	remote net.Addr
 	conn   net.Conn
 	r      *bufio.Reader
-	wr     io.Writer
+	wr     *bufio.Writer
 
 	server_info []*protocol.ParameterStatus
 
@@ -72,13 +71,9 @@ func Dial(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	err = s.conn.(*net.TCPConn).SetNoDelay(false)
-	if err != nil {
-		return nil, err
-	}
 	s.remote = s.conn.RemoteAddr()
 	s.r = bufio.NewReader(s.conn)
-	s.wr = s.conn
+	s.wr = bufio.NewWriter(s.conn)
 	s.user = *user
 	s.db = db
 
@@ -127,7 +122,7 @@ func (s *Server) startup(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return nil
+	return s.flush()
 }
 
 func (s *Server) connect(ctx context.Context) error {
@@ -164,17 +159,20 @@ func (s *Server) connect(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
-				func() {
-					rsp := new(protocol.AuthenticationResponse)
-					buf := bufpool.Get(len(scrm.Name()) + 1 + 4 + len(bts))
-					buf.Reset()
-					defer bufpool.Put(buf)
-					_, _ = protocol.WriteString(buf, scrm.Name())
-					_, _ = protocol.WriteInt32(buf, int32(len(bts)))
-					buf.Write(bts)
-					rsp.Fields.Data = buf.Bytes()
-					err = s.writePacket(rsp)
-				}()
+
+				rsp := new(protocol.AuthenticationResponse)
+				buf := bufpool.Get(len(scrm.Name()) + 1 + 4 + len(bts))
+				buf.Reset()
+				_, _ = protocol.WriteString(buf, scrm.Name())
+				_, _ = protocol.WriteInt32(buf, int32(len(bts)))
+				buf.Write(bts)
+				rsp.Fields.Data = buf.Bytes()
+				err = s.writePacket(rsp)
+				bufpool.Put(buf)
+				if err != nil {
+					return err
+				}
+				err = s.flush()
 				if err != nil {
 					return err
 				}
@@ -186,6 +184,10 @@ func (s *Server) connect(ctx context.Context) error {
 				rsp := new(protocol.AuthenticationResponse)
 				rsp.Fields.Data = bts
 				err = s.writePacket(rsp)
+				if err != nil {
+					return err
+				}
+				err = s.flush()
 				if err != nil {
 					return err
 				}
@@ -242,6 +244,10 @@ func (s *Server) forwardTo(client gat.Client, predicate func(pkt protocol.Packet
 func (s *Server) writePacket(pkt protocol.Packet) error {
 	_, err := pkt.Write(s.wr)
 	return err
+}
+
+func (s *Server) flush() error {
+	return s.wr.Flush()
 }
 
 func (s *Server) readPacket() (protocol.Packet, error) {
@@ -311,6 +317,7 @@ func (s *Server) destructPreparedStatement(name string) {
 	query := new(protocol.Query)
 	query.Fields.Query = fmt.Sprintf("DEALLOCATE \"%s\"", name)
 	_ = s.writePacket(query)
+	_ = s.flush()
 	// await server ready
 	for {
 		r, _ := s.readPacket()
@@ -358,6 +365,10 @@ func (s *Server) Describe(client gat.Client, d *protocol.Describe) error {
 	if err != nil {
 		return err
 	}
+	err = s.flush()
+	if err != nil {
+		return err
+	}
 
 	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool, err error) {
 		//log.Println("forward packet(%s) %+v", reflect.TypeOf(pkt), pkt)
@@ -386,6 +397,10 @@ func (s *Server) Execute(client gat.Client, e *protocol.Execute) error {
 	if err != nil {
 		return err
 	}
+	err = s.flush()
+	if err != nil {
+		return err
+	}
 
 	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool, err error) {
 		//log.Println("forward packet(%s) %+v", reflect.TypeOf(pkt), pkt)
@@ -405,6 +420,10 @@ func (s *Server) SimpleQuery(ctx context.Context, client gat.Client, query strin
 	q := new(protocol.Query)
 	q.Fields.Query = query
 	err := s.writePacket(q)
+	if err != nil {
+		return err
+	}
+	err = s.flush()
 	if err != nil {
 		return err
 	}
@@ -435,6 +454,10 @@ func (s *Server) Transaction(ctx context.Context, client gat.Client, query strin
 	if err != nil {
 		return err
 	}
+	err = s.flush()
+	if err != nil {
+		return err
+	}
 	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool, err error) {
 		//log.Printf("got server pkt pkt(%s): %+v ", reflect.TypeOf(pkt), pkt)
 		switch p := pkt.(type) {
@@ -445,18 +468,22 @@ func (s *Server) Transaction(ctx context.Context, client gat.Client, query strin
 				err = client.Send(pkt)
 
 				if err == nil {
-					select {
-					case r := <-client.Recv():
-						//log.Printf("got client pkt pkt(%s): %+v", reflect.TypeOf(r), r)
-						switch r.(type) {
-						case *protocol.Query:
-							//forward to server
-							_ = s.writePacket(r)
-						default:
-							err = fmt.Errorf("expected an error in transaction state but got something else")
+					err = client.Flush()
+					if err == nil {
+						select {
+						case r := <-client.Recv():
+							//log.Printf("got client pkt pkt(%s): %+v", reflect.TypeOf(r), r)
+							switch r.(type) {
+							case *protocol.Query:
+								//forward to server
+								_ = s.writePacket(r)
+								_ = s.flush()
+							default:
+								err = fmt.Errorf("expected an error in transaction state but got something else")
+							}
+						case <-ctx.Done():
+							err = ctx.Err()
 						}
-					case <-ctx.Done():
-						err = ctx.Err()
 					}
 				}
 
@@ -464,6 +491,7 @@ func (s *Server) Transaction(ctx context.Context, client gat.Client, query strin
 					end := new(protocol.Query)
 					end.Fields.Query = "END;"
 					_ = s.writePacket(end)
+					_ = s.flush()
 				}
 			} else {
 				finish = true
@@ -479,6 +507,10 @@ func (s *Server) Transaction(ctx context.Context, client gat.Client, query strin
 }
 
 func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
+	err := client.Flush()
+	if err != nil {
+		return err
+	}
 	for {
 		// detect a disconneted /hanging client by waiting 30 seoncds, else timeout
 		// otherwise, just keep reading packets until a done or error is received
@@ -489,10 +521,11 @@ func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 		case pkt = <-client.Recv():
 		case <-cctx.Done():
 			_ = s.writePacket(new(protocol.CopyFail))
+			_ = s.flush()
 			return cctx.Err()
 		}
 		cancel()
-		err := s.writePacket(pkt)
+		err = s.writePacket(pkt)
 		if err != nil {
 			return err
 		}
@@ -500,13 +533,17 @@ func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 		switch pkt.(type) {
 		case *protocol.CopyDone, *protocol.CopyFail:
 			// don't error on copyfail because the client is the one that errored, it already knows
-			return nil
+			return s.flush()
 		}
 	}
 }
 
 func (s *Server) CallFunction(client gat.Client, payload *protocol.FunctionCall) error {
 	err := s.writePacket(payload)
+	if err != nil {
+		return err
+	}
+	err = s.flush()
 	if err != nil {
 		return err
 	}

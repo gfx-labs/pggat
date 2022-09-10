@@ -22,13 +22,14 @@ import (
 	"net"
 	"reflect"
 	"strings"
+	"sync"
 )
 
 // / client state, one per client
 type Client struct {
 	conn net.Conn
 	r    *bufio.Reader
-	wr   io.Writer
+	wr   *bufio.Writer
 
 	recv chan protocol.Packet
 
@@ -62,6 +63,8 @@ type Client struct {
 	state       rune
 
 	log zlog.Logger
+
+	mu sync.Mutex
 }
 
 func NewClient(
@@ -76,7 +79,7 @@ func NewClient(
 	c := &Client{
 		conn:       conn,
 		r:          bufio.NewReader(conn),
-		wr:         conn,
+		wr:         bufio.NewWriter(conn),
 		recv:       make(chan protocol.Packet),
 		addr:       conn.RemoteAddr(),
 		pid:        int32(pid.Int64()),
@@ -129,6 +132,10 @@ func (c *Client) Accept(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+			err = c.wr.Flush()
+			if err != nil {
+				return err
+			}
 			startup = new(protocol.StartupMessage)
 			err = startup.Read(c.r)
 			if err != nil {
@@ -136,6 +143,10 @@ func (c *Client) Accept(ctx context.Context) error {
 			}
 		} else {
 			_, err = protocol.WriteByte(c.wr, 'S')
+			if err != nil {
+				return err
+			}
+			err = c.wr.Flush()
 			if err != nil {
 				return err
 			}
@@ -151,7 +162,7 @@ func (c *Client) Accept(ctx context.Context) error {
 			}
 			c.conn = tls.Server(c.conn, cfg)
 			c.r = bufio.NewReader(c.conn)
-			c.wr = c.conn
+			c.wr = bufio.NewWriter(c.conn)
 			err = startup.Read(c.r)
 			if err != nil {
 				return err
@@ -200,7 +211,11 @@ func (c *Client) Accept(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = pkt.Write(c.wr)
+	err = c.Send(pkt)
+	if err != nil {
+		return err
+	}
+	err = c.Flush()
 	if err != nil {
 		return err
 	}
@@ -263,7 +278,7 @@ func (c *Client) Accept(ctx context.Context) error {
 
 	authOk := new(protocol.Authentication)
 	authOk.Fields.Code = 0
-	_, err = authOk.Write(c.wr)
+	err = c.Send(authOk)
 	if err != nil {
 		return err
 	}
@@ -271,7 +286,7 @@ func (c *Client) Accept(ctx context.Context) error {
 	//
 	info := c.server.GetServerInfo()
 	for _, inf := range info {
-		_, err = inf.Write(c.wr)
+		err = c.Send(inf)
 		if err != nil {
 			return err
 		}
@@ -279,19 +294,23 @@ func (c *Client) Accept(ctx context.Context) error {
 	backendKeyData := new(protocol.BackendKeyData)
 	backendKeyData.Fields.ProcessID = c.pid
 	backendKeyData.Fields.SecretKey = c.secret_key
-	_, err = backendKeyData.Write(c.wr)
+	err = c.Send(backendKeyData)
 	if err != nil {
 		return err
 	}
 	readyForQuery := new(protocol.ReadyForQuery)
 	readyForQuery.Fields.Status = byte('I')
-	_, err = readyForQuery.Write(c.wr)
+	err = c.Send(readyForQuery)
 	if err != nil {
 		return err
 	}
 	go c.recvLoop()
 	open := true
 	for open {
+		err = c.Flush()
+		if err != nil {
+			return err
+		}
 		open, err = c.tick(ctx)
 		if !open {
 			break
@@ -348,7 +367,7 @@ func (c *Client) handle_cancel(ctx context.Context, p *protocol.StartupMessage) 
 func (c *Client) tick(ctx context.Context) (bool, error) {
 	var rsp protocol.Packet
 	select {
-	case rsp = <-c.Recv():
+	case rsp = <-c.recv:
 	case <-ctx.Done():
 		return false, ctx.Err()
 	}
@@ -492,9 +511,17 @@ func (c *Client) GetPortal(name string) *protocol.Bind {
 }
 
 func (c *Client) Send(pkt protocol.Packet) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	//log.Printf("sent packet(%s) %+v", reflect.TypeOf(pkt), pkt)
 	_, err := pkt.Write(c.wr)
 	return err
+}
+
+func (c *Client) Flush() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.wr.Flush()
 }
 
 func (c *Client) Recv() <-chan protocol.Packet {

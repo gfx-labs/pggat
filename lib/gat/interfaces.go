@@ -19,6 +19,7 @@ type Client interface {
 	SetCurrentConn(conn Connection)
 
 	Send(pkt protocol.Packet) error
+	Flush() error
 	Recv() <-chan protocol.Packet
 }
 
