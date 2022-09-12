@@ -16,8 +16,8 @@ import (
 )
 
 type connections struct {
-	primary *server.Server
-	replica *server.Server
+	primary  *server.Server
+	replicas []*server.Server
 
 	mu sync.Mutex
 }
@@ -27,11 +27,11 @@ func (s *connections) choose(role config.ServerRole) *server.Server {
 	case config.SERVERROLE_PRIMARY:
 		return s.primary
 	case config.SERVERROLE_REPLICA:
-		if s.replica == nil {
+		if len(s.replicas) == 0 {
 			// fallback to primary
 			return s.primary
 		}
-		return s.replica
+		return s.replicas[rand.Intn(len(s.replicas))]
 	default:
 		return nil
 	}
@@ -141,7 +141,7 @@ func (c *ConnectionPool) chooseConnections() *connections {
 		case config.SERVERROLE_PRIMARY:
 			srvs.primary = srv
 		case config.SERVERROLE_REPLICA:
-			srvs.replica = srv
+			srvs.replicas = append(srvs.replicas, srv)
 		}
 	}
 	if srvs.primary == nil {
