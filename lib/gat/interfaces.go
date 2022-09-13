@@ -4,6 +4,7 @@ import (
 	"context"
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"time"
 )
 
 type ClientID struct {
@@ -16,6 +17,16 @@ type Client interface {
 	GetPortal(name string) *protocol.Bind
 	GetCurrentConn() (Connection, error)
 	SetCurrentConn(conn Connection)
+
+	State() string
+	Addr() string
+	Port() int
+	LocalAddr() string
+	LocalPort() int
+	ConnectTime() time.Time
+	RequestTime() time.Time
+	Wait() time.Duration
+	RemotePid() int
 
 	Send(pkt protocol.Packet) error
 	Flush() error
@@ -101,6 +112,18 @@ type Shard interface {
 
 type Connection interface {
 	GetDatabase() string
+	State() string
+	Address() string
+	Port() int
+	LocalAddr() string
+	LocalPort() int
+	ConnectTime() time.Time
+	RequestTime() time.Time
+	Wait() time.Duration
+	CloseNeeded() bool
+	Client() Client
+	RemotePid() int
+	TLS() string
 
 	// Cancel the current running query
 	Cancel() error

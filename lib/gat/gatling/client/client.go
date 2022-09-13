@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 )
 
 // / client state, one per client
@@ -47,6 +48,8 @@ type Client struct {
 	stats      any // TODO: Reporter
 	admin      bool
 
+	connectTime time.Time
+
 	server gat.ConnectionPool
 
 	last_addr_id int
@@ -65,6 +68,42 @@ type Client struct {
 	log zlog.Logger
 
 	mu sync.Mutex
+}
+
+func (c *Client) State() string {
+	return "TODO" // TODO
+}
+
+func (c *Client) Addr() string {
+	return c.conn.RemoteAddr().String()
+}
+
+func (c *Client) Port() int {
+	return 0 // TODO
+}
+
+func (c *Client) LocalAddr() string {
+	return c.conn.LocalAddr().String()
+}
+
+func (c *Client) LocalPort() int {
+	return 0 // TODO
+}
+
+func (c *Client) ConnectTime() time.Time {
+	return c.connectTime
+}
+
+func (c *Client) RequestTime() time.Time {
+	return c.currentConn.RequestTime()
+}
+
+func (c *Client) Wait() time.Duration {
+	return c.currentConn.Wait()
+}
+
+func (c *Client) RemotePid() int {
+	return int(c.pid)
 }
 
 func NewClient(

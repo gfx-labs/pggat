@@ -24,6 +24,7 @@ import (
 
 type Server struct {
 	addr   string
+	port   uint16
 	remote net.Addr
 	conn   net.Conn
 	r      *bufio.Reader
@@ -35,6 +36,7 @@ type Server struct {
 	secret_key int32
 
 	connected_at     time.Time
+	request_time     time.Time
 	stats            any // TODO: stats
 	application_name string
 
@@ -53,12 +55,14 @@ type Server struct {
 
 func Dial(ctx context.Context,
 	addr string,
+	port uint16,
 	user *config.User,
 	db string, dbuser string, dbpass string,
 	stats any,
 ) (*Server, error) {
 	s := &Server{
 		addr: addr,
+		port: port,
 
 		bound_prepared_statments: make(map[string]*protocol.Parse),
 		bound_portals:            make(map[string]*protocol.Bind),
@@ -67,7 +71,7 @@ func Dial(ctx context.Context,
 		dbpass: dbpass,
 	}
 	var err error
-	s.conn, err = net.Dial("tcp", addr)
+	s.conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", addr, port))
 	if err != nil {
 		return nil, err
 	}
@@ -101,6 +105,54 @@ func (s *Server) Cancel() error {
 
 func (s *Server) GetDatabase() string {
 	return s.db
+}
+
+func (s *Server) State() string {
+	return "TODO" // TODO
+}
+
+func (s *Server) Address() string {
+	return s.addr
+}
+
+func (s *Server) Port() int {
+	return int(s.port)
+}
+
+func (s *Server) LocalAddr() string {
+	return s.conn.LocalAddr().String()
+}
+
+func (s *Server) LocalPort() int {
+	return 0
+}
+
+func (s *Server) ConnectTime() time.Time {
+	return s.connected_at
+}
+
+func (s *Server) RequestTime() time.Time {
+	return s.request_time
+}
+
+func (s *Server) Wait() time.Duration {
+	return time.Now().Sub(s.request_time) // TODO this won't take into account the last requests running time
+}
+
+func (s *Server) CloseNeeded() bool {
+	return false
+}
+
+func (s *Server) Client() gat.Client {
+	return nil // TODO
+}
+
+func (s *Server) RemotePid() int {
+	return int(s.process_id)
+}
+
+func (s *Server) TLS() string {
+	return "" // TODO
 }
 
 func (s *Server) GetServerInfo() []*protocol.ParameterStatus {

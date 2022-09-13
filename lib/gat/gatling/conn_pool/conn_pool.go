@@ -2,7 +2,6 @@ package conn_pool
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"math/rand"
 	"reflect"
@@ -147,7 +146,8 @@ func (c *ConnectionPool) chooseConnections() *connections {
 	for _, srvConf := range s.conf.Servers {
 		srv, err := server.Dial(
 			context.Background(),
-			fmt.Sprintf("%s:%d", srvConf.Host, srvConf.Port),
+			srvConf.Host,
+			srvConf.Port,
 			c.user, s.conf.Database,
 			srvConf.Username, srvConf.Password,
 			nil)
