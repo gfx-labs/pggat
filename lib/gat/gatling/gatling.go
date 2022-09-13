@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 
@@ -17,10 +18,12 @@ import (
 	"gfx.cafe/gfx/pggat/lib/config"
 )
 
+// a Gatling is the main runtime process for the proxy
 type Gatling struct {
+	// config and config mutex
 	c  *config.Global
 	mu sync.RWMutex
-
+	// channel that new config are delivered
 	chConfig chan *config.Global
 
 	pools   map[string]*pool.Pool
@@ -125,7 +128,9 @@ func (g *Gatling) ListenAndServe(ctx context.Context) error {
 		go func() {
 			err = g.handleConnection(ctx, c)
 			if err != nil {
-				log.Println("disconnected:", err)
+				if err != io.EOF {
+					log.Println("disconnected:", err)
+				}
 				return
 			}
 		}()

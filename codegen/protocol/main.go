@@ -3,11 +3,12 @@ package main
 import (
 	"bytes"
 	"go/format"
-	"gopkg.in/yaml.v2"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/iancoleman/strcase"
 )
@@ -41,8 +42,7 @@ func main() {
 	frontend := make(map[string]any)
 	var out bytes.Buffer
 	for _, e := range f {
-		var b []byte
-		b, err = os.ReadFile(filepath.Join(INPUT, e.Name()))
+		b, err := os.ReadFile(filepath.Join(INPUT, e.Name()))
 		if err != nil {
 			panic(err)
 		}
