@@ -51,6 +51,10 @@ type ConnectionPool struct {
 	pool   gat.Pool
 	shards []shard
 
+	// see: https://github.com/golang/go/blob/master/src/runtime/chan.go#L33
+	// channels are a thread safe ring buffer implemented via a linked list of goroutines.
+	// the idea is that goroutines are cheap, and we can afford to have one per pending request.
+	// there is no real reason to implement a complicated worker pool pattern when well, if we're okay with having a 2-4kb overhead per request, then this is fine. trading space for code complexity
 	workerPool chan *worker
 	// the lock for config related things
 	mu sync.RWMutex
