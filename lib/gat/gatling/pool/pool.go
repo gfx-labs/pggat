@@ -13,7 +13,7 @@ import (
 type Pool struct {
 	c         *config.Pool
 	users     map[string]config.User
-	connPools map[string]*conn_pool.ConnectionPool
+	connPools map[string]gat.ConnectionPool
 
 	router query_router.QueryRouter
 
@@ -22,7 +22,7 @@ type Pool struct {
 
 func NewPool(conf *config.Pool) *Pool {
 	pool := &Pool{
-		connPools: make(map[string]*conn_pool.ConnectionPool),
+		connPools: make(map[string]gat.ConnectionPool),
 	}
 	pool.EnsureConfig(conf)
 	return pool
@@ -69,6 +69,22 @@ func (p *Pool) WithUser(name string) (gat.ConnectionPool, error) {
 		return nil, fmt.Errorf("no pool for '%s'", name)
 	}
 	return pool, nil
+}
+
+func (p *Pool) ConnectionPools() []gat.ConnectionPool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	out := make([]gat.ConnectionPool, len(p.connPools))
+	idx := 0
+	for _, v := range p.connPools {
+		out[idx] = v
+		idx += 1
+	}
+	return out
+}
+
+func (p *Pool) Stats() gat.PoolStats {
+	return nil // TODO
 }
 
 var _ gat.Pool = (*Pool)(nil)

@@ -37,6 +37,20 @@ func (s *connections) choose(role config.ServerRole) *server.Server {
 	}
 }
 
+func (s *connections) Primary() gat.Connection {
+	return s.primary
+}
+
+func (s *connections) Replicas() []gat.Connection {
+	out := make([]gat.Connection, len(s.replicas))
+	for idx, v := range s.replicas {
+		out[idx] = v
+	}
+	return out
+}
+
+var _ gat.Shard = (*connections)(nil)
+
 type shard struct {
 	conf  *config.Shard
 	conns []*connections
@@ -167,6 +181,20 @@ func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
 	}
 	defer srv.mu.Unlock()
 	return srv.primary.GetServerInfo()
+}
+
+func (c *ConnectionPool) Shards() []gat.Shard {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make([]gat.Shard, len(c.shards))
+	idx := 0
+	for i := range c.shards {
+		for _, v := range c.shards[i].conns {
+			out[idx] = v
+			idx += 1
+		}
+	}
+	return out
 }
 
 func (c *ConnectionPool) Describe(ctx context.Context, client gat.Client, d *protocol.Describe) error {

@@ -26,15 +26,15 @@ type Gatling struct {
 	// channel that new config are delivered
 	chConfig chan *config.Global
 
-	pools   map[string]*pool.Pool
-	clients map[gat.ClientID]*client.Client
+	pools   map[string]gat.Pool
+	clients map[gat.ClientID]gat.Client
 }
 
 func NewGatling(conf *config.Global) *Gatling {
 	g := &Gatling{
 		chConfig: make(chan *config.Global, 1),
-		pools:    make(map[string]*pool.Pool),
-		clients:  make(map[gat.ClientID]*client.Client),
+		pools:    make(map[string]gat.Pool),
+		clients:  make(map[gat.ClientID]gat.Client),
 	}
 	err := g.ensureConfig(conf)
 	if err != nil {
@@ -64,6 +64,18 @@ func (g *Gatling) GetPool(name string) (gat.Pool, error) {
 	return srv, nil
 }
 
+func (g *Gatling) Pools() []gat.Pool {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	out := make([]gat.Pool, len(g.pools))
+	idx := 0
+	for _, p := range g.pools {
+		out[idx] = p
+		idx += 1
+	}
+	return out
+}
+
 func (g *Gatling) GetClient(id gat.ClientID) (gat.Client, error) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
@@ -72,6 +84,18 @@ func (g *Gatling) GetClient(id gat.ClientID) (gat.Client, error) {
 		return nil, errors.New("client not found")
 	}
 	return c, nil
+}
+
+func (g *Gatling) Clients() []gat.Client {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	out := make([]gat.Client, len(g.clients))
+	idx := 0
+	for _, p := range g.clients {
+		out[idx] = p
+		idx += 1
+	}
+	return out
 }
 
 func (g *Gatling) ensureConfig(c *config.Global) error {

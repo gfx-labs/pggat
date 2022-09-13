@@ -99,6 +99,10 @@ func (s *Server) Cancel() error {
 	return err
 }
 
+func (s *Server) GetDatabase() string {
+	return s.db
+}
+
 func (s *Server) GetServerInfo() []*protocol.ParameterStatus {
 	return s.server_info
 }
