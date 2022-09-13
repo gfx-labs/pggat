@@ -2,7 +2,6 @@ package gat
 
 import (
 	"context"
-
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 )
@@ -48,28 +47,28 @@ type PoolStats interface {
 	// Total queries
 	TotalQueryCount() int
 	// Total bytes received over network
-	TotalReceived()
+	TotalReceived() int
 	// Total bytes sent over network
-	TotalSent()
-	// Total time spent doing transactions
-	TotalXactTime()
-	// Total time spent doing queries
-	TotalQueryTime()
-	// Total time spent waiting
-	TotalWaitTime()
-	// Average amount of transactions per second
-	AvgXactCount()
+	TotalSent() int
+	// Total time spent doing transactions (in microseconds)
+	TotalXactTime() int
+	// Total time spent doing queries (in microseconds)
+	TotalQueryTime() int
+	// Total time spent waiting (in microseconds)
+	TotalWaitTime() int
+	// Average amount of transactions per second (in microseconds)
+	AvgXactCount() int
 	// Average amount of queries per second
 	AvgQueryCount()
 	// Average bytes received per second
 	AvgRecv()
 	// Average bytes sent per second
 	AvgSent()
-	// Average time transactions take
+	// Average time transactions take (in microseconds)
 	AvgXactTime()
-	// Average time queries take
+	// Average time queries take (in microseconds)
 	AvgQueryTime()
-	// Average time waiting for work
+	// Average time waiting for work (in microseconds)
 	AvgWaitTime()
 }
 
