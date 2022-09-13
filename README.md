@@ -11,10 +11,6 @@ https://www.youtube.com/watch?v=-DqCc2DJ0sg
 
 i'll lyk when its done
 
-# original README
-
-PostgreSQL pooler (like PgBouncer) with sharding, load balancing and failover support.
-
 ## Features
 | **Feature**                    | **Status**                  | Gat Status         | **Comments**                                                                                                                                          |
 |--------------------------------|-----------------------------|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -29,6 +25,10 @@ PostgreSQL pooler (like PgBouncer) with sharding, load balancing and failover su
 | Live configuration reloading   | :white_check_mark:          | kind of            | Reload supported settings with a `SIGHUP` to the process, e.g. `kill -s SIGHUP $(pgrep pgcat)` or `RELOAD` query issued to the admin database.        |
 | Client authentication          | :white_check_mark: :wrench: | same as them       | MD5 password authentication is supported, SCRAM is on the roadmap; one user is used to connect to Postgres with both SCRAM and MD5 supported.         |
 | Admin database                 | :white_check_mark:          | no                 | The admin database, similar to PgBouncer's, allows to query for statistics and reload the configuration.                                              |
+
+# original README
+
+PostgreSQL pooler (like PgBouncer) with sharding, load balancing and failover support.
 
 ## Deployment
 
