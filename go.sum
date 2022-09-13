@@ -2,6 +2,8 @@ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 gfx.cafe/util/go/bufpool v0.0.0-20220906091724-3a24b7f40ccf h1:ya4IK1D+Kq0DrFdrrZ7tjmp3BgoO4v5sCAeUytR6j1U=
 gfx.cafe/util/go/bufpool v0.0.0-20220906091724-3a24b7f40ccf/go.mod h1:+DiyiCOBGS9O9Ce4ewHQO3Y59h66WSWAbgZZ2O2AYYw=
+gfx.cafe/util/go/graceful v0.0.0-20220913082111-9770431e98e9 h1:Z0RRPRbz5Bt7yu6v+RzLCAKm0YNcrwNGLMs9UVs8NsU=
+gfx.cafe/util/go/graceful v0.0.0-20220913082111-9770431e98e9/go.mod h1:sO44FAgBZXic9FwJaJHX1mI9vt1e3CRe0X/3bwnMRho=
 gfx.cafe/util/go/lambda v0.0.0-20220906200602-98a6b35a1b42 h1:8mKA+jVj7l3sM/s6CjqF/5DhAIWftIhit0XqkswzkAg=
 gfx.cafe/util/go/lambda v0.0.0-20220906200602-98a6b35a1b42/go.mod h1:+qAj+4kl6uABj/3RqR84AwHnm+vYyYoPwLJdTR3GgRc=
 git.tuxpa.in/a/lambda v0.0.0-20220903040836-72d2bd6dc070 h1:CuEIvPmhTWKmMMoJnsP2xOoWRFOFB7cZABONrSQaiDc=

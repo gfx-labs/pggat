@@ -17,6 +17,7 @@ require (
 )
 
 require (
+	gfx.cafe/util/go/graceful v0.0.0-20220913082111-9770431e98e9 // indirect
 	github.com/certifi/gocertifi v0.0.0-20200922220541-2c3bb06c6054 // indirect
 	github.com/cockroachdb/apd v1.1.1-0.20181017181144-bced77f817b4 // indirect
 	github.com/cockroachdb/errors v1.8.2 // indirect

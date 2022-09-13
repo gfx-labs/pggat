@@ -119,22 +119,25 @@ func (g *Gatling) ListenAndServe(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for {
-		var c net.Conn
-		c, err = ln.Accept()
-		if err != nil {
-			return err
-		}
-		go func() {
-			err = g.handleConnection(ctx, c)
+	go func() {
+		for {
+			var c net.Conn
+			c, err = ln.Accept()
 			if err != nil {
-				if err != io.EOF {
-					log.Println("disconnected:", err)
-				}
-				return
+				log.Println("failed to accept connection:", err)
 			}
-		}()
-	}
+			go func() {
+				err = g.handleConnection(ctx, c)
+				if err != nil {
+					if err != io.EOF {
+						log.Println("disconnected:", err)
+					}
+					return
+				}
+			}()
+		}
+	}()
+	return nil
 }
 
 // TODO: TLS
