@@ -38,25 +38,24 @@ type Client struct {
 
 	addr net.Addr
 
-	cancel_mode bool
-	txn_mode    bool
+	cancelMode bool
+	txnMode    bool
 
-	pid        int32
-	secret_key int32
+	pid       int32
+	secretKey int32
 
 	parameters map[string]string
-	stats      any // TODO: Reporter
 	admin      bool
 
 	connectTime time.Time
 
 	server gat.ConnectionPool
 
-	last_addr_id int
-	last_srv_id  int
+	lastAddrId int
+	lastSrvId  int
 
-	pool_name string
-	username  string
+	poolName string
+	username string
 
 	gatling     gat.Gat
 	currentConn gat.Connection
@@ -122,7 +121,7 @@ func NewClient(
 		recv:       make(chan protocol.Packet),
 		addr:       conn.RemoteAddr(),
 		pid:        int32(pid.Int64()),
-		secret_key: int32(skey.Int64()),
+		secretKey:  int32(skey.Int64()),
 		gatling:    gatling,
 		statements: make(map[string]*protocol.Parse),
 		portals:    make(map[string]*protocol.Bind),
@@ -137,7 +136,7 @@ func NewClient(
 func (c *Client) Id() gat.ClientID {
 	return gat.ClientID{
 		PID:       c.pid,
-		SecretKey: c.secret_key,
+		SecretKey: c.secretKey,
 	}
 }
 
@@ -214,7 +213,7 @@ func (c *Client) Accept(ctx context.Context) error {
 	}
 
 	var ok bool
-	c.pool_name, ok = params["database"]
+	c.poolName, ok = params["database"]
 	if !ok {
 		return &pg_error.Error{
 			Severity: pg_error.Fatal,
@@ -232,7 +231,7 @@ func (c *Client) Accept(ctx context.Context) error {
 		}
 	}
 
-	c.admin = (c.pool_name == "pgcat" || c.pool_name == "pgbouncer")
+	c.admin = (c.poolName == "pgcat" || c.poolName == "pgbouncer")
 
 	if c.conf.General.AdminOnly && !c.admin {
 		c.log.Debug().Msg("rejected non admin, since admin only mode")
@@ -277,7 +276,7 @@ func (c *Client) Accept(ctx context.Context) error {
 	}
 
 	var pool gat.Pool
-	pool, err = c.gatling.GetPool(c.pool_name)
+	pool, err = c.gatling.GetPool(c.poolName)
 	if err != nil {
 		return err
 	}
@@ -332,7 +331,7 @@ func (c *Client) Accept(ctx context.Context) error {
 	}
 	backendKeyData := new(protocol.BackendKeyData)
 	backendKeyData.Fields.ProcessID = c.pid
-	backendKeyData.Fields.SecretKey = c.secret_key
+	backendKeyData.Fields.SecretKey = c.secretKey
 	err = c.Send(backendKeyData)
 	if err != nil {
 		return err
@@ -581,23 +580,23 @@ func todo() {
 	//        shutdown: Receiver<()>,
 	//    ) -> Result<Client<S, T>, Err> {
 	//        let process_id = bytes.get_i32();
-	//        let secret_key = bytes.get_i32();
+	//        let secretKey = bytes.get_i32();
 	//        return Ok(Client {
 	//            read: BufReader::new(read),
 	//            write: write,
 	//            addr,
 	//            buffer: BytesMut::with_capacity(8196),
-	//            cancel_mode: true,
+	//            cancelMode: true,
 	//            transaction_mode: false,
 	//            process_id,
-	//            secret_key,
+	//            secretKey,
 	//            client_server_map,
 	//            parameters: HashMap::new(),
 	//            stats: get_reporter(),
 	//            admin: false,
 	//            last_address_id: None,
 	//            last_server_id: None,
-	//            pool_name: String::from("undefined"),
+	//            poolName: String::from("undefined"),
 	//            username: String::from("undefined"),
 	//            shutdown,
 	//            connected_to_server: false,
@@ -607,19 +606,19 @@ func todo() {
 	//    /// Handle a connected and authenticated client.
 	//    pub async fn handle(&mut self) -> Result<(), Err> {
 	//        // The client wants to cancel a query it has issued previously.
-	//        if self.cancel_mode {
+	//        if self.cancelMode {
 	//            trace!("Sending CancelRequest");
 	//
-	//            let (process_id, secret_key, address, port) = {
+	//            let (process_id, secretKey, address, port) = {
 	//                let guard = self.client_server_map.lock();
 	//
-	//                match guard.get(&(self.process_id, self.secret_key)) {
+	//                match guard.get(&(self.process_id, self.secretKey)) {
 	//                    // Drop the mutex as soon as possible.
 	//                    // We found the server the client is using for its query
 	//                    // that it wants to cancel.
-	//                    Some((process_id, secret_key, address, port)) => (
+	//                    Some((process_id, secretKey, address, port)) => (
 	//                        process_id.clone(),
-	//                        secret_key.clone(),
+	//                        secretKey.clone(),
 	//                        address.clone(),
 	//                        *port,
 	//                    ),
@@ -631,9 +630,9 @@ func todo() {
 	//            };
 	//
 	//            // Opens a new separate connection to the server, sends the backend_id
-	//            // and secret_key and then closes it for security reasons. No other interactions
+	//            // and secretKey and then closes it for security reasons. No other interactions
 	//            // take place.
-	//            return Ok(Server::cancel(&address, port, process_id, secret_key).await?);
+	//            return Ok(Server::cancel(&address, port, process_id, secretKey).await?);
 	//        }
 	//
 	//        // The query router determines where the query is going to go,
@@ -689,14 +688,14 @@ func todo() {
 	//            // Get a pool instance referenced by the most up-to-date
 	//            // pointer. This ensures we always read the latest config
 	//            // when starting a query.
-	//            let pool = match get_pool(self.pool_name.clone(), self.username.clone()) {
+	//            let pool = match get_pool(self.poolName.clone(), self.username.clone()) {
 	//                Some(pool) => pool,
 	//                None => {
 	//                    error_response(
 	//                        &mut self.write,
 	//                        &format!(
 	//                            "No pool configured for database: {:?}, user: {:?}",
-	//                            self.pool_name, self.username
+	//                            self.poolName, self.username
 	//                        ),
 	//                    )
 	//                    .await?;
@@ -813,7 +812,7 @@ func todo() {
 	//
 	//            // Server is assigned to the client in case the client wants to
 	//            // cancel a query later.
-	//            server.claim(self.process_id, self.secret_key);
+	//            server.claim(self.process_id, self.secretKey);
 	//            self.connected_to_server = true;
 	//
 	//            // Update statistics.
@@ -1025,7 +1024,7 @@ func todo() {
 	//    /// Release the server from the client: it can't cancel its queries anymore.
 	//    pub fn release(&self) {
 	//        let mut guard = self.client_server_map.lock();
-	//        guard.remove(&(self.process_id, self.secret_key));
+	//        guard.remove(&(self.process_id, self.secretKey));
 	//    }
 	//
 	//    async fn send_and_receive_loop(
@@ -1137,7 +1136,7 @@ func todo() {
 	//impl<S, T> Drop for Client<S, T> {
 	//    fn drop(&mut self) {
 	//        let mut guard = self.client_server_map.lock();
-	//        guard.remove(&(self.process_id, self.secret_key));
+	//        guard.remove(&(self.process_id, self.secretKey));
 	//
 	//        // Dirty shutdown
 	//        // TODO: refactor, this is not the best way to handle state management.

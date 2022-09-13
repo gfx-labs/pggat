@@ -122,6 +122,7 @@ type Connection interface {
 	Wait() time.Duration
 	CloseNeeded() bool
 	Client() Client
+	SetClient(client Client)
 	RemotePid() int
 	TLS() string
 

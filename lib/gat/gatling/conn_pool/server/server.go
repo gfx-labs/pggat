@@ -29,21 +29,22 @@ type Server struct {
 	conn   net.Conn
 	r      *bufio.Reader
 	wr     *bufio.Writer
+	client gat.Client
 
-	server_info []*protocol.ParameterStatus
+	state string
 
-	process_id int32
-	secret_key int32
+	serverInfo []*protocol.ParameterStatus
 
-	connected_at     time.Time
-	request_time     time.Time
-	stats            any // TODO: stats
-	application_name string
+	processId int32
+	secretKey int32
 
-	last_activity time.Time
+	connectedAt     time.Time
+	applicationName string
 
-	bound_prepared_statments map[string]*protocol.Parse
-	bound_portals            map[string]*protocol.Bind
+	lastActivity time.Time
+
+	boundPreparedStatments map[string]*protocol.Parse
+	boundPortals           map[string]*protocol.Bind
 
 	db     string
 	dbuser string
@@ -64,8 +65,10 @@ func Dial(ctx context.Context,
 		addr: addr,
 		port: port,
 
-		bound_prepared_statments: make(map[string]*protocol.Parse),
-		bound_portals:            make(map[string]*protocol.Bind),
+		state: "new",
+
+		boundPreparedStatments: make(map[string]*protocol.Parse),
+		boundPortals:           make(map[string]*protocol.Bind),
 
 		dbuser: dbuser,
 		dbpass: dbpass,
@@ -96,8 +99,8 @@ func (s *Server) Cancel() error {
 	}
 	cancel := new(protocol.StartupMessage)
 	cancel.Fields.ProtocolVersionNumber = 80877102
-	cancel.Fields.ProcessKey = s.process_id
-	cancel.Fields.SecretKey = s.secret_key
+	cancel.Fields.ProcessKey = s.processId
+	cancel.Fields.SecretKey = s.secretKey
 	_, err = cancel.Write(conn)
 	_ = conn.Close()
 	return err
@@ -108,7 +111,7 @@ func (s *Server) GetDatabase() string {
 }
 
 func (s *Server) State() string {
-	return "TODO" // TODO
+	return s.state
 }
 
 func (s *Server) Address() string {
@@ -124,19 +127,19 @@ func (s *Server) LocalAddr() string {
 }
 
 func (s *Server) LocalPort() int {
-	return 0
+	return 0 // TODO
 }
 
 func (s *Server) ConnectTime() time.Time {
-	return s.connected_at
+	return s.connectedAt
 }
 
 func (s *Server) RequestTime() time.Time {
-	return s.request_time
+	return s.lastActivity
 }
 
 func (s *Server) Wait() time.Duration {
-	return time.Now().Sub(s.request_time) // TODO this won't take into account the last requests running time
+	return time.Now().Sub(s.lastActivity)
 }
 
 func (s *Server) CloseNeeded() bool {
@@ -144,11 +147,16 @@ func (s *Server) CloseNeeded() bool {
 }
 
 func (s *Server) Client() gat.Client {
-	return nil // TODO
+	return s.client
+}
+
+func (s *Server) SetClient(client gat.Client) {
+	s.lastActivity = time.Now()
+	s.client = client
 }
 
 func (s *Server) RemotePid() int {
-	return int(s.process_id)
+	return int(s.processId)
 }
 
 func (s *Server) TLS() string {
@@ -156,7 +164,7 @@ func (s *Server) TLS() string {
 }
 
 func (s *Server) GetServerInfo() []*protocol.ParameterStatus {
-	return s.server_info
+	return s.serverInfo
 }
 
 func (s *Server) startup(ctx context.Context) error {
@@ -265,13 +273,14 @@ func (s *Server) connect(ctx context.Context) error {
 			pgErr.Read(p)
 			return pgErr
 		case *protocol.ParameterStatus:
-			s.server_info = append(s.server_info, p)
+			s.serverInfo = append(s.serverInfo, p)
 		case *protocol.BackendKeyData:
-			s.process_id = p.Fields.ProcessID
-			s.secret_key = p.Fields.SecretKey
+			s.processId = p.Fields.ProcessID
+			s.secretKey = p.Fields.SecretKey
 		case *protocol.ReadyForQuery:
-			s.last_activity = time.Now()
-			s.connected_at = time.Now().UTC()
+			s.lastActivity = time.Now()
+			s.connectedAt = time.Now().UTC()
+			s.state = "idle"
 			return nil
 		}
 	}
@@ -322,7 +331,7 @@ func (s *Server) ensurePreparedStatement(client gat.Client, name string) error {
 	}
 
 	// test if prepared statement is the same
-	if prev, ok := s.bound_prepared_statments[name]; ok {
+	if prev, ok := s.boundPreparedStatments[name]; ok {
 		if reflect.DeepEqual(prev, stmt) {
 			// we don't need to bind, we're good
 			return nil
@@ -332,7 +341,7 @@ func (s *Server) ensurePreparedStatement(client gat.Client, name string) error {
 		s.destructPreparedStatement(name)
 	}
 
-	s.bound_prepared_statments[name] = stmt
+	s.boundPreparedStatments[name] = stmt
 
 	// send prepared statement to server
 	return s.writePacket(stmt)
@@ -354,14 +363,14 @@ func (s *Server) ensurePortal(client gat.Client, name string) error {
 	}
 
 	if name != "" {
-		if prev, ok := s.bound_portals[name]; ok {
+		if prev, ok := s.boundPortals[name]; ok {
 			if reflect.DeepEqual(prev, portal) {
 				return nil
 			}
 		}
 	}
 
-	s.bound_portals[name] = portal
+	s.boundPortals[name] = portal
 	return s.writePacket(portal)
 }
 
@@ -369,7 +378,7 @@ func (s *Server) destructPreparedStatement(name string) {
 	if name == "" {
 		return
 	}
-	delete(s.bound_prepared_statments, name)
+	delete(s.boundPreparedStatments, name)
 	query := new(protocol.Query)
 	query.Fields.Query = fmt.Sprintf("DEALLOCATE \"%s\"", name)
 	_ = s.writePacket(query)
@@ -384,11 +393,11 @@ func (s *Server) destructPreparedStatement(name string) {
 }
 
 func (s *Server) destructPortal(name string) {
-	portal, ok := s.bound_portals[name]
+	portal, ok := s.boundPortals[name]
 	if !ok {
 		return
 	}
-	delete(s.bound_portals, name)
+	delete(s.boundPortals, name)
 	s.destructPreparedStatement(portal.Fields.PreparedStatement)
 }
 
@@ -628,7 +637,7 @@ var _ gat.Connection = (*Server)(nil)
 //    /// for a write.
 //    fn drop(&mut self) {
 //        self.stats
-//            .server_disconnecting(self.process_id(), self.address.id);
+//            .server_disconnecting(self.processId(), self.address.id);
 //
 //        let mut bytes = BytesMut::with_capacity(4);
 //        bytes.put_u8(b'X');
@@ -643,7 +652,7 @@ var _ gat.Connection = (*Server)(nil)
 //        self.bad = true;
 //
 //        let now = chrono::offset::Utc::now().naive_utc();
-//        let duration = now - self.connected_at;
+//        let duration = now - self.connectedAt;
 //
 //        info!(
 //            "Server connection closed, session duration: {}",
