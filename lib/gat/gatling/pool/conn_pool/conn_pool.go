@@ -18,6 +18,7 @@ type ConnectionPool struct {
 	pool   gat.Pool
 	shards []*config.Shard
 
+	workers []*worker
 	// see: https://github.com/golang/go/blob/master/src/runtime/chan.go#L33
 	// channels are a thread safe ring buffer implemented via a linked list of goroutines.
 	// the idea is that goroutines are cheap, and we can afford to have one per pending request.
@@ -34,18 +35,25 @@ func NewConnectionPool(pool gat.Pool, conf *config.Pool, user *config.User) *Con
 		workerPool: make(chan *worker, 1+runtime.NumCPU()*4),
 	}
 	p.EnsureConfig(conf)
-	for i := 0; i < user.PoolSize; i++ {
-		p.addWorker()
-	}
 	return p
 }
 
-func (c *ConnectionPool) addWorker() {
+func (c *ConnectionPool) getWorker() *worker {
 	select {
-	case c.workerPool <- &worker{
-		w: c,
-	}:
+	case w := <-c.workerPool:
+		return w
 	default:
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if len(c.workers) < c.user.PoolSize {
+			next := &worker{
+				w: c,
+			}
+			c.workers = append(c.workers, next)
+			return next
+		} else {
+			return <-c.workerPool
+		}
 	}
 }
 
@@ -71,7 +79,7 @@ func (c *ConnectionPool) GetUser() *config.User {
 }
 
 func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
-	return (<-c.workerPool).GetServerInfo()
+	return c.getWorker().GetServerInfo()
 }
 
 func (c *ConnectionPool) Shards() []gat.Shard {
@@ -80,23 +88,23 @@ func (c *ConnectionPool) Shards() []gat.Shard {
 }
 
 func (c *ConnectionPool) Describe(ctx context.Context, client gat.Client, d *protocol.Describe) error {
-	return (<-c.workerPool).HandleDescribe(ctx, client, d)
+	return c.getWorker().HandleDescribe(ctx, client, d)
 }
 
 func (c *ConnectionPool) Execute(ctx context.Context, client gat.Client, e *protocol.Execute) error {
-	return (<-c.workerPool).HandleExecute(ctx, client, e)
+	return c.getWorker().HandleExecute(ctx, client, e)
 }
 
 func (c *ConnectionPool) SimpleQuery(ctx context.Context, client gat.Client, q string) error {
-	return (<-c.workerPool).HandleSimpleQuery(ctx, client, q)
+	return c.getWorker().HandleSimpleQuery(ctx, client, q)
 }
 
 func (c *ConnectionPool) Transaction(ctx context.Context, client gat.Client, q string) error {
-	return (<-c.workerPool).HandleTransaction(ctx, client, q)
+	return c.getWorker().HandleTransaction(ctx, client, q)
 }
 
 func (c *ConnectionPool) CallFunction(ctx context.Context, client gat.Client, f *protocol.FunctionCall) error {
-	return (<-c.workerPool).HandleFunction(ctx, client, f)
+	return c.getWorker().HandleFunction(ctx, client, f)
 }
 
 var _ gat.ConnectionPool = (*ConnectionPool)(nil)
