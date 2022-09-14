@@ -61,7 +61,7 @@ func (g *Gatling) watchConfigs() {
 }
 
 func (g *Gatling) Version() string {
-	return "pggat Gatling 0.0.1"
+	return "PgGat Gatling 0.0.1"
 }
 
 func (g *Gatling) Config() *config.Global {
