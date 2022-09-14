@@ -150,7 +150,7 @@ func (c *ConnectionPool) chooseConnections() *connections {
 			srvConf.Port,
 			c.user, s.conf.Database,
 			srvConf.Username, srvConf.Password,
-			nil)
+		)
 		if err != nil {
 			log.Println("failed to connect to server", err)
 			continue

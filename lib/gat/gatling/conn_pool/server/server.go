@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"gfx.cafe/gfx/pggat/lib/gat"
@@ -23,35 +26,35 @@ import (
 )
 
 type Server struct {
-	addr   string
-	port   uint16
-	remote net.Addr
-	conn   net.Conn
-	r      *bufio.Reader
-	wr     *bufio.Writer
-	client gat.Client
+	addr string
+	port uint16
+	conn net.Conn
+	r    *bufio.Reader
+	wr   *bufio.Writer
 
-	state string
+	client gat.Client
+	state  string
 
 	serverInfo []*protocol.ParameterStatus
 
 	processId int32
 	secretKey int32
 
-	connectedAt     time.Time
-	applicationName string
-
+	connectedAt  time.Time
 	lastActivity time.Time
 
 	boundPreparedStatments map[string]*protocol.Parse
 	boundPortals           map[string]*protocol.Bind
 
+	// constants
 	db     string
 	dbuser string
 	dbpass string
 	user   config.User
 
 	log zlog.Logger
+
+	mu sync.Mutex
 }
 
 func Dial(ctx context.Context,
@@ -59,7 +62,6 @@ func Dial(ctx context.Context,
 	port uint16,
 	user *config.User,
 	db string, dbuser string, dbpass string,
-	stats any,
 ) (*Server, error) {
 	s := &Server{
 		addr: addr,
@@ -78,7 +80,6 @@ func Dial(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	s.remote = s.conn.RemoteAddr()
 	s.r = bufio.NewReader(s.conn)
 	s.wr = bufio.NewWriter(s.conn)
 	s.user = *user
@@ -111,6 +112,8 @@ func (s *Server) GetDatabase() string {
 }
 
 func (s *Server) State() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.state
 }
 
@@ -123,22 +126,33 @@ func (s *Server) Port() int {
 }
 
 func (s *Server) LocalAddr() string {
-	return s.conn.LocalAddr().String()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return strings.Split(s.conn.LocalAddr().String(), ":")[0]
 }
 
 func (s *Server) LocalPort() int {
-	return 0 // TODO
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	port, _ := strconv.Atoi(strings.Split(s.conn.LocalAddr().String(), ":")[1])
+	return port
 }
 
 func (s *Server) ConnectTime() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.connectedAt
 }
 
 func (s *Server) RequestTime() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.lastActivity
 }
 
 func (s *Server) Wait() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return time.Now().Sub(s.lastActivity)
 }
 
@@ -147,15 +161,21 @@ func (s *Server) CloseNeeded() bool {
 }
 
 func (s *Server) Client() gat.Client {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.client
 }
 
 func (s *Server) SetClient(client gat.Client) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.lastActivity = time.Now()
 	s.client = client
 }
 
 func (s *Server) RemotePid() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return int(s.processId)
 }
 
@@ -164,6 +184,8 @@ func (s *Server) TLS() string {
 }
 
 func (s *Server) GetServerInfo() []*protocol.ParameterStatus {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.serverInfo
 }
 

@@ -8,7 +8,8 @@ import (
 	"gfx.cafe/gfx/pggat/lib/config"
 )
 
-var test_address = "localhost:5432"
+var test_address = "localhost"
+var test_port uint16 = 5432
 
 var test_user = config.User{
 	Name:             "postgres",
@@ -18,7 +19,7 @@ var test_user = config.User{
 }
 
 func TestServerDial(t *testing.T) {
-	srv, err := Dial(context.TODO(), test_address, &test_user, "postgres", test_user.Name, test_user.Password, nil)
+	srv, err := Dial(context.TODO(), test_address, test_port, &test_user, "postgres", test_user.Name, test_user.Password)
 	if err != nil {
 		t.Error(err)
 	}

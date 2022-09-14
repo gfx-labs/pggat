@@ -2,7 +2,6 @@ package client
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/tls"
@@ -34,25 +33,12 @@ type Client struct {
 
 	recv chan protocol.Packet
 
-	buf bytes.Buffer
-
-	addr net.Addr
-
-	cancelMode bool
-	txnMode    bool
-
 	pid       int32
 	secretKey int32
-
-	parameters map[string]string
-	admin      bool
 
 	connectTime time.Time
 
 	server gat.ConnectionPool
-
-	lastAddrId int
-	lastSrvId  int
 
 	poolName string
 	username string
@@ -119,7 +105,6 @@ func NewClient(
 		r:          bufio.NewReader(conn),
 		wr:         bufio.NewWriter(conn),
 		recv:       make(chan protocol.Packet),
-		addr:       conn.RemoteAddr(),
 		pid:        int32(pid.Int64()),
 		secretKey:  int32(skey.Int64()),
 		gatling:    gatling,
@@ -129,7 +114,7 @@ func NewClient(
 		conf:       conf,
 	}
 	c.log = log.With().
-		Stringer("clientaddr", c.addr).Logger()
+		Stringer("clientaddr", c.conn.RemoteAddr()).Logger()
 	return c
 }
 
@@ -231,9 +216,9 @@ func (c *Client) Accept(ctx context.Context) error {
 		}
 	}
 
-	c.admin = (c.poolName == "pgcat" || c.poolName == "pgbouncer")
+	admin := (c.poolName == "pgcat" || c.poolName == "pgbouncer")
 
-	if c.conf.General.AdminOnly && !c.admin {
+	if c.conf.General.AdminOnly && !admin {
 		c.log.Debug().Msg("rejected non admin, since admin only mode")
 		return &pg_error.Error{
 			Severity: pg_error.Fatal,
@@ -289,7 +274,7 @@ func (c *Client) Accept(ctx context.Context) error {
 	}
 
 	// Authenticate admin user.
-	if c.admin {
+	if admin {
 		pw_hash := messages.Md5HashPassword(c.conf.General.AdminUsername, c.conf.General.AdminPassword, salt[:])
 		if !reflect.DeepEqual(pw_hash, passwordResponse) {
 			return &pg_error.Error{
