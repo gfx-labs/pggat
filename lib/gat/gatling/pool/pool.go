@@ -2,18 +2,20 @@ package pool
 
 import (
 	"fmt"
+	"gfx.cafe/gfx/pggat/lib/gat/gatling/pool/conn_pool"
+	"gfx.cafe/gfx/pggat/lib/gat/gatling/pool/query_router"
 	"sync"
 
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
-	"gfx.cafe/gfx/pggat/lib/gat/gatling/conn_pool"
-	"gfx.cafe/gfx/pggat/lib/gat/gatling/query_router"
 )
 
 type Pool struct {
 	c         *config.Pool
 	users     map[string]config.User
 	connPools map[string]gat.ConnectionPool
+
+	stats *Stats
 
 	router query_router.QueryRouter
 
@@ -23,6 +25,7 @@ type Pool struct {
 func NewPool(conf *config.Pool) *Pool {
 	pool := &Pool{
 		connPools: make(map[string]gat.ConnectionPool),
+		stats:     newStats(),
 	}
 	pool.EnsureConfig(conf)
 	return pool
@@ -84,7 +87,7 @@ func (p *Pool) ConnectionPools() []gat.ConnectionPool {
 }
 
 func (p *Pool) Stats() gat.PoolStats {
-	return nil // TODO
+	return p.stats
 }
 
 var _ gat.Pool = (*Pool)(nil)

@@ -4,25 +4,88 @@ import (
 	"context"
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/config"
-	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
-	"log"
-
 	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/gatling/pool/conn_pool/shard"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
 )
-
-type _wp ConnectionPool
 
 // a single use worker with an embedded connection pool.
 // it wraps a pointer to the connection pool.
 type worker struct {
 	// the parent connectino pool
 	w *ConnectionPool
+
+	shards []gat.Shard
 }
 
 // ret urn worker to pool
 func (w *worker) ret() {
 	w.w.workerPool <- w
+}
+
+// attempt to connect to a new shard with this worker
+func (w *worker) fetchShard(n int) bool {
+	if n < 0 || n >= len(w.w.shards) {
+		return false
+	}
+
+	for len(w.shards) <= n {
+		w.shards = append(w.shards, nil)
+	}
+	w.shards[n] = shard.FromConfig(w.w.user, w.w.shards[n])
+	return true
+}
+
+func (w *worker) anyShard() gat.Shard {
+	for _, s := range w.shards {
+		if s != nil {
+			return s
+		}
+	}
+
+	// we need to fetch a shard
+	if w.fetchShard(0) {
+		return w.shards[0]
+	}
+
+	return nil
+}
+
+func (w *worker) chooseShardDescribe(client gat.Client, payload *protocol.Describe) gat.Shard {
+	return w.anyShard() // TODO
+}
+
+func (w *worker) chooseShardExecute(client gat.Client, payload *protocol.Execute) gat.Shard {
+	return w.anyShard() // TODO
+}
+
+func (w *worker) chooseShardFn(client gat.Client, fn *protocol.FunctionCall) gat.Shard {
+	return w.anyShard() // TODO
+}
+
+func (w *worker) chooseShardSimpleQuery(client gat.Client, payload string) gat.Shard {
+	return w.anyShard() // TODO
+}
+
+func (w *worker) chooseShardTransaction(client gat.Client, payload string) gat.Shard {
+	return w.anyShard() // TODO
+}
+
+func (w *worker) GetServerInfo() []*protocol.ParameterStatus {
+	defer w.ret()
+
+	shard := w.anyShard()
+	if shard == nil {
+		return nil
+	}
+
+	primary := shard.Primary()
+	if primary == nil {
+		return nil
+	}
+
+	return primary.GetServerInfo()
 }
 
 func (w *worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.Describe) error {
@@ -66,7 +129,6 @@ func (w *worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Ex
 }
 
 func (w *worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.FunctionCall) error {
-	log.Println("worker selected for fn")
 	defer w.ret()
 
 	errch := make(chan error)
@@ -139,16 +201,14 @@ func (w *worker) unsetCurrentBinding(client gat.Client, server gat.Connection) {
 }
 
 func (w *worker) z_actually_do_describe(ctx context.Context, client gat.Client, payload *protocol.Describe) error {
-	c := w.w
-	srv := c.chooseConnections()
+	srv := w.chooseShardDescribe(client, payload)
 	if srv == nil {
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
 	}
-	defer srv.mu.Unlock()
 	// describe the portal
 	// we can use a replica because we are just describing what this query will return, query content doesn't matter
 	// because nothing is actually executed yet
-	target := srv.choose(config.SERVERROLE_REPLICA)
+	target := srv.Choose(config.SERVERROLE_REPLICA)
 	if target == nil {
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
 	}
@@ -157,12 +217,10 @@ func (w *worker) z_actually_do_describe(ctx context.Context, client gat.Client, 
 	return target.Describe(client, payload)
 }
 func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, payload *protocol.Execute) error {
-	c := w.w
-	srv := c.chooseConnections()
+	srv := w.chooseShardExecute(client, payload)
 	if srv == nil {
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
 	}
-	defer srv.mu.Unlock()
 
 	// get the query text
 	portal := client.GetPortal(payload.Fields.Name)
@@ -183,11 +241,11 @@ func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, p
 		}
 	}
 
-	which, err := c.pool.GetRouter().InferRole(ps.Fields.Query)
+	which, err := w.w.pool.GetRouter().InferRole(ps.Fields.Query)
 	if err != nil {
 		return err
 	}
-	target := srv.choose(which)
+	target := srv.Choose(which)
 	w.setCurrentBinding(client, target)
 	defer w.unsetCurrentBinding(client, target)
 	if target == nil {
@@ -196,41 +254,36 @@ func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, p
 	return target.Execute(client, payload)
 }
 func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
-	c := w.w
-	srv := c.chooseConnections()
+	srv := w.chooseShardFn(client, payload)
 	if srv == nil {
 		return fmt.Errorf("fn('%+v') fail: no server", payload)
 	}
-	defer srv.mu.Unlock()
 	// call the function
-	target := srv.primary
+	target := srv.Primary()
 	if target == nil {
 		return fmt.Errorf("fn('%+v') fail: no target ", payload)
 	}
 	w.setCurrentBinding(client, target)
 	defer w.unsetCurrentBinding(client, target)
-	err := srv.primary.CallFunction(client, payload)
+	err := target.CallFunction(client, payload)
 	if err != nil {
 		return fmt.Errorf("fn('%+v') fail: %w ", payload, err)
 	}
 	return nil
 }
 func (w *worker) z_actually_do_simple_query(ctx context.Context, client gat.Client, payload string) error {
-	c := w.w
 	// chose a server
-	srv := c.chooseConnections()
+	srv := w.chooseShardSimpleQuery(client, payload)
 	if srv == nil {
 		return fmt.Errorf("call to query '%s' failed", payload)
 	}
-	// note that the server comes locked. you MUST unlock it
-	defer srv.mu.Unlock()
 	// run the query on the server
-	which, err := c.pool.GetRouter().InferRole(payload)
+	which, err := w.w.pool.GetRouter().InferRole(payload)
 	if err != nil {
 		return fmt.Errorf("error parsing '%s': %w", payload, err)
 	}
 	// configures the server to run with a specific role
-	target := srv.choose(which)
+	target := srv.Choose(which)
 	if target == nil {
 		return fmt.Errorf("call to query '%s' failed", payload)
 	}
@@ -244,21 +297,18 @@ func (w *worker) z_actually_do_simple_query(ctx context.Context, client gat.Clie
 	return nil
 }
 func (w *worker) z_actually_do_transaction(ctx context.Context, client gat.Client, payload string) error {
-	c := w.w
 	// chose a server
-	srv := c.chooseConnections()
+	srv := w.chooseShardTransaction(client, payload)
 	if srv == nil {
 		return fmt.Errorf("call to transaction '%s' failed", payload)
 	}
-	// note that the server comes locked. you MUST unlock it
-	defer srv.mu.Unlock()
 	// run the query on the server
-	which, err := c.pool.GetRouter().InferRole(payload)
+	which, err := w.w.pool.GetRouter().InferRole(payload)
 	if err != nil {
 		return fmt.Errorf("error parsing '%s': %w", payload, err)
 	}
 	// configures the server to run with a specific role
-	target := srv.choose(which)
+	target := srv.Choose(which)
 	if target == nil {
 		return fmt.Errorf("call to transaction '%s' failed", payload)
 	}
