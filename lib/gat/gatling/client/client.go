@@ -20,6 +20,7 @@ import (
 	"math/big"
 	"net"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -48,7 +49,7 @@ type Client struct {
 	statements  map[string]*protocol.Parse
 	portals     map[string]*protocol.Bind
 	conf        *config.Global
-	state       rune
+	status      rune
 
 	log zlog.Logger
 
@@ -60,19 +61,26 @@ func (c *Client) State() string {
 }
 
 func (c *Client) Addr() string {
-	return c.conn.RemoteAddr().String()
+	addr, _, _ := net.SplitHostPort(c.conn.RemoteAddr().String())
+	return addr
 }
 
 func (c *Client) Port() int {
-	return 0 // TODO
+	// ignore the errors cuz 0 is fine, just for stats
+	_, port, _ := net.SplitHostPort(c.conn.RemoteAddr().String())
+	p, _ := strconv.Atoi(port)
+	return p
 }
 
 func (c *Client) LocalAddr() string {
-	return c.conn.LocalAddr().String()
+	addr, _, _ := net.SplitHostPort(c.conn.LocalAddr().String())
+	return addr
 }
 
 func (c *Client) LocalPort() int {
-	return 0 // TODO
+	_, port, _ := net.SplitHostPort(c.conn.LocalAddr().String())
+	p, _ := strconv.Atoi(port)
+	return p
 }
 
 func (c *Client) ConnectTime() time.Time {
@@ -110,7 +118,7 @@ func NewClient(
 		gatling:    gatling,
 		statements: make(map[string]*protocol.Parse),
 		portals:    make(map[string]*protocol.Bind),
-		state:      'I',
+		status:     'I',
 		conf:       conf,
 	}
 	c.log = log.With().
@@ -344,7 +352,7 @@ func (c *Client) Accept(ctx context.Context) error {
 				return err
 			}
 		}
-		if c.state == 'I' {
+		if c.status == 'I' {
 			rq := new(protocol.ReadyForQuery)
 			rq.Fields.Status = 'I'
 			err = c.Send(rq)
@@ -404,7 +412,7 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	case *protocol.Execute:
 		return true, c.handle_execute(ctx, cast)
 	case *protocol.Sync:
-		c.state = 'I'
+		c.status = 'I'
 		return true, nil
 	case *protocol.Query:
 		return true, c.handle_query(ctx, cast)
@@ -420,25 +428,25 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 
 func (c *Client) parse(ctx context.Context, q *protocol.Parse) error {
 	c.statements[q.Fields.PreparedStatement] = q
-	c.state = 'T'
+	c.status = 'T'
 	return c.Send(new(protocol.ParseComplete))
 }
 
 func (c *Client) bind(ctx context.Context, b *protocol.Bind) error {
 	c.portals[b.Fields.Destination] = b
-	c.state = 'T'
+	c.status = 'T'
 	return c.Send(new(protocol.BindComplete))
 }
 
 func (c *Client) handle_describe(ctx context.Context, d *protocol.Describe) error {
 	//log.Println("describe")
-	c.state = 'T'
+	c.status = 'T'
 	return c.server.Describe(ctx, c, d)
 }
 
 func (c *Client) handle_execute(ctx context.Context, e *protocol.Execute) error {
 	//log.Println("execute")
-	c.state = 'T'
+	c.status = 'T'
 	return c.server.Execute(ctx, c, e)
 }
 

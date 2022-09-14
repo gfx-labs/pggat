@@ -6,7 +6,6 @@ import (
 	"net"
 	"reflect"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -128,14 +127,16 @@ func (s *Server) Port() int {
 func (s *Server) LocalAddr() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return strings.Split(s.conn.LocalAddr().String(), ":")[0]
+	addr, _, _ := net.SplitHostPort(s.conn.LocalAddr().String())
+	return addr
 }
 
 func (s *Server) LocalPort() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	port, _ := strconv.Atoi(strings.Split(s.conn.LocalAddr().String(), ":")[1])
-	return port
+	_, port, _ := net.SplitHostPort(s.conn.LocalAddr().String())
+	p, _ := strconv.Atoi(port)
+	return p
 }
 
 func (s *Server) ConnectTime() time.Time {
