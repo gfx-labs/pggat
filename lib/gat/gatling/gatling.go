@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gfx.cafe/gfx/pggat/lib/gat/admin"
 	"io"
 	"net"
 	"sync"
@@ -36,6 +37,11 @@ func NewGatling(conf *config.Global) *Gatling {
 		pools:    make(map[string]gat.Pool),
 		clients:  make(map[gat.ClientID]gat.Client),
 	}
+	// add admin pool
+	adminPool := admin.NewPool(g)
+	g.pools["pgbouncer"] = adminPool
+	g.pools["pggat"] = adminPool
+
 	err := g.ensureConfig(conf)
 	if err != nil {
 		log.Println("failed to parse config", err)
@@ -52,6 +58,14 @@ func (g *Gatling) watchConfigs() {
 			log.Println("failed to parse config", err)
 		}
 	}
+}
+
+func (g *Gatling) Version() string {
+	return "pggat Gatling 0.0.1"
+}
+
+func (g *Gatling) Config() *config.Global {
+	return g.c
 }
 
 func (g *Gatling) GetPool(name string) (gat.Pool, error) {

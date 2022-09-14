@@ -55,7 +55,7 @@ func (p *Pool) GetUser(name string) (*config.User, error) {
 	defer p.mu.RUnlock()
 	user, ok := p.users[name]
 	if !ok {
-		return nil, fmt.Errorf("user '%s' not found", name)
+		return nil, fmt.Errorf("%w: %s", gat.UserNotFound, name)
 	}
 	return &user, nil
 }

@@ -8,6 +8,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/pool/conn_pool/shard"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
+	"sync"
 )
 
 // a single use worker with an embedded connection pool.
@@ -17,6 +18,8 @@ type worker struct {
 	w *ConnectionPool
 
 	shards []gat.Shard
+
+	mu sync.Mutex
 }
 
 // ret urn worker to pool
@@ -33,11 +36,22 @@ func (w *worker) fetchShard(n int) bool {
 	for len(w.shards) <= n {
 		w.shards = append(w.shards, nil)
 	}
+
 	w.shards[n] = shard.FromConfig(w.w.user, w.w.shards[n])
 	return true
 }
 
+func (w *worker) invalidateShard(n int) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.shards[n] = nil
+}
+
 func (w *worker) anyShard() gat.Shard {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
 	for _, s := range w.shards {
 		if s != nil {
 			return s

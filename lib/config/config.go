@@ -26,9 +26,9 @@ const (
 type UserRole string
 
 const (
-	USERROLE_ADMIN  ServerRole = "admin"
-	USERROLE_WRITER ServerRole = "writer"
-	USERROLE_READER ServerRole = "reader"
+	USERROLE_ADMIN  UserRole = "admin"
+	USERROLE_WRITER UserRole = "writer"
+	USERROLE_READER UserRole = "reader"
 )
 
 func Load(path string) (*Global, error) {

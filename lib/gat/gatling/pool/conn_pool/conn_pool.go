@@ -67,9 +67,11 @@ func (c *ConnectionPool) EnsureConfig(conf *config.Pool) {
 		}
 		sc := s
 		if !reflect.DeepEqual(c.shards[i], &sc) {
-			// disconnect all conns, switch to new conf
-			// TODO notify workers that they need to update that shard
 			c.shards[i] = sc
+			// disconnect all conns using shard i, switch to new conf
+			for _, w := range c.workers {
+				w.invalidateShard(i)
+			}
 		}
 	}
 }
@@ -83,8 +85,13 @@ func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
 }
 
 func (c *ConnectionPool) Shards() []gat.Shard {
-	// TODO go through each worker
-	return nil
+	var shards []gat.Shard
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, w := range c.workers {
+		shards = append(shards, w.shards...)
+	}
+	return shards
 }
 
 func (c *ConnectionPool) Describe(ctx context.Context, client gat.Client, d *protocol.Describe) error {

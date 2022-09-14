@@ -24,7 +24,7 @@ i'll lyk when its done
 | Statistics                     | :white_check_mark:          | no                 | Statistics available in the admin database (`pgcat` and `pgbouncer`) with `SHOW STATS`, `SHOW POOLS` and others.                                      |
 | Live configuration reloading   | :white_check_mark:          | kind of            | Reload supported settings with a `SIGHUP` to the process, e.g. `kill -s SIGHUP $(pgrep pgcat)` or `RELOAD` query issued to the admin database.        |
 | Client authentication          | :white_check_mark: :wrench: | same as them       | MD5 password authentication is supported, SCRAM is on the roadmap; one user is used to connect to Postgres with both SCRAM and MD5 supported.         |
-| Admin database                 | :white_check_mark:          | no                 | The admin database, similar to PgBouncer's, allows to query for statistics and reload the configuration.                                              |
+| Admin database                 | :white_check_mark:          | :white_check_mark: | The admin database, similar to PgBouncer's, allows to query for statistics and reload the configuration.                                              |
 
 # original README
 

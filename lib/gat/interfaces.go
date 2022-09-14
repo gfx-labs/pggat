@@ -2,6 +2,7 @@ package gat
 
 import (
 	"context"
+	"errors"
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"time"
@@ -34,11 +35,15 @@ type Client interface {
 }
 
 type Gat interface {
+	Version() string
+	Config() *config.Global
 	GetPool(name string) (Pool, error)
 	Pools() []Pool
 	GetClient(id ClientID) (Client, error)
 	Clients() []Client
 }
+
+var UserNotFound = errors.New("user not found")
 
 type Pool interface {
 	GetUser(name string) (*config.User, error)

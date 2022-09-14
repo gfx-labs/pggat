@@ -1,12 +1,20 @@
 package admin
 
 import (
-	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"fmt"
+	"gfx.cafe/gfx/pggat/lib/config"
+	"gfx.cafe/gfx/pggat/lib/gat"
 )
 
-const SERVER_VERSION = "0.0.1"
+// The admin database, implemented through the gat.Pool interface, allowing it to be added to any existing Gat
 
-func AdminServerInfo() []*protocol.ParameterStatus {
+import (
+	"context"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"time"
+)
+
+func getServerInfo(g gat.Gat) []*protocol.ParameterStatus {
 	return []*protocol.ParameterStatus{
 		{
 			Fields: protocol.FieldsParameterStatus{
@@ -35,7 +43,7 @@ func AdminServerInfo() []*protocol.ParameterStatus {
 		{
 			Fields: protocol.FieldsParameterStatus{
 				Parameter: "server_version",
-				Value:     SERVER_VERSION,
+				Value:     g.Version(),
 			},
 		},
 		{
@@ -46,6 +54,244 @@ func AdminServerInfo() []*protocol.ParameterStatus {
 		},
 	}
 }
+
+type Pool struct {
+	gat      gat.Gat
+	connPool *ConnectionPool
+}
+
+func NewPool(g gat.Gat) *Pool {
+	out := &Pool{
+		gat: g,
+	}
+	out.connPool = &ConnectionPool{
+		pool: out,
+	}
+	return out
+}
+
+func (p *Pool) GetUser(name string) (*config.User, error) {
+	conf := p.gat.Config()
+	if name != conf.General.AdminUsername {
+		return nil, fmt.Errorf("%w: %s", gat.UserNotFound, name)
+	}
+	return &config.User{
+		Name:     conf.General.AdminUsername,
+		Password: conf.General.AdminPassword,
+
+		Role:             config.USERROLE_ADMIN,
+		PoolSize:         1,
+		StatementTimeout: 0,
+	}, nil
+}
+
+func (p *Pool) GetRouter() gat.QueryRouter {
+	return nil
+}
+
+func (p *Pool) WithUser(name string) (gat.ConnectionPool, error) {
+	conf := p.gat.Config()
+	if name != conf.General.AdminUsername {
+		return nil, fmt.Errorf("%w: %s", gat.UserNotFound, name)
+	}
+	return p.connPool, nil
+}
+
+func (p *Pool) ConnectionPools() []gat.ConnectionPool {
+	return []gat.ConnectionPool{
+		p.connPool,
+	}
+}
+
+func (p *Pool) Stats() gat.PoolStats {
+	return nil // TODO
+}
+
+func (p *Pool) EnsureConfig(c *config.Pool) {
+	// TODO
+}
+
+var _ gat.Pool = (*Pool)(nil)
+
+type ConnectionPool struct {
+	pool *Pool
+}
+
+func (c *ConnectionPool) GetUser() *config.User {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
+	return getServerInfo(c.pool.gat)
+}
+
+func (c *ConnectionPool) Shards() []gat.Shard {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *ConnectionPool) EnsureConfig(conf *config.Pool) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *ConnectionPool) Describe(ctx context.Context, client gat.Client, describe *protocol.Describe) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *ConnectionPool) Execute(ctx context.Context, client gat.Client, execute *protocol.Execute) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *ConnectionPool) SimpleQuery(ctx context.Context, client gat.Client, query string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *ConnectionPool) Transaction(ctx context.Context, client gat.Client, query string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *ConnectionPool) CallFunction(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+var _ gat.ConnectionPool = (*ConnectionPool)(nil)
+
+type Shard struct {
+}
+
+func (s *Shard) Primary() gat.Connection {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *Shard) Replicas() []gat.Connection {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *Shard) Choose(role config.ServerRole) gat.Connection {
+	//TODO implement me
+	panic("implement me")
+}
+
+var _ gat.Shard = (*Shard)(nil)
+
+type Connection struct {
+	pool *Pool
+}
+
+func (c *Connection) GetServerInfo() []*protocol.ParameterStatus {
+	return getServerInfo(c.pool.gat)
+}
+
+func (c *Connection) GetDatabase() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) State() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) Address() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) Port() int {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) LocalAddr() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) LocalPort() int {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) ConnectTime() time.Time {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) RequestTime() time.Time {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) Wait() time.Duration {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) CloseNeeded() bool {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) Client() gat.Client {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) SetClient(client gat.Client) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) RemotePid() int {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) TLS() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) Describe(client gat.Client, payload *protocol.Describe) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) Execute(client gat.Client, payload *protocol.Execute) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) CallFunction(client gat.Client, payload *protocol.FunctionCall) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) SimpleQuery(ctx context.Context, client gat.Client, payload string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) Transaction(ctx context.Context, client gat.Client, payload string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Connection) Cancel() error {
+	//TODO implement me
+	panic("implement me")
+}
+
+var _ gat.Connection = (*Connection)(nil)
 
 ///// Handle admin client.
 //func handle_admin<T>(
