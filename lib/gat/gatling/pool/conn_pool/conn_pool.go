@@ -103,10 +103,12 @@ func (c *ConnectionPool) Execute(ctx context.Context, client gat.Client, e *prot
 }
 
 func (c *ConnectionPool) SimpleQuery(ctx context.Context, client gat.Client, q string) error {
+	defer c.pool.Stats().IncQueryCount()
 	return c.getWorker().HandleSimpleQuery(ctx, client, q)
 }
 
 func (c *ConnectionPool) Transaction(ctx context.Context, client gat.Client, q string) error {
+	defer c.pool.Stats().IncXactCount()
 	return c.getWorker().HandleTransaction(ctx, client, q)
 }
 

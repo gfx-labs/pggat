@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/parse"
+	"strings"
 )
 
 // The admin database, implemented through the gat.Pool interface, allowing it to be added to any existing Gat
@@ -13,6 +15,10 @@ import (
 	"context"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 )
+
+const DataType_String = 25
+const DataType_Int64 = 20
+const DataType_Float64 = 701
 
 func getServerInfo(g gat.Gat) []*protocol.ParameterStatus {
 	return []*protocol.ParameterStatus{
@@ -108,7 +114,7 @@ func (p *Pool) ConnectionPools() []gat.ConnectionPool {
 	}
 }
 
-func (p *Pool) Stats() gat.PoolStats {
+func (p *Pool) Stats() *gat.PoolStats {
 	return nil // TODO
 }
 
@@ -140,23 +146,215 @@ func (c *ConnectionPool) EnsureConfig(conf *config.Pool) {
 }
 
 func (c *ConnectionPool) Describe(ctx context.Context, client gat.Client, describe *protocol.Describe) error {
-	return errors.New("not implemented")
+	return errors.New("describe not implemented")
 }
 
 func (c *ConnectionPool) Execute(ctx context.Context, client gat.Client, execute *protocol.Execute) error {
-	return errors.New("not implemented")
+	return errors.New("execute not implemented")
 }
 
 func (c *ConnectionPool) SimpleQuery(ctx context.Context, client gat.Client, query string) error {
-	return errors.New("not implemented")
+	parsed, err := parse.Parse(query)
+	if err != nil {
+		return err
+	}
+	for _, cmd := range parsed {
+		switch strings.ToLower(cmd.Command) {
+		case "show":
+			if len(cmd.Arguments) < 1 {
+				return errors.New("usage: show [item]")
+			}
+
+			switch strings.ToLower(cmd.Arguments[0]) {
+			case "stats":
+				rowDesc := new(protocol.RowDescription)
+				rowDesc.Fields.Fields = []protocol.FieldsRowDescriptionFields{
+					{
+						Name:         "database",
+						DataType:     DataType_String,
+						DataTypeSize: -1,
+						TypeModifier: -1,
+					},
+					{
+						Name:         "total_xact_count",
+						DataType:     DataType_Int64,
+						DataTypeSize: 8,
+						TypeModifier: -1,
+					},
+					{
+						Name:         "total_query_count",
+						DataType:     DataType_Int64,
+						DataTypeSize: 8,
+						TypeModifier: -1,
+					},
+					{
+						Name:         "total_received",
+						DataType:     DataType_Int64,
+						DataTypeSize: 8,
+						TypeModifier: -1,
+					},
+					{
+						Name:         "total_sent",
+						DataType:     DataType_Int64,
+						DataTypeSize: 8,
+						TypeModifier: -1,
+					},
+					{
+						Name:         "total_xact_time",
+						DataType:     DataType_Int64,
+						DataTypeSize: 8,
+						TypeModifier: -1,
+					},
+					{
+						Name:         "total_query_time",
+						DataType:     DataType_Int64,
+						DataTypeSize: 8,
+						TypeModifier: -1,
+					},
+					{
+						Name:         "total_wait_time",
+						DataType:     DataType_Int64,
+						DataTypeSize: 8,
+						TypeModifier: -1,
+					},
+					{
+						Name:         "avg_xact_count",
+						DataType:     DataType_Float64,
+						DataTypeSize: 8,
+						TypeModifier: -1,
+					},
+					{
+						Name:         "avg_query_count",
+						DataType:     DataType_Float64,
+						DataTypeSize: 8,
+						TypeModifier: -1,
+					},
+					{
+						Name:         "avg_recv",
+						DataType:     DataType_Float64,
+						DataTypeSize: 8,
+						TypeModifier: -1,
+					},
+					{
+						Name:         "avg_sent",
+						DataType:     DataType_Float64,
+						DataTypeSize: 8,
+						TypeModifier: -1,
+					},
+					{
+						Name:         "avg_xact_time",
+						DataType:     DataType_Float64,
+						DataTypeSize: 8,
+						TypeModifier: -1,
+					},
+					{
+						Name:         "avg_query_time",
+						DataType:     DataType_Float64,
+						DataTypeSize: 8,
+						TypeModifier: -1,
+					},
+					{
+						Name:         "avg_wait_time",
+						DataType:     DataType_Float64,
+						DataTypeSize: 8,
+						TypeModifier: -1,
+					},
+				}
+				err = client.Send(rowDesc)
+				if err != nil {
+					return err
+				}
+				for name, pool := range c.pool.gat.Pools() {
+					stats := pool.Stats()
+					if stats == nil {
+						continue
+					}
+					row := new(protocol.DataRow)
+					row.Fields.Columns = []protocol.FieldsDataRowColumns{
+						{
+							[]byte(name),
+						},
+						{
+							[]byte(fmt.Sprintf("%d", stats.TotalXactCount())),
+						},
+						{
+							[]byte(fmt.Sprintf("%d", stats.TotalQueryCount())),
+						},
+						{
+							[]byte(fmt.Sprintf("%d", stats.TotalReceived())),
+						},
+						{
+							[]byte(fmt.Sprintf("%d", stats.TotalSent())),
+						},
+						{
+							[]byte(fmt.Sprintf("%d", stats.TotalXactTime())),
+						},
+						{
+							[]byte(fmt.Sprintf("%d", stats.TotalQueryTime())),
+						},
+						{
+							[]byte(fmt.Sprintf("%d", stats.TotalWaitTime())),
+						},
+						{
+							[]byte(fmt.Sprintf("%f", stats.AvgXactCount())),
+						},
+						{
+							[]byte(fmt.Sprintf("%f", stats.AvgQueryCount())),
+						},
+						{
+							[]byte(fmt.Sprintf("%f", stats.AvgRecv())),
+						},
+						{
+							[]byte(fmt.Sprintf("%f", stats.AvgSent())),
+						},
+						{
+							[]byte(fmt.Sprintf("%f", stats.AvgXactTime())),
+						},
+						{
+							[]byte(fmt.Sprintf("%f", stats.AvgQueryTime())),
+						},
+						{
+							[]byte(fmt.Sprintf("%f", stats.AvgWaitTime())),
+						},
+					}
+					err = client.Send(row)
+					if err != nil {
+						return err
+					}
+				}
+				done := new(protocol.CommandComplete)
+				done.Fields.Data = cmd.Command
+				err = client.Send(done)
+				if err != nil {
+					return err
+				}
+			default:
+				return errors.New("unknown command")
+			}
+		case "pause":
+		case "disable":
+		case "enable":
+		case "reconnect":
+		case "kill":
+		case "suspend":
+		case "resume":
+		case "shutdown":
+		case "reload":
+		case "wait_close":
+		case "set":
+		default:
+			return errors.New("unknown command")
+		}
+	}
+	return nil
 }
 
 func (c *ConnectionPool) Transaction(ctx context.Context, client gat.Client, query string) error {
-	return errors.New("not implemented")
+	return errors.New("transactions not implemented")
 }
 
 func (c *ConnectionPool) CallFunction(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
-	return errors.New("not implemented")
+	return errors.New("functions not implemented")
 }
 
 var _ gat.ConnectionPool = (*ConnectionPool)(nil)

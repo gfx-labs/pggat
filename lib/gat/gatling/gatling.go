@@ -78,16 +78,10 @@ func (g *Gatling) GetPool(name string) (gat.Pool, error) {
 	return srv, nil
 }
 
-func (g *Gatling) Pools() []gat.Pool {
+func (g *Gatling) Pools() map[string]gat.Pool {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
-	out := make([]gat.Pool, len(g.pools))
-	idx := 0
-	for _, p := range g.pools {
-		out[idx] = p
-		idx += 1
-	}
-	return out
+	return g.pools
 }
 
 func (g *Gatling) GetClient(id gat.ClientID) (gat.Client, error) {

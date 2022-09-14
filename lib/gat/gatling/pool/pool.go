@@ -15,7 +15,7 @@ type Pool struct {
 	users     map[string]config.User
 	connPools map[string]gat.ConnectionPool
 
-	stats *Stats
+	stats *gat.PoolStats
 
 	router query_router.QueryRouter
 
@@ -25,7 +25,7 @@ type Pool struct {
 func NewPool(conf *config.Pool) *Pool {
 	pool := &Pool{
 		connPools: make(map[string]gat.ConnectionPool),
-		stats:     newStats(),
+		stats:     gat.NewPoolStats(),
 	}
 	pool.EnsureConfig(conf)
 	return pool
@@ -86,7 +86,7 @@ func (p *Pool) ConnectionPools() []gat.ConnectionPool {
 	return out
 }
 
-func (p *Pool) Stats() gat.PoolStats {
+func (p *Pool) Stats() *gat.PoolStats {
 	return p.stats
 }
 
