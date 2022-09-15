@@ -52,14 +52,15 @@ func (c *ConnectionPool) getWorker() *worker {
 		return w
 	default:
 		c.mu.Lock()
-		defer c.mu.Unlock()
 		if len(c.workers) < c.user.PoolSize {
 			next := &worker{
 				w: c,
 			}
 			c.workers = append(c.workers, next)
+			c.mu.Unlock()
 			return next
 		} else {
+			c.mu.Unlock()
 			return <-c.workerPool
 		}
 	}
@@ -94,8 +95,8 @@ func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
 
 func (c *ConnectionPool) GetShards() []gat.Shard {
 	var shards []gat.Shard
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	for _, w := range c.workers {
 		shards = append(shards, w.shards...)
 	}
