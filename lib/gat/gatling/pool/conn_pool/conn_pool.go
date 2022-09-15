@@ -2,13 +2,13 @@ package conn_pool
 
 import (
 	"context"
-	"reflect"
-	"runtime"
-	"sync"
-
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"reflect"
+	"runtime"
+	"sync"
+	"time"
 )
 
 type ConnectionPool struct {
@@ -38,7 +38,15 @@ func NewConnectionPool(pool gat.Pool, conf *config.Pool, user *config.User) *Con
 	return p
 }
 
+func (c *ConnectionPool) GetPool() gat.Pool {
+	return c.pool
+}
+
 func (c *ConnectionPool) getWorker() *worker {
+	start := time.Now()
+	defer func() {
+		c.pool.GetStats().AddWaitTime(int(time.Now().Sub(start).Microseconds()))
+	}()
 	select {
 	case w := <-c.workerPool:
 		return w
@@ -84,7 +92,7 @@ func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
 	return c.getWorker().GetServerInfo()
 }
 
-func (c *ConnectionPool) Shards() []gat.Shard {
+func (c *ConnectionPool) GetShards() []gat.Shard {
 	var shards []gat.Shard
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -103,12 +111,10 @@ func (c *ConnectionPool) Execute(ctx context.Context, client gat.Client, e *prot
 }
 
 func (c *ConnectionPool) SimpleQuery(ctx context.Context, client gat.Client, q string) error {
-	defer c.pool.Stats().IncQueryCount()
 	return c.getWorker().HandleSimpleQuery(ctx, client, q)
 }
 
 func (c *ConnectionPool) Transaction(ctx context.Context, client gat.Client, q string) error {
-	defer c.pool.Stats().IncXactCount()
 	return c.getWorker().HandleTransaction(ctx, client, q)
 }
 

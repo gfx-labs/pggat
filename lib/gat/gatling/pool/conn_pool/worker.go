@@ -9,6 +9,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
 	"sync"
+	"time"
 )
 
 // a single use worker with an embedded connection pool.
@@ -165,6 +166,11 @@ func (w *worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.
 func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query string) error {
 	defer w.ret()
 
+	start := time.Now()
+	defer func() {
+		w.w.pool.GetStats().AddQueryTime(int(time.Now().Sub(start).Microseconds()))
+	}()
+
 	errch := make(chan error)
 	go func() {
 		defer close(errch)
@@ -185,6 +191,11 @@ func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query stri
 
 func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query string) error {
 	defer w.ret()
+
+	start := time.Now()
+	defer func() {
+		w.w.pool.GetStats().AddXactTime(int(time.Now().Sub(start).Microseconds()))
+	}()
 
 	errch := make(chan error)
 	go func() {

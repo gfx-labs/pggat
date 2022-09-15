@@ -19,6 +19,8 @@ type Client interface {
 	GetCurrentConn() (Connection, error)
 	SetCurrentConn(conn Connection)
 
+	GetConnectionPool() ConnectionPool
+
 	State() string
 	Addr() string
 	Port() int
@@ -52,7 +54,7 @@ type Pool interface {
 	WithUser(name string) (ConnectionPool, error)
 	ConnectionPools() []ConnectionPool
 
-	Stats() *PoolStats
+	GetStats() *PoolStats
 
 	EnsureConfig(c *config.Pool)
 }
@@ -65,7 +67,9 @@ type ConnectionPool interface {
 	GetUser() *config.User
 	GetServerInfo() []*protocol.ParameterStatus
 
-	Shards() []Shard
+	GetPool() Pool
+
+	GetShards() []Shard
 
 	EnsureConfig(c *config.Pool)
 
