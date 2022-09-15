@@ -50,6 +50,8 @@ type Server struct {
 	dbpass string
 	user   config.User
 
+	healthy bool
+
 	log zlog.Logger
 
 	mu sync.Mutex
@@ -147,8 +149,50 @@ func (s *Server) GetRequestTime() time.Time {
 	return s.lastActivity
 }
 
+func (s *Server) failHealthCheck(err error) {
+	log.Println("Server failed a health check!!!!", err)
+	s.healthy = false
+}
+
+func (s *Server) healthCheck() {
+	check := new(protocol.Query)
+	check.Fields.Query = "select 1"
+	err := s.writePacket(check)
+	if err != nil {
+		s.failHealthCheck(err)
+		return
+	}
+	err = s.flush()
+	if err != nil {
+		s.failHealthCheck(err)
+		return
+	}
+
+	// read until we get a ready for query
+	for {
+		var recv protocol.Packet
+		recv, err = s.readPacket()
+		if err != nil {
+			s.failHealthCheck(err)
+			return
+		}
+
+		switch r := recv.(type) {
+		case *protocol.ReadyForQuery:
+			if r.Fields.Status != 'I' {
+				s.failHealthCheck(fmt.Errorf("expected server to be in command mode but it isn't"))
+			}
+			return
+		case *protocol.DataRow, *protocol.RowDescription, *protocol.CommandComplete:
+		default:
+			s.failHealthCheck(fmt.Errorf("expected a Simple Query packet but server sent %#v", recv))
+			return
+		}
+	}
+}
+
 func (s *Server) IsCloseNeeded() bool {
-	return false
+	return !s.healthy
 }
 
 func (s *Server) GetClient() gat.Client {
@@ -164,6 +208,8 @@ func (s *Server) SetClient(client gat.Client) {
 	if client != nil {
 		s.state = gat.ConnectionActive
 	} else {
+		// client no longer needs this connection, perform a health check
+		s.healthCheck()
 		s.state = gat.ConnectionIdle
 	}
 	s.client = client
@@ -325,6 +371,7 @@ func (s *Server) forwardTo(client gat.Client, predicate func(pkt protocol.Packet
 }
 
 func (s *Server) writePacket(pkt protocol.Packet) error {
+	//log.Printf("out %#v", pkt)
 	_, err := pkt.Write(s.wr)
 	return err
 }
@@ -334,7 +381,9 @@ func (s *Server) flush() error {
 }
 
 func (s *Server) readPacket() (protocol.Packet, error) {
-	return protocol.ReadBackend(s.r)
+	p, err := protocol.ReadBackend(s.r)
+	//log.Printf("in %#v", p)
+	return p, err
 }
 
 func (s *Server) ensurePreparedStatement(client gat.Client, name string) error {
@@ -572,7 +621,7 @@ func (s *Server) Transaction(ctx context.Context, client gat.Client, query strin
 
 				if err != nil {
 					end := new(protocol.Query)
-					end.Fields.Query = "END;"
+					end.Fields.Query = "END"
 					_ = s.writePacket(end)
 					_ = s.flush()
 				}

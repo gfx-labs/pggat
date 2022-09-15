@@ -112,11 +112,13 @@ type Connection interface {
 	GetLocalAddress() net.Addr
 	GetConnectTime() time.Time
 	GetRequestTime() time.Time
-	IsCloseNeeded() bool
 	GetClient() Client
 	SetClient(client Client)
 	GetRemotePid() int
 	GetTLS() string
+
+	// IsCloseNeeded returns whether this connection failed a health check
+	IsCloseNeeded() bool
 
 	// actions
 	Describe(client Client, payload *protocol.Describe) error

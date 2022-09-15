@@ -523,18 +523,22 @@ func (c *ConnectionPool) SimpleQuery(ctx context.Context, client gat.Client, que
 				err = c.pool.showStats(client, false, true)
 			case "totals":
 				err = c.pool.showTotals(client)
+			case "servers":
+			case "clients":
+			case "pools":
+			case "lists":
+			case "users":
+			case "databases":
+			case "fds":
+			case "sockets", "active_sockets":
+			case "config":
+			case "mem":
+			case "dns_hosts":
+			case "dns_zones":
+			case "version":
+
 			default:
 				return errors.New("unknown command")
-			}
-			if err != nil {
-				return err
-			}
-
-			done := new(protocol.CommandComplete)
-			done.Fields.Data = cmd.Command
-			err = client.Send(done)
-			if err != nil {
-				return err
 			}
 		case "pause":
 		case "disable":
@@ -549,6 +553,16 @@ func (c *ConnectionPool) SimpleQuery(ctx context.Context, client gat.Client, que
 		case "set":
 		default:
 			return errors.New("unknown command")
+		}
+
+		if err != nil {
+			return err
+		}
+		done := new(protocol.CommandComplete)
+		done.Fields.Data = cmd.Command
+		err = client.Send(done)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
