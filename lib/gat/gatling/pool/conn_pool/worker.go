@@ -16,7 +16,8 @@ import (
 // it wraps a pointer to the connection pool.
 type worker struct {
 	// the parent connectino pool
-	w *ConnectionPool
+	w   *ConnectionPool
+	rev int
 
 	shards []gat.Shard
 
@@ -30,7 +31,8 @@ func (w *worker) ret() {
 
 // attempt to connect to a new shard with this worker
 func (w *worker) fetchShard(n int) bool {
-	if n < 0 || n >= len(w.w.shards) {
+	conf := w.w.c.Load()
+	if n < 0 || n >= len(conf.Shards) {
 		return false
 	}
 
@@ -38,7 +40,7 @@ func (w *worker) fetchShard(n int) bool {
 		w.shards = append(w.shards, nil)
 	}
 
-	w.shards[n] = shard.FromConfig(w.w.user, w.w.shards[n])
+	w.shards[n] = shard.FromConfig(w.w.user, conf.Shards[n])
 	return true
 }
 
@@ -53,8 +55,11 @@ func (w *worker) anyShard() gat.Shard {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	for _, s := range w.shards {
+	conf := w.w.c.Load()
+
+	for idx, s := range w.shards {
 		if s != nil {
+			s.EnsureConfig(conf.Shards[idx])
 			return s
 		}
 	}
@@ -90,12 +95,12 @@ func (w *worker) chooseShardTransaction(client gat.Client, payload string) gat.S
 func (w *worker) GetServerInfo() []*protocol.ParameterStatus {
 	defer w.ret()
 
-	shard := w.anyShard()
-	if shard == nil {
+	s := w.anyShard()
+	if s == nil {
 		return nil
 	}
 
-	primary := shard.GetPrimary()
+	primary := s.GetPrimary()
 	if primary == nil {
 		return nil
 	}

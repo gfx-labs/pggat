@@ -71,8 +71,6 @@ type ConnectionPool interface {
 
 	GetPool() Pool
 
-	GetShards() []Shard
-
 	EnsureConfig(c *config.Pool)
 
 	// extended queries
@@ -89,6 +87,8 @@ type Shard interface {
 	GetPrimary() Connection
 	GetReplicas() []Connection
 	Choose(role config.ServerRole) Connection
+
+	EnsureConfig(c *config.Shard)
 }
 
 type ConnectionState string

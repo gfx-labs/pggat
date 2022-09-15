@@ -6,31 +6,41 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/pool/conn_pool/shard/server"
 	"math/rand"
-	"sync"
+	"reflect"
 )
 
 type Shard struct {
 	primary  gat.Connection
 	replicas []gat.Connection
 
-	mu sync.Mutex
+	user *config.User
+	conf *config.Shard
 }
 
 func FromConfig(user *config.User, conf *config.Shard) *Shard {
-	out := &Shard{}
-	for _, s := range conf.Servers {
-		srv, err := server.Dial(context.TODO(), s.Host, s.Port, user, conf.Database, s.Username, s.Password)
+	out := &Shard{
+		user: user,
+		conf: conf,
+	}
+	out.init()
+	return out
+}
+
+func (s *Shard) init() {
+	s.primary = nil
+	s.replicas = nil
+	for _, serv := range s.conf.Servers {
+		srv, err := server.Dial(context.TODO(), serv.Host, serv.Port, s.user, s.conf.Database, serv.Username, serv.Password)
 		if err != nil {
 			continue
 		}
-		switch s.Role {
+		switch serv.Role {
 		case config.SERVERROLE_PRIMARY:
-			out.primary = srv
+			s.primary = srv
 		default:
-			out.replicas = append(out.replicas, srv)
+			s.replicas = append(s.replicas, srv)
 		}
 	}
-	return out
 }
 
 func (s *Shard) Choose(role config.ServerRole) gat.Connection {
@@ -54,6 +64,13 @@ func (s *Shard) GetPrimary() gat.Connection {
 
 func (s *Shard) GetReplicas() []gat.Connection {
 	return s.replicas
+}
+
+func (s *Shard) EnsureConfig(c *config.Shard) {
+	if !reflect.DeepEqual(s.conf, c) {
+		s.conf = c
+		s.init()
+	}
 }
 
 var _ gat.Shard = (*Shard)(nil)
