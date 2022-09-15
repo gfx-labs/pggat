@@ -61,7 +61,7 @@ func TestQueryRouterInterRoleReplica(t *testing.T) {
 //        for query in queries {
 //            // It's a recognized query
 //            assert!(qr.infer_role(query));
-//            assert_eq!(qr.role(), Some(Role::Primary));
+//            assert_eq!(qr.role(), Some(Role::GetPrimary));
 //        }
 //    }
 //
@@ -198,11 +198,11 @@ func TestQueryRouterInterRoleReplica(t *testing.T) {
 //        // SetServerRole
 //        let roles = ["primary", "replica", "any", "auto", "primary"];
 //        let verify_roles = [
-//            Some(Role::Primary),
+//            Some(Role::GetPrimary),
 //            Some(Role::Replica),
 //            None,
 //            None,
-//            Some(Role::Primary),
+//            Some(Role::GetPrimary),
 //        ];
 //        let query_parser_enabled = [false, false, false, true, false];
 //
@@ -257,7 +257,7 @@ func TestQueryRouterInterRoleReplica(t *testing.T) {
 //
 //        let query = simple_query("INSERT INTO test_table VALUES (1)");
 //        assert_eq!(qr.infer_role(query), true);
-//        assert_eq!(qr.role(), Some(Role::Primary));
+//        assert_eq!(qr.role(), Some(Role::GetPrimary));
 //
 //        let query = simple_query("SELECT * FROM test_table");
 //        assert_eq!(qr.infer_role(query), true);
@@ -298,7 +298,7 @@ func TestQueryRouterInterRoleReplica(t *testing.T) {
 //
 //        let q1 = simple_query("SET SERVER ROLE TO 'primary'");
 //        assert!(qr.try_execute_command(q1) != None);
-//        assert_eq!(qr.active_role.unwrap(), Role::Primary);
+//        assert_eq!(qr.active_role.unwrap(), Role::GetPrimary);
 //
 //        let q2 = simple_query("SET SERVER ROLE TO 'default'");
 //        assert!(qr.try_execute_command(q2) != None);

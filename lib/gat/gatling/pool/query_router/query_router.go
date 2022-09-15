@@ -108,7 +108,7 @@ func (r *QueryRouter) try_execute_command(pkt *protocol.Query) (Command, string)
 
 	//	Command::ShowShard => self.shard().to_string(),
 	//	Command::ShowServerRole => switch self.active_role {
-	//		Some(Role::Primary) => string("primary"),
+	//		Some(Role::GetPrimary) => string("primary"),
 	//		Some(Role::Replica) => string("replica"),
 	//		None => {
 	//			if self.query_parser_enabled {
@@ -147,7 +147,7 @@ func (r *QueryRouter) try_execute_command(pkt *protocol.Query) (Command, string)
 	//		self.active_role := switch value.to_ascii_lowercase().as_ref() {
 	//			"primary" => {
 	//				self.query_parser_enabled := false
-	//				Some(Role::Primary)
+	//				Some(Role::GetPrimary)
 	//			}
 
 	//			"replica" => {

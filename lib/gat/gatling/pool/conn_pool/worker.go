@@ -95,7 +95,7 @@ func (w *worker) GetServerInfo() []*protocol.ParameterStatus {
 		return nil
 	}
 
-	primary := shard.Primary()
+	primary := shard.GetPrimary()
 	if primary == nil {
 		return nil
 	}
@@ -284,7 +284,7 @@ func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payloa
 		return fmt.Errorf("fn('%+v') fail: no server", payload)
 	}
 	// call the function
-	target := srv.Primary()
+	target := srv.GetPrimary()
 	if target == nil {
 		return fmt.Errorf("fn('%+v') fail: no target ", payload)
 	}

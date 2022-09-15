@@ -48,11 +48,11 @@ func (s *Shard) Choose(role config.ServerRole) gat.Connection {
 	}
 }
 
-func (s *Shard) Primary() gat.Connection {
+func (s *Shard) GetPrimary() gat.Connection {
 	return s.primary
 }
 
-func (s *Shard) Replicas() []gat.Connection {
+func (s *Shard) GetReplicas() []gat.Connection {
 	return s.replicas
 }
 

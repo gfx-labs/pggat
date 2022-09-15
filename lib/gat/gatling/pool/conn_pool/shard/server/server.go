@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"reflect"
-	"strconv"
 	"sync"
 	"time"
 
@@ -32,7 +31,7 @@ type Server struct {
 	wr   *bufio.Writer
 
 	client gat.Client
-	state  string
+	state  gat.ConnectionState
 
 	serverInfo []*protocol.ParameterStatus
 
@@ -66,7 +65,7 @@ func Dial(ctx context.Context,
 		addr: addr,
 		port: port,
 
-		state: "new",
+		state: gat.ConnectionNew,
 
 		boundPreparedStatments: make(map[string]*protocol.Parse),
 		boundPortals:           make(map[string]*protocol.Bind),
@@ -110,58 +109,49 @@ func (s *Server) GetDatabase() string {
 	return s.db
 }
 
-func (s *Server) State() string {
+func (s *Server) GetState() gat.ConnectionState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.state
 }
 
-func (s *Server) Address() string {
+func (s *Server) GetHost() string {
 	return s.addr
 }
 
-func (s *Server) Port() int {
+func (s *Server) GetPort() int {
 	return int(s.port)
 }
 
-func (s *Server) LocalAddr() string {
+func (s *Server) GetAddress() net.Addr {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	addr, _, _ := net.SplitHostPort(s.conn.LocalAddr().String())
-	return addr
+	return s.conn.RemoteAddr()
 }
 
-func (s *Server) LocalPort() int {
+func (s *Server) GetLocalAddress() net.Addr {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, port, _ := net.SplitHostPort(s.conn.LocalAddr().String())
-	p, _ := strconv.Atoi(port)
-	return p
+	return s.conn.LocalAddr()
 }
 
-func (s *Server) ConnectTime() time.Time {
+func (s *Server) GetConnectTime() time.Time {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.connectedAt
 }
 
-func (s *Server) RequestTime() time.Time {
+func (s *Server) GetRequestTime() time.Time {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.lastActivity
 }
 
-func (s *Server) Wait() time.Duration {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return time.Now().Sub(s.lastActivity)
-}
-
-func (s *Server) CloseNeeded() bool {
+func (s *Server) IsCloseNeeded() bool {
 	return false
 }
 
-func (s *Server) Client() gat.Client {
+func (s *Server) GetClient() gat.Client {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.client
@@ -171,16 +161,21 @@ func (s *Server) SetClient(client gat.Client) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lastActivity = time.Now()
+	if client != nil {
+		s.state = gat.ConnectionActive
+	} else {
+		s.state = gat.ConnectionIdle
+	}
 	s.client = client
 }
 
-func (s *Server) RemotePid() int {
+func (s *Server) GetRemotePid() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return int(s.processId)
 }
 
-func (s *Server) TLS() string {
+func (s *Server) GetTLS() string {
 	return "" // TODO
 }
 

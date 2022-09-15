@@ -2,7 +2,6 @@ package gatling
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/gat/admin"
 	"io"
@@ -60,41 +59,41 @@ func (g *Gatling) watchConfigs() {
 	}
 }
 
-func (g *Gatling) Version() string {
+func (g *Gatling) GetVersion() string {
 	return "PgGat Gatling 0.0.1"
 }
 
-func (g *Gatling) Config() *config.Global {
+func (g *Gatling) GetConfig() *config.Global {
 	return g.c
 }
 
-func (g *Gatling) GetPool(name string) (gat.Pool, error) {
+func (g *Gatling) GetPool(name string) gat.Pool {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	srv, ok := g.pools[name]
 	if !ok {
-		return nil, fmt.Errorf("pool '%s' not found", name)
+		return nil
 	}
-	return srv, nil
+	return srv
 }
 
-func (g *Gatling) Pools() map[string]gat.Pool {
+func (g *Gatling) GetPools() map[string]gat.Pool {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	return g.pools
 }
 
-func (g *Gatling) GetClient(id gat.ClientID) (gat.Client, error) {
+func (g *Gatling) GetClient(id gat.ClientID) gat.Client {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	c, ok := g.clients[id]
 	if !ok {
-		return nil, errors.New("client not found")
+		return nil
 	}
-	return c, nil
+	return c
 }
 
-func (g *Gatling) Clients() []gat.Client {
+func (g *Gatling) GetClients() []gat.Client {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	out := make([]gat.Client, len(g.clients))

@@ -20,7 +20,6 @@ import (
 	"math/big"
 	"net"
 	"reflect"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -69,9 +68,12 @@ type Client struct {
 
 	recv chan protocol.Packet
 
+	state gat.ClientState
+
 	pid       int32
 	secretKey int32
 
+	requestTime time.Time
 	connectTime time.Time
 
 	server gat.ConnectionPool
@@ -91,46 +93,34 @@ type Client struct {
 	mu sync.Mutex
 }
 
-func (c *Client) State() string {
-	return "TODO" // TODO
+func (c *Client) GetState() gat.ClientState {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.state
 }
 
-func (c *Client) Addr() string {
-	addr, _, _ := net.SplitHostPort(c.conn.RemoteAddr().String())
-	return addr
+func (c *Client) GetAddress() net.Addr {
+	return c.conn.RemoteAddr()
 }
 
-func (c *Client) Port() int {
-	// ignore the errors cuz 0 is fine, just for stats
-	_, port, _ := net.SplitHostPort(c.conn.RemoteAddr().String())
-	p, _ := strconv.Atoi(port)
-	return p
+func (c *Client) GetLocalAddress() net.Addr {
+	return c.conn.LocalAddr()
 }
 
-func (c *Client) LocalAddr() string {
-	addr, _, _ := net.SplitHostPort(c.conn.LocalAddr().String())
-	return addr
-}
-
-func (c *Client) LocalPort() int {
-	_, port, _ := net.SplitHostPort(c.conn.LocalAddr().String())
-	p, _ := strconv.Atoi(port)
-	return p
-}
-
-func (c *Client) ConnectTime() time.Time {
+func (c *Client) GetConnectTime() time.Time {
 	return c.connectTime
 }
 
-func (c *Client) RequestTime() time.Time {
-	return c.currentConn.RequestTime()
+func (c *Client) startRequest() {
+	c.state = gat.ClientWaiting
+	c.requestTime = time.Now()
 }
 
-func (c *Client) Wait() time.Duration {
-	return c.currentConn.Wait()
+func (c *Client) GetRequestTime() time.Time {
+	return c.requestTime
 }
 
-func (c *Client) RemotePid() int {
+func (c *Client) GetRemotePid() int {
 	return int(c.pid)
 }
 
@@ -152,6 +142,7 @@ func NewClient(
 		r:          NewCountReader(bufio.NewReader(conn)),
 		wr:         NewCountWriter(bufio.NewWriter(conn)),
 		recv:       make(chan protocol.Packet),
+		state:      gat.ClientActive,
 		pid:        int32(pid.Int64()),
 		secretKey:  int32(skey.Int64()),
 		gatling:    gatling,
@@ -172,14 +163,16 @@ func (c *Client) Id() gat.ClientID {
 	}
 }
 
-func (c *Client) GetCurrentConn() (gat.Connection, error) {
-	if c.currentConn == nil {
-		return nil, errors.New("not connected to a server")
-	}
-	return c.currentConn, nil
+func (c *Client) GetCurrentConn() gat.Connection {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.currentConn
 }
 
 func (c *Client) SetCurrentConn(conn gat.Connection) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.state = gat.ClientActive
 	c.currentConn = conn
 }
 
@@ -307,17 +300,16 @@ func (c *Client) Accept(ctx context.Context) error {
 		}
 	}
 
-	var pool gat.Pool
-	pool, err = c.gatling.GetPool(c.poolName)
-	if err != nil {
-		return err
+	pool := c.gatling.GetPool(c.poolName)
+	if pool == nil {
+		return fmt.Errorf("pool '%s' not found", c.poolName)
 	}
 
 	// get user
 	var user *config.User
-	user, err = pool.GetUser(c.username)
-	if err != nil {
-		return err
+	user = pool.GetUser(c.username)
+	if user == nil {
+		return fmt.Errorf("user '%s' not found", c.username)
 	}
 
 	// Authenticate admin user.
@@ -341,9 +333,9 @@ func (c *Client) Accept(ctx context.Context) error {
 		}
 	}
 
-	c.server, err = pool.WithUser(c.username)
-	if err != nil {
-		return err
+	c.server = pool.WithUser(c.username)
+	if c.server == nil {
+		return fmt.Errorf("no pool for '%s'", c.username)
 	}
 
 	authOk := new(protocol.Authentication)
@@ -424,17 +416,16 @@ func (c *Client) recvLoop() {
 }
 
 func (c *Client) handle_cancel(ctx context.Context, p *protocol.StartupMessage) error {
-	cl, err := c.gatling.GetClient(gat.ClientID{
+	cl := c.gatling.GetClient(gat.ClientID{
 		PID:       p.Fields.ProcessKey,
 		SecretKey: p.Fields.SecretKey,
 	})
-	if err != nil {
-		return err
+	if cl == nil {
+		return errors.New("user not found")
 	}
-	var conn gat.Connection
-	conn, err = cl.GetCurrentConn()
-	if err != nil {
-		return err
+	conn := cl.GetCurrentConn()
+	if conn == nil {
+		return errors.New("not connected to a server")
 	}
 	return conn.Cancel()
 }
@@ -486,12 +477,14 @@ func (c *Client) bind(ctx context.Context, b *protocol.Bind) error {
 func (c *Client) handle_describe(ctx context.Context, d *protocol.Describe) error {
 	//log.Println("describe")
 	c.status = 'T'
+	c.startRequest()
 	return c.server.Describe(ctx, c, d)
 }
 
 func (c *Client) handle_execute(ctx context.Context, e *protocol.Execute) error {
 	//log.Println("execute")
 	c.status = 'T'
+	c.startRequest()
 	return c.server.Execute(ctx, c, e)
 }
 
@@ -525,6 +518,7 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 			// begin transaction
 			if prev != cmd.Index {
 				query := q.Fields.Query[prev:cmd.Index]
+				c.startRequest()
 				err = c.handle_simple_query(ctx, query)
 				prev = cmd.Index
 				if err != nil {
@@ -541,6 +535,7 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 				query = q.Fields.Query[prev:parsed[idx+1].Index]
 			}
 			if query != "" {
+				c.startRequest()
 				err = c.handle_transaction(ctx, query)
 				prev = cmd.Index
 				if err != nil {
@@ -552,6 +547,7 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 		}
 	}
 	query := q.Fields.Query[prev:]
+	c.startRequest()
 	if transaction {
 		err = c.handle_transaction(ctx, query)
 	} else {
@@ -562,20 +558,19 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 
 func (c *Client) handle_simple_query(ctx context.Context, q string) error {
 	//log.Println("query:", q)
+	c.startRequest()
 	return c.server.SimpleQuery(ctx, c, q)
 }
 
 func (c *Client) handle_transaction(ctx context.Context, q string) error {
 	//log.Println("transaction:", q)
+	c.startRequest()
 	return c.server.Transaction(ctx, c, q)
 }
 
 func (c *Client) handle_function(ctx context.Context, f *protocol.FunctionCall) error {
-	err := c.server.CallFunction(ctx, c, f)
-	if err != nil {
-		return err
-	}
-	return err
+	c.startRequest()
+	return c.server.CallFunction(ctx, c, f)
 }
 
 func (c *Client) GetPreparedStatement(name string) *protocol.Parse {

@@ -50,7 +50,7 @@ func getServerInfo(g gat.Gat) []*protocol.ParameterStatus {
 		{
 			Fields: protocol.FieldsParameterStatus{
 				Parameter: "server_version",
-				Value:     g.Version(),
+				Value:     g.GetVersion(),
 			},
 		},
 		{
@@ -63,7 +63,7 @@ func getServerInfo(g gat.Gat) []*protocol.ParameterStatus {
 }
 
 func getAdminUser(g gat.Gat) *config.User {
-	conf := g.Config()
+	conf := g.GetConfig()
 	return &config.User{
 		Name:     conf.General.AdminUsername,
 		Password: conf.General.AdminPassword,
@@ -183,7 +183,7 @@ func (p *Pool) showStats(client gat.Client, totals, averages bool) error {
 	if err != nil {
 		return err
 	}
-	for name, pl := range p.gat.Pools() {
+	for name, pl := range p.gat.GetPools() {
 		stats := pl.GetStats()
 		if stats == nil {
 			continue
@@ -346,7 +346,7 @@ func (p *Pool) showTotals(client gat.Client) error {
 	var totalXactCount, totalQueryCount, totalWaitCount, totalReceived, totalSent, totalXactTime, totalQueryTime, totalWaitTime int
 	var alive time.Duration
 
-	for _, pl := range p.gat.Pools() {
+	for _, pl := range p.gat.GetPools() {
 		stats := pl.GetStats()
 		if stats == nil {
 			continue
@@ -433,24 +433,24 @@ func NewPool(g gat.Gat) *Pool {
 	return out
 }
 
-func (p *Pool) GetUser(name string) (*config.User, error) {
+func (p *Pool) GetUser(name string) *config.User {
 	u := getAdminUser(p.gat)
 	if name != u.Name {
-		return nil, fmt.Errorf("%w: %s", gat.UserNotFound, name)
+		return nil
 	}
-	return u, nil
+	return u
 }
 
 func (p *Pool) GetRouter() gat.QueryRouter {
 	return nil
 }
 
-func (p *Pool) WithUser(name string) (gat.ConnectionPool, error) {
-	conf := p.gat.Config()
+func (p *Pool) WithUser(name string) gat.ConnectionPool {
+	conf := p.gat.GetConfig()
 	if name != conf.General.AdminUsername {
-		return nil, fmt.Errorf("%w: %s", gat.UserNotFound, name)
+		return nil
 	}
-	return p.connPool, nil
+	return p.connPool
 }
 
 func (p *Pool) ConnectionPools() []gat.ConnectionPool {

@@ -1,7 +1,6 @@
 package pool
 
 import (
-	"fmt"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/pool/conn_pool"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/pool/query_router"
 	"sync"
@@ -50,28 +49,28 @@ func (p *Pool) EnsureConfig(conf *config.Pool) {
 	}
 }
 
-func (p *Pool) GetUser(name string) (*config.User, error) {
+func (p *Pool) GetUser(name string) *config.User {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	user, ok := p.users[name]
 	if !ok {
-		return nil, fmt.Errorf("%w: %s", gat.UserNotFound, name)
+		return nil
 	}
-	return &user, nil
+	return &user
 }
 
 func (p *Pool) GetRouter() gat.QueryRouter {
 	return &p.router
 }
 
-func (p *Pool) WithUser(name string) (gat.ConnectionPool, error) {
+func (p *Pool) WithUser(name string) gat.ConnectionPool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	pool, ok := p.connPools[name]
 	if !ok {
-		return nil, fmt.Errorf("no pool for '%s'", name)
+		return nil
 	}
-	return pool, nil
+	return pool
 }
 
 func (p *Pool) ConnectionPools() []gat.ConnectionPool {

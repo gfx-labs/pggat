@@ -2,9 +2,9 @@ package gat
 
 import (
 	"context"
-	"errors"
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"net"
 	"time"
 )
 
@@ -13,23 +13,27 @@ type ClientID struct {
 	SecretKey int32
 }
 
+type ClientState string
+
+const (
+	ClientActive  ClientState = "active"
+	ClientWaiting             = "waiting"
+)
+
 type Client interface {
 	GetPreparedStatement(name string) *protocol.Parse
 	GetPortal(name string) *protocol.Bind
-	GetCurrentConn() (Connection, error)
+	GetCurrentConn() Connection
 	SetCurrentConn(conn Connection)
 
 	GetConnectionPool() ConnectionPool
 
-	State() string
-	Addr() string
-	Port() int
-	LocalAddr() string
-	LocalPort() int
-	ConnectTime() time.Time
-	RequestTime() time.Time
-	Wait() time.Duration
-	RemotePid() int
+	GetState() ClientState
+	GetAddress() net.Addr
+	GetLocalAddress() net.Addr
+	GetConnectTime() time.Time
+	GetRequestTime() time.Time
+	GetRemotePid() int
 
 	Send(pkt protocol.Packet) error
 	Flush() error
@@ -37,21 +41,19 @@ type Client interface {
 }
 
 type Gat interface {
-	Version() string
-	Config() *config.Global
-	GetPool(name string) (Pool, error)
-	Pools() map[string]Pool
-	GetClient(id ClientID) (Client, error)
-	Clients() []Client
+	GetVersion() string
+	GetConfig() *config.Global
+	GetPool(name string) Pool
+	GetPools() map[string]Pool
+	GetClient(id ClientID) Client
+	GetClients() []Client
 }
 
-var UserNotFound = errors.New("user not found")
-
 type Pool interface {
-	GetUser(name string) (*config.User, error)
+	GetUser(name string) *config.User
 	GetRouter() QueryRouter
 
-	WithUser(name string) (ConnectionPool, error)
+	WithUser(name string) ConnectionPool
 	ConnectionPools() []ConnectionPool
 
 	GetStats() *PoolStats
@@ -84,28 +86,37 @@ type ConnectionPool interface {
 }
 
 type Shard interface {
-	Primary() Connection
-	Replicas() []Connection
+	GetPrimary() Connection
+	GetReplicas() []Connection
 	Choose(role config.ServerRole) Connection
 }
+
+type ConnectionState string
+
+const (
+	ConnectionActive ConnectionState = "active"
+	ConnectionIdle                   = "idle"
+	ConnectionUsed                   = "used"
+	ConnectionTested                 = "tested"
+	ConnectionNew                    = "new"
+)
 
 type Connection interface {
 	GetServerInfo() []*protocol.ParameterStatus
 
 	GetDatabase() string
-	State() string
-	Address() string
-	Port() int
-	LocalAddr() string
-	LocalPort() int
-	ConnectTime() time.Time
-	RequestTime() time.Time
-	Wait() time.Duration
-	CloseNeeded() bool
-	Client() Client
+	GetState() ConnectionState
+	GetHost() string
+	GetPort() int
+	GetAddress() net.Addr
+	GetLocalAddress() net.Addr
+	GetConnectTime() time.Time
+	GetRequestTime() time.Time
+	IsCloseNeeded() bool
+	GetClient() Client
 	SetClient(client Client)
-	RemotePid() int
-	TLS() string
+	GetRemotePid() int
+	GetTLS() string
 
 	// actions
 	Describe(client Client, payload *protocol.Describe) error
