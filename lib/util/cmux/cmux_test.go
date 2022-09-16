@@ -18,5 +18,6 @@ func TestFsm(t *testing.T) {
 	})
 
 	m.Call([]string{"set", "shard", "to", "doggo", "wow", "this", "works"})
+	m.Call([]string{"set", "sharding", "key", "to", "doggo", "wow", "this", "works2"})
 
 }
