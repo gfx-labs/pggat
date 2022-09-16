@@ -1,7 +1,6 @@
 package cmux
 
 import (
-	"log"
 	"strings"
 	"sync"
 
@@ -37,10 +36,10 @@ func (f *FsmMux[T]) Register(path []string, fn func([]string) T) {
 func (f *FsmMux[T]) construct() {
 	evts := fsm.Events{}
 	cbs := fsm.Callbacks{}
-	log.Println("starting construct")
 	for _, fset := range f.funcs {
 		path := fset.Ref
 		lp := len(path)
+
 		switch lp {
 		case 0:
 		case 1:
@@ -65,7 +64,7 @@ func (f *FsmMux[T]) construct() {
 			}
 		}
 	}
-	f.f = fsm.NewFSM("", evts, cbs)
+	f.f = fsm.NewFSM("_", evts, cbs)
 }
 
 func (f *FsmMux[T]) Call(k []string) T {
