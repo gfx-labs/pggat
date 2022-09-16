@@ -37,22 +37,29 @@ func (f *FsmMux[T]) Register(path []string, fn func([]string) T) {
 func (f *FsmMux[T]) construct() {
 	evts := fsm.Events{}
 	cbs := fsm.Callbacks{}
+	log.Println("starting construct")
 	for _, fset := range f.funcs {
 		path := fset.Ref
 		lp := len(path)
 		switch lp {
 		case 0:
+		case 1:
+			evts = append(evts, fsm.EventDesc{
+				Name: path[0],
+				Src:  []string{"_"},
+				Dst:  path[0],
+			})
 		default:
 			evts = append(evts, fsm.EventDesc{
 				Name: path[0],
-				Src:  []string{},
-				Dst:  "",
+				Src:  []string{"_"},
+				Dst:  path[0],
 			})
-			for i := 1; i < (len(path) - 1); i++ {
+			for i := 1; i < len(path); i++ {
 				ee := fsm.EventDesc{
 					Name: path[i],
 					Src:  []string{path[i-1]},
-					Dst:  path[i+1],
+					Dst:  path[i],
 				}
 				evts = append(evts, ee)
 			}
@@ -73,8 +80,8 @@ func (f *FsmMux[T]) Call(k []string) T {
 		fn = f.funcs[k[0]].Call
 	default:
 		f.Lock()
-		f.f.SetState(path[0])
-		for i := 1; i < len(path); i++ {
+		f.f.SetState("_")
+		for i := 0; i < len(path); i++ {
 			key := strings.Join(path[:i], "|")
 			if mb, ok := f.funcs[key]; ok {
 				fn = mb.Call
@@ -91,7 +98,6 @@ func (f *FsmMux[T]) Call(k []string) T {
 		}
 		f.Unlock()
 	}
-	log.Println(f.f)
 	return fn(args)
 }
 
