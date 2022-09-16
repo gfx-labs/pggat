@@ -1,6 +1,7 @@
 package cmux
 
 import (
+	"log"
 	"strings"
 	"sync"
 
@@ -9,7 +10,6 @@ import (
 
 type Mux[T any] interface {
 	Register([]string, func([]string) T)
-
 	Call([]string) T
 }
 
@@ -42,19 +42,19 @@ func (f *FsmMux[T]) construct() {
 		lp := len(path)
 		switch lp {
 		case 0:
-		case 1:
+		default:
 			evts = append(evts, fsm.EventDesc{
 				Name: path[0],
 				Src:  []string{},
 				Dst:  "",
 			})
-		default:
-			for i := 0; i < (len(path) - 1); i++ {
-				evts = append(evts, fsm.EventDesc{
+			for i := 1; i < (len(path) - 1); i++ {
+				ee := fsm.EventDesc{
 					Name: path[i],
-					Src:  []string{},
+					Src:  []string{path[i-1]},
 					Dst:  path[i+1],
-				})
+				}
+				evts = append(evts, ee)
 			}
 		}
 	}
@@ -91,6 +91,7 @@ func (f *FsmMux[T]) Call(k []string) T {
 		}
 		f.Unlock()
 	}
+	log.Println(f.f)
 	return fn(args)
 }
 
