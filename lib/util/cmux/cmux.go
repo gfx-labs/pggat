@@ -75,12 +75,15 @@ func (f *FsmMux[T]) Call(k []string) T {
 		f.Lock()
 		f.f.SetState(path[0])
 		for i := 1; i < len(path); i++ {
+			key := strings.Join(path[:i], "|")
+			if mb, ok := f.funcs[key]; ok {
+				fn = mb.Call
+			}
 			if f.f.Can(path[i]) {
 				f.f.Event(path[i])
 			} else {
 				key := strings.Join(path[:i], "|")
-				if mb, ok := f.funcs[key]; ok {
-					fn = mb.Call
+				if _, ok := f.funcs[key]; ok {
 					args = args[i:]
 					break
 				}
