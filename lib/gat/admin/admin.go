@@ -443,7 +443,7 @@ func (p *Pool) showTotals(client gat.Client) error {
 		return err
 	}
 
-	var totalXactCount, totalQueryCount, totalWaitCount, totalReceived, totalSent, totalXactTime, totalQueryTime, totalWaitTime int
+	var totalXactCount, totalQueryCount, totalWaitCount, totalReceived, totalSent, totalXactTime, totalQueryTime, totalWaitTime int64
 	var alive time.Duration
 
 	for _, pl := range p.gat.GetPools() {

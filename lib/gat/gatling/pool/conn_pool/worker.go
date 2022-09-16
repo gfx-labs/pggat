@@ -164,7 +164,7 @@ func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query stri
 
 	start := time.Now()
 	defer func() {
-		w.w.pool.GetStats().AddQueryTime(int(time.Now().Sub(start).Microseconds()))
+		w.w.pool.GetStats().AddQueryTime(time.Now().Sub(start).Microseconds())
 	}()
 
 	errch := make(chan error)
@@ -190,7 +190,7 @@ func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query stri
 
 	start := time.Now()
 	defer func() {
-		w.w.pool.GetStats().AddXactTime(int(time.Now().Sub(start).Microseconds()))
+		w.w.pool.GetStats().AddXactTime(time.Now().Sub(start).Microseconds())
 	}()
 
 	errch := make(chan error)

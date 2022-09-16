@@ -402,8 +402,8 @@ func (c *Client) Accept(ctx context.Context) error {
 		// add send and recv to pool
 		stats := c.server.GetPool().GetStats()
 		if stats != nil {
-			stats.AddTotalSent(int(c.wr.BytesWritten.Swap(0)))
-			stats.AddTotalReceived(int(c.r.BytesRead.Swap(0)))
+			stats.AddTotalSent(c.wr.BytesWritten.Swap(0))
+			stats.AddTotalReceived(c.r.BytesRead.Swap(0))
 		}
 		if !open {
 			break

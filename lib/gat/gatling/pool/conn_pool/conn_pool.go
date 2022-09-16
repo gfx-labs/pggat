@@ -41,7 +41,7 @@ func (c *ConnectionPool) GetPool() gat.Pool {
 func (c *ConnectionPool) getWorker() *worker {
 	start := time.Now()
 	defer func() {
-		c.pool.GetStats().AddWaitTime(int(time.Now().Sub(start).Microseconds()))
+		c.pool.GetStats().AddWaitTime(time.Now().Sub(start).Microseconds())
 	}()
 	select {
 	case w := <-c.workerPool:
