@@ -4,12 +4,13 @@ go 1.19
 
 require (
 	gfx.cafe/util/go/bufpool v0.0.0-20220906091724-3a24b7f40ccf
+	gfx.cafe/util/go/graceful v0.0.0-20220913082111-9770431e98e9
 	gfx.cafe/util/go/lambda v0.0.0-20220906200602-98a6b35a1b42
 	git.tuxpa.in/a/zlog v1.32.0
 	github.com/BurntSushi/toml v1.2.0
 	github.com/auxten/postgresql-parser v1.0.1
-	github.com/ethereum/go-ethereum v1.10.23
 	github.com/iancoleman/strcase v0.2.0
+	github.com/looplab/fsm v0.3.0
 	github.com/xdg-go/scram v1.1.1
 	golang.org/x/net v0.0.0-20220826154423-83b083e8dc8b
 	gopkg.in/yaml.v2 v2.4.0
@@ -17,7 +18,6 @@ require (
 )
 
 require (
-	gfx.cafe/util/go/graceful v0.0.0-20220913082111-9770431e98e9 // indirect
 	github.com/certifi/gocertifi v0.0.0-20200922220541-2c3bb06c6054 // indirect
 	github.com/cockroachdb/apd v1.1.1-0.20181017181144-bced77f817b4 // indirect
 	github.com/cockroachdb/errors v1.8.2 // indirect
@@ -33,13 +33,12 @@ require (
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lib/pq v1.9.0 // indirect
-	github.com/looplab/fsm v0.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sirupsen/logrus v1.6.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/theckman/go-fsm v0.0.2 // indirect
+	github.com/stretchr/testify v1.7.2 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/stringprep v1.0.3 // indirect
 	golang.org/x/exp v0.0.0-20220827204233-334a2380cb91 // indirect

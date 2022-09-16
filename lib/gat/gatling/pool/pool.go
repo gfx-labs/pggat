@@ -16,7 +16,7 @@ type Pool struct {
 
 	stats *gat.PoolStats
 
-	router query_router.QueryRouter
+	router *query_router.QueryRouter
 
 	mu sync.RWMutex
 }
@@ -25,6 +25,7 @@ func NewPool(conf *config.Pool) *Pool {
 	pool := &Pool{
 		connPools: make(map[string]gat.ConnectionPool),
 		stats:     gat.NewPoolStats(),
+		router:    query_router.DefaultRouter,
 	}
 	pool.EnsureConfig(conf)
 	return pool
@@ -60,7 +61,7 @@ func (p *Pool) GetUser(name string) *config.User {
 }
 
 func (p *Pool) GetRouter() gat.QueryRouter {
-	return &p.router
+	return p.router
 }
 
 func (p *Pool) WithUser(name string) gat.ConnectionPool {

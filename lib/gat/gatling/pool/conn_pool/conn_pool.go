@@ -80,6 +80,14 @@ func (c *ConnectionPool) Execute(ctx context.Context, client gat.Client, e *prot
 }
 
 func (c *ConnectionPool) SimpleQuery(ctx context.Context, client gat.Client, q string) error {
+	// see if the pool router can handle it
+	handled, err := c.pool.GetRouter().TryHandle(client, q)
+	if err != nil {
+		return err
+	}
+	if handled {
+		return nil
+	}
 	return c.getWorker().HandleSimpleQuery(ctx, client, q)
 }
 

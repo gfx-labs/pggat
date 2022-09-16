@@ -35,6 +35,13 @@ type Client interface {
 	GetRequestTime() time.Time
 	GetRemotePid() int
 
+	// sharding
+	SetRequestedShard(shard int)
+	UnsetRequestedShard()
+	GetRequestedShard() (int, bool)
+	SetShardingKey(key string)
+	GetShardingKey() string
+
 	Send(pkt protocol.Packet) error
 	Flush() error
 	Recv() <-chan protocol.Packet
@@ -63,6 +70,8 @@ type Pool interface {
 
 type QueryRouter interface {
 	InferRole(query string) (config.ServerRole, error)
+	// TryHandle the client's query string. If we handled it, return true
+	TryHandle(client Client, query string) (bool, error)
 }
 
 type ConnectionPool interface {

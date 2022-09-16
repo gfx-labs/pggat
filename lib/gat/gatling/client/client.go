@@ -81,6 +81,10 @@ type Client struct {
 	poolName string
 	username string
 
+	shardingKey       string
+	preferredShard    int
+	hasPreferredShard bool
+
 	gatling     gat.Gat
 	currentConn gat.Connection
 	statements  map[string]*protocol.Parse
@@ -126,6 +130,27 @@ func (c *Client) GetRemotePid() int {
 
 func (c *Client) GetConnectionPool() gat.ConnectionPool {
 	return c.server
+}
+
+func (c *Client) SetRequestedShard(shard int) {
+	c.preferredShard = shard
+	c.hasPreferredShard = true
+}
+
+func (c *Client) UnsetRequestedShard() {
+	c.hasPreferredShard = false
+}
+
+func (c *Client) GetRequestedShard() (int, bool) {
+	return c.preferredShard, c.hasPreferredShard
+}
+
+func (c *Client) SetShardingKey(key string) {
+	c.shardingKey = key
+}
+
+func (c *Client) GetShardingKey() string {
+	return c.shardingKey
 }
 
 func NewClient(
@@ -496,64 +521,63 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 
 	// we can handle empty queries here
 	if len(parsed) == 0 {
-		err = c.Send(&protocol.EmptyQueryResponse{})
+		return c.Send(&protocol.EmptyQueryResponse{})
+	}
+
+	transaction := -1
+	for idx, cmd := range parsed {
+		var next int
+		if idx+1 >= len(parsed) {
+			next = len(q.Fields.Query)
+		} else {
+			next = parsed[idx+1].Index
+		}
+
+		cmdUpper := strings.ToUpper(cmd.Command)
+
+		// not in transaction
+		if transaction == -1 {
+			switch cmdUpper {
+			case "START":
+				if len(cmd.Arguments) < 1 || strings.ToUpper(cmd.Arguments[0]) != "TRANSACTION" {
+					break
+				}
+				fallthrough
+			case "BEGIN":
+				transaction = cmd.Index
+			}
+		}
+
+		if transaction == -1 {
+			// this is a simple query
+			c.startRequest()
+			err = c.handle_simple_query(ctx, q.Fields.Query[cmd.Index:next])
+			if err != nil {
+				return err
+			}
+		} else {
+			// this command is part of a transaction
+			switch cmdUpper {
+			case "END":
+				c.startRequest()
+				err = c.handle_transaction(ctx, q.Fields.Query[transaction:next])
+				if err != nil {
+					return err
+				}
+				transaction = -1
+			}
+		}
+	}
+
+	if transaction != -1 {
+		c.startRequest()
+		err = c.handle_transaction(ctx, q.Fields.Query[transaction:])
 		if err != nil {
 			return err
 		}
-		ready := new(protocol.ReadyForQuery)
-		ready.Fields.Status = 'I'
-		return c.Send(ready)
 	}
 
-	prev := 0
-	transaction := false
-	for idx, cmd := range parsed {
-		switch strings.ToUpper(cmd.Command) {
-		case "START":
-			if len(cmd.Arguments) < 1 || strings.ToUpper(cmd.Arguments[0]) != "TRANSACTION" {
-				break
-			}
-			fallthrough
-		case "BEGIN":
-			// begin transaction
-			if prev != cmd.Index {
-				query := q.Fields.Query[prev:cmd.Index]
-				c.startRequest()
-				err = c.handle_simple_query(ctx, query)
-				prev = cmd.Index
-				if err != nil {
-					return err
-				}
-			}
-			transaction = true
-		case "END":
-			// end transaction block
-			var query string
-			if idx+1 >= len(parsed) {
-				query = q.Fields.Query[prev:]
-			} else {
-				query = q.Fields.Query[prev:parsed[idx+1].Index]
-			}
-			if query != "" {
-				c.startRequest()
-				err = c.handle_transaction(ctx, query)
-				prev = cmd.Index
-				if err != nil {
-					return err
-				}
-			}
-			transaction = false
-
-		}
-	}
-	query := q.Fields.Query[prev:]
-	c.startRequest()
-	if transaction {
-		err = c.handle_transaction(ctx, query)
-	} else {
-		err = c.handle_simple_query(ctx, query)
-	}
-	return err
+	return nil
 }
 
 func (c *Client) handle_simple_query(ctx context.Context, q string) error {

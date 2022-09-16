@@ -8,6 +8,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/pool/conn_pool/shard"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -51,51 +52,41 @@ func (w *worker) invalidateShard(n int) {
 	w.shards[n] = nil
 }
 
-func (w *worker) anyShard() gat.Shard {
+func (w *worker) chooseShard(client gat.Client) gat.Shard {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	conf := w.w.c.Load()
 
-	for idx, s := range w.shards {
-		if s != nil {
-			s.EnsureConfig(conf.Shards[idx])
-			return s
+	preferred := rand.Intn(len(conf.Shards))
+	if client != nil {
+		if p, ok := client.GetRequestedShard(); ok {
+			preferred = p % len(conf.Shards)
+		}
+
+		key := client.GetShardingKey()
+		if key != "" {
+			// do sharding function on key TODO
 		}
 	}
 
+	if preferred < len(w.shards) && w.shards[preferred] != nil {
+		w.shards[preferred].EnsureConfig(conf.Shards[preferred])
+		return w.shards[preferred]
+	}
+
 	// we need to fetch a shard
-	if w.fetchShard(0) {
-		return w.shards[0]
+	if w.fetchShard(preferred) {
+		return w.shards[preferred]
 	}
 
 	return nil
 }
 
-func (w *worker) chooseShardDescribe(client gat.Client, payload *protocol.Describe) gat.Shard {
-	return w.anyShard() // TODO
-}
-
-func (w *worker) chooseShardExecute(client gat.Client, payload *protocol.Execute) gat.Shard {
-	return w.anyShard() // TODO
-}
-
-func (w *worker) chooseShardFn(client gat.Client, fn *protocol.FunctionCall) gat.Shard {
-	return w.anyShard() // TODO
-}
-
-func (w *worker) chooseShardSimpleQuery(client gat.Client, payload string) gat.Shard {
-	return w.anyShard() // TODO
-}
-
-func (w *worker) chooseShardTransaction(client gat.Client, payload string) gat.Shard {
-	return w.anyShard() // TODO
-}
-
 func (w *worker) GetServerInfo() []*protocol.ParameterStatus {
 	defer w.ret()
 
-	s := w.anyShard()
+	s := w.chooseShard(nil)
 	if s == nil {
 		return nil
 	}
@@ -231,7 +222,7 @@ func (w *worker) unsetCurrentBinding(client gat.Client, server gat.Connection) {
 }
 
 func (w *worker) z_actually_do_describe(ctx context.Context, client gat.Client, payload *protocol.Describe) error {
-	srv := w.chooseShardDescribe(client, payload)
+	srv := w.chooseShard(client)
 	if srv == nil {
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
 	}
@@ -247,7 +238,7 @@ func (w *worker) z_actually_do_describe(ctx context.Context, client gat.Client, 
 	return target.Describe(client, payload)
 }
 func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, payload *protocol.Execute) error {
-	srv := w.chooseShardExecute(client, payload)
+	srv := w.chooseShard(client)
 	if srv == nil {
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
 	}
@@ -284,7 +275,7 @@ func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, p
 	return target.Execute(client, payload)
 }
 func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
-	srv := w.chooseShardFn(client, payload)
+	srv := w.chooseShard(client)
 	if srv == nil {
 		return fmt.Errorf("fn('%+v') fail: no server", payload)
 	}
@@ -303,7 +294,7 @@ func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payloa
 }
 func (w *worker) z_actually_do_simple_query(ctx context.Context, client gat.Client, payload string) error {
 	// chose a server
-	srv := w.chooseShardSimpleQuery(client, payload)
+	srv := w.chooseShard(client)
 	if srv == nil {
 		return fmt.Errorf("call to query '%s' failed", payload)
 	}
@@ -328,7 +319,7 @@ func (w *worker) z_actually_do_simple_query(ctx context.Context, client gat.Clie
 }
 func (w *worker) z_actually_do_transaction(ctx context.Context, client gat.Client, payload string) error {
 	// chose a server
-	srv := w.chooseShardTransaction(client, payload)
+	srv := w.chooseShard(client)
 	if srv == nil {
 		return fmt.Errorf("call to transaction '%s' failed", payload)
 	}

@@ -6,7 +6,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/parse"
-	"strings"
+	"gfx.cafe/gfx/pggat/lib/util/cmux"
 	"time"
 )
 
@@ -77,6 +77,106 @@ func getAdminUser(g gat.Gat) *config.User {
 type Pool struct {
 	gat      gat.Gat
 	connPool *ConnectionPool
+
+	r cmux.Mux[gat.Client, error]
+}
+
+func NewPool(g gat.Gat) *Pool {
+	out := &Pool{
+		gat: g,
+	}
+	out.connPool = &ConnectionPool{
+		pool: out,
+	}
+	out.r = cmux.NewMapMux[gat.Client, error]()
+	out.r.Register([]string{"show", "stats_totals"}, func(client gat.Client, _ []string) error {
+		return out.showStats(client, true, false)
+	})
+	out.r.Register([]string{"show", "stats_averages"}, func(client gat.Client, _ []string) error {
+		return out.showStats(client, false, true)
+	})
+	out.r.Register([]string{"show", "stats"}, func(client gat.Client, _ []string) error {
+		return out.showStats(client, true, true)
+	})
+	out.r.Register([]string{"show", "totals"}, func(client gat.Client, _ []string) error {
+		return out.showTotals(client)
+	})
+	out.r.Register([]string{"show", "servers"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "clients"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "pools"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "lists"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "users"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "databases"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "fds"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "sockets"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "active_sockets"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "config"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "mem"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "dns_hosts"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "dns_zones"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "version"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"pause"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"disable"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"enable"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"reconnect"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"kill"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"suspend"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"resume"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"shutdown"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"reload"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"wait_close"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"set"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	return out
 }
 
 func (p *Pool) showStats(client gat.Client, totals, averages bool) error {
@@ -423,16 +523,6 @@ func (p *Pool) showTotals(client gat.Client) error {
 	return client.Send(row)
 }
 
-func NewPool(g gat.Gat) *Pool {
-	out := &Pool{
-		gat: g,
-	}
-	out.connPool = &ConnectionPool{
-		pool: out,
-	}
-	return out
-}
-
 func (p *Pool) GetUser(name string) *config.User {
 	u := getAdminUser(p.gat)
 	if name != u.Name {
@@ -507,54 +597,15 @@ func (c *ConnectionPool) SimpleQuery(ctx context.Context, client gat.Client, que
 	if err != nil {
 		return err
 	}
+	if len(parsed) == 0 {
+		return client.Send(new(protocol.EmptyQueryResponse))
+	}
 	for _, cmd := range parsed {
-		switch strings.ToLower(cmd.Command) {
-		case "show":
-			if len(cmd.Arguments) < 1 {
-				return errors.New("usage: show [item]")
-			}
-
-			switch strings.ToLower(cmd.Arguments[0]) {
-			case "stats":
-				err = c.pool.showStats(client, true, true)
-			case "stats_totals":
-				err = c.pool.showStats(client, true, false)
-			case "stats_averages":
-				err = c.pool.showStats(client, false, true)
-			case "totals":
-				err = c.pool.showTotals(client)
-			case "servers":
-			case "clients":
-			case "pools":
-			case "lists":
-			case "users":
-			case "databases":
-			case "fds":
-			case "sockets", "active_sockets":
-			case "config":
-			case "mem":
-			case "dns_hosts":
-			case "dns_zones":
-			case "version":
-
-			default:
-				return errors.New("unknown command")
-			}
-		case "pause":
-		case "disable":
-		case "enable":
-		case "reconnect":
-		case "kill":
-		case "suspend":
-		case "resume":
-		case "shutdown":
-		case "reload":
-		case "wait_close":
-		case "set":
-		default:
+		var matched bool
+		err, matched = c.pool.r.Call(client, append([]string{cmd.Command}, cmd.Arguments...))
+		if !matched {
 			return errors.New("unknown command")
 		}
-
 		if err != nil {
 			return err
 		}
