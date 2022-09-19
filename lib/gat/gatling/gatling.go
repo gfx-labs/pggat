@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/gat/admin"
+	"gfx.cafe/gfx/pggat/lib/gat/database"
+	"gfx.cafe/gfx/pggat/lib/gat/gatling/server"
 	"io"
 	"net"
 	"sync"
 
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/client"
-	"gfx.cafe/gfx/pggat/lib/gat/gatling/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
 
 	"git.tuxpa.in/a/zlog/log"
@@ -26,18 +27,18 @@ type Gatling struct {
 	// channel that new config are delivered
 	chConfig chan *config.Global
 
-	pools   map[string]gat.Pool
+	pools   map[string]gat.Database
 	clients map[gat.ClientID]gat.Client
 }
 
 func NewGatling(conf *config.Global) *Gatling {
 	g := &Gatling{
 		chConfig: make(chan *config.Global, 1),
-		pools:    make(map[string]gat.Pool),
+		pools:    make(map[string]gat.Database),
 		clients:  make(map[gat.ClientID]gat.Client),
 	}
 	// add admin pool
-	adminPool := admin.NewPool(g)
+	adminPool := admin.New(g)
 	g.pools["pgbouncer"] = adminPool
 	g.pools["pggat"] = adminPool
 
@@ -67,7 +68,7 @@ func (g *Gatling) GetConfig() *config.Global {
 	return g.c
 }
 
-func (g *Gatling) GetPool(name string) gat.Pool {
+func (g *Gatling) GetDatabase(name string) gat.Database {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	srv, ok := g.pools[name]
@@ -77,7 +78,7 @@ func (g *Gatling) GetPool(name string) gat.Pool {
 	return srv
 }
 
-func (g *Gatling) GetPools() map[string]gat.Pool {
+func (g *Gatling) GetDatabases() map[string]gat.Database {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	return g.pools
@@ -139,7 +140,7 @@ func (g *Gatling) ensurePools(c *config.Global) error {
 		if existing, ok := g.pools[name]; ok {
 			existing.EnsureConfig(p)
 		} else {
-			g.pools[name] = pool.NewPool(p)
+			g.pools[name] = database.New(server.Dial, p)
 		}
 	}
 	return nil
@@ -178,12 +179,12 @@ func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) error {
 	func() {
 		g.mu.Lock()
 		defer g.mu.Unlock()
-		g.clients[cl.Id()] = cl
+		g.clients[cl.GetId()] = cl
 	}()
 	defer func() {
 		g.mu.Lock()
 		defer g.mu.Unlock()
-		delete(g.clients, cl.Id())
+		delete(g.clients, cl.GetId())
 	}()
 
 	err := cl.Accept(ctx)

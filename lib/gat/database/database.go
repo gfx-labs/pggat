@@ -1,37 +1,41 @@
-package pool
+package database
 
 import (
-	"gfx.cafe/gfx/pggat/lib/gat/gatling/pool/conn_pool"
-	"gfx.cafe/gfx/pggat/lib/gat/gatling/pool/query_router"
+	"gfx.cafe/gfx/pggat/lib/gat/database/query_router"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/session"
 	"sync"
 
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 )
 
-type Pool struct {
+type Database struct {
 	c         *config.Pool
 	users     map[string]config.User
-	connPools map[string]gat.ConnectionPool
+	connPools map[string]gat.Pool
 
 	stats *gat.PoolStats
 
 	router *query_router.QueryRouter
 
+	dialer gat.Dialer
+
 	mu sync.RWMutex
 }
 
-func NewPool(conf *config.Pool) *Pool {
-	pool := &Pool{
-		connPools: make(map[string]gat.ConnectionPool),
+func New(dialer gat.Dialer, conf *config.Pool) *Database {
+	pool := &Database{
+		connPools: make(map[string]gat.Pool),
 		stats:     gat.NewPoolStats(),
 		router:    query_router.DefaultRouter,
+
+		dialer: dialer,
 	}
 	pool.EnsureConfig(conf)
 	return pool
 }
 
-func (p *Pool) EnsureConfig(conf *config.Pool) {
+func (p *Database) EnsureConfig(conf *config.Pool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.c = conf
@@ -45,12 +49,12 @@ func (p *Pool) EnsureConfig(conf *config.Pool) {
 			existing.EnsureConfig(conf)
 		} else {
 			u := user
-			p.connPools[name] = conn_pool.NewConnectionPool(p, conf, &u)
+			p.connPools[name] = session.New(p, p.dialer, conf, &u)
 		}
 	}
 }
 
-func (p *Pool) GetUser(name string) *config.User {
+func (p *Database) GetUser(name string) *config.User {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	user, ok := p.users[name]
@@ -60,11 +64,11 @@ func (p *Pool) GetUser(name string) *config.User {
 	return &user
 }
 
-func (p *Pool) GetRouter() gat.QueryRouter {
+func (p *Database) GetRouter() gat.QueryRouter {
 	return p.router
 }
 
-func (p *Pool) WithUser(name string) gat.ConnectionPool {
+func (p *Database) WithUser(name string) gat.Pool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	pool, ok := p.connPools[name]
@@ -74,10 +78,10 @@ func (p *Pool) WithUser(name string) gat.ConnectionPool {
 	return pool
 }
 
-func (p *Pool) ConnectionPools() []gat.ConnectionPool {
+func (p *Database) GetPools() []gat.Pool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	out := make([]gat.ConnectionPool, len(p.connPools))
+	out := make([]gat.Pool, len(p.connPools))
 	idx := 0
 	for _, v := range p.connPools {
 		out[idx] = v
@@ -86,8 +90,8 @@ func (p *Pool) ConnectionPools() []gat.ConnectionPool {
 	return out
 }
 
-func (p *Pool) GetStats() *gat.PoolStats {
+func (p *Database) GetStats() *gat.PoolStats {
 	return p.stats
 }
 
-var _ gat.Pool = (*Pool)(nil)
+var _ gat.Database = (*Database)(nil)

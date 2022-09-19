@@ -76,7 +76,7 @@ type Client struct {
 	requestTime time.Time
 	connectTime time.Time
 
-	server gat.ConnectionPool
+	server gat.Pool
 
 	poolName string
 	username string
@@ -128,7 +128,7 @@ func (c *Client) GetRemotePid() int {
 	return int(c.pid)
 }
 
-func (c *Client) GetConnectionPool() gat.ConnectionPool {
+func (c *Client) GetConnectionPool() gat.Pool {
 	return c.server
 }
 
@@ -181,7 +181,7 @@ func NewClient(
 	return c
 }
 
-func (c *Client) Id() gat.ClientID {
+func (c *Client) GetId() gat.ClientID {
 	return gat.ClientID{
 		PID:       c.pid,
 		SecretKey: c.secretKey,
@@ -325,7 +325,7 @@ func (c *Client) Accept(ctx context.Context) error {
 		}
 	}
 
-	pool := c.gatling.GetPool(c.poolName)
+	pool := c.gatling.GetDatabase(c.poolName)
 	if pool == nil {
 		return fmt.Errorf("pool '%s' not found", c.poolName)
 	}
@@ -362,6 +362,7 @@ func (c *Client) Accept(ctx context.Context) error {
 	if c.server == nil {
 		return fmt.Errorf("no pool for '%s'", c.username)
 	}
+	defer c.server.OnDisconnect(c)
 
 	authOk := new(protocol.Authentication)
 	authOk.Fields.Code = 0
@@ -400,7 +401,7 @@ func (c *Client) Accept(ctx context.Context) error {
 		}
 		open, err = c.tick(ctx)
 		// add send and recv to pool
-		stats := c.server.GetPool().GetStats()
+		stats := c.server.GetDatabase().GetStats()
 		if stats != nil {
 			stats.AddTotalSent(c.wr.BytesWritten.Swap(0))
 			stats.AddTotalReceived(c.r.BytesRead.Swap(0))

@@ -1,11 +1,11 @@
-package conn_pool
+package transaction
 
 import (
 	"context"
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
-	"gfx.cafe/gfx/pggat/lib/gat/gatling/pool/conn_pool/shard"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/transaction/shard"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
 	"math/rand"
@@ -13,19 +13,19 @@ import (
 	"time"
 )
 
-// a single use worker with an embedded connection pool.
-// it wraps a pointer to the connection pool.
+// a single use worker with an embedded connection database.
+// it wraps a pointer to the connection database.
 type worker struct {
-	// the parent connectino pool
-	w   *ConnectionPool
+	// the parent connectino database
+	w   *Pool
 	rev int
 
-	shards []gat.Shard
+	shards []*shard.Shard
 
 	mu sync.Mutex
 }
 
-// ret urn worker to pool
+// ret urn worker to database
 func (w *worker) ret() {
 	w.w.workerPool <- w
 }
@@ -41,7 +41,7 @@ func (w *worker) fetchShard(n int) bool {
 		w.shards = append(w.shards, nil)
 	}
 
-	w.shards[n] = shard.FromConfig(w.w.user, conf.Shards[n])
+	w.shards[n] = shard.FromConfig(w.w.dialer, w.w.user, conf.Shards[n])
 	return true
 }
 
@@ -52,7 +52,7 @@ func (w *worker) invalidateShard(n int) {
 	w.shards[n] = nil
 }
 
-func (w *worker) chooseShard(client gat.Client) gat.Shard {
+func (w *worker) chooseShard(client gat.Client) *shard.Shard {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -164,7 +164,7 @@ func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query stri
 
 	start := time.Now()
 	defer func() {
-		w.w.pool.GetStats().AddQueryTime(time.Now().Sub(start).Microseconds())
+		w.w.database.GetStats().AddQueryTime(time.Now().Sub(start).Microseconds())
 	}()
 
 	errch := make(chan error)
@@ -190,7 +190,7 @@ func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query stri
 
 	start := time.Now()
 	defer func() {
-		w.w.pool.GetStats().AddXactTime(time.Now().Sub(start).Microseconds())
+		w.w.database.GetStats().AddXactTime(time.Now().Sub(start).Microseconds())
 	}()
 
 	errch := make(chan error)
@@ -262,7 +262,7 @@ func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, p
 		}
 	}
 
-	which, err := w.w.pool.GetRouter().InferRole(ps.Fields.Query)
+	which, err := w.w.database.GetRouter().InferRole(ps.Fields.Query)
 	if err != nil {
 		return err
 	}
@@ -299,7 +299,7 @@ func (w *worker) z_actually_do_simple_query(ctx context.Context, client gat.Clie
 		return fmt.Errorf("call to query '%s' failed", payload)
 	}
 	// run the query on the server
-	which, err := w.w.pool.GetRouter().InferRole(payload)
+	which, err := w.w.database.GetRouter().InferRole(payload)
 	if err != nil {
 		return fmt.Errorf("error parsing '%s': %w", payload, err)
 	}
@@ -324,7 +324,7 @@ func (w *worker) z_actually_do_transaction(ctx context.Context, client gat.Clien
 		return fmt.Errorf("call to transaction '%s' failed", payload)
 	}
 	// run the query on the server
-	which, err := w.w.pool.GetRouter().InferRole(payload)
+	which, err := w.w.database.GetRouter().InferRole(payload)
 	if err != nil {
 		return fmt.Errorf("error parsing '%s': %w", payload, err)
 	}
