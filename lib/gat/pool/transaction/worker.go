@@ -1,30 +1,31 @@
-package conn_pool
+package transaction
 
 import (
 	"context"
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
-	"gfx.cafe/gfx/pggat/lib/gat/gatling/pool/conn_pool/shard"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/transaction/shard"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
+	"math/rand"
 	"sync"
 	"time"
 )
 
-// a single use worker with an embedded connection pool.
-// it wraps a pointer to the connection pool.
+// a single use worker with an embedded connection database.
+// it wraps a pointer to the connection database.
 type worker struct {
-	// the parent connectino pool
-	w   *ConnectionPool
+	// the parent connectino database
+	w   *Pool
 	rev int
 
-	shards []gat.Shard
+	shards []*shard.Shard
 
 	mu sync.Mutex
 }
 
-// ret urn worker to pool
+// ret urn worker to database
 func (w *worker) ret() {
 	w.w.workerPool <- w
 }
@@ -40,7 +41,7 @@ func (w *worker) fetchShard(n int) bool {
 		w.shards = append(w.shards, nil)
 	}
 
-	w.shards[n] = shard.FromConfig(w.w.user, conf.Shards[n])
+	w.shards[n] = shard.FromConfig(w.w.dialer, w.w.user, conf.Shards[n])
 	return true
 }
 
@@ -51,51 +52,41 @@ func (w *worker) invalidateShard(n int) {
 	w.shards[n] = nil
 }
 
-func (w *worker) anyShard() gat.Shard {
+func (w *worker) chooseShard(client gat.Client) *shard.Shard {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	conf := w.w.c.Load()
 
-	for idx, s := range w.shards {
-		if s != nil {
-			s.EnsureConfig(conf.Shards[idx])
-			return s
+	preferred := rand.Intn(len(conf.Shards))
+	if client != nil {
+		if p, ok := client.GetRequestedShard(); ok {
+			preferred = p % len(conf.Shards)
+		}
+
+		key := client.GetShardingKey()
+		if key != "" {
+			// do sharding function on key TODO
 		}
 	}
 
+	if preferred < len(w.shards) && w.shards[preferred] != nil {
+		w.shards[preferred].EnsureConfig(conf.Shards[preferred])
+		return w.shards[preferred]
+	}
+
 	// we need to fetch a shard
-	if w.fetchShard(0) {
-		return w.shards[0]
+	if w.fetchShard(preferred) {
+		return w.shards[preferred]
 	}
 
 	return nil
 }
 
-func (w *worker) chooseShardDescribe(client gat.Client, payload *protocol.Describe) gat.Shard {
-	return w.anyShard() // TODO
-}
-
-func (w *worker) chooseShardExecute(client gat.Client, payload *protocol.Execute) gat.Shard {
-	return w.anyShard() // TODO
-}
-
-func (w *worker) chooseShardFn(client gat.Client, fn *protocol.FunctionCall) gat.Shard {
-	return w.anyShard() // TODO
-}
-
-func (w *worker) chooseShardSimpleQuery(client gat.Client, payload string) gat.Shard {
-	return w.anyShard() // TODO
-}
-
-func (w *worker) chooseShardTransaction(client gat.Client, payload string) gat.Shard {
-	return w.anyShard() // TODO
-}
-
 func (w *worker) GetServerInfo() []*protocol.ParameterStatus {
 	defer w.ret()
 
-	s := w.anyShard()
+	s := w.chooseShard(nil)
 	if s == nil {
 		return nil
 	}
@@ -173,7 +164,7 @@ func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query stri
 
 	start := time.Now()
 	defer func() {
-		w.w.pool.GetStats().AddQueryTime(int(time.Now().Sub(start).Microseconds()))
+		w.w.database.GetStats().AddQueryTime(time.Now().Sub(start).Microseconds())
 	}()
 
 	errch := make(chan error)
@@ -199,7 +190,7 @@ func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query stri
 
 	start := time.Now()
 	defer func() {
-		w.w.pool.GetStats().AddXactTime(int(time.Now().Sub(start).Microseconds()))
+		w.w.database.GetStats().AddXactTime(time.Now().Sub(start).Microseconds())
 	}()
 
 	errch := make(chan error)
@@ -231,7 +222,7 @@ func (w *worker) unsetCurrentBinding(client gat.Client, server gat.Connection) {
 }
 
 func (w *worker) z_actually_do_describe(ctx context.Context, client gat.Client, payload *protocol.Describe) error {
-	srv := w.chooseShardDescribe(client, payload)
+	srv := w.chooseShard(client)
 	if srv == nil {
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
 	}
@@ -247,7 +238,7 @@ func (w *worker) z_actually_do_describe(ctx context.Context, client gat.Client, 
 	return target.Describe(client, payload)
 }
 func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, payload *protocol.Execute) error {
-	srv := w.chooseShardExecute(client, payload)
+	srv := w.chooseShard(client)
 	if srv == nil {
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
 	}
@@ -271,7 +262,7 @@ func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, p
 		}
 	}
 
-	which, err := w.w.pool.GetRouter().InferRole(ps.Fields.Query)
+	which, err := w.w.database.GetRouter().InferRole(ps.Fields.Query)
 	if err != nil {
 		return err
 	}
@@ -284,7 +275,7 @@ func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, p
 	return target.Execute(client, payload)
 }
 func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
-	srv := w.chooseShardFn(client, payload)
+	srv := w.chooseShard(client)
 	if srv == nil {
 		return fmt.Errorf("fn('%+v') fail: no server", payload)
 	}
@@ -303,12 +294,12 @@ func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payloa
 }
 func (w *worker) z_actually_do_simple_query(ctx context.Context, client gat.Client, payload string) error {
 	// chose a server
-	srv := w.chooseShardSimpleQuery(client, payload)
+	srv := w.chooseShard(client)
 	if srv == nil {
 		return fmt.Errorf("call to query '%s' failed", payload)
 	}
 	// run the query on the server
-	which, err := w.w.pool.GetRouter().InferRole(payload)
+	which, err := w.w.database.GetRouter().InferRole(payload)
 	if err != nil {
 		return fmt.Errorf("error parsing '%s': %w", payload, err)
 	}
@@ -328,12 +319,12 @@ func (w *worker) z_actually_do_simple_query(ctx context.Context, client gat.Clie
 }
 func (w *worker) z_actually_do_transaction(ctx context.Context, client gat.Client, payload string) error {
 	// chose a server
-	srv := w.chooseShardTransaction(client, payload)
+	srv := w.chooseShard(client)
 	if srv == nil {
 		return fmt.Errorf("call to transaction '%s' failed", payload)
 	}
 	// run the query on the server
-	which, err := w.w.pool.GetRouter().InferRole(payload)
+	which, err := w.w.database.GetRouter().InferRole(payload)
 	if err != nil {
 		return fmt.Errorf("error parsing '%s': %w", payload, err)
 	}

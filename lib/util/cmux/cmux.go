@@ -7,33 +7,80 @@ import (
 	"github.com/looplab/fsm"
 )
 
-type Mux[T any] interface {
-	Register([]string, func([]string) T)
-	Call([]string) T
+type Mux[IN, OUT any] interface {
+	Register([]string, func(IN, []string) OUT)
+	Call(IN, []string) (OUT, bool)
 }
 
-type funcSet[T any] struct {
+type MapMux[IN, OUT any] struct {
+	sub map[string]*MapMux[IN, OUT]
+	fn  func(IN, []string) OUT
+}
+
+func NewMapMux[IN, OUT any]() *MapMux[IN, OUT] {
+	return &MapMux[IN, OUT]{
+		sub: make(map[string]*MapMux[IN, OUT]),
+	}
+}
+
+func (m *MapMux[IN, OUT]) Register(path []string, fn func(IN, []string) OUT) {
+	mux := m
+	for {
+		if len(path) == 0 {
+			mux.fn = fn
+			return
+		}
+
+		var ok bool
+		if _, ok = mux.sub[path[0]]; !ok {
+			mux.sub[path[0]] = NewMapMux[IN, OUT]()
+		}
+		mux = mux.sub[path[0]]
+		path = path[1:]
+	}
+}
+
+func (m *MapMux[IN, OUT]) Call(arg IN, path []string) (o OUT, exists bool) {
+	mux := m
+	for {
+		if len(path) != 0 {
+			if sub, ok := mux.sub[path[0]]; ok {
+				mux = sub
+				path = path[1:]
+				continue
+			}
+		}
+
+		if mux.fn != nil {
+			o = mux.fn(arg, path)
+			exists = true
+		}
+		return
+	}
+}
+
+type funcSet[IN, OUT any] struct {
 	Ref  []string
-	Call func([]string) T
+	Call func(IN, []string) OUT
 }
 
-type FsmMux[T any] struct {
+type FsmMux[IN, OUT any] struct {
 	f     *fsm.FSM
-	funcs map[string]funcSet[T]
+	funcs map[string]funcSet[IN, OUT]
 
 	sync.RWMutex
 }
 
-func (f *FsmMux[T]) Register(path []string, fn func([]string) T) {
+func (f *FsmMux[IN, OUT]) Register(path []string, fn func(IN, []string) OUT) {
 	execkey := strings.Join(path, "|")
-	f.funcs[execkey] = funcSet[T]{
+	f.funcs[execkey] = funcSet[IN, OUT]{
 		Ref:  path,
 		Call: fn,
 	}
 	f.construct()
 }
 
-func (f *FsmMux[T]) construct() {
+func (f *FsmMux[IN, OUT]) construct() {
 	evts := fsm.Events{}
 	cbs := fsm.Callbacks{}
 	for _, fset := range f.funcs {
@@ -66,8 +113,8 @@ func (f *FsmMux[T]) construct() {
 	f.f = fsm.NewFSM("_", evts, cbs)
 }
 
-func (f *FsmMux[T]) Call(k []string) T {
-	fn := f.funcs[""].Call
+func (f *FsmMux[IN, OUT]) Call(arg IN, k []string) (r OUT, matched bool) {
+	var fn func(IN, []string) OUT
 	args := k
 	path := k
 	lp := len(path)
@@ -96,17 +143,16 @@ func (f *FsmMux[T]) Call(k []string) T {
 		}
 		f.Unlock()
 	}
-	return fn(args)
+	if fn != nil {
+		r = fn(arg, args)
+		matched = true
+	}
+	return
 }
 
-func NewFsmMux[T any]() Mux[T] {
-	o := &FsmMux[T]{
-		funcs: map[string]funcSet[T]{
-			"": {
-				Ref:  []string{},
-				Call: func([]string) T { return *new(T) },
-			},
-		},
+func NewFsmMux[IN, OUT any]() Mux[IN, OUT] {
+	o := &FsmMux[IN, OUT]{
+		funcs: map[string]funcSet[IN, OUT]{},
 	}
 	return o
 }

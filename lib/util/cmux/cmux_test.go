@@ -6,18 +6,18 @@ import (
 )
 
 func TestFsm(t *testing.T) {
-	m := NewFsmMux[error]()
+	m := NewFsmMux[any, error]()
 
-	m.Register([]string{"set", "shard", "to"}, func(s []string) error {
+	m.Register([]string{"set", "shard", "to"}, func(_ any, s []string) error {
 		log.Println(s)
 		return nil
 	})
-	m.Register([]string{"set", "sharding", "key", "to"}, func(s []string) error {
+	m.Register([]string{"set", "sharding", "key", "to"}, func(_ any, s []string) error {
 		log.Println(s)
 		return nil
 	})
 
-	m.Call([]string{"set", "shard", "to", "doggo", "wow", "this", "works"})
-	m.Call([]string{"set", "sharding", "key", "to", "doggo", "wow", "this", "works2"})
+	m.Call(nil, []string{"set", "shard", "to", "doggo", "wow", "this", "works"})
+	m.Call(nil, []string{"set", "sharding", "key", "to", "doggo", "wow", "this", "works2"})
 
 }

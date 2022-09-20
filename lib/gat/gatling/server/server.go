@@ -57,38 +57,33 @@ type Server struct {
 	mu sync.Mutex
 }
 
-func Dial(ctx context.Context,
-	addr string,
-	port uint16,
-	user *config.User,
-	db string, dbuser string, dbpass string,
-) (*Server, error) {
+func Dial(ctx context.Context, user *config.User, shard *config.Shard, server *config.Server) (gat.Connection, error) {
 	s := &Server{
-		addr: addr,
-		port: port,
+		addr: server.Host,
+		port: server.Port,
 
 		state: gat.ConnectionNew,
 
 		boundPreparedStatments: make(map[string]*protocol.Parse),
 		boundPortals:           make(map[string]*protocol.Bind),
 
-		dbuser: dbuser,
-		dbpass: dbpass,
+		dbuser: server.Username,
+		dbpass: server.Password,
 	}
 	var err error
-	s.conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", addr, port))
+	s.conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", server.Host, server.Port))
 	if err != nil {
 		return nil, err
 	}
 	s.r = bufio.NewReader(s.conn)
 	s.wr = bufio.NewWriter(s.conn)
 	s.user = *user
-	s.db = db
+	s.db = shard.Database
 
 	s.log = log.With().
 		Stringer("addr", s.conn.RemoteAddr()).
 		Str("user", user.Name).
-		Str("db", db).
+		Str("db", shard.Database).
 		Logger()
 	return s, s.connect(ctx)
 }

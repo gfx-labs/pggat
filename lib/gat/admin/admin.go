@@ -6,11 +6,11 @@ import (
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/parse"
-	"strings"
+	"gfx.cafe/gfx/pggat/lib/util/cmux"
 	"time"
 )
 
-// The admin database, implemented through the gat.Pool interface, allowing it to be added to any existing Gat
+// The admin database, implemented through the gat.Database interface, allowing it to be added to any existing Gat
 
 import (
 	"context"
@@ -74,12 +74,112 @@ func getAdminUser(g gat.Gat) *config.User {
 	}
 }
 
-type Pool struct {
+type Database struct {
 	gat      gat.Gat
-	connPool *ConnectionPool
+	connPool *Pool
+
+	r cmux.Mux[gat.Client, error]
 }
 
-func (p *Pool) showStats(client gat.Client, totals, averages bool) error {
+func New(g gat.Gat) *Database {
+	out := &Database{
+		gat: g,
+	}
+	out.connPool = &Pool{
+		database: out,
+	}
+	out.r = cmux.NewMapMux[gat.Client, error]()
+	out.r.Register([]string{"show", "stats_totals"}, func(client gat.Client, _ []string) error {
+		return out.showStats(client, true, false)
+	})
+	out.r.Register([]string{"show", "stats_averages"}, func(client gat.Client, _ []string) error {
+		return out.showStats(client, false, true)
+	})
+	out.r.Register([]string{"show", "stats"}, func(client gat.Client, _ []string) error {
+		return out.showStats(client, true, true)
+	})
+	out.r.Register([]string{"show", "totals"}, func(client gat.Client, _ []string) error {
+		return out.showTotals(client)
+	})
+	out.r.Register([]string{"show", "servers"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "clients"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "pools"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "lists"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "users"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "databases"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "fds"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "sockets"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "active_sockets"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "config"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "mem"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "dns_hosts"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "dns_zones"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"show", "version"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"pause"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"disable"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"enable"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"reconnect"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"kill"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"suspend"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"resume"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"shutdown"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"reload"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"wait_close"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	out.r.Register([]string{"set"}, func(_ gat.Client, _ []string) error {
+		return nil
+	})
+	return out
+}
+
+func (p *Database) showStats(client gat.Client, totals, averages bool) error {
 	rowDesc := new(protocol.RowDescription)
 	rowDesc.Fields.Fields = []protocol.FieldsRowDescriptionFields{
 		{
@@ -183,7 +283,7 @@ func (p *Pool) showStats(client gat.Client, totals, averages bool) error {
 	if err != nil {
 		return err
 	}
-	for name, pl := range p.gat.GetPools() {
+	for name, pl := range p.gat.GetDatabases() {
 		stats := pl.GetStats()
 		if stats == nil {
 			continue
@@ -250,7 +350,7 @@ func (p *Pool) showStats(client gat.Client, totals, averages bool) error {
 	return nil
 }
 
-func (p *Pool) showTotals(client gat.Client) error {
+func (p *Database) showTotals(client gat.Client) error {
 	rowDesc := new(protocol.RowDescription)
 	rowDesc.Fields.Fields = []protocol.FieldsRowDescriptionFields{
 		{
@@ -343,10 +443,10 @@ func (p *Pool) showTotals(client gat.Client) error {
 		return err
 	}
 
-	var totalXactCount, totalQueryCount, totalWaitCount, totalReceived, totalSent, totalXactTime, totalQueryTime, totalWaitTime int
+	var totalXactCount, totalQueryCount, totalWaitCount, totalReceived, totalSent, totalXactTime, totalQueryTime, totalWaitTime int64
 	var alive time.Duration
 
-	for _, pl := range p.gat.GetPools() {
+	for _, pl := range p.gat.GetDatabases() {
 		stats := pl.GetStats()
 		if stats == nil {
 			continue
@@ -423,17 +523,7 @@ func (p *Pool) showTotals(client gat.Client) error {
 	return client.Send(row)
 }
 
-func NewPool(g gat.Gat) *Pool {
-	out := &Pool{
-		gat: g,
-	}
-	out.connPool = &ConnectionPool{
-		pool: out,
-	}
-	return out
-}
-
-func (p *Pool) GetUser(name string) *config.User {
+func (p *Database) GetUser(name string) *config.User {
 	u := getAdminUser(p.gat)
 	if name != u.Name {
 		return nil
@@ -441,11 +531,11 @@ func (p *Pool) GetUser(name string) *config.User {
 	return u
 }
 
-func (p *Pool) GetRouter() gat.QueryRouter {
+func (p *Database) GetRouter() gat.QueryRouter {
 	return nil
 }
 
-func (p *Pool) WithUser(name string) gat.ConnectionPool {
+func (p *Database) WithUser(name string) gat.Pool {
 	conf := p.gat.GetConfig()
 	if name != conf.General.AdminUsername {
 		return nil
@@ -453,108 +543,66 @@ func (p *Pool) WithUser(name string) gat.ConnectionPool {
 	return p.connPool
 }
 
-func (p *Pool) ConnectionPools() []gat.ConnectionPool {
-	return []gat.ConnectionPool{
+func (p *Database) GetPools() []gat.Pool {
+	return []gat.Pool{
 		p.connPool,
 	}
 }
 
-func (p *Pool) GetStats() *gat.PoolStats {
+func (p *Database) GetStats() *gat.PoolStats {
 	return nil
 }
 
-func (p *Pool) EnsureConfig(c *config.Pool) {
+func (p *Database) EnsureConfig(c *config.Pool) {
 	// TODO
 }
 
-var _ gat.Pool = (*Pool)(nil)
+var _ gat.Database = (*Database)(nil)
 
-type ConnectionPool struct {
-	pool *Pool
+type Pool struct {
+	database *Database
 }
 
-func (c *ConnectionPool) GetUser() *config.User {
-	return getAdminUser(c.pool.gat)
+func (c *Pool) GetUser() *config.User {
+	return getAdminUser(c.database.gat)
 }
 
-func (c *ConnectionPool) GetServerInfo() []*protocol.ParameterStatus {
-	return getServerInfo(c.pool.gat)
+func (c *Pool) GetServerInfo() []*protocol.ParameterStatus {
+	return getServerInfo(c.database.gat)
 }
 
-func (c *ConnectionPool) GetPool() gat.Pool {
-	return c.pool
+func (c *Pool) GetDatabase() gat.Database {
+	return c.database
 }
 
-func (c *ConnectionPool) GetShards() []gat.Shard {
-	// this db is within gat, there are no shards
-	return nil
-}
-
-func (c *ConnectionPool) EnsureConfig(conf *config.Pool) {
+func (c *Pool) EnsureConfig(conf *config.Pool) {
 	// TODO
 }
 
-func (c *ConnectionPool) Describe(ctx context.Context, client gat.Client, describe *protocol.Describe) error {
+func (c *Pool) OnDisconnect(_ gat.Client) {}
+
+func (c *Pool) Describe(ctx context.Context, client gat.Client, describe *protocol.Describe) error {
 	return errors.New("describe not implemented")
 }
 
-func (c *ConnectionPool) Execute(ctx context.Context, client gat.Client, execute *protocol.Execute) error {
+func (c *Pool) Execute(ctx context.Context, client gat.Client, execute *protocol.Execute) error {
 	return errors.New("execute not implemented")
 }
 
-func (c *ConnectionPool) SimpleQuery(ctx context.Context, client gat.Client, query string) error {
+func (c *Pool) SimpleQuery(ctx context.Context, client gat.Client, query string) error {
 	parsed, err := parse.Parse(query)
 	if err != nil {
 		return err
 	}
+	if len(parsed) == 0 {
+		return client.Send(new(protocol.EmptyQueryResponse))
+	}
 	for _, cmd := range parsed {
-		switch strings.ToLower(cmd.Command) {
-		case "show":
-			if len(cmd.Arguments) < 1 {
-				return errors.New("usage: show [item]")
-			}
-
-			switch strings.ToLower(cmd.Arguments[0]) {
-			case "stats":
-				err = c.pool.showStats(client, true, true)
-			case "stats_totals":
-				err = c.pool.showStats(client, true, false)
-			case "stats_averages":
-				err = c.pool.showStats(client, false, true)
-			case "totals":
-				err = c.pool.showTotals(client)
-			case "servers":
-			case "clients":
-			case "pools":
-			case "lists":
-			case "users":
-			case "databases":
-			case "fds":
-			case "sockets", "active_sockets":
-			case "config":
-			case "mem":
-			case "dns_hosts":
-			case "dns_zones":
-			case "version":
-
-			default:
-				return errors.New("unknown command")
-			}
-		case "pause":
-		case "disable":
-		case "enable":
-		case "reconnect":
-		case "kill":
-		case "suspend":
-		case "resume":
-		case "shutdown":
-		case "reload":
-		case "wait_close":
-		case "set":
-		default:
+		var matched bool
+		err, matched = c.database.r.Call(client, append([]string{cmd.Command}, cmd.Arguments...))
+		if !matched {
 			return errors.New("unknown command")
 		}
-
 		if err != nil {
 			return err
 		}
@@ -568,12 +616,12 @@ func (c *ConnectionPool) SimpleQuery(ctx context.Context, client gat.Client, que
 	return nil
 }
 
-func (c *ConnectionPool) Transaction(ctx context.Context, client gat.Client, query string) error {
+func (c *Pool) Transaction(ctx context.Context, client gat.Client, query string) error {
 	return errors.New("transactions not implemented")
 }
 
-func (c *ConnectionPool) CallFunction(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
+func (c *Pool) CallFunction(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
 	return errors.New("functions not implemented")
 }
 
-var _ gat.ConnectionPool = (*ConnectionPool)(nil)
+var _ gat.Pool = (*Pool)(nil)

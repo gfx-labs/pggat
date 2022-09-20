@@ -21,12 +21,14 @@ const (
 )
 
 type Client interface {
+	GetId() ClientID
+
 	GetPreparedStatement(name string) *protocol.Parse
 	GetPortal(name string) *protocol.Bind
 	GetCurrentConn() Connection
 	SetCurrentConn(conn Connection)
 
-	GetConnectionPool() ConnectionPool
+	GetConnectionPool() Pool
 
 	GetState() ClientState
 	GetAddress() net.Addr
@@ -34,6 +36,13 @@ type Client interface {
 	GetConnectTime() time.Time
 	GetRequestTime() time.Time
 	GetRemotePid() int
+
+	// sharding
+	SetRequestedShard(shard int)
+	UnsetRequestedShard()
+	GetRequestedShard() (int, bool)
+	SetShardingKey(key string)
+	GetShardingKey() string
 
 	Send(pkt protocol.Packet) error
 	Flush() error
@@ -43,18 +52,18 @@ type Client interface {
 type Gat interface {
 	GetVersion() string
 	GetConfig() *config.Global
-	GetPool(name string) Pool
-	GetPools() map[string]Pool
+	GetDatabase(name string) Database
+	GetDatabases() map[string]Database
 	GetClient(id ClientID) Client
 	GetClients() []Client
 }
 
-type Pool interface {
+type Database interface {
 	GetUser(name string) *config.User
 	GetRouter() QueryRouter
 
-	WithUser(name string) ConnectionPool
-	ConnectionPools() []ConnectionPool
+	WithUser(name string) Pool
+	GetPools() []Pool
 
 	GetStats() *PoolStats
 
@@ -63,15 +72,19 @@ type Pool interface {
 
 type QueryRouter interface {
 	InferRole(query string) (config.ServerRole, error)
+	// TryHandle the client's query string. If we handled it, return true
+	TryHandle(client Client, query string) (bool, error)
 }
 
-type ConnectionPool interface {
+type Pool interface {
 	GetUser() *config.User
 	GetServerInfo() []*protocol.ParameterStatus
 
-	GetPool() Pool
+	GetDatabase() Database
 
 	EnsureConfig(c *config.Pool)
+
+	OnDisconnect(client Client)
 
 	// extended queries
 	Describe(ctx context.Context, client Client, describe *protocol.Describe) error
@@ -83,14 +96,6 @@ type ConnectionPool interface {
 	CallFunction(ctx context.Context, client Client, payload *protocol.FunctionCall) error
 }
 
-type Shard interface {
-	GetPrimary() Connection
-	GetReplicas() []Connection
-	Choose(role config.ServerRole) Connection
-
-	EnsureConfig(c *config.Shard)
-}
-
 type ConnectionState string
 
 const (
@@ -100,6 +105,8 @@ const (
 	ConnectionTested                 = "tested"
 	ConnectionNew                    = "new"
 )
+
+type Dialer = func(context.Context, *config.User, *config.Shard, *config.Server) (Connection, error)
 
 type Connection interface {
 	GetServerInfo() []*protocol.ParameterStatus
