@@ -6,6 +6,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"runtime"
+	"sync"
 	"sync/atomic"
 )
 
@@ -19,6 +20,8 @@ type Pool struct {
 	assigned map[gat.ClientID]gat.Connection
 
 	servers chan gat.Connection
+
+	mu sync.Mutex
 }
 
 func New(database gat.Database, dialer gat.Dialer, conf *config.Pool, user *config.User) *Pool {
@@ -52,6 +55,8 @@ func (p *Pool) returnConnection(c gat.Connection) {
 }
 
 func (p *Pool) getOrAssign(client gat.Client) gat.Connection {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	cid := client.GetId()
 	c, ok := p.assigned[cid]
 	if !ok {
@@ -71,6 +76,8 @@ func (p *Pool) EnsureConfig(c *config.Pool) {
 }
 
 func (p *Pool) OnDisconnect(client gat.Client) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	cid := client.GetId()
 	c, ok := p.assigned[cid]
 	if !ok {
