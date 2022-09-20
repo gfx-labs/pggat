@@ -5,8 +5,8 @@ import (
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"gfx.cafe/util/go/generic"
 	"runtime"
-	"sync"
 	"sync/atomic"
 )
 
@@ -17,11 +17,9 @@ type Pool struct {
 
 	dialer gat.Dialer
 
-	assigned map[gat.ClientID]gat.Connection
+	assigned generic.Map[gat.ClientID, gat.Connection]
 
 	servers chan gat.Connection
-
-	mu sync.Mutex
 }
 
 func New(database gat.Database, dialer gat.Dialer, conf *config.Pool, user *config.User) *Pool {
@@ -30,8 +28,6 @@ func New(database gat.Database, dialer gat.Dialer, conf *config.Pool, user *conf
 		database: database,
 
 		dialer: dialer,
-
-		assigned: make(map[gat.ClientID]gat.Connection),
 
 		servers: make(chan gat.Connection, 1+runtime.NumCPU()*4),
 	}
@@ -55,13 +51,11 @@ func (p *Pool) returnConnection(c gat.Connection) {
 }
 
 func (p *Pool) getOrAssign(client gat.Client) gat.Connection {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	cid := client.GetId()
-	c, ok := p.assigned[cid]
+	c, ok := p.assigned.Load(cid)
 	if !ok {
 		get := p.getConnection()
-		p.assigned[cid] = get
+		p.assigned.Store(cid, get)
 		return get
 	}
 	return c
@@ -76,14 +70,11 @@ func (p *Pool) EnsureConfig(c *config.Pool) {
 }
 
 func (p *Pool) OnDisconnect(client gat.Client) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	cid := client.GetId()
-	c, ok := p.assigned[cid]
+	c, ok := p.assigned.LoadAndDelete(cid)
 	if !ok {
 		return
 	}
-	delete(p.assigned, cid)
 	p.servers <- c
 }
 
