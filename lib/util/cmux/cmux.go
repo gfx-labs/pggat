@@ -39,7 +39,6 @@ func (f *FsmMux[T]) construct() {
 	for _, fset := range f.funcs {
 		path := fset.Ref
 		lp := len(path)
-
 		switch lp {
 		case 0:
 		case 1:
