@@ -3,6 +3,7 @@ package database
 import (
 	"gfx.cafe/gfx/pggat/lib/gat/database/query_router"
 	"gfx.cafe/gfx/pggat/lib/gat/pool/session"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/transaction"
 	"sync"
 
 	"gfx.cafe/gfx/pggat/lib/config"
@@ -49,7 +50,12 @@ func (p *Database) EnsureConfig(conf *config.Pool) {
 			existing.EnsureConfig(conf)
 		} else {
 			u := user
-			p.connPools[name] = session.New(p, p.dialer, conf, &u)
+			switch p.c.PoolMode {
+			case config.POOLMODE_SESSION:
+				p.connPools[name] = session.New(p, p.dialer, conf, &u)
+			case config.POOLMODE_TXN:
+				p.connPools[name] = transaction.New(p, p.dialer, conf, &u)
+			}
 		}
 	}
 }
