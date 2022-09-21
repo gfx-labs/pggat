@@ -102,6 +102,11 @@ func (r *reader) nextIdentifier() (string, error) {
 				return "", newUnexpectedCharacter(c)
 			}
 			start = r.p
+		case c == '/' && pre == start:
+			if r.nextMultiLineComment() != nil {
+				return "", newUnexpectedCharacter(c)
+			}
+			start = r.p
 		default:
 			return "", newUnexpectedCharacter(c)
 		}
