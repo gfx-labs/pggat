@@ -35,14 +35,13 @@ func New(database gat.Database, dialer gat.Dialer, conf *config.Pool, user *conf
 	return p
 }
 
-func (p *Pool) getConnection() gat.Connection {
+func (p *Pool) getConnection() (gat.Connection, error) {
 	select {
 	case c := <-p.servers:
-		return c
+		return c, nil
 	default:
 		shard := p.c.Load().Shards[0]
-		s, _ := p.dialer(context.TODO(), p.user, shard, shard.Servers[0])
-		return s
+		return p.dialer(context.TODO(), p.user, shard, shard.Servers[0])
 	}
 }
 
@@ -50,15 +49,18 @@ func (p *Pool) returnConnection(c gat.Connection) {
 	p.servers <- c
 }
 
-func (p *Pool) getOrAssign(client gat.Client) gat.Connection {
+func (p *Pool) getOrAssign(client gat.Client) (gat.Connection, error) {
 	cid := client.GetId()
 	c, ok := p.assigned.Load(cid)
 	if !ok {
-		get := p.getConnection()
+		get, err := p.getConnection()
+		if err != nil {
+			return nil, err
+		}
 		p.assigned.Store(cid, get)
-		return get
+		return get, err
 	}
-	return c
+	return c, nil
 }
 
 func (p *Pool) GetDatabase() gat.Database {
@@ -83,29 +85,52 @@ func (p *Pool) GetUser() *config.User {
 }
 
 func (p *Pool) GetServerInfo() []*protocol.ParameterStatus {
-	c := p.getConnection()
+	c, err := p.getConnection()
+	if err != nil {
+		return nil
+	}
 	defer p.returnConnection(c)
 	return c.GetServerInfo()
 }
 
 func (p *Pool) Describe(ctx context.Context, client gat.Client, describe *protocol.Describe) error {
-	return p.getOrAssign(client).Describe(client, describe)
+	c, err := p.getOrAssign(client)
+	if err != nil {
+		return err
+	}
+	return c.Describe(client, describe)
 }
 
 func (p *Pool) Execute(ctx context.Context, client gat.Client, execute *protocol.Execute) error {
-	return p.getOrAssign(client).Execute(client, execute)
+	c, err := p.getOrAssign(client)
+	if err != nil {
+		return err
+	}
+	return c.Execute(client, execute)
 }
 
 func (p *Pool) SimpleQuery(ctx context.Context, client gat.Client, query string) error {
-	return p.getOrAssign(client).SimpleQuery(ctx, client, query)
+	c, err := p.getOrAssign(client)
+	if err != nil {
+		return err
+	}
+	return c.SimpleQuery(ctx, client, query)
 }
 
 func (p *Pool) Transaction(ctx context.Context, client gat.Client, query string) error {
-	return p.getOrAssign(client).Transaction(ctx, client, query)
+	c, err := p.getOrAssign(client)
+	if err != nil {
+		return err
+	}
+	return c.Transaction(ctx, client, query)
 }
 
 func (p *Pool) CallFunction(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
-	return p.getOrAssign(client).CallFunction(client, payload)
+	c, err := p.getOrAssign(client)
+	if err != nil {
+		return err
+	}
+	return c.CallFunction(client, payload)
 }
 
 var _ gat.Pool = (*Pool)(nil)

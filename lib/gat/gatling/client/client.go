@@ -266,7 +266,7 @@ func (c *Client) Accept(ctx context.Context) error {
 	c.poolName, ok = params["database"]
 	if !ok {
 		return &pg_error.Error{
-			Severity: pg_error.Fatal,
+			Severity: pg_error.Err,
 			Code:     pg_error.InvalidAuthorizationSpecification,
 			Message:  "param database required",
 		}
@@ -275,7 +275,7 @@ func (c *Client) Accept(ctx context.Context) error {
 	c.username, ok = params["user"]
 	if !ok {
 		return &pg_error.Error{
-			Severity: pg_error.Fatal,
+			Severity: pg_error.Err,
 			Code:     pg_error.InvalidAuthorizationSpecification,
 			Message:  "param user required",
 		}
@@ -286,7 +286,7 @@ func (c *Client) Accept(ctx context.Context) error {
 	if c.conf.General.AdminOnly && !admin {
 		c.log.Debug().Msg("rejected non admin, since admin only mode")
 		return &pg_error.Error{
-			Severity: pg_error.Fatal,
+			Severity: pg_error.Err,
 			Code:     pg_error.InvalidAuthorizationSpecification,
 			Message:  "rejected non admin",
 		}
@@ -319,7 +319,7 @@ func (c *Client) Accept(ctx context.Context) error {
 		passwordResponse = r.Fields.Data
 	default:
 		return &pg_error.Error{
-			Severity: pg_error.Fatal,
+			Severity: pg_error.Err,
 			Code:     pg_error.InvalidAuthorizationSpecification,
 			Message:  fmt.Sprintf("wanted AuthenticationResponse packet, got '%+v'", rsp),
 		}
@@ -342,7 +342,7 @@ func (c *Client) Accept(ctx context.Context) error {
 		pw_hash := messages.Md5HashPassword(c.conf.General.AdminUsername, c.conf.General.AdminPassword, salt[:])
 		if !reflect.DeepEqual(pw_hash, passwordResponse) {
 			return &pg_error.Error{
-				Severity: pg_error.Fatal,
+				Severity: pg_error.Err,
 				Code:     pg_error.InvalidPassword,
 				Message:  "invalid password",
 			}
@@ -351,7 +351,7 @@ func (c *Client) Accept(ctx context.Context) error {
 		pw_hash := messages.Md5HashPassword(c.username, user.Password, salt[:])
 		if !reflect.DeepEqual(pw_hash, passwordResponse) {
 			return &pg_error.Error{
-				Severity: pg_error.Fatal,
+				Severity: pg_error.Err,
 				Code:     pg_error.InvalidPassword,
 				Message:  "invalid password",
 			}
