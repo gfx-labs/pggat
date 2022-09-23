@@ -247,9 +247,10 @@ func (r *reader) nextArgument() (string, error) {
 }
 
 func (r *reader) nextCommand() (cmd Command, err error) {
-	start := r.p
+	cmd.Begin = r.p
 	defer func() {
-		cmd.SQL = r.v[start:r.p]
+		cmd.End = r.p
+		cmd.SQL = r.v[cmd.Begin:cmd.End]
 	}()
 
 	cmd.Command, err = r.nextIdentifier()
