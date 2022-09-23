@@ -3,8 +3,6 @@
 
 PgGat (rat-ta-tat-tat) is a rewrite of [pgcat](github.com/levkk/pgcat) in golang
 
-
-
 the name is inspired by dr. dre:
 
 https://www.youtube.com/watch?v=-DqCc2DJ0sg
@@ -25,6 +23,20 @@ i'll lyk when its done
 | Live configuration reloading   | :white_check_mark:          | kind of            | Reload supported settings with a `SIGHUP` to the process, e.g. `kill -s SIGHUP $(pgrep pgcat)` or `RELOAD` query issued to the admin database.        |
 | Client authentication          | :white_check_mark: :wrench: | same as them       | MD5 password authentication is supported, SCRAM is on the roadmap; one user is used to connect to Postgres with both SCRAM and MD5 supported.         |
 | Admin database                 | :white_check_mark:          | :white_check_mark: | The admin database, similar to PgBouncer's, allows to query for statistics and reload the configuration.                                              |
+
+
+
+## Config
+
+
+"environmentable  fields" are Username, Password, Host, for server and Name, Password for users
+
+for these fields, if the string you put ENV$SOME_ENV_VAR then the env var value of var SOME_ENV_VAR will be used as that value
+
+
+otherwise, its mostly similar to the original pgcat config. follow the example.
+
+
 
 # original README
 
