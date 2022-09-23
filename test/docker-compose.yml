@@ -16,5 +16,7 @@ services:
   pggat:
     build: ../
     restart: always
+    environment:
+      PGGAT_DB_PASS: example
     ports:
       - 6432:6432

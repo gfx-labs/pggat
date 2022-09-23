@@ -8,7 +8,12 @@ import (
 )
 
 type Command struct {
-	Index     int
+	// start index in parsed SQL string
+	Begin int
+	// end index in parsed SQL string
+	End int
+	// the subtext SQL. Same as src[Begin:End]
+	SQL       string
 	Command   string
 	Arguments []string
 }
@@ -242,7 +247,11 @@ func (r *reader) nextArgument() (string, error) {
 }
 
 func (r *reader) nextCommand() (cmd Command, err error) {
-	cmd.Index = r.p
+	start := r.p
+	defer func() {
+		cmd.SQL = r.v[start:r.p]
+	}()
+
 	cmd.Command, err = r.nextIdentifier()
 	if err != nil {
 		if err == EndOfStatement {

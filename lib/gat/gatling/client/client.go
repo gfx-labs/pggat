@@ -537,14 +537,7 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 	}
 
 	transaction := -1
-	for idx, cmd := range parsed {
-		var next int
-		if idx+1 >= len(parsed) {
-			next = len(q.Fields.Query)
-		} else {
-			next = parsed[idx+1].Index
-		}
-
+	for _, cmd := range parsed {
 		cmdUpper := strings.ToUpper(cmd.Command)
 
 		// not in transaction
@@ -556,14 +549,14 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 				}
 				fallthrough
 			case "BEGIN":
-				transaction = cmd.Index
+				transaction = cmd.Begin
 			}
 		}
 
 		if transaction == -1 {
 			// this is a simple query
 			c.startRequest()
-			err = c.handle_simple_query(ctx, q.Fields.Query[cmd.Index:next])
+			err = c.handle_simple_query(ctx, cmd.SQL)
 			if err != nil {
 				return err
 			}
@@ -572,7 +565,7 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 			switch cmdUpper {
 			case "END":
 				c.startRequest()
-				err = c.handle_transaction(ctx, q.Fields.Query[transaction:next])
+				err = c.handle_transaction(ctx, q.Fields.Query[transaction:cmd.End])
 				if err != nil {
 					return err
 				}
