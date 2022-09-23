@@ -35,13 +35,13 @@ func New(database gat.Database, dialer gat.Dialer, conf *config.Pool, user *conf
 	return p
 }
 
-func (p *Pool) getConnection() (gat.Connection, error) {
+func (p *Pool) getConnection(client gat.Client) (gat.Connection, error) {
 	select {
 	case c := <-p.servers:
 		return c, nil
 	default:
 		shard := p.c.Load().Shards[0]
-		return p.dialer(context.TODO(), p.user, shard, shard.Servers[0])
+		return p.dialer(context.TODO(), client.GetOptions(), p.user, shard, shard.Servers[0])
 	}
 }
 
@@ -53,7 +53,7 @@ func (p *Pool) getOrAssign(client gat.Client) (gat.Connection, error) {
 	cid := client.GetId()
 	c, ok := p.assigned.Load(cid)
 	if !ok {
-		get, err := p.getConnection()
+		get, err := p.getConnection(client)
 		if err != nil {
 			return nil, err
 		}
@@ -84,8 +84,8 @@ func (p *Pool) GetUser() *config.User {
 	return p.user
 }
 
-func (p *Pool) GetServerInfo() []*protocol.ParameterStatus {
-	c, err := p.getConnection()
+func (p *Pool) GetServerInfo(client gat.Client) []*protocol.ParameterStatus {
+	c, err := p.getConnection(client)
 	if err != nil {
 		return nil
 	}

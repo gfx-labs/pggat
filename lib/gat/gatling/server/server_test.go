@@ -23,7 +23,7 @@ var test_user = config.User{
 }
 
 func TestServerDial(t *testing.T) {
-	srv, err := Dial(context.TODO(), &test_user, &test_shard, &test_server)
+	srv, err := Dial(context.TODO(), nil, &test_user, &test_shard, &test_server)
 	if err != nil {
 		t.Error(err)
 	}

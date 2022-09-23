@@ -72,8 +72,8 @@ func (c *Pool) GetUser() *config.User {
 	return c.user
 }
 
-func (c *Pool) GetServerInfo() []*protocol.ParameterStatus {
-	return c.getWorker().GetServerInfo()
+func (c *Pool) GetServerInfo(client gat.Client) []*protocol.ParameterStatus {
+	return c.getWorker().GetServerInfo(client)
 }
 
 func (c *Pool) Describe(ctx context.Context, client gat.Client, d *protocol.Describe) error {

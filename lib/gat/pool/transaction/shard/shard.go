@@ -4,6 +4,7 @@ import (
 	"context"
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"math/rand"
 	"reflect"
 )
@@ -15,13 +16,17 @@ type Shard struct {
 	user *config.User
 	conf *config.Shard
 
+	options []protocol.FieldsStartupMessageParameters
+
 	dialer gat.Dialer
 }
 
-func FromConfig(dialer gat.Dialer, user *config.User, conf *config.Shard) *Shard {
+func FromConfig(dialer gat.Dialer, options []protocol.FieldsStartupMessageParameters, user *config.User, conf *config.Shard) *Shard {
 	out := &Shard{
 		user: user,
 		conf: conf,
+
+		options: options,
 
 		dialer: dialer,
 	}
@@ -33,7 +38,7 @@ func (s *Shard) init() {
 	s.primary = nil
 	s.replicas = nil
 	for _, serv := range s.conf.Servers {
-		srv, err := s.dialer(context.TODO(), s.user, s.conf, serv)
+		srv, err := s.dialer(context.TODO(), s.options, s.user, s.conf, serv)
 		if err != nil {
 			continue
 		}

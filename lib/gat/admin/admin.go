@@ -567,7 +567,7 @@ func (c *Pool) GetUser() *config.User {
 	return getAdminUser(c.database.gat)
 }
 
-func (c *Pool) GetServerInfo() []*protocol.ParameterStatus {
+func (c *Pool) GetServerInfo(_ gat.Client) []*protocol.ParameterStatus {
 	return getServerInfo(c.database.gat)
 }
 

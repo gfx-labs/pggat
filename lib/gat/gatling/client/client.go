@@ -68,6 +68,8 @@ type Client struct {
 
 	recv chan protocol.Packet
 
+	options []protocol.FieldsStartupMessageParameters
+
 	state gat.ClientState
 
 	pid       int32
@@ -95,6 +97,10 @@ type Client struct {
 	log zlog.Logger
 
 	mu sync.Mutex
+}
+
+func (c *Client) GetOptions() []protocol.FieldsStartupMessageParameters {
+	return c.options
 }
 
 func (c *Client) GetState() gat.ClientState {
@@ -257,14 +263,20 @@ func (c *Client) Accept(ctx context.Context) error {
 			}
 		}
 	}
-	params := make(map[string]string)
+	c.options = make([]protocol.FieldsStartupMessageParameters, 0, len(startup.Fields.Parameters))
 	for _, v := range startup.Fields.Parameters {
-		params[v.Name] = v.Value
+		switch v.Name {
+		case "":
+		case "database":
+			c.poolName = v.Value
+		case "user":
+			c.username = v.Value
+		default:
+			c.options = append(c.options, v)
+		}
 	}
 
-	var ok bool
-	c.poolName, ok = params["database"]
-	if !ok {
+	if c.poolName == "" {
 		return &pg_error.Error{
 			Severity: pg_error.Fatal,
 			Code:     pg_error.InvalidAuthorizationSpecification,
@@ -272,8 +284,7 @@ func (c *Client) Accept(ctx context.Context) error {
 		}
 	}
 
-	c.username, ok = params["user"]
-	if !ok {
+	if c.username == "" {
 		return &pg_error.Error{
 			Severity: pg_error.Fatal,
 			Code:     pg_error.InvalidAuthorizationSpecification,
@@ -372,7 +383,7 @@ func (c *Client) Accept(ctx context.Context) error {
 	}
 
 	//
-	info := c.server.GetServerInfo()
+	info := c.server.GetServerInfo(c)
 	for _, inf := range info {
 		err = c.Send(inf)
 		if err != nil {

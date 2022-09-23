@@ -33,6 +33,8 @@ type Server struct {
 	client gat.Client
 	state  gat.ConnectionState
 
+	options []protocol.FieldsStartupMessageParameters
+
 	serverInfo []*protocol.ParameterStatus
 
 	processId int32
@@ -57,12 +59,14 @@ type Server struct {
 	mu sync.Mutex
 }
 
-func Dial(ctx context.Context, user *config.User, shard *config.Shard, server *config.Server) (gat.Connection, error) {
+func Dial(ctx context.Context, options []protocol.FieldsStartupMessageParameters, user *config.User, shard *config.Shard, server *config.Server) (gat.Connection, error) {
 	s := &Server{
 		addr: server.Host,
 		port: server.Port,
 
 		state: gat.ConnectionNew,
+
+		options: options,
 
 		boundPreparedStatments: make(map[string]*protocol.Parse),
 		boundPortals:           make(map[string]*protocol.Bind),
@@ -230,17 +234,18 @@ func (s *Server) startup(ctx context.Context) error {
 	s.log.Debug().Msg("sending startup")
 	start := new(protocol.StartupMessage)
 	start.Fields.ProtocolVersionNumber = 196608
-	start.Fields.Parameters = []protocol.FieldsStartupMessageParameters{
-		{
+	start.Fields.Parameters = append(
+		s.options,
+		protocol.FieldsStartupMessageParameters{
 			Name:  "user",
 			Value: s.dbuser,
 		},
-		{
+		protocol.FieldsStartupMessageParameters{
 			Name:  "database",
 			Value: s.db,
 		},
-		{},
-	}
+		protocol.FieldsStartupMessageParameters{},
+	)
 	err := s.writePacket(start)
 	if err != nil {
 		return err

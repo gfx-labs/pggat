@@ -270,7 +270,7 @@ func (r *reader) nextCommand() (cmd Command, err error) {
 
 // Parse parses an sql query in a single pass (with no look aheads or look behinds).
 // Because all we really care about is the commands, this can be very fast
-// based on https://www.postgresql.org/docs/current/sql-syntax-lexical.html
+// based on https://www.postgresql.org/docs/14/sql-syntax-lexical.html
 func Parse(sql string) (cmds []Command, err error) {
 	r := reader{
 		v: sql,

@@ -23,6 +23,8 @@ const (
 type Client interface {
 	GetId() ClientID
 
+	GetOptions() []protocol.FieldsStartupMessageParameters
+
 	GetPreparedStatement(name string) *protocol.Parse
 	GetPortal(name string) *protocol.Bind
 	GetCurrentConn() Connection
@@ -78,7 +80,7 @@ type QueryRouter interface {
 
 type Pool interface {
 	GetUser() *config.User
-	GetServerInfo() []*protocol.ParameterStatus
+	GetServerInfo(client Client) []*protocol.ParameterStatus
 
 	GetDatabase() Database
 
@@ -106,7 +108,7 @@ const (
 	ConnectionNew                    = "new"
 )
 
-type Dialer = func(context.Context, *config.User, *config.Shard, *config.Server) (Connection, error)
+type Dialer = func(context.Context, []protocol.FieldsStartupMessageParameters, *config.User, *config.Shard, *config.Server) (Connection, error)
 
 type Connection interface {
 	GetServerInfo() []*protocol.ParameterStatus

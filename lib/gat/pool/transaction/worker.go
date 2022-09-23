@@ -31,7 +31,7 @@ func (w *worker) ret() {
 }
 
 // attempt to connect to a new shard with this worker
-func (w *worker) fetchShard(n int) bool {
+func (w *worker) fetchShard(client gat.Client, n int) bool {
 	conf := w.w.c.Load()
 	if n < 0 || n >= len(conf.Shards) {
 		return false
@@ -41,7 +41,7 @@ func (w *worker) fetchShard(n int) bool {
 		w.shards = append(w.shards, nil)
 	}
 
-	w.shards[n] = shard.FromConfig(w.w.dialer, w.w.user, conf.Shards[n])
+	w.shards[n] = shard.FromConfig(w.w.dialer, client.GetOptions(), w.w.user, conf.Shards[n])
 	return true
 }
 
@@ -76,17 +76,17 @@ func (w *worker) chooseShard(client gat.Client) *shard.Shard {
 	}
 
 	// we need to fetch a shard
-	if w.fetchShard(preferred) {
+	if w.fetchShard(client, preferred) {
 		return w.shards[preferred]
 	}
 
 	return nil
 }
 
-func (w *worker) GetServerInfo() []*protocol.ParameterStatus {
+func (w *worker) GetServerInfo(client gat.Client) []*protocol.ParameterStatus {
 	defer w.ret()
 
-	s := w.chooseShard(nil)
+	s := w.chooseShard(client)
 	if s == nil {
 		return nil
 	}
