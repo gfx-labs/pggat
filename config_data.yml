@@ -55,7 +55,7 @@ pools:
             port: 5432
             role: primary
             username: postgres
-            password: example
+            password: ENV$PGGAT_DB_PASS
   sharded:
     pool_mode: transaction
     default_role: any

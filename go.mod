@@ -9,6 +9,7 @@ require (
 	git.tuxpa.in/a/zlog v1.32.0
 	github.com/BurntSushi/toml v1.2.0
 	github.com/auxten/postgresql-parser v1.0.1
+	github.com/davecgh/go-spew v1.1.1
 	github.com/iancoleman/strcase v0.2.0
 	github.com/looplab/fsm v0.3.0
 	github.com/xdg-go/scram v1.1.1
