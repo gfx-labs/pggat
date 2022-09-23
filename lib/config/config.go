@@ -3,8 +3,10 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/davecgh/go-spew/spew"
 	"gopkg.in/yaml.v3"
 )
 
@@ -52,6 +54,31 @@ func Load(path string) (*Global, error) {
 			return nil, err
 		}
 	}
+
+	for _, g := range g.Pools {
+		for _, shard := range g.Shards {
+			for _, srv := range shard.Servers {
+				if strings.HasPrefix(srv.Host, "ENV$") {
+					srv.Host = os.Getenv(strings.TrimPrefix(srv.Host, "ENV$"))
+				}
+				if strings.HasPrefix(srv.Username, "ENV$") {
+					srv.Username = os.Getenv(strings.TrimPrefix(srv.Username, "ENV$"))
+				}
+				if strings.HasPrefix(srv.Password, "ENV$") {
+					srv.Password = os.Getenv(strings.TrimPrefix(srv.Password, "ENV$"))
+				}
+			}
+			for _, srv := range g.Users {
+				if strings.HasPrefix(srv.Name, "ENV$") {
+					srv.Name = os.Getenv(strings.TrimPrefix(srv.Name, "ENV$"))
+				}
+				if strings.HasPrefix(srv.Password, "ENV$") {
+					srv.Password = os.Getenv(strings.TrimPrefix(srv.Password, "ENV$"))
+				}
+			}
+		}
+	}
+	spew.Println(g)
 	return &g, nil
 }
 
