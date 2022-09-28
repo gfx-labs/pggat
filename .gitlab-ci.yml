@@ -34,5 +34,5 @@ trigger-deploy:
       - $CI_COMMIT_BRANCH == "master"
   script:
     - kubectl config get-contexts
-    - kubectl config use-context etherlands/gitlab-agents:gfxlabs-dev
+    - kubectl config use-context gfx/gitlab-agents:gfxlabs-dev
     - kubectl patch $RESOURCE $APP_NAME -p '{"spec":{"template":{"metadata":{"labels":{"date":"'$(date +'%s')'","sha":"'${CI_COMMIT_SHA}'"}},"spec":{"containers":[{"name":"'${APP_NAME}'","image":"'${CI_REGISTRY_IMAGE}'/'${IMAGE_NAME}':latest"}]}}}}'
