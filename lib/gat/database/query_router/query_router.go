@@ -5,6 +5,8 @@ import (
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/util/cmux"
+	"gfx.cafe/ghalliday1/pg3p"
+	"gfx.cafe/ghalliday1/pg3p/lex"
 	"strconv"
 	"unicode"
 	"unicode/utf8"
@@ -12,6 +14,7 @@ import (
 
 type QueryRouter struct {
 	router cmux.Mux[gat.Client, error]
+	parser *pg3p.Parser
 }
 
 var DefaultRouter = func() *QueryRouter {
@@ -64,43 +67,24 @@ var DefaultRouter = func() *QueryRouter {
 	})
 	return &QueryRouter{
 		router: r,
+		parser: pg3p.NewParser(),
 	}
 }()
 
 // Try to infer the server role to try to  connect to
 // based on the contents of the query.
 // note that the user needs to be checked to see if they are allowed to access.
-// TODO: implement
 func (r *QueryRouter) InferRole(query string) (config.ServerRole, error) {
-	var active_role config.ServerRole
-	// by default it will hit a primary (for now)
-	active_role = config.SERVERROLE_PRIMARY
-	//// ok now parse the query
-	//wk := &walk.AstWalker{
-	//	Fn: func(ctx, node any) (stop bool) {
-	//		switch n := node.(type) {
-	//		case *tree.Update, *tree.UpdateExpr,
-	//			*tree.BeginTransaction, *tree.CommitTransaction, *tree.RollbackTransaction,
-	//			*tree.SetTransaction, *tree.ShowTransactionStatus, *tree.Delete, *tree.Insert:
-	//			//
-	//			active_role = config.SERVERROLE_PRIMARY
-	//			return true
-	//		default:
-	//			_ = n
-	//		}
-	//		return false
-	//	},
-	//}
-	//stmts, err := parser.Parse(query)
-	//if err != nil {
-	//	log.Println("failed to parse (%query), assuming primary required", err)
-	//	return config.SERVERROLE_PRIMARY, nil
-	//}
-	//_, err = wk.Walk(stmts, nil)
-	//if err != nil {
-	//	return config.SERVERROLE_PRIMARY, err
-	//}
-	return active_role, nil
+	// parse the query
+	tokens := r.parser.Lex(query)
+	var role = config.SERVERROLE_REPLICA
+	for _, token := range tokens {
+		switch token.Token {
+		case lex.KeywordUpdate, lex.KeywordDelete, lex.KeywordInsert:
+			role = config.SERVERROLE_PRIMARY
+		}
+	}
+	return role, nil
 }
 
 func (r *QueryRouter) TryHandle(client gat.Client, query string) (handled bool, err error) {

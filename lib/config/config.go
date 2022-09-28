@@ -33,6 +33,19 @@ const (
 	USERROLE_READER UserRole = "reader"
 )
 
+func (r UserRole) CanUse(which ServerRole) bool {
+	switch r {
+	case USERROLE_ADMIN:
+		return true
+	case USERROLE_WRITER:
+		return true
+	case USERROLE_READER:
+		return which != SERVERROLE_PRIMARY
+	default:
+		return false
+	}
+}
+
 func Load(path string) (*Global, error) {
 	var g Global
 	ext := filepath.Ext(path)

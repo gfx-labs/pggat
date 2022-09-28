@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
@@ -229,6 +230,9 @@ func (w *worker) z_actually_do_describe(ctx context.Context, client gat.Client, 
 	// describe the portal
 	// we can use a replica because we are just describing what this query will return, query content doesn't matter
 	// because nothing is actually executed yet
+	if !w.w.user.Role.CanUse(config.SERVERROLE_REPLICA) {
+		return errors.New("permission denied")
+	}
 	target := srv.Choose(config.SERVERROLE_REPLICA)
 	if target == nil {
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
@@ -266,6 +270,9 @@ func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, p
 	if err != nil {
 		return err
 	}
+	if !w.w.user.Role.CanUse(which) {
+		return errors.New("permission denied")
+	}
 	target := srv.Choose(which)
 	w.setCurrentBinding(client, target)
 	defer w.unsetCurrentBinding(client, target)
@@ -280,6 +287,9 @@ func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payloa
 		return fmt.Errorf("fn('%+v') fail: no server", payload)
 	}
 	// call the function
+	if !w.w.user.Role.CanUse(config.SERVERROLE_PRIMARY) {
+		return errors.New("permission denied")
+	}
 	target := srv.GetPrimary()
 	if target == nil {
 		return fmt.Errorf("fn('%+v') fail: no target ", payload)
@@ -302,6 +312,9 @@ func (w *worker) z_actually_do_simple_query(ctx context.Context, client gat.Clie
 	which, err := w.w.database.GetRouter().InferRole(payload)
 	if err != nil {
 		return fmt.Errorf("error parsing '%s': %w", payload, err)
+	}
+	if !w.w.user.Role.CanUse(which) {
+		return errors.New("permission denied")
 	}
 	// configures the server to run with a specific role
 	target := srv.Choose(which)
@@ -327,6 +340,9 @@ func (w *worker) z_actually_do_transaction(ctx context.Context, client gat.Clien
 	which, err := w.w.database.GetRouter().InferRole(payload)
 	if err != nil {
 		return fmt.Errorf("error parsing '%s': %w", payload, err)
+	}
+	if !w.w.user.Role.CanUse(which) {
+		return errors.New("permission denied")
 	}
 	// configures the server to run with a specific role
 	target := srv.Choose(which)

@@ -1,7 +1,7 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
-gfx.cafe/ghalliday1/pg3p v0.0.13 h1:W5lk6ipc2FmVcjYtIev1W9U9Ha4SFl+qD340NuLe2Qo=
-gfx.cafe/ghalliday1/pg3p v0.0.13/go.mod h1:dVy94HSyywugiaUJm+4EyhC41TOL3SHSr+FUubKa7s8=
+gfx.cafe/ghalliday1/pg3p v0.0.15 h1:6n4wGfxcFHrFWiCurj0N2wC+/CV+AuVxfRTKmKW8HGQ=
+gfx.cafe/ghalliday1/pg3p v0.0.15/go.mod h1:dVy94HSyywugiaUJm+4EyhC41TOL3SHSr+FUubKa7s8=
 gfx.cafe/ghalliday1/pgparser v0.0.9 h1:mj1819zaEO964rFMr9lzGIoKLdZdjWAs6CqPvcSAhYg=
 gfx.cafe/ghalliday1/pgparser v0.0.9/go.mod h1:mte3a6XnIWVexcvJJrkYQ2ozbSx/soIJ4ivXf8pS1No=
 gfx.cafe/util/go/bufpool v0.0.0-20220906091724-3a24b7f40ccf h1:ya4IK1D+Kq0DrFdrrZ7tjmp3BgoO4v5sCAeUytR6j1U=
