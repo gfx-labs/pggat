@@ -3,11 +3,14 @@ module gfx.cafe/gfx/pggat
 go 1.19
 
 require (
+	gfx.cafe/ghalliday1/pg3p v0.0.13
+	gfx.cafe/ghalliday1/pgparser v0.0.9
 	gfx.cafe/util/go/bufpool v0.0.0-20220906091724-3a24b7f40ccf
 	gfx.cafe/util/go/generic v0.0.0-20220917152604-80373e5a2c51
 	gfx.cafe/util/go/graceful v0.0.0-20220913082111-9770431e98e9
 	git.tuxpa.in/a/zlog v1.32.0
 	github.com/BurntSushi/toml v1.2.0
+	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20220911224424-aa1f1f12a846
 	github.com/auxten/postgresql-parser v1.0.1
 	github.com/davecgh/go-spew v1.1.1
 	github.com/iancoleman/strcase v0.2.0
@@ -29,7 +32,6 @@ require (
 	github.com/getsentry/raven-go v0.2.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
 	github.com/kr/pretty v0.2.0 // indirect
@@ -42,6 +44,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/stringprep v1.0.3 // indirect
+	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
 	golang.org/x/text v0.3.7 // indirect

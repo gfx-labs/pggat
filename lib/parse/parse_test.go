@@ -2,13 +2,16 @@ package parse
 
 import (
 	"fmt"
+	"gfx.cafe/ghalliday1/pg3p"
+	parser2 "gfx.cafe/ghalliday1/pgparser/parser"
+	"github.com/antlr/antlr4/runtime/Go/antlr/v4"
 	"github.com/auxten/postgresql-parser/pkg/sql/parser"
 	"testing"
 )
 
-const testQuery = "SELECT * FROM Customers WHERE (CustomerName LIKE 'L%'\nOR CustomerName LIKE 'R%' /*OR CustomerName LIKE 'S%'\nOR CustomerName LIKE 'T%'*/ OR CustomerName LIKE 'W%')\nAND Country='USA'\nORDER BY CustomerName;\n"
-const commentQuery = "SELECT 'test string ;;;!!!WOW' \"double quote test comment\\\" with escape\" $abc$dollar sign quote $with$ nested dollars $with$ wow $abc$ normal"
-const bigQuery = "SELECT to_date('20201230', 'YYYYMMDD') AS data_dt, COALESCE(t4.party_id, t.sign_org) AS org_id, t.agmt_id, " +
+const TestQuery1 = "SELECT * FROM Customers WHERE (CustomerName LIKE 'L%'\nOR CustomerName LIKE 'R%' /*OR CustomerName LIKE 'S%'\nOR CustomerName LIKE 'T%'*/ OR CustomerName LIKE 'W%')\nAND Country='USA'\nORDER BY CustomerName;\n"
+const TestQuery2 = "SELECT 'test string ;;;!!!WOW' \"double quote test comment\\\" with escape\" $abc$dollar sign quote $with$ nested dollars $with$ wow $abc$ normal"
+const TestQuery3 = "SELECT to_date('20201230', 'YYYYMMDD') AS data_dt, COALESCE(t4.party_id, t.sign_org) AS org_id, t.agmt_id, " +
 	"t1.fcy_spec_acct_id_type AS fcy_spec_acct_id_type, t.agmt_mdfr, t.categ_cd, COALESCE(NULL, '') AS retail_ind, " +
 	"t.item_id, CASE WHEN t.categ_cd IN ('1013', '1021') THEN '1101' WHEN t.categ_cd IN ('4009',) THEN '1102' WHEN " +
 	"t.categ_cd IN ('4013',) THEN '1201' WHEN (t.categ_cd IN ('4010',)) AND (t3.inform_deposit_categ IN ('SLA', 'EDA')) " +
@@ -62,7 +65,7 @@ const bigQuery = "SELECT to_date('20201230', 'YYYYMMDD') AS data_dt, COALESCE(t4
 	" LEFT JOIN pviewdb.t03_agmt_int_h AS t11 ON ((((t.agmt_id = t11.agmt_id) AND (t.agmt_mdfr = t11.agmt_mdfr)) " +
 	"AND (t11.st_dt <= to_date('20201230', 'YYYYMMDD'))) AND (t11.end_dt > to_date('20201230', 'YYYYMMDD'))) " +
 	"AND (t11.int_type_cd = '7');"
-const multiLineComment = `
+const TestQuery4 = `
 	/* test various things
 	 * like if this comment will be parsed correctly
 	 * or if it will make the thing crash and burn
@@ -70,8 +73,8 @@ const multiLineComment = `
 	select concat('one');
 `
 
-func testParse() error {
-	sql, err := Parse(testQuery)
+func testParse1() error {
+	sql, err := Parse(TestQuery1)
 	if err != nil {
 		return err
 	}
@@ -82,8 +85,8 @@ func testParse() error {
 	return nil
 }
 
-func testBig() error {
-	sql, err := Parse(bigQuery)
+func testParse3() error {
+	sql, err := Parse(TestQuery3)
 	if err != nil {
 		return err
 	}
@@ -94,15 +97,15 @@ func testBig() error {
 	return nil
 }
 
-func TestParse(t *testing.T) {
-	err := testParse()
+func TestParse1(t *testing.T) {
+	err := testParse1()
 	if err != nil {
 		t.Error(t)
 	}
 }
 
 func TestComment(t *testing.T) {
-	sql, err := Parse(commentQuery)
+	sql, err := Parse(TestQuery2)
 	if err != nil {
 		t.Error(err)
 	}
@@ -111,56 +114,86 @@ func TestComment(t *testing.T) {
 }
 
 func TestBig(t *testing.T) {
-	err := testBig()
+	err := testParse3()
 	if err != nil {
 		t.Error(t)
 	}
 }
 
 func TestMultiLineComment(t *testing.T) {
-	sql, err := Parse(multiLineComment)
+	sql, err := Parse(TestQuery4)
 	if err != nil {
 		t.Error(err)
 	}
 	_ = sql
 }
 
-func BenchmarkParse(b *testing.B) {
+func BenchmarkInternal1(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		err := testParse()
+		err := testParse1()
 		if err != nil {
 			b.Error(err)
 		}
 	}
 }
 
-func BenchmarkBig(b *testing.B) {
+func BenchmarkInternal3(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		err := testBig()
+		err := testParse3()
 		if err != nil {
 			b.Error(err)
 		}
 	}
 }
 
-func BenchmarkOld(b *testing.B) {
+func BenchmarkAuxten1(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, err := parser.Parse(testQuery)
+		_, err := parser.Parse(TestQuery1)
 		if err != nil {
 			b.Error(err)
 		}
 	}
 }
 
-func BenchmarkOldBig(b *testing.B) {
+func BenchmarkAuxten3(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, err := parser.Parse(bigQuery)
+		_, err := parser.Parse(TestQuery3)
 		if err != nil {
 			b.Error(err)
 		}
+	}
+}
+
+func BenchmarkAntlr3(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		input := antlr.NewInputStream(TestQuery3)
+		lexer := parser2.NewPostgreSQLLexer(input)
+		stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
+		p := parser2.NewPostgreSQLParser(stream)
+		p.GetInterpreter().SetPredictionMode(antlr.PredictionModeSLL)
+		p.BuildParseTrees = true
+		tree := p.Root()
+		antlr.ParseTreeWalkerDefault.Walk(&parser2.BasePostgreSQLParserListener{}, tree)
+	}
+}
+
+func BenchmarkPg3p1(b *testing.B) {
+	b.ReportAllocs()
+	p := pg3p.NewParser()
+	for i := 0; i < b.N; i++ {
+		p.Lex(TestQuery1)
+	}
+}
+
+func BenchmarkPg3p3(b *testing.B) {
+	b.ReportAllocs()
+	p := pg3p.NewParser()
+	for i := 0; i < b.N; i++ {
+		p.Lex(TestQuery3)
 	}
 }

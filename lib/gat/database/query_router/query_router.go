@@ -4,8 +4,6 @@ import (
 	"errors"
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
-	"gfx.cafe/gfx/pggat/lib/gat/protocol"
-	"gfx.cafe/gfx/pggat/lib/parse"
 	"gfx.cafe/gfx/pggat/lib/util/cmux"
 	"strconv"
 	"unicode"
@@ -106,8 +104,8 @@ func (r *QueryRouter) InferRole(query string) (config.ServerRole, error) {
 }
 
 func (r *QueryRouter) TryHandle(client gat.Client, query string) (handled bool, err error) {
-	var parsed []parse.Command
-	parsed, err = parse.Parse(query)
+	/*var parsed parser.Statements TODO
+	parsed, err = parser.Parse(query)
 	if err != nil {
 		return
 	}
@@ -119,6 +117,7 @@ func (r *QueryRouter) TryHandle(client gat.Client, query string) (handled bool, 
 	if len(parsed) != 1 {
 		return
 	}
-	err, handled = r.router.Call(client, append([]string{parsed[0].Command}, parsed[0].Arguments...))
+	err, handled = r.router.Call(client, append([]string{parsed[0].Cmd}, parsed[0].Arguments...))
+	*/
 	return
 }

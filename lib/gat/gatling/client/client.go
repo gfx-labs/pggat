@@ -12,7 +12,8 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/messages"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
-	"gfx.cafe/gfx/pggat/lib/parse"
+	"gfx.cafe/ghalliday1/pg3p"
+	"gfx.cafe/ghalliday1/pg3p/lex"
 	"git.tuxpa.in/a/zlog"
 	"git.tuxpa.in/a/zlog/log"
 	"io"
@@ -20,7 +21,6 @@ import (
 	"math/big"
 	"net"
 	"reflect"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -93,6 +93,8 @@ type Client struct {
 	portals     map[string]*protocol.Bind
 	conf        *config.Global
 	status      rune
+
+	parser *pg3p.Parser
 
 	log zlog.Logger
 
@@ -181,6 +183,7 @@ func NewClient(
 		portals:    make(map[string]*protocol.Bind),
 		status:     'I',
 		conf:       conf,
+		parser:     pg3p.NewParser(),
 	}
 	c.log = log.With().
 		Stringer("clientaddr", c.conn.RemoteAddr()).Logger()
@@ -526,60 +529,62 @@ func (c *Client) handle_execute(ctx context.Context, e *protocol.Execute) error 
 }
 
 func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
-	parsed, err := parse.Parse(q.Fields.Query)
-	if err != nil {
-		return err
-	}
+	tokens := c.parser.Lex(q.Fields.Query)
 
 	// we can handle empty queries here
-	if len(parsed) == 0 {
+	if len(tokens) == 0 {
 		return c.Send(&protocol.EmptyQueryResponse{})
 	}
 
-	transaction := -1
-	for _, cmd := range parsed {
-		cmdUpper := strings.ToUpper(cmd.Command)
-
-		// not in transaction
-		if transaction == -1 {
-			switch cmdUpper {
-			case "START":
-				if len(cmd.Arguments) < 1 || strings.ToUpper(cmd.Arguments[0]) != "TRANSACTION" {
-					break
+	var lastExec = tokens[0].Position
+	var nestDepth = 0
+	for _, cmd := range tokens {
+		if nestDepth == 0 {
+			switch cmd.Token {
+			case lex.KeywordStart, lex.KeywordBegin:
+				if nestDepth == 0 {
+					// push simple query
+					if lastExec != cmd.Position {
+						c.startRequest()
+						err := c.handle_simple_query(ctx, q.Fields.Query[lastExec:cmd.Position])
+						if err != nil {
+							return err
+						}
+						lastExec = cmd.Position
+					}
 				}
-				fallthrough
-			case "BEGIN":
-				transaction = cmd.Begin
-			}
-		}
-
-		if transaction == -1 {
-			// this is a simple query
-			c.startRequest()
-			err = c.handle_simple_query(ctx, cmd.SQL)
-			if err != nil {
-				return err
+				nestDepth += 1
 			}
 		} else {
-			// this command is part of a transaction
-			switch cmdUpper {
-			case "END":
-				c.startRequest()
-				err = c.handle_transaction(ctx, q.Fields.Query[transaction:cmd.End])
-				if err != nil {
-					return err
+			switch cmd.Token {
+			case lex.KeywordStart, lex.KeywordBegin, lex.KeywordCase:
+				nestDepth += 1
+			case lex.KeywordEnd:
+				nestDepth -= 1
+				if nestDepth == 0 {
+					// push txn
+					if lastExec != cmd.Position {
+						c.startRequest()
+						err := c.handle_transaction(ctx, q.Fields.Query[lastExec:cmd.Position])
+						if err != nil {
+							return err
+						}
+						lastExec = cmd.Position
+					}
 				}
-				transaction = -1
 			}
 		}
 	}
 
-	if transaction != -1 {
-		c.startRequest()
-		err = c.handle_transaction(ctx, q.Fields.Query[transaction:])
-		if err != nil {
-			return err
-		}
+	c.startRequest()
+	var err error
+	if nestDepth > 0 {
+		err = c.handle_transaction(ctx, q.Fields.Query[lastExec:])
+	} else {
+		err = c.handle_simple_query(ctx, q.Fields.Query[lastExec:])
+	}
+	if err != nil {
+		return err
 	}
 
 	return nil
