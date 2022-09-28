@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
 	"time"
 
 	"gfx.cafe/gfx/pggat/lib/config"
@@ -12,9 +13,6 @@ import (
 	"git.tuxpa.in/a/zlog/log"
 )
 
-// test config, should be changed
-const CONFIG = "./config_data.yml"
-
 func main() {
 	//zlog.SetGlobalLevel(zlog.PanicLevel)
 	go func() {
@@ -22,7 +20,11 @@ func main() {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
-	conf, err := config.Load(CONFIG)
+	confLocation := os.Getenv("CONFIG_LOCATION")
+	if confLocation == "" {
+		confLocation = "./config_data.yml"
+	}
+	conf, err := config.Load(confLocation)
 	if err != nil {
 		panic(err)
 	}
