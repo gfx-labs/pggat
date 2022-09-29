@@ -26,9 +26,9 @@ trigger-deploy:
     name: bitnami/kubectl:latest
     entrypoint: ['']
   variables:
-    APP_NAME: "pggat"
+    APP_NAME: "gfx-pggat"
     IMAGE_NAME: "pggat"
-    RESOURCE: "statefulset"
+    RESOURCE: "deployment"
   only:
     variables:
       - $CI_COMMIT_BRANCH == "master"

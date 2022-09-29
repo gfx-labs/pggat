@@ -24,6 +24,12 @@ pools:
         role: writer
         pool_size: 20
         statement_timeout: 0
+      - username: ENV$PSQL_DB_USER_RO
+        password: ENV$PSQL_DB_PASS_RO
+        role: writer
+        pool_size: 20
+        statement_timeout: 0
+
     shards:
       - pool_size: 5
         statement_timeout: 0
@@ -48,6 +54,11 @@ pools:
     users:
       - username: ENV$PSQL_DB_USER_RW
         password: ENV$PSQL_DB_PASS_RW
+        role: writer
+        pool_size: 20
+        statement_timeout: 0
+      - username: ENV$PSQL_DB_USER_RO
+        password: ENV$PSQL_DB_PASS_RO
         role: writer
         pool_size: 20
         statement_timeout: 0
