@@ -594,7 +594,6 @@ func (s *Server) Transaction(ctx context.Context, client gat.Client, query strin
 		//log.Printf("got server pkt pkt(%s): %+v ", reflect.TypeOf(pkt), pkt)
 		switch p := pkt.(type) {
 		case *protocol.ReadyForQuery:
-			// all ReadyForQuery packets end a simple query, regardless of type
 			if p.Fields.Status != 'I' {
 				// send to client and wait for next query
 				err = client.Send(pkt)
@@ -611,7 +610,7 @@ func (s *Server) Transaction(ctx context.Context, client gat.Client, query strin
 								_ = s.writePacket(r)
 								_ = s.flush()
 							default:
-								err = fmt.Errorf("expected an error in transaction state but got something else")
+								err = fmt.Errorf("expected a query in transaction state but got something else")
 							}
 						case <-ctx.Done():
 							err = ctx.Err()

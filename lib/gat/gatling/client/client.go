@@ -538,7 +538,7 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 
 	var lastExec = tokens[0].Position
 	var nestDepth = 0
-	for _, cmd := range tokens {
+	for idx, cmd := range tokens {
 		if nestDepth == 0 {
 			switch cmd.Token {
 			case lex.KeywordStart, lex.KeywordBegin:
@@ -562,15 +562,19 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 			case lex.KeywordEnd:
 				nestDepth -= 1
 				if nestDepth == 0 {
-					// push txn
-					if lastExec != cmd.Position {
-						c.startRequest()
-						err := c.handle_transaction(ctx, q.Fields.Query[lastExec:cmd.Position])
-						if err != nil {
-							return err
-						}
-						lastExec = cmd.Position
+					var end int
+					if idx+1 < len(tokens) {
+						end = tokens[idx+1].Position
+					} else {
+						end = len(q.Fields.Query)
 					}
+					// push txn
+					c.startRequest()
+					err := c.handle_transaction(ctx, q.Fields.Query[lastExec:end])
+					if err != nil {
+						return err
+					}
+					lastExec = cmd.Position
 				}
 			}
 		}
