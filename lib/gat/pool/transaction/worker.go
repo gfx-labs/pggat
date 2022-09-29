@@ -103,7 +103,7 @@ func (w *worker) GetServerInfo(client gat.Client) []*protocol.ParameterStatus {
 func (w *worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.Describe) error {
 	defer w.ret()
 
-	if w.w.user.StatementTimeout == 0 {
+	if w.w.user.StatementTimeout != 0 {
 		ctx, _ = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
 	}
 
@@ -127,7 +127,7 @@ func (w *worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.D
 func (w *worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Execute) error {
 	defer w.ret()
 
-	if w.w.user.StatementTimeout == 0 {
+	if w.w.user.StatementTimeout != 0 {
 		ctx, _ = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
 	}
 
