@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
-	"github.com/davecgh/go-spew/spew"
 	"gopkg.in/yaml.v3"
 )
 
@@ -91,7 +90,6 @@ func Load(path string) (*Global, error) {
 			}
 		}
 	}
-	spew.Println(g)
 	return &g, nil
 }
 

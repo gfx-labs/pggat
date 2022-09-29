@@ -75,6 +75,10 @@ var DefaultRouter = func() *QueryRouter {
 // based on the contents of the query.
 // note that the user needs to be checked to see if they are allowed to access.
 func (r *QueryRouter) InferRole(query string) (config.ServerRole, error) {
+	// if we don't want to parse queries, route them to primary
+	/*if !r.c.QueryParserEnabled {
+		return config.SERVERROLE_PRIMARY, nil
+	}*/
 	// parse the query
 	tokens := r.parser.Lex(query)
 	var role = config.SERVERROLE_REPLICA
