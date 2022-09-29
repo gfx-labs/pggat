@@ -33,26 +33,4 @@ pools:
             port: 5432
             role: primary
             username: postgres
-            password: example
-  regression:
-    pool_mode: session
-    default_role: primary
-    query_parser_enabled: true
-    primary_reads_enabled: true
-    sharding_function: pg_bigint_hash
-    users:
-      - username: postgres
-        password: password
-        role: writer
-        pool_size: 20
-        statement_timeout: 0
-    shards:
-      - pool_size: 5
-        statement_timeout: 0
-        database: regression
-        servers:
-          - host: db
-            port: 5432
-            role: primary
-            username: postgres
-            password: ENV$PGGAT_DB_PASS
+            password: password

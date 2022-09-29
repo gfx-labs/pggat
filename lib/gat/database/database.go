@@ -28,7 +28,7 @@ func New(dialer gat.Dialer, conf *config.Pool) *Database {
 	pool := &Database{
 		connPools: make(map[string]gat.Pool),
 		stats:     gat.NewPoolStats(),
-		router:    query_router.DefaultRouter,
+		router:    query_router.DefaultRouter(conf),
 
 		dialer: dialer,
 	}

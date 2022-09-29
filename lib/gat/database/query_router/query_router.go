@@ -15,9 +15,10 @@ import (
 type QueryRouter struct {
 	router cmux.Mux[gat.Client, error]
 	parser *pg3p.Parser
+	c      *config.Pool
 }
 
-var DefaultRouter = func() *QueryRouter {
+var defaultMux = func() *cmux.MapMux[gat.Client, error] {
 	r := cmux.NewMapMux[gat.Client, error]()
 	r.Register([]string{"set", "sharding", "key", "to"}, func(_ gat.Client, args []string) error {
 		return nil
@@ -65,20 +66,25 @@ var DefaultRouter = func() *QueryRouter {
 	r.Register([]string{"show", "primary", "reads"}, func(_ gat.Client, args []string) error {
 		return nil
 	})
-	return &QueryRouter{
-		router: r,
-		parser: pg3p.NewParser(),
-	}
+	return r
 }()
+
+func DefaultRouter(c *config.Pool) *QueryRouter {
+	return &QueryRouter{
+		router: defaultMux,
+		parser: pg3p.NewParser(),
+		c:      c,
+	}
+}
 
 // Try to infer the server role to try to  connect to
 // based on the contents of the query.
 // note that the user needs to be checked to see if they are allowed to access.
 func (r *QueryRouter) InferRole(query string) (config.ServerRole, error) {
 	// if we don't want to parse queries, route them to primary
-	/*if !r.c.QueryParserEnabled {
+	if !r.c.QueryParserEnabled {
 		return config.SERVERROLE_PRIMARY, nil
-	}*/
+	}
 	// parse the query
 	tokens := r.parser.Lex(query)
 	var role = config.SERVERROLE_REPLICA
@@ -92,6 +98,9 @@ func (r *QueryRouter) InferRole(query string) (config.ServerRole, error) {
 }
 
 func (r *QueryRouter) TryHandle(client gat.Client, query string) (handled bool, err error) {
+	if !r.c.QueryParserEnabled {
+		return
+	}
 	/*var parsed parser.Statements TODO
 	parsed, err = parser.Parse(query)
 	if err != nil {

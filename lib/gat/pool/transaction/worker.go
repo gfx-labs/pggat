@@ -42,7 +42,7 @@ func (w *worker) fetchShard(client gat.Client, n int) bool {
 		w.shards = append(w.shards, nil)
 	}
 
-	w.shards[n] = shard.FromConfig(w.w.dialer, client.GetOptions(), w.w.user, conf.Shards[n])
+	w.shards[n] = shard.FromConfig(w.w.dialer, client.GetOptions(), w.w.c.Load(), w.w.user, conf.Shards[n])
 	return true
 }
 
@@ -103,6 +103,10 @@ func (w *worker) GetServerInfo(client gat.Client) []*protocol.ParameterStatus {
 func (w *worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.Describe) error {
 	defer w.ret()
 
+	if w.w.user.StatementTimeout == 0 {
+		ctx, _ = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+	}
+
 	errch := make(chan error)
 	go func() {
 		defer close(errch)
@@ -122,6 +126,10 @@ func (w *worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.D
 
 func (w *worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Execute) error {
 	defer w.ret()
+
+	if w.w.user.StatementTimeout == 0 {
+		ctx, _ = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+	}
 
 	errch := make(chan error)
 	go func() {
@@ -143,6 +151,10 @@ func (w *worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Ex
 func (w *worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.FunctionCall) error {
 	defer w.ret()
 
+	if w.w.user.StatementTimeout != 0 {
+		ctx, _ = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+	}
+
 	errch := make(chan error)
 	go func() {
 		defer close(errch)
@@ -162,6 +174,10 @@ func (w *worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.
 
 func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query string) error {
 	defer w.ret()
+
+	if w.w.user.StatementTimeout != 0 {
+		ctx, _ = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+	}
 
 	start := time.Now()
 	defer func() {
@@ -188,6 +204,10 @@ func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query stri
 
 func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query string) error {
 	defer w.ret()
+
+	if w.w.user.StatementTimeout != 0 {
+		ctx, _ = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+	}
 
 	start := time.Now()
 	defer func() {

@@ -13,6 +13,7 @@ type Shard struct {
 	primary  gat.Connection
 	replicas []gat.Connection
 
+	pool *config.Pool
 	user *config.User
 	conf *config.Shard
 
@@ -21,8 +22,9 @@ type Shard struct {
 	dialer gat.Dialer
 }
 
-func FromConfig(dialer gat.Dialer, options []protocol.FieldsStartupMessageParameters, user *config.User, conf *config.Shard) *Shard {
+func FromConfig(dialer gat.Dialer, options []protocol.FieldsStartupMessageParameters, pool *config.Pool, user *config.User, conf *config.Shard) *Shard {
 	out := &Shard{
+		pool: pool,
 		user: user,
 		conf: conf,
 
@@ -57,9 +59,14 @@ func (s *Shard) Choose(role config.ServerRole) gat.Connection {
 		return s.primary
 	case config.SERVERROLE_REPLICA:
 		if len(s.replicas) == 0 {
-			return s.primary
+			// only return primary if primary reads are enabled
+			if s.pool.PrimaryReadsEnabled {
+				return s.primary
+			}
+			return nil
 		}
 
+		// read from a random replica
 		return s.replicas[rand.Intn(len(s.replicas))]
 	default:
 		return nil
