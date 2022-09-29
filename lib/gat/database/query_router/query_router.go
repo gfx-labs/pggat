@@ -7,6 +7,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/cmux"
 	"gfx.cafe/ghalliday1/pg3p"
 	"gfx.cafe/ghalliday1/pg3p/lex"
+	"git.tuxpa.in/a/zlog/log"
 	"strconv"
 	"unicode"
 	"unicode/utf8"
@@ -87,7 +88,7 @@ func (r *QueryRouter) InferRole(query string) (config.ServerRole, error) {
 	}
 	// parse the query
 	tokens := r.parser.Lex(query)
-	var role = config.SERVERROLE_REPLICA
+	log.Printf("route %+v", tokens)
 	for _, token := range tokens {
 		switch token.Token {
 		case lex.KeywordUpdate,
@@ -96,10 +97,10 @@ func (r *QueryRouter) InferRole(query string) (config.ServerRole, error) {
 			lex.KeywordDrop,
 			lex.KeywordCreate,
 			lex.KeywordTruncate:
-			role = config.SERVERROLE_PRIMARY
+			return config.SERVERROLE_PRIMARY, nil
 		}
 	}
-	return role, nil
+	return config.SERVERROLE_REPLICA, nil
 }
 
 func (r *QueryRouter) TryHandle(client gat.Client, query string) (handled bool, err error) {
