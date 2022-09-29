@@ -10,7 +10,7 @@ general:
   ban_time: 60
   autoreload: false
   admin_username: ENV$PSQL_DB_ADMIN_USER
-  admin_password: ENV$PSQL_DB_ADMIN_USER
+  admin_password: ENV$PSQL_DB_ADMIN_PASS
 pools:
   postgres:
     pool_mode: transaction
