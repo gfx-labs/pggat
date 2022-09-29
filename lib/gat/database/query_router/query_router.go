@@ -97,7 +97,8 @@ func (r *QueryRouter) InferRole(query string) (config.ServerRole, error) {
 			lex.KeywordCreate,
 			lex.KeywordTruncate,
 			lex.KeywordVacuum,
-			lex.KeywordAnalyze:
+			lex.KeywordAnalyze,
+			lex.KeywordAlter:
 			return config.SERVERROLE_PRIMARY, nil
 		case lex.KeywordBegin:
 			depth += 1
