@@ -3,7 +3,7 @@ module gfx.cafe/gfx/pggat
 go 1.19
 
 require (
-	gfx.cafe/ghalliday1/pg3p v0.0.17
+	gfx.cafe/ghalliday1/pg3p v0.0.18
 	gfx.cafe/ghalliday1/pgparser v0.0.9
 	gfx.cafe/util/go/bufpool v0.0.0-20220906091724-3a24b7f40ccf
 	gfx.cafe/util/go/generic v0.0.0-20220917152604-80373e5a2c51
