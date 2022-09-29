@@ -2,6 +2,7 @@ package gatling
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/gat/admin"
 	"gfx.cafe/gfx/pggat/lib/gat/database"
@@ -194,9 +195,11 @@ func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) error {
 
 	err := cl.Accept(ctx)
 	if err != nil {
-		log.Println("err in connection:", err.Error())
-		_ = cl.Send(pg_error.IntoPacket(err))
-		_ = cl.Flush()
+		if !errors.Is(err, io.EOF) {
+			log.Println("err in connection:", err.Error())
+			_ = cl.Send(pg_error.IntoPacket(err))
+			_ = cl.Flush()
+		}
 	}
 	_ = c.Close()
 	return nil
