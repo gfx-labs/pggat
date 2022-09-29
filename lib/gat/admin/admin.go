@@ -7,6 +7,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/parse"
 	"gfx.cafe/gfx/pggat/lib/util/cmux"
+	"git.tuxpa.in/a/zlog/log"
 	"time"
 )
 
@@ -525,6 +526,8 @@ func (p *Database) showTotals(client gat.Client) error {
 
 func (p *Database) GetUser(name string) *config.User {
 	u := getAdminUser(p.gat)
+	log.Println("wants:", name)
+	log.Println("admin user:", u)
 	if name != u.Name {
 		return nil
 	}
