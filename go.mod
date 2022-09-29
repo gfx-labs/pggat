@@ -3,7 +3,7 @@ module gfx.cafe/gfx/pggat
 go 1.19
 
 require (
-	gfx.cafe/ghalliday1/pg3p v0.0.15
+	gfx.cafe/ghalliday1/pg3p v0.0.16
 	gfx.cafe/ghalliday1/pgparser v0.0.9
 	gfx.cafe/util/go/bufpool v0.0.0-20220906091724-3a24b7f40ccf
 	gfx.cafe/util/go/generic v0.0.0-20220917152604-80373e5a2c51
@@ -12,7 +12,6 @@ require (
 	github.com/BurntSushi/toml v1.2.0
 	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20220911224424-aa1f1f12a846
 	github.com/auxten/postgresql-parser v1.0.1
-	github.com/davecgh/go-spew v1.1.1
 	github.com/iancoleman/strcase v0.2.0
 	github.com/looplab/fsm v0.3.0
 	github.com/xdg-go/scram v1.1.1

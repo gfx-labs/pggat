@@ -90,7 +90,7 @@ func (r *QueryRouter) InferRole(query string) (config.ServerRole, error) {
 	var role = config.SERVERROLE_REPLICA
 	for _, token := range tokens {
 		switch token.Token {
-		case lex.KeywordUpdate, lex.KeywordDelete, lex.KeywordInsert:
+		case lex.KeywordUpdate, lex.KeywordDelete, lex.KeywordInsert, lex.KeywordDrop:
 			role = config.SERVERROLE_PRIMARY
 		}
 	}
