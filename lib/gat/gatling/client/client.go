@@ -574,21 +574,23 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 					if err != nil {
 						return err
 					}
-					lastExec = cmd.Position
+					lastExec = end
 				}
 			}
 		}
 	}
 
-	c.startRequest()
-	var err error
-	if nestDepth > 0 {
-		err = c.handle_transaction(ctx, q.Fields.Query[lastExec:])
-	} else {
-		err = c.handle_simple_query(ctx, q.Fields.Query[lastExec:])
-	}
-	if err != nil {
-		return err
+	if lastExec != len(q.Fields.Query) {
+		c.startRequest()
+		var err error
+		if nestDepth > 0 {
+			err = c.handle_transaction(ctx, q.Fields.Query[lastExec:])
+		} else {
+			err = c.handle_simple_query(ctx, q.Fields.Query[lastExec:])
+		}
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
