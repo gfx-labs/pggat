@@ -45,6 +45,12 @@ func (r UserRole) CanUse(which ServerRole) bool {
 	}
 }
 
+func getIfEnv(field *string) {
+	if strings.HasPrefix(*field, "ENV$") {
+		*field = os.Getenv(strings.TrimPrefix(*field, "ENV$"))
+	}
+}
+
 func Load(path string) (*Global, error) {
 	var g Global
 	ext := filepath.Ext(path)
@@ -67,26 +73,19 @@ func Load(path string) (*Global, error) {
 		}
 	}
 
+	getIfEnv(&g.General.AdminUsername)
+	getIfEnv(&g.General.AdminPassword)
+
 	for _, g := range g.Pools {
 		for _, shard := range g.Shards {
 			for _, srv := range shard.Servers {
-				if strings.HasPrefix(srv.Host, "ENV$") {
-					srv.Host = os.Getenv(strings.TrimPrefix(srv.Host, "ENV$"))
-				}
-				if strings.HasPrefix(srv.Username, "ENV$") {
-					srv.Username = os.Getenv(strings.TrimPrefix(srv.Username, "ENV$"))
-				}
-				if strings.HasPrefix(srv.Password, "ENV$") {
-					srv.Password = os.Getenv(strings.TrimPrefix(srv.Password, "ENV$"))
-				}
+				getIfEnv(&srv.Host)
+				getIfEnv(&srv.Username)
+				getIfEnv(&srv.Password)
 			}
 			for _, srv := range g.Users {
-				if strings.HasPrefix(srv.Name, "ENV$") {
-					srv.Name = os.Getenv(strings.TrimPrefix(srv.Name, "ENV$"))
-				}
-				if strings.HasPrefix(srv.Password, "ENV$") {
-					srv.Password = os.Getenv(strings.TrimPrefix(srv.Password, "ENV$"))
-				}
+				getIfEnv(&srv.Name)
+				getIfEnv(&srv.Password)
 			}
 		}
 	}
