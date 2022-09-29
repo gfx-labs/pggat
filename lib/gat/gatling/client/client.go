@@ -450,7 +450,7 @@ func (c *Client) recvLoop() {
 			}
 			break
 		}
-		//log.Printf("got packet(%s) %+v", reflect.TypeOf(recv), recv)
+		log.Printf("got packet(%s) %+v", reflect.TypeOf(recv), recv)
 		c.recv <- recv
 	}
 }

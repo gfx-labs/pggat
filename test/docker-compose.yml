@@ -5,7 +5,7 @@ services:
     image: postgres
     restart: always
     environment:
-      POSTGRES_PASSWORD: exmaple
+      POSTGRES_PASSWORD: example
     ports:
       - 5432:5432
   adminer:
@@ -17,6 +17,10 @@ services:
     build: ../
     restart: always
     environment:
-      PGGAT_DB_PASS: example
+      PSQL_DB_USER_RW: postgres
+      PSQL_DB_PASS_RW: example
+      PSQL_DB_USER_RO: postgres
+      PSQL_DB_PASS_RO: example
+      PSQL_PRI_DB_HOST: db
     ports:
       - 6432:6432

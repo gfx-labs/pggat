@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net"
 	"reflect"
@@ -397,15 +398,17 @@ func (s *Server) ensurePreparedStatement(client gat.Client, name string) error {
 		}
 	}
 
-	// test if prepared statement is the same
-	if prev, ok := s.boundPreparedStatments[name]; ok {
-		if reflect.DeepEqual(prev, stmt) {
-			// we don't need to bind, we're good
-			return nil
-		}
+	if name != "" {
+		// test if prepared statement is the same
+		if prev, ok := s.boundPreparedStatments[name]; ok {
+			if reflect.DeepEqual(prev, stmt) {
+				// we don't need to bind, we're good
+				return nil
+			}
 
-		// there is a statement bound that needs to be unbound
-		s.destructPreparedStatement(name)
+			// there is a statement bound that needs to be unbound
+			s.destructPreparedStatement(name)
+		}
 	}
 
 	s.boundPreparedStatments[name] = stmt
@@ -516,6 +519,7 @@ func (s *Server) Describe(client gat.Client, d *protocol.Describe) error {
 }
 
 func (s *Server) Execute(client gat.Client, e *protocol.Execute) error {
+	log.Printf("execute `%s`", e.Fields.Name)
 	err := s.ensurePortal(client, e.Fields.Name)
 	if err != nil {
 		return err
@@ -536,10 +540,19 @@ func (s *Server) Execute(client gat.Client, e *protocol.Execute) error {
 
 	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool, err error) {
 		//log.Println("forward packet(%s) %+v", reflect.TypeOf(pkt), pkt)
-		switch pkt.(type) {
+		switch p := pkt.(type) {
 		case *protocol.BindComplete, *protocol.ParseComplete:
 		case *protocol.ReadyForQuery:
-			finish = true
+			if p.Fields.Status != 'I' {
+				err = errors.New("transactions are not allowed in statements")
+
+				end := new(protocol.Query)
+				end.Fields.Query = "END"
+				_ = s.writePacket(end)
+				_ = s.flush()
+			} else {
+				finish = true
+			}
 		default:
 			forward = true
 		}
