@@ -147,5 +147,5 @@ func RecordQueryError(db string, user string, err error) {
 	if err == nil {
 		return
 	}
-	p.TxErrorCounts.WithLabelValues(err.Error()).Inc()
+	p.QueryErrorCounts.WithLabelValues(err.Error()).Inc()
 }
