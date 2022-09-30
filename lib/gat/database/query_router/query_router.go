@@ -7,15 +7,16 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/cmux"
 	"gfx.cafe/ghalliday1/pg3p"
 	"gfx.cafe/ghalliday1/pg3p/lex"
+	"gfx.cafe/util/go/generic"
 	"strconv"
 	"unicode"
 	"unicode/utf8"
 )
 
 type QueryRouter struct {
-	router cmux.Mux[gat.Client, error]
-	parser *pg3p.Parser
-	c      *config.Pool
+	router  cmux.Mux[gat.Client, error]
+	parsers generic.HookPool[*pg3p.Parser]
+	c       *config.Pool
 }
 
 var defaultMux = func() *cmux.MapMux[gat.Client, error] {
@@ -72,8 +73,10 @@ var defaultMux = func() *cmux.MapMux[gat.Client, error] {
 func DefaultRouter(c *config.Pool) *QueryRouter {
 	return &QueryRouter{
 		router: defaultMux,
-		parser: pg3p.NewParser(),
-		c:      c,
+		parsers: generic.HookPool[*pg3p.Parser]{
+			New: pg3p.NewParser,
+		},
+		c: c,
 	}
 }
 
@@ -86,7 +89,9 @@ func (r *QueryRouter) InferRole(query string) (config.ServerRole, error) {
 		return config.SERVERROLE_PRIMARY, nil
 	}
 	// parse the query
-	tokens := r.parser.Lex(query)
+	parser := r.parsers.Get()
+	defer r.parsers.Put(parser)
+	tokens := parser.Lex(query)
 	depth := 0
 	for _, token := range tokens {
 		switch token.Token {
