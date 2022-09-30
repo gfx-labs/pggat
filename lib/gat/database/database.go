@@ -14,6 +14,7 @@ type Database struct {
 	c         *config.Pool
 	users     map[string]config.User
 	connPools map[string]gat.Pool
+	name      string
 
 	stats *gat.PoolStats
 
@@ -24,11 +25,12 @@ type Database struct {
 	mu sync.RWMutex
 }
 
-func New(dialer gat.Dialer, conf *config.Pool) *Database {
+func New(dialer gat.Dialer, name string, conf *config.Pool) *Database {
 	pool := &Database{
 		connPools: make(map[string]gat.Pool),
 		stats:     gat.NewPoolStats(),
 		router:    query_router.DefaultRouter(conf),
+		name:      name,
 
 		dialer: dialer,
 	}
@@ -72,6 +74,10 @@ func (p *Database) GetUser(name string) *config.User {
 
 func (p *Database) GetRouter() gat.QueryRouter {
 	return p.router
+}
+
+func (p *Database) GetName() string {
+	return p.name
 }
 
 func (p *Database) WithUser(name string) gat.Pool {

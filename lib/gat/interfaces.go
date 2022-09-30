@@ -63,6 +63,7 @@ type Gat interface {
 type Database interface {
 	GetUser(name string) *config.User
 	GetRouter() QueryRouter
+	GetName() string
 
 	WithUser(name string) Pool
 	GetPools() []Pool
