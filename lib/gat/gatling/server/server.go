@@ -2,7 +2,6 @@ package server
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"net"
 	"reflect"
@@ -53,7 +52,8 @@ type Server struct {
 	dbpass string
 	user   config.User
 
-	healthy bool
+	healthy      bool
+	awaitingSync bool
 
 	log zlog.Logger
 
@@ -387,6 +387,14 @@ func (s *Server) readPacket() (protocol.Packet, error) {
 	return p, err
 }
 
+func (s *Server) stabilize() {
+	// TODO actually stabilize connection
+	if s.awaitingSync {
+		_ = s.writePacket(new(protocol.Sync))
+		_ = s.flush()
+	}
+}
+
 func (s *Server) ensurePreparedStatement(client gat.Client, name string) error {
 	// send prepared statement
 	stmt := client.GetPreparedStatement(name)
@@ -471,183 +479,174 @@ func (s *Server) destructPortal(name string) {
 	s.destructPreparedStatement(portal.Fields.PreparedStatement)
 }
 
-func (s *Server) Describe(client gat.Client, d *protocol.Describe) error {
-	switch d.Fields.Which {
-	case 'S': // prepared statement
-		err := s.ensurePreparedStatement(client, d.Fields.Name)
-		if err != nil {
-			return err
-		}
-	case 'P': // portal
-		err := s.ensurePortal(client, d.Fields.Name)
-		if err != nil {
-			return err
-		}
-	default:
-		return &pg_error.Error{
-			Severity: pg_error.Err,
-			Code:     pg_error.ProtocolViolation,
-			Message:  fmt.Sprintf("expected 'S' or 'P' for describe target, got '%c'", d.Fields.Which),
-		}
-	}
-
-	// now we actually execute the thing the client wants
-	err := s.writePacket(d)
-	if err != nil {
-		return err
-	}
-	err = s.writePacket(new(protocol.Sync))
-	if err != nil {
-		return err
-	}
-	err = s.flush()
-	if err != nil {
-		return err
-	}
-
-	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool, err error) {
-		//log.Println("forward packet(%s) %+v", reflect.TypeOf(pkt), pkt)
-		switch pkt.(type) {
-		case *protocol.BindComplete, *protocol.ParseComplete:
-		case *protocol.ReadyForQuery:
-			finish = true
-		default:
-			forward = true
-		}
-		return
-	})
+func (s *Server) Describe(ctx context.Context, client gat.Client, d *protocol.Describe) error {
+	return s.sendAndLink(ctx, client, d)
 }
 
-func (s *Server) Execute(client gat.Client, e *protocol.Execute) error {
-	log.Printf("execute `%s`", e.Fields.Name)
-	err := s.ensurePortal(client, e.Fields.Name)
-	if err != nil {
-		return err
-	}
-
-	err = s.writePacket(e)
-	if err != nil {
-		return err
-	}
-	err = s.writePacket(new(protocol.Sync))
-	if err != nil {
-		return err
-	}
-	err = s.flush()
-	if err != nil {
-		return err
-	}
-
-	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool, err error) {
-		//log.Println("forward packet(%s) %+v", reflect.TypeOf(pkt), pkt)
-		switch p := pkt.(type) {
-		case *protocol.BindComplete, *protocol.ParseComplete:
-		case *protocol.ReadyForQuery:
-			if p.Fields.Status != 'I' {
-				err = errors.New("transactions are not allowed in statements")
-
-				end := new(protocol.Query)
-				end.Fields.Query = "END"
-				_ = s.writePacket(end)
-				_ = s.flush()
-			} else {
-				finish = true
+func (s *Server) handleRecv(client gat.Client, packet protocol.Packet) error {
+	switch pkt := packet.(type) {
+	case *protocol.FunctionCall, *protocol.Query:
+		err := s.writePacket(packet)
+		if err != nil {
+			return err
+		}
+		err = s.flush()
+		if err != nil {
+			return err
+		}
+	case *protocol.Describe:
+		s.awaitingSync = true
+		switch pkt.Fields.Which {
+		case 'S': // prepared statement
+			err := s.ensurePreparedStatement(client, pkt.Fields.Name)
+			if err != nil {
+				return err
+			}
+		case 'P': // portal
+			err := s.ensurePortal(client, pkt.Fields.Name)
+			if err != nil {
+				return err
 			}
 		default:
-			forward = true
+			return &pg_error.Error{
+				Severity: pg_error.Err,
+				Code:     pg_error.ProtocolViolation,
+				Message:  fmt.Sprintf("expected 'S' or 'P' for describe target, got '%c'", pkt.Fields.Which),
+			}
 		}
-		return
-	})
+
+		// now we actually execute the thing the client wants
+		err := s.writePacket(packet)
+		if err != nil {
+			return err
+		}
+	case *protocol.Execute:
+		s.awaitingSync = true
+		err := s.ensurePortal(client, pkt.Fields.Name)
+		if err != nil {
+			return err
+		}
+
+		err = s.writePacket(pkt)
+		if err != nil {
+			return err
+		}
+	case *protocol.Sync:
+		s.awaitingSync = false
+		err := s.writePacket(packet)
+		if err != nil {
+			return err
+		}
+		err = s.flush()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Server) sendAndLink(ctx context.Context, client gat.Client, initial protocol.Packet) error {
+	err := s.handleRecv(client, initial)
+	if err != nil {
+		return err
+	}
+	err = s.awaitSync(ctx, client)
+	if err != nil {
+		return err
+	}
+	return s.link(ctx, client)
+}
+
+func (s *Server) link(ctx context.Context, client gat.Client) error {
+	defer s.stabilize()
+	for {
+		pkt, err := s.readPacket()
+		if err != nil {
+			return err
+		}
+
+		switch p := pkt.(type) {
+		case *protocol.BindComplete, *protocol.ParseComplete:
+			// ignore, it is because we bound stuff
+		case *protocol.ReadyForQuery:
+			if p.Fields.Status == 'I' {
+				// this client is done
+				return nil
+			}
+
+			err = client.Send(p)
+			if err != nil {
+				return err
+			}
+			err = client.Flush()
+			if err != nil {
+				return err
+			}
+
+			err = s.handleClientPacket(ctx, client)
+			if err != nil {
+				return err
+			}
+			err = s.awaitSync(ctx, client)
+			if err != nil {
+				return err
+			}
+		case *protocol.CopyInResponse:
+			err = client.Send(p)
+			if err != nil {
+				return err
+			}
+			err = client.Flush()
+			if err != nil {
+				return err
+			}
+			err = s.CopyIn(ctx, client)
+			if err != nil {
+				return err
+			}
+		default:
+			err = client.Send(p)
+			if err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func (s *Server) handleClientPacket(ctx context.Context, client gat.Client) error {
+	select {
+	case pkt := <-client.Recv():
+		return s.handleRecv(client, pkt)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *Server) awaitSync(ctx context.Context, client gat.Client) error {
+	for s.awaitingSync {
+		err := s.handleClientPacket(ctx, client)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Server) Execute(ctx context.Context, client gat.Client, e *protocol.Execute) error {
+	return s.sendAndLink(ctx, client, e)
 }
 
 func (s *Server) SimpleQuery(ctx context.Context, client gat.Client, query string) error {
 	// send to server
 	q := new(protocol.Query)
 	q.Fields.Query = query
-	err := s.writePacket(q)
-	if err != nil {
-		return err
-	}
-	err = s.flush()
-	if err != nil {
-		return err
-	}
-
-	// this function seems wild but it has to be the way it is so we read the whole response, even if the
-	// client fails midway
-	// read responses
-	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool, err error) {
-		//log.Printf("forwarding pkt pkt(%s): %+v ", reflect.TypeOf(pkt), pkt)
-		switch pkt.(type) {
-		case *protocol.ReadyForQuery:
-			// all ReadyForQuery packets end a simple query, regardless of type
-			finish = true
-		case *protocol.CopyInResponse:
-			_ = client.Send(pkt)
-			err = s.CopyIn(ctx, client)
-		default:
-			forward = true
-		}
-		return
-	})
+	return s.sendAndLink(ctx, client, q)
 }
 
 func (s *Server) Transaction(ctx context.Context, client gat.Client, query string) error {
 	q := new(protocol.Query)
 	q.Fields.Query = query
-	err := s.writePacket(q)
-	if err != nil {
-		return err
-	}
-	err = s.flush()
-	if err != nil {
-		return err
-	}
-	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool, err error) {
-		//log.Printf("got server pkt pkt(%s): %+v ", reflect.TypeOf(pkt), pkt)
-		switch p := pkt.(type) {
-		case *protocol.ReadyForQuery:
-			if p.Fields.Status != 'I' {
-				// send to client and wait for next query
-				err = client.Send(pkt)
-
-				if err == nil {
-					err = client.Flush()
-					if err == nil {
-						select {
-						case r := <-client.Recv():
-							//log.Printf("got client pkt pkt(%s): %+v", reflect.TypeOf(r), r)
-							switch r.(type) {
-							case *protocol.Query:
-								//forward to server
-								_ = s.writePacket(r)
-								_ = s.flush()
-							default:
-								err = fmt.Errorf("expected a query in transaction state but got something else")
-							}
-						case <-ctx.Done():
-							err = ctx.Err()
-						}
-					}
-				}
-
-				if err != nil {
-					end := new(protocol.Query)
-					end.Fields.Query = "END"
-					_ = s.writePacket(end)
-					_ = s.flush()
-				}
-			} else {
-				finish = true
-			}
-		case *protocol.CopyInResponse:
-			_ = client.Send(pkt)
-			err = s.CopyIn(ctx, client)
-		default:
-			forward = true
-		}
-		return
-	})
+	return s.sendAndLink(ctx, client, q)
 }
 
 func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
@@ -656,19 +655,15 @@ func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 		return err
 	}
 	for {
-		// detect a disconneted /hanging client by waiting 30 seoncds, else timeout
-		// otherwise, just keep reading packets until a done or error is received
-		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		var pkt protocol.Packet
 		// receive a packet, or done if the ctx gets canceled
 		select {
 		case pkt = <-client.Recv():
-		case <-cctx.Done():
+		case <-ctx.Done():
 			_ = s.writePacket(new(protocol.CopyFail))
 			_ = s.flush()
-			return cctx.Err()
+			return ctx.Err()
 		}
-		cancel()
 		err = s.writePacket(pkt)
 		if err != nil {
 			return err
@@ -682,25 +677,8 @@ func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 	}
 }
 
-func (s *Server) CallFunction(client gat.Client, payload *protocol.FunctionCall) error {
-	err := s.writePacket(payload)
-	if err != nil {
-		return err
-	}
-	err = s.flush()
-	if err != nil {
-		return err
-	}
-	// read responses
-	return s.forwardTo(client, func(pkt protocol.Packet) (forward bool, finish bool, err error) {
-		switch pkt.(type) {
-		case *protocol.ReadyForQuery: // status 'I' should only be encountered here
-			finish = true
-		default:
-			forward = true
-		}
-		return
-	})
+func (s *Server) CallFunction(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
+	return s.sendAndLink(ctx, client, payload)
 }
 
 func (s *Server) Close(ctx context.Context) error {

@@ -98,7 +98,7 @@ func (p *Pool) Describe(ctx context.Context, client gat.Client, describe *protoc
 	if err != nil {
 		return err
 	}
-	return c.Describe(client, describe)
+	return c.Describe(ctx, client, describe)
 }
 
 func (p *Pool) Execute(ctx context.Context, client gat.Client, execute *protocol.Execute) error {
@@ -106,7 +106,7 @@ func (p *Pool) Execute(ctx context.Context, client gat.Client, execute *protocol
 	if err != nil {
 		return err
 	}
-	return c.Execute(client, execute)
+	return c.Execute(ctx, client, execute)
 }
 
 func (p *Pool) SimpleQuery(ctx context.Context, client gat.Client, query string) error {
@@ -130,7 +130,7 @@ func (p *Pool) CallFunction(ctx context.Context, client gat.Client, payload *pro
 	if err != nil {
 		return err
 	}
-	return c.CallFunction(client, payload)
+	return c.CallFunction(ctx, client, payload)
 }
 
 var _ gat.Pool = (*Pool)(nil)
