@@ -63,6 +63,7 @@ type Gat interface {
 type Database interface {
 	GetUser(name string) *config.User
 	GetRouter() QueryRouter
+	GetName() string
 
 	WithUser(name string) Pool
 	GetPools() []Pool
@@ -130,9 +131,9 @@ type Connection interface {
 	IsCloseNeeded() bool
 
 	// actions
-	Describe(client Client, payload *protocol.Describe) error
-	Execute(client Client, payload *protocol.Execute) error
-	CallFunction(client Client, payload *protocol.FunctionCall) error
+	Describe(ctx context.Context, client Client, payload *protocol.Describe) error
+	Execute(ctx context.Context, client Client, payload *protocol.Execute) error
+	CallFunction(ctx context.Context, client Client, payload *protocol.FunctionCall) error
 	SimpleQuery(ctx context.Context, client Client, payload string) error
 	Transaction(ctx context.Context, client Client, payload string) error
 

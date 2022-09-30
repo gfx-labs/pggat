@@ -533,6 +533,10 @@ func (p *Database) GetRouter() gat.QueryRouter {
 	return nil
 }
 
+func (p *Database) GetName() string {
+	return "pggat"
+}
+
 func (p *Database) WithUser(name string) gat.Pool {
 	conf := p.gat.GetConfig()
 	if name != conf.General.AdminUsername {

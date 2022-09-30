@@ -94,7 +94,6 @@ type Client struct {
 	statements  map[string]*protocol.Parse
 	portals     map[string]*protocol.Bind
 	conf        *config.Global
-	status      rune
 
 	parser *pg3p.Parser
 
@@ -183,7 +182,6 @@ func NewClient(
 		gatling:    gatling,
 		statements: make(map[string]*protocol.Parse),
 		portals:    make(map[string]*protocol.Bind),
-		status:     'I',
 		conf:       conf,
 		parser:     pg3p.NewParser(),
 	}
@@ -427,13 +425,11 @@ func (c *Client) Accept(ctx context.Context) error {
 				return err
 			}
 		}
-		if c.status == 'I' {
-			rq := new(protocol.ReadyForQuery)
-			rq.Fields.Status = 'I'
-			err = c.Send(rq)
-			if err != nil {
-				return err
-			}
+		rq := new(protocol.ReadyForQuery)
+		rq.Fields.Status = 'I'
+		err = c.Send(rq)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -448,8 +444,23 @@ func (c *Client) recvLoop() {
 			}
 			break
 		}
-		log.Printf("got packet(%s) %+v", reflect.TypeOf(recv), recv)
-		c.recv <- recv
+		//log.Printf("got packet(%s) %+v", reflect.TypeOf(recv), recv)
+		switch pkt := recv.(type) {
+		case *protocol.Parse:
+			c.statements[pkt.Fields.PreparedStatement] = pkt
+			err = c.Send(new(protocol.ParseComplete))
+			if err != nil {
+				break
+			}
+		case *protocol.Bind:
+			c.portals[pkt.Fields.Destination] = pkt
+			err = c.Send(new(protocol.BindComplete))
+			if err != nil {
+				break
+			}
+		default:
+			c.recv <- recv
+		}
 	}
 }
 
@@ -477,16 +488,11 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 		return false, ctx.Err()
 	}
 	switch cast := rsp.(type) {
-	case *protocol.Parse:
-		return true, c.parse(ctx, cast)
-	case *protocol.Bind:
-		return true, c.bind(ctx, cast)
 	case *protocol.Describe:
 		return true, c.handle_describe(ctx, cast)
 	case *protocol.Execute:
 		return true, c.handle_execute(ctx, cast)
 	case *protocol.Sync:
-		c.status = 'I'
 		return true, nil
 	case *protocol.Query:
 		return true, c.handle_query(ctx, cast)
@@ -500,28 +506,14 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (c *Client) parse(ctx context.Context, q *protocol.Parse) error {
-	c.statements[q.Fields.PreparedStatement] = q
-	c.status = 'T'
-	return c.Send(new(protocol.ParseComplete))
-}
-
-func (c *Client) bind(ctx context.Context, b *protocol.Bind) error {
-	c.portals[b.Fields.Destination] = b
-	c.status = 'T'
-	return c.Send(new(protocol.BindComplete))
-}
-
 func (c *Client) handle_describe(ctx context.Context, d *protocol.Describe) error {
 	//log.Println("describe")
-	c.status = 'T'
 	c.startRequest()
 	return c.server.Describe(ctx, c, d)
 }
 
 func (c *Client) handle_execute(ctx context.Context, e *protocol.Execute) error {
 	//log.Println("execute")
-	c.status = 'T'
 	c.startRequest()
 	return c.server.Execute(ctx, c, e)
 }

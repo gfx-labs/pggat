@@ -142,7 +142,7 @@ func (g *Gatling) ensurePools(c *config.Global) error {
 		if existing, ok := g.pools[name]; ok {
 			existing.EnsureConfig(p)
 		} else {
-			g.pools[name] = database.New(server.Dial, p)
+			g.pools[name] = database.New(server.Dial, name, p)
 		}
 	}
 	return nil

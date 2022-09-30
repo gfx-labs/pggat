@@ -8,7 +8,7 @@ import (
 
 // TODO: adapt tests
 func TestQueryRouterInterRoleReplica(t *testing.T) {
-	qr := DefaultRouter
+	qr := DefaultRouter(nil)
 	role, err := qr.InferRole(`UPDATE items SET name = 'pumpkin' WHERE id = 5`)
 	if err != nil {
 		t.Fatal(err)

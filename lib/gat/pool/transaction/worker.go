@@ -105,7 +105,9 @@ func (w *worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.D
 	defer w.ret()
 
 	if w.w.user.StatementTimeout != 0 {
-		ctx, _ = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+		var done context.CancelFunc
+		ctx, done = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+		defer done()
 	}
 
 	errch := make(chan error)
@@ -129,7 +131,9 @@ func (w *worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Ex
 	defer w.ret()
 
 	if w.w.user.StatementTimeout != 0 {
-		ctx, _ = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+		var done context.CancelFunc
+		ctx, done = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+		defer done()
 	}
 
 	errch := make(chan error)
@@ -153,7 +157,9 @@ func (w *worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.
 	defer w.ret()
 
 	if w.w.user.StatementTimeout != 0 {
-		ctx, _ = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+		var done context.CancelFunc
+		ctx, done = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+		defer done()
 	}
 
 	errch := make(chan error)
@@ -177,7 +183,9 @@ func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query stri
 	defer w.ret()
 
 	if w.w.user.StatementTimeout != 0 {
-		ctx, _ = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+		var done context.CancelFunc
+		ctx, done = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+		defer done()
 	}
 
 	start := time.Now()
@@ -208,7 +216,9 @@ func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query stri
 	defer w.ret()
 
 	if w.w.user.StatementTimeout != 0 {
-		ctx, _ = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+		var done context.CancelFunc
+		ctx, done = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
+		defer done()
 	}
 
 	start := time.Now()
@@ -262,7 +272,7 @@ func (w *worker) z_actually_do_describe(ctx context.Context, client gat.Client, 
 	}
 	w.setCurrentBinding(client, target)
 	defer w.unsetCurrentBinding(client, target)
-	return target.Describe(client, payload)
+	return target.Describe(ctx, client, payload)
 }
 func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, payload *protocol.Execute) error {
 	srv := w.chooseShard(client)
@@ -302,7 +312,7 @@ func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, p
 	if target == nil {
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
 	}
-	return target.Execute(client, payload)
+	return target.Execute(ctx, client, payload)
 }
 func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
 	srv := w.chooseShard(client)
@@ -319,7 +329,7 @@ func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payloa
 	}
 	w.setCurrentBinding(client, target)
 	defer w.unsetCurrentBinding(client, target)
-	err := target.CallFunction(client, payload)
+	err := target.CallFunction(ctx, client, payload)
 	if err != nil {
 		return fmt.Errorf("fn('%+v') fail: %w ", payload, err)
 	}
