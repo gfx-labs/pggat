@@ -11,6 +11,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/admin"
 	"gfx.cafe/gfx/pggat/lib/gat/database"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/server"
+	"gfx.cafe/gfx/pggat/lib/metrics"
 
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/client"
@@ -161,6 +162,7 @@ func (g *Gatling) ListenAndServe(ctx context.Context) error {
 				if err != nil {
 					errch <- err
 				}
+				metrics.RecordAcceptConnectionStatus(err)
 				close(errch)
 				err = g.handleConnection(ctx, c)
 				if err != nil {
@@ -172,6 +174,7 @@ func (g *Gatling) ListenAndServe(ctx context.Context) error {
 
 			err = <-errch
 			if err != nil {
+				// metrics.Counter("pggat", "accept connection errors")
 				log.Println("failed to accept connection:", err)
 			}
 		}
@@ -187,11 +190,13 @@ func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) error {
 		g.mu.Lock()
 		defer g.mu.Unlock()
 		g.clients[cl.GetId()] = cl
+		metrics.RecordActiveConnections(len(g.clients))
 	}()
 	defer func() {
 		g.mu.Lock()
 		defer g.mu.Unlock()
 		delete(g.clients, cl.GetId())
+		metrics.RecordActiveConnections(len(g.clients))
 	}()
 
 	err := cl.Accept(ctx)

@@ -22,6 +22,7 @@ type metrics struct {
 	counters map[string]prometheus.Counter
 	histos   map[string]prometheus.Histogram
 	pools    map[string]poolMetrics
+	gat      *gatMetrics
 	sync.RWMutex
 }
 
