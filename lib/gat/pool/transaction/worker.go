@@ -12,7 +12,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/pool/transaction/shard"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
-	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
 	"gfx.cafe/gfx/pggat/lib/metrics"
 )
 
@@ -275,12 +274,11 @@ func (w *worker) z_actually_do_describe(ctx context.Context, client gat.Client, 
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
 	}
 	// describe the portal
-	// we can use a replica because we are just describing what this query will return, query content doesn't matter
-	// because nothing is actually executed yet
-	if !w.w.user.Role.CanUse(config.SERVERROLE_REPLICA) {
+	// have to use primary because it could be executed
+	if !w.w.user.Role.CanUse(config.SERVERROLE_PRIMARY) {
 		return errors.New("permission denied")
 	}
-	target := srv.Choose(config.SERVERROLE_REPLICA)
+	target := srv.GetPrimary()
 	if target == nil {
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
 	}
@@ -294,33 +292,10 @@ func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, p
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
 	}
 
-	// get the query text
-	portal := client.GetPortal(payload.Fields.Name)
-	if portal == nil {
-		return &pg_error.Error{
-			Severity: pg_error.Err,
-			Code:     pg_error.ProtocolViolation,
-			Message:  fmt.Sprintf("portal '%s' not found", payload.Fields.Name),
-		}
-	}
-
-	ps := client.GetPreparedStatement(portal.Fields.PreparedStatement)
-	if ps == nil {
-		return &pg_error.Error{
-			Severity: pg_error.Err,
-			Code:     pg_error.ProtocolViolation,
-			Message:  fmt.Sprintf("prepared statement '%s' not found", ps.Fields.PreparedStatement),
-		}
-	}
-
-	which, err := w.w.database.GetRouter().InferRole(ps.Fields.Query)
-	if err != nil {
-		return err
-	}
-	if !w.w.user.Role.CanUse(which) {
+	if !w.w.user.Role.CanUse(config.SERVERROLE_PRIMARY) {
 		return errors.New("permission denied")
 	}
-	target := srv.Choose(which)
+	target := srv.GetPrimary()
 	w.setCurrentBinding(client, target)
 	defer w.unsetCurrentBinding(client, target)
 	if target == nil {

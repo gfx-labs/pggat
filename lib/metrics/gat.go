@@ -49,10 +49,10 @@ func RecordAcceptConnectionStatus(err error) {
 	g.ConnectionCounter.Inc()
 }
 
-func RecordActiveConnections(count int) {
+func RecordActiveConnections(change int) {
 	if !On() {
 		return
 	}
 	g := GatMetrics()
-	g.ActiveConnections.Set(float64(count))
+	g.ActiveConnections.Add(float64(change))
 }

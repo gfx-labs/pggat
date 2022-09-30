@@ -211,6 +211,10 @@ func (c *Client) SetCurrentConn(conn gat.Connection) {
 }
 
 func (c *Client) Accept(ctx context.Context) error {
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithCancel(ctx)
+	defer cancel()
+
 	// read a packet
 	startup := new(protocol.StartupMessage)
 	err := startup.Read(c.r)
@@ -406,7 +410,7 @@ func (c *Client) Accept(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	go c.recvLoop()
+	go c.recvLoop(cancel)
 	open := true
 	for open {
 		err = c.Flush()
@@ -435,7 +439,8 @@ func (c *Client) Accept(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) recvLoop() {
+func (c *Client) recvLoop(cancel context.CancelFunc) {
+	defer cancel()
 	for {
 		recv, err := protocol.ReadFrontend(c.r)
 		if err != nil {
