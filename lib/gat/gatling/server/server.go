@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net"
 	"reflect"
@@ -52,8 +53,10 @@ type Server struct {
 	dbpass string
 	user   config.User
 
-	healthy      bool
-	awaitingSync bool
+	healthy       bool
+	awaitingSync  bool
+	readyForQuery bool
+	copying       bool
 
 	log zlog.Logger
 
@@ -155,39 +158,8 @@ func (s *Server) failHealthCheck(err error) {
 }
 
 func (s *Server) healthCheck() {
-	check := new(protocol.Query)
-	check.Fields.Query = "select 1"
-	err := s.writePacket(check)
-	if err != nil {
-		s.failHealthCheck(err)
-		return
-	}
-	err = s.flush()
-	if err != nil {
-		s.failHealthCheck(err)
-		return
-	}
-
-	// read until we get a ready for query
-	for {
-		var recv protocol.Packet
-		recv, err = s.readPacket()
-		if err != nil {
-			s.failHealthCheck(err)
-			return
-		}
-
-		switch r := recv.(type) {
-		case *protocol.ReadyForQuery:
-			if r.Fields.Status != 'I' {
-				s.failHealthCheck(fmt.Errorf("expected server to be in command mode but it isn't"))
-			}
-			return
-		case *protocol.DataRow, *protocol.RowDescription, *protocol.CommandComplete:
-		default:
-			s.failHealthCheck(fmt.Errorf("expected a Simple Query packet but server sent %#v", recv))
-			return
-		}
+	if !s.readyForQuery {
+		s.failHealthCheck(errors.New("expected server to be ready for query"))
 	}
 }
 
@@ -346,27 +318,8 @@ func (s *Server) connect(ctx context.Context) error {
 			s.lastActivity = time.Now()
 			s.connectedAt = time.Now().UTC()
 			s.state = "idle"
+			s.readyForQuery = true
 			return nil
-		}
-	}
-}
-
-func (s *Server) forwardTo(client gat.Client, predicate func(pkt protocol.Packet) (forward bool, finish bool, err error)) error {
-	var e error
-	for {
-		var rsp protocol.Packet
-		rsp, err := s.readPacket()
-		if err != nil {
-			return err
-		}
-		//log.Printf("backend packet(%s) %+v", reflect.TypeOf(rsp), rsp)
-		var forward, finish bool
-		forward, finish, e = predicate(rsp)
-		if forward && e == nil {
-			e = client.Send(rsp)
-		}
-		if finish {
-			return e
 		}
 	}
 }
@@ -388,10 +341,78 @@ func (s *Server) readPacket() (protocol.Packet, error) {
 }
 
 func (s *Server) stabilize() {
-	// TODO actually stabilize connection
+	if s.readyForQuery {
+		return
+	}
+	//log.Println("connection is unstable, attempting to restabilize it")
+	if s.copying {
+		//log.Println("failing copy")
+		s.copying = false
+		err := s.writePacket(new(protocol.CopyFail))
+		if err != nil {
+			return
+		}
+	}
 	if s.awaitingSync {
-		_ = s.writePacket(new(protocol.Sync))
-		_ = s.flush()
+		//log.Println("syncing")
+		s.awaitingSync = false
+		err := s.writePacket(new(protocol.Sync))
+		if err != nil {
+			return
+		}
+		err = s.flush()
+		if err != nil {
+			return
+		}
+	}
+	query := new(protocol.Query)
+	query.Fields.Query = "end"
+	err := s.writePacket(query)
+	if err != nil {
+		return
+	}
+	err = s.flush()
+	if err != nil {
+		return
+	}
+
+	for {
+		var pkt protocol.Packet
+		pkt, err = s.readPacket()
+		if err != nil {
+			return
+		}
+
+		//log.Printf("received %+v", pkt)
+
+		switch pk := pkt.(type) {
+		case *protocol.ReadyForQuery:
+			if pk.Fields.Status == 'I' {
+				s.readyForQuery = true
+				return
+			} else {
+				query := new(protocol.Query)
+				query.Fields.Query = "end"
+				err = s.writePacket(query)
+				if err != nil {
+					return
+				}
+				err = s.flush()
+				if err != nil {
+					return
+				}
+			}
+		case *protocol.CopyInResponse, *protocol.CopyBothResponse:
+			fail := new(protocol.CopyFail)
+			err = s.writePacket(fail)
+			if err != nil {
+				return
+			}
+			err = s.flush()
+			if err != nil {
+				return
+			}
+		}
 	}
 }
 
@@ -479,10 +500,6 @@ func (s *Server) destructPortal(name string) {
 	s.destructPreparedStatement(portal.Fields.PreparedStatement)
 }
 
-func (s *Server) Describe(ctx context.Context, client gat.Client, d *protocol.Describe) error {
-	return s.sendAndLink(ctx, client, d)
-}
-
 func (s *Server) handleRecv(client gat.Client, packet protocol.Packet) error {
 	switch pkt := packet.(type) {
 	case *protocol.FunctionCall, *protocol.Query:
@@ -546,6 +563,7 @@ func (s *Server) handleRecv(client gat.Client, packet protocol.Packet) error {
 }
 
 func (s *Server) sendAndLink(ctx context.Context, client gat.Client, initial protocol.Packet) error {
+	s.readyForQuery = false
 	err := s.handleRecv(client, initial)
 	if err != nil {
 		return err
@@ -571,6 +589,7 @@ func (s *Server) link(ctx context.Context, client gat.Client) error {
 		case *protocol.ReadyForQuery:
 			if p.Fields.Status == 'I' {
 				// this client is done
+				s.readyForQuery = true
 				return nil
 			}
 
@@ -591,7 +610,7 @@ func (s *Server) link(ctx context.Context, client gat.Client) error {
 			if err != nil {
 				return err
 			}
-		case *protocol.CopyInResponse:
+		case *protocol.CopyInResponse, *protocol.CopyBothResponse:
 			err = client.Send(p)
 			if err != nil {
 				return err
@@ -632,6 +651,10 @@ func (s *Server) awaitSync(ctx context.Context, client gat.Client) error {
 	return nil
 }
 
+func (s *Server) Describe(ctx context.Context, client gat.Client, d *protocol.Describe) error {
+	return s.sendAndLink(ctx, client, d)
+}
+
 func (s *Server) Execute(ctx context.Context, client gat.Client, e *protocol.Execute) error {
 	return s.sendAndLink(ctx, client, e)
 }
@@ -650,6 +673,7 @@ func (s *Server) Transaction(ctx context.Context, client gat.Client, query strin
 }
 
 func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
+	s.copying = true
 	err := client.Flush()
 	if err != nil {
 		return err
@@ -660,8 +684,6 @@ func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 		select {
 		case pkt = <-client.Recv():
 		case <-ctx.Done():
-			_ = s.writePacket(new(protocol.CopyFail))
-			_ = s.flush()
 			return ctx.Err()
 		}
 		err = s.writePacket(pkt)
@@ -671,6 +693,7 @@ func (s *Server) CopyIn(ctx context.Context, client gat.Client) error {
 
 		switch pkt.(type) {
 		case *protocol.CopyDone, *protocol.CopyFail:
+			s.copying = false
 			// don't error on copyfail because the client is the one that errored, it already knows
 			return s.flush()
 		}

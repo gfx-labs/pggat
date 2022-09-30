@@ -7,6 +7,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/admin"
 	"gfx.cafe/gfx/pggat/lib/gat/database"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/server"
+	"gfx.cafe/util/go/generic"
 	"io"
 	"net"
 	"sync"
@@ -29,14 +30,13 @@ type Gatling struct {
 	chConfig chan *config.Global
 
 	pools   map[string]gat.Database
-	clients map[gat.ClientID]gat.Client
+	clients generic.Map[gat.ClientID, gat.Client]
 }
 
 func NewGatling(conf *config.Global) *Gatling {
 	g := &Gatling{
 		chConfig: make(chan *config.Global, 1),
 		pools:    make(map[string]gat.Database),
-		clients:  make(map[gat.ClientID]gat.Client),
 	}
 	// add admin pool
 	adminPool := admin.New(g)
@@ -86,24 +86,18 @@ func (g *Gatling) GetDatabases() map[string]gat.Database {
 }
 
 func (g *Gatling) GetClient(id gat.ClientID) gat.Client {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-	c, ok := g.clients[id]
+	c, ok := g.clients.Load(id)
 	if !ok {
 		return nil
 	}
 	return c
 }
 
-func (g *Gatling) GetClients() []gat.Client {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-	out := make([]gat.Client, len(g.clients))
-	idx := 0
-	for _, p := range g.clients {
-		out[idx] = p
-		idx += 1
-	}
+func (g *Gatling) GetClients() (out []gat.Client) {
+	g.clients.Range(func(id gat.ClientID, client gat.Client) bool {
+		out = append(out, client)
+		return true
+	})
 	return out
 }
 
@@ -161,12 +155,7 @@ func (g *Gatling) ListenAndServe(ctx context.Context) error {
 					errch <- err
 				}
 				close(errch)
-				err = g.handleConnection(ctx, c)
-				if err != nil {
-					if err != io.EOF {
-						log.Println("disconnected:", err)
-					}
-				}
+				g.handleConnection(ctx, c)
 			}()
 
 			err = <-errch
@@ -179,18 +168,12 @@ func (g *Gatling) ListenAndServe(ctx context.Context) error {
 }
 
 // TODO: TLS
-func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) error {
+func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) {
 	cl := client.NewClient(g, g.c, c, false)
 
-	func() {
-		g.mu.Lock()
-		defer g.mu.Unlock()
-		g.clients[cl.GetId()] = cl
-	}()
+	g.clients.Store(cl.GetId(), cl)
 	defer func() {
-		g.mu.Lock()
-		defer g.mu.Unlock()
-		delete(g.clients, cl.GetId())
+		g.clients.Delete(cl.GetId())
 	}()
 
 	err := cl.Accept(ctx)
@@ -202,7 +185,6 @@ func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) error {
 		}
 	}
 	_ = c.Close()
-	return nil
 }
 
 var _ gat.Gat = (*Gatling)(nil)
