@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gfx.cafe/gfx/pggat/lib/gat/admin"
-	"gfx.cafe/gfx/pggat/lib/gat/database"
-	"gfx.cafe/gfx/pggat/lib/gat/gatling/server"
 	"io"
 	"net"
 	"sync"
+
+	"gfx.cafe/gfx/pggat/lib/gat/admin"
+	"gfx.cafe/gfx/pggat/lib/gat/database"
+	"gfx.cafe/gfx/pggat/lib/gat/gatling/server"
 
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/client"

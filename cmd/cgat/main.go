@@ -11,14 +11,12 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/gatling"
 	"gfx.cafe/util/go/graceful"
 	"git.tuxpa.in/a/zlog/log"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
-	//zlog.SetGlobalLevel(zlog.PanicLevel)
-	go func() {
-
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
+	http.Handle("/metrics", promhttp.Handler())
+	go http.ListenAndServe("localhost:6060", nil)
 
 	confLocation := os.Getenv("CONFIG_LOCATION")
 	if confLocation == "" {
