@@ -126,8 +126,10 @@ func (w *worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.D
 
 	select {
 	case <-ctx.Done():
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, ctx.Err())
 		return ctx.Err()
 	case err := <-errch:
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, err)
 		return err
 	}
 }
@@ -157,8 +159,10 @@ func (w *worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Ex
 
 	select {
 	case <-ctx.Done():
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, ctx.Err())
 		return ctx.Err()
 	case err := <-errch:
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, err)
 		return err
 	}
 }
@@ -188,8 +192,10 @@ func (w *worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.
 
 	select {
 	case <-ctx.Done():
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, ctx.Err())
 		return ctx.Err()
 	case err := <-errch:
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, err)
 		return err
 	}
 }
@@ -220,8 +226,10 @@ func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query stri
 	// wait until query or close
 	select {
 	case <-ctx.Done():
+		metrics.RecordQueryError(w.w.GetDatabase().GetName(), w.w.user.Name, ctx.Err())
 		return ctx.Err()
 	case err := <-errch:
+		metrics.RecordQueryError(w.w.GetDatabase().GetName(), w.w.user.Name, err)
 		return err
 	}
 }
@@ -252,8 +260,10 @@ func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query stri
 	// wait until query or close
 	select {
 	case <-ctx.Done():
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, ctx.Err())
 		return ctx.Err()
 	case err := <-errch:
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, err)
 		return err
 	}
 }
