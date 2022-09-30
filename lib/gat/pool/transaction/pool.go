@@ -2,12 +2,14 @@ package transaction
 
 import (
 	"context"
-	"gfx.cafe/gfx/pggat/lib/config"
-	"gfx.cafe/gfx/pggat/lib/gat"
-	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"runtime"
 	"sync/atomic"
 	"time"
+
+	"gfx.cafe/gfx/pggat/lib/config"
+	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"gfx.cafe/gfx/pggat/lib/metrics"
 )
 
 type Pool struct {
@@ -44,7 +46,7 @@ func (c *Pool) GetDatabase() gat.Database {
 func (c *Pool) getWorker() *worker {
 	start := time.Now()
 	defer func() {
-		c.database.GetStats().AddWaitTime(time.Now().Sub(start).Microseconds())
+		metrics.RecordWaitTime(c.database.GetName(), c.user.Name, time.Since(start))
 	}()
 	select {
 	case w := <-c.workerPool:

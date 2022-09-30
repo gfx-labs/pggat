@@ -66,7 +66,7 @@ func newPoolMetrics(db string, user string) poolMetrics {
 			},
 		}, []string{}),
 		SentBytes: promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "pggat_received_bytes_total",
+			Name: "pggat_sent_bytes_total",
 			Help: "total number of bytes received",
 			ConstLabels: prometheus.Labels{
 				"db":   db,
@@ -91,5 +91,21 @@ func RecordQueryTime(db string, user string, dur time.Duration) {
 		return
 	}
 	p := PoolMetrics(db, user)
-	p.QueryLatency.WithLabelValues().Observe(float64(dur.Microseconds()))
+	p.QueryLatency.WithLabelValues().Observe(float64(dur.Nanoseconds()))
+}
+
+func RecordTransactionTime(db string, user string, dur time.Duration) {
+	if !On() {
+		return
+	}
+	p := PoolMetrics(db, user)
+	p.TxLatency.WithLabelValues().Observe(float64(dur.Nanoseconds()))
+}
+
+func RecordWaitTime(db string, user string, dur time.Duration) {
+	if !On() {
+		return
+	}
+	p := PoolMetrics(db, user)
+	p.WaitLatency.WithLabelValues().Observe(float64(dur.Nanoseconds()))
 }

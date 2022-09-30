@@ -16,7 +16,7 @@ import (
 
 func main() {
 	http.Handle("/metrics", promhttp.Handler())
-	go http.ListenAndServe("localhost:6060", nil)
+	go http.ListenAndServe(":6060", nil)
 
 	confLocation := os.Getenv("CONFIG_LOCATION")
 	if confLocation == "" {

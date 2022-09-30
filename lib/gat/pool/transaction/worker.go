@@ -13,6 +13,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/pool/transaction/shard"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
+	"gfx.cafe/gfx/pggat/lib/metrics"
 )
 
 // a single use worker with an embedded connection database.
@@ -110,6 +111,11 @@ func (w *worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.D
 		defer done()
 	}
 
+	start := time.Now()
+	defer func() {
+		metrics.RecordTransactionTime(w.w.GetDatabase().GetName(), w.w.user.Name, time.Since(start))
+	}()
+
 	errch := make(chan error)
 	go func() {
 		defer close(errch)
@@ -136,6 +142,11 @@ func (w *worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Ex
 		defer done()
 	}
 
+	start := time.Now()
+	defer func() {
+		metrics.RecordTransactionTime(w.w.GetDatabase().GetName(), w.w.user.Name, time.Since(start))
+	}()
+
 	errch := make(chan error)
 	go func() {
 		defer close(errch)
@@ -161,6 +172,11 @@ func (w *worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.
 		ctx, done = context.WithTimeout(ctx, time.Duration(w.w.user.StatementTimeout)*time.Millisecond)
 		defer done()
 	}
+
+	start := time.Now()
+	defer func() {
+		metrics.RecordQueryTime(w.w.GetDatabase().GetName(), w.w.user.Name, time.Since(start))
+	}()
 
 	errch := make(chan error)
 	go func() {
@@ -190,8 +206,7 @@ func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query stri
 
 	start := time.Now()
 	defer func() {
-		// w.w.user.Name
-		w.w.database.GetStats().AddQueryTime(time.Now().Sub(start).Microseconds())
+		metrics.RecordQueryTime(w.w.GetDatabase().GetName(), w.w.user.Name, time.Since(start))
 	}()
 
 	errch := make(chan error)
@@ -223,8 +238,7 @@ func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query stri
 
 	start := time.Now()
 	defer func() {
-		w.w.database.GetStats().AddXactTime(time.Now().Sub(start).Microseconds())
-		// metrics.PoolMetrics(w.., w.w.user.Name)
+		metrics.RecordTransactionTime(w.w.GetDatabase().GetName(), w.w.user.Name, time.Since(start))
 	}()
 
 	errch := make(chan error)
