@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
+	"sync"
+	"time"
+
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/pool/transaction/shard"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
-	"math/rand"
-	"sync"
-	"time"
 )
 
 // a single use worker with an embedded connection database.
@@ -181,6 +182,7 @@ func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query stri
 
 	start := time.Now()
 	defer func() {
+		// w.w.user.Name
 		w.w.database.GetStats().AddQueryTime(time.Now().Sub(start).Microseconds())
 	}()
 
@@ -212,6 +214,7 @@ func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query stri
 	start := time.Now()
 	defer func() {
 		w.w.database.GetStats().AddXactTime(time.Now().Sub(start).Microseconds())
+		// metrics.PoolMetrics(w.., w.w.user.Name)
 	}()
 
 	errch := make(chan error)

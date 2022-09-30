@@ -1,21 +1,19 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/parse"
 	"gfx.cafe/gfx/pggat/lib/util/cmux"
-	"time"
 )
 
 // The admin database, implemented through the gat.Database interface, allowing it to be added to any existing Gat
-
-import (
-	"context"
-	"gfx.cafe/gfx/pggat/lib/gat/protocol"
-)
 
 const DataType_String = 25
 const DataType_Int64 = 20

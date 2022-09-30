@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -31,7 +33,7 @@ func newPoolMetrics(db string, user string) poolMetrics {
 		TxLatency: promauto.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "pggat_db_transaction_latency",
 			Help:    "transaction latency",
-			Buckets: taskDurationBucketsUs,
+			Buckets: bucketsUs,
 			ConstLabels: prometheus.Labels{
 				"db":   db,
 				"user": user,
@@ -40,7 +42,7 @@ func newPoolMetrics(db string, user string) poolMetrics {
 		QueryLatency: promauto.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "pggat_db_query_latency",
 			Help:    "query latency",
-			Buckets: taskDurationBucketsUs,
+			Buckets: bucketsUs,
 			ConstLabels: prometheus.Labels{
 				"db":   db,
 				"user": user,
@@ -49,7 +51,7 @@ func newPoolMetrics(db string, user string) poolMetrics {
 		WaitLatency: promauto.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "pggat_db_wait_latency",
 			Help:    "wait latency",
-			Buckets: taskDurationBucketsUs,
+			Buckets: bucketsUs,
 			ConstLabels: prometheus.Labels{
 				"db":   db,
 				"user": user,
@@ -73,4 +75,21 @@ func newPoolMetrics(db string, user string) poolMetrics {
 		}, []string{}),
 	}
 	return o
+}
+
+func RecordBytes(db string, user string, sent, received int64) {
+	if !On() {
+		return
+	}
+	p := PoolMetrics(db, user)
+	p.SentBytes.WithLabelValues().Add(float64(sent))
+	p.ReceivedBytes.WithLabelValues().Add(float64(received))
+}
+
+func RecordQueryTime(db string, user string, dur time.Duration) {
+	if !On() {
+		return
+	}
+	p := PoolMetrics(db, user)
+	p.QueryLatency.WithLabelValues().Observe(float64(dur.Microseconds()))
 }

@@ -7,15 +7,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"gfx.cafe/gfx/pggat/lib/config"
-	"gfx.cafe/gfx/pggat/lib/gat"
-	"gfx.cafe/gfx/pggat/lib/gat/gatling/messages"
-	"gfx.cafe/gfx/pggat/lib/gat/protocol"
-	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
-	"gfx.cafe/ghalliday1/pg3p"
-	"gfx.cafe/ghalliday1/pg3p/lex"
-	"git.tuxpa.in/a/zlog"
-	"git.tuxpa.in/a/zlog/log"
 	"io"
 	"math"
 	"math/big"
@@ -24,6 +15,17 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"gfx.cafe/gfx/pggat/lib/config"
+	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/gatling/messages"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol/pg_error"
+	"gfx.cafe/gfx/pggat/lib/metrics"
+	"gfx.cafe/ghalliday1/pg3p"
+	"gfx.cafe/ghalliday1/pg3p/lex"
+	"git.tuxpa.in/a/zlog"
+	"git.tuxpa.in/a/zlog/log"
 )
 
 type CountReader[T io.Reader] struct {
@@ -415,11 +417,7 @@ func (c *Client) Accept(ctx context.Context) error {
 		}
 		open, err = c.tick(ctx)
 		// add send and recv to pool
-		stats := c.server.GetDatabase().GetStats()
-		if stats != nil {
-			stats.AddTotalSent(c.wr.BytesWritten.Swap(0))
-			stats.AddTotalReceived(c.r.BytesRead.Swap(0))
-		}
+		metrics.RecordBytes(c.poolName, c.username, c.wr.BytesWritten.Swap(0), c.r.BytesRead.Swap(0))
 		if !open {
 			break
 		}
