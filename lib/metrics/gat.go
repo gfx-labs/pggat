@@ -56,3 +56,13 @@ func RecordActiveConnections(change int) {
 	g := GatMetrics()
 	g.ActiveConnections.Add(float64(change))
 }
+
+func RecordConnectionError(err error) {
+	if !On() {
+		return
+	}
+	g := GatMetrics()
+	if err != nil {
+		g.ConnectionErrorCounter.WithLabelValues(err.Error()).Inc()
+	}
+}

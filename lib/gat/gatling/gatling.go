@@ -164,7 +164,6 @@ func (g *Gatling) ListenAndServe(ctx context.Context) error {
 
 			err = <-errch
 			if err != nil {
-				// metrics.Counter("pggat", "accept connection errors")
 				log.Println("failed to accept connection:", err)
 			}
 		}
