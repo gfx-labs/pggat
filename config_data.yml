@@ -33,7 +33,7 @@ pools:
             port: 5432
             role: primary
             username: ENV$PSQL_DB_USER_RW
-            password: ENV$PSQL_DB_PASS_RW
+            password: postgres
           - host: ENV$PSQL_REP_DB_HOST
             port: 5432
             role: replica

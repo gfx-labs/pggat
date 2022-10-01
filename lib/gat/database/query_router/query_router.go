@@ -2,15 +2,16 @@ package query_router
 
 import (
 	"errors"
+	"strconv"
+	"unicode"
+	"unicode/utf8"
+
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/util/cmux"
 	"gfx.cafe/ghalliday1/pg3p"
 	"gfx.cafe/ghalliday1/pg3p/lex"
 	"gfx.cafe/util/go/generic"
-	"strconv"
-	"unicode"
-	"unicode/utf8"
 )
 
 type QueryRouter struct {

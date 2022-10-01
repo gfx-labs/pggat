@@ -2,12 +2,13 @@ package session
 
 import (
 	"context"
+	"runtime"
+	"sync/atomic"
+
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/util/go/generic"
-	"runtime"
-	"sync/atomic"
 )
 
 type Pool struct {
