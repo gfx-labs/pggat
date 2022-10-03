@@ -184,7 +184,6 @@ func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) {
 
 	err := cl.Accept(ctx)
 	if err != nil {
-		metrics.RecordConnectionError(err)
 		if !errors.Is(err, io.EOF) {
 			log.Println("err in connection:", err.Error())
 			_ = cl.Send(pg_error.IntoPacket(err))

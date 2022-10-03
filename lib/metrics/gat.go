@@ -28,10 +28,6 @@ func newGatmetrics() *gatMetrics {
 			Name: "pggat_connection_count_total",
 			Help: "total number of connections initiated with pggat",
 		}),
-		ConnectionErrorCounter: promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "pggat_connection_error_count_total",
-			Help: "total number of connections initiated with pggat",
-		}, []string{"error"}),
 		ActiveConnections: promauto.NewGauge(prometheus.GaugeOpts{
 			Name: "pggat_current_connection_count",
 			Help: "number of connections to pggat currently",
@@ -59,15 +55,4 @@ func RecordActiveConnections(change int) {
 	}
 	g := GatMetrics()
 	g.ActiveConnections.Add(float64(change))
-}
-
-func RecordConnectionError(err error) {
-	if !On() {
-		return
-	}
-	log.Println(err.Error())
-	if err != nil {
-		g := GatMetrics()
-		g.ConnectionErrorCounter.WithLabelValues(err.Error()).Inc()
-	}
 }
