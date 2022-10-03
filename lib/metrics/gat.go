@@ -1,8 +1,6 @@
 package metrics
 
 import (
-	"log"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -44,8 +42,6 @@ func RecordAcceptConnectionStatus(err error) {
 	if err != nil {
 		g.ConnectionErrorCounter.WithLabelValues(err.Error()).Inc()
 	}
-	log.Println("TEST")
-
 	g.ConnectionCounter.Inc()
 }
 
