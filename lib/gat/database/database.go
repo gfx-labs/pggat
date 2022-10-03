@@ -1,10 +1,11 @@
 package database
 
 import (
+	"sync"
+
 	"gfx.cafe/gfx/pggat/lib/gat/database/query_router"
 	"gfx.cafe/gfx/pggat/lib/gat/pool/session"
 	"gfx.cafe/gfx/pggat/lib/gat/pool/transaction"
-	"sync"
 
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
@@ -16,8 +17,6 @@ type Database struct {
 	connPools map[string]gat.Pool
 	name      string
 
-	stats *gat.PoolStats
-
 	router *query_router.QueryRouter
 
 	dialer gat.Dialer
@@ -28,7 +27,6 @@ type Database struct {
 func New(dialer gat.Dialer, name string, conf *config.Pool) *Database {
 	pool := &Database{
 		connPools: make(map[string]gat.Pool),
-		stats:     gat.NewPoolStats(),
 		router:    query_router.DefaultRouter(conf),
 		name:      name,
 
@@ -100,10 +98,6 @@ func (p *Database) GetPools() []gat.Pool {
 		idx += 1
 	}
 	return out
-}
-
-func (p *Database) GetStats() *gat.PoolStats {
-	return p.stats
 }
 
 var _ gat.Database = (*Database)(nil)

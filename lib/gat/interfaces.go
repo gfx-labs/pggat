@@ -2,10 +2,11 @@ package gat
 
 import (
 	"context"
-	"gfx.cafe/gfx/pggat/lib/config"
-	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"net"
 	"time"
+
+	"gfx.cafe/gfx/pggat/lib/config"
+	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 )
 
 type ClientID struct {
@@ -67,8 +68,6 @@ type Database interface {
 
 	WithUser(name string) Pool
 	GetPools() []Pool
-
-	GetStats() *PoolStats
 
 	EnsureConfig(c *config.Pool)
 }
