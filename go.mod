@@ -6,7 +6,7 @@ require (
 	gfx.cafe/ghalliday1/pg3p v0.0.19
 	gfx.cafe/ghalliday1/pgparser v0.0.9
 	gfx.cafe/util/go/bufpool v0.0.0-20220906091724-3a24b7f40ccf
-	gfx.cafe/util/go/generic v0.0.0-20220917152604-80373e5a2c51
+	gfx.cafe/util/go/generic v0.0.0-20221001013022-0560a0526470
 	gfx.cafe/util/go/graceful v0.0.0-20220913082111-9770431e98e9
 	git.tuxpa.in/a/zlog v1.32.0
 	github.com/BurntSushi/toml v1.2.0

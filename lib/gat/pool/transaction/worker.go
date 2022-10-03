@@ -15,25 +15,18 @@ import (
 	"gfx.cafe/gfx/pggat/lib/metrics"
 )
 
-// a single use worker with an embedded connection database.
+// a single use Worker with an embedded connection database.
 // it wraps a pointer to the connection database.
-type worker struct {
+type Worker struct {
 	// the parent connectino database
-	w   *Pool
-	rev int
+	w *Pool
 
 	shards []*shard.Shard
-
-	mu sync.Mutex
+	mu     sync.Mutex
 }
 
-// ret urn worker to database
-func (w *worker) ret() {
-	w.w.workerPool <- w
-}
-
-// attempt to connect to a new shard with this worker
-func (w *worker) fetchShard(client gat.Client, n int) bool {
+// attempt to connect to a new shard with this Worker
+func (w *Worker) fetchShard(client gat.Client, n int) bool {
 	conf := w.w.c.Load()
 	if n < 0 || n >= len(conf.Shards) {
 		return false
@@ -47,14 +40,14 @@ func (w *worker) fetchShard(client gat.Client, n int) bool {
 	return true
 }
 
-func (w *worker) invalidateShard(n int) {
+func (w *Worker) invalidateShard(n int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	w.shards[n] = nil
 }
 
-func (w *worker) chooseShard(client gat.Client) *shard.Shard {
+func (w *Worker) chooseShard(client gat.Client) *shard.Shard {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -85,8 +78,8 @@ func (w *worker) chooseShard(client gat.Client) *shard.Shard {
 	return nil
 }
 
-func (w *worker) GetServerInfo(client gat.Client) []*protocol.ParameterStatus {
-	defer w.ret()
+func (w *Worker) GetServerInfo(client gat.Client) []*protocol.ParameterStatus {
+	defer w.w.returnWorker(w)
 
 	s := w.chooseShard(client)
 	if s == nil {
@@ -101,8 +94,8 @@ func (w *worker) GetServerInfo(client gat.Client) []*protocol.ParameterStatus {
 	return primary.GetServerInfo()
 }
 
-func (w *worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.Describe) error {
-	defer w.ret()
+func (w *Worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.Describe) error {
+	defer w.w.returnWorker(w)
 
 	if w.w.user.StatementTimeout != 0 {
 		var done context.CancelFunc
@@ -134,8 +127,8 @@ func (w *worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.D
 	}
 }
 
-func (w *worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Execute) error {
-	defer w.ret()
+func (w *Worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Execute) error {
+	defer w.w.returnWorker(w)
 
 	if w.w.user.StatementTimeout != 0 {
 		var done context.CancelFunc
@@ -167,8 +160,8 @@ func (w *worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Ex
 	}
 }
 
-func (w *worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.FunctionCall) error {
-	defer w.ret()
+func (w *Worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.FunctionCall) error {
+	defer w.w.returnWorker(w)
 
 	if w.w.user.StatementTimeout != 0 {
 		var done context.CancelFunc
@@ -200,8 +193,8 @@ func (w *worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.
 	}
 }
 
-func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query string) error {
-	defer w.ret()
+func (w *Worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query string) error {
+	defer w.w.returnWorker(w)
 
 	if w.w.user.StatementTimeout != 0 {
 		var done context.CancelFunc
@@ -234,8 +227,8 @@ func (w *worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query stri
 	}
 }
 
-func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query string) error {
-	defer w.ret()
+func (w *Worker) HandleTransaction(ctx context.Context, c gat.Client, query string) error {
+	defer w.w.returnWorker(w)
 
 	if w.w.user.StatementTimeout != 0 {
 		var done context.CancelFunc
@@ -268,17 +261,17 @@ func (w *worker) HandleTransaction(ctx context.Context, c gat.Client, query stri
 	}
 }
 
-func (w *worker) setCurrentBinding(client gat.Client, server gat.Connection) {
+func (w *Worker) setCurrentBinding(client gat.Client, server gat.Connection) {
 	client.SetCurrentConn(server)
 	server.SetClient(client)
 }
 
-func (w *worker) unsetCurrentBinding(client gat.Client, server gat.Connection) {
+func (w *Worker) unsetCurrentBinding(client gat.Client, server gat.Connection) {
 	client.SetCurrentConn(nil)
 	server.SetClient(nil)
 }
 
-func (w *worker) z_actually_do_describe(ctx context.Context, client gat.Client, payload *protocol.Describe) error {
+func (w *Worker) z_actually_do_describe(ctx context.Context, client gat.Client, payload *protocol.Describe) error {
 	srv := w.chooseShard(client)
 	if srv == nil {
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
@@ -296,7 +289,7 @@ func (w *worker) z_actually_do_describe(ctx context.Context, client gat.Client, 
 	defer w.unsetCurrentBinding(client, target)
 	return target.Describe(ctx, client, payload)
 }
-func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, payload *protocol.Execute) error {
+func (w *Worker) z_actually_do_execute(ctx context.Context, client gat.Client, payload *protocol.Execute) error {
 	srv := w.chooseShard(client)
 	if srv == nil {
 		return fmt.Errorf("describe('%+v') fail: no server", payload)
@@ -313,7 +306,7 @@ func (w *worker) z_actually_do_execute(ctx context.Context, client gat.Client, p
 	}
 	return target.Execute(ctx, client, payload)
 }
-func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
+func (w *Worker) z_actually_do_fn(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
 	srv := w.chooseShard(client)
 	if srv == nil {
 		return fmt.Errorf("fn('%+v') fail: no server", payload)
@@ -334,7 +327,7 @@ func (w *worker) z_actually_do_fn(ctx context.Context, client gat.Client, payloa
 	}
 	return nil
 }
-func (w *worker) z_actually_do_simple_query(ctx context.Context, client gat.Client, payload string) error {
+func (w *Worker) z_actually_do_simple_query(ctx context.Context, client gat.Client, payload string) error {
 	// chose a server
 	srv := w.chooseShard(client)
 	if srv == nil {
@@ -362,7 +355,7 @@ func (w *worker) z_actually_do_simple_query(ctx context.Context, client gat.Clie
 	}
 	return nil
 }
-func (w *worker) z_actually_do_transaction(ctx context.Context, client gat.Client, payload string) error {
+func (w *Worker) z_actually_do_transaction(ctx context.Context, client gat.Client, payload string) error {
 	// chose a server
 	srv := w.chooseShard(client)
 	if srv == nil {

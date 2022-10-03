@@ -48,6 +48,8 @@ func RecordAcceptConnectionStatus(err error) {
 	if err != nil {
 		g.ConnectionErrorCounter.WithLabelValues(err.Error()).Inc()
 	}
+	log.Println("TEST")
+
 	g.ConnectionCounter.Inc()
 }
 

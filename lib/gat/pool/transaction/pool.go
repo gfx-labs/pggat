@@ -2,7 +2,6 @@ package transaction
 
 import (
 	"context"
-	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -21,11 +20,7 @@ type Pool struct {
 
 	dialer gat.Dialer
 
-	// see: https://github.com/golang/go/blob/master/src/runtime/chan.go#L33
-	// channels are a thread safe ring buffer implemented via a linked list of goroutines.
-	// the idea is that goroutines are cheap, and we can afford to have one per pending request.
-	// there is no real reason to implement a complicated worker database pattern when well, if we're okay with having a 2-4kb overhead per request, then this is fine. trading space for code complexity
-	workerPool chan *worker
+	workerPool WorkerPool[*Worker]
 }
 
 func New(database gat.Database, dialer gat.Dialer, conf *config.Pool, user *config.User) *Pool {
@@ -33,35 +28,43 @@ func New(database gat.Database, dialer gat.Dialer, conf *config.Pool, user *conf
 		user:       user,
 		database:   database,
 		dialer:     dialer,
-		workerPool: make(chan *worker, 1+runtime.NumCPU()*4),
+		workerPool: NewChannelPool[*Worker](user.PoolSize),
 	}
 	p.EnsureConfig(conf)
 	return p
+}
+
+func (c *Pool) WithWorkerPool(w WorkerPool[*Worker]) {
+	c.workerPool = w
 }
 
 func (c *Pool) GetDatabase() gat.Database {
 	return c.database
 }
 
-func (c *Pool) getWorker() *worker {
+func (c *Pool) getWorker() *Worker {
 	start := time.Now()
 	defer func() {
 		metrics.RecordWaitTime(c.database.GetName(), c.user.Name, time.Since(start))
 	}()
-	select {
-	case w := <-c.workerPool:
+	w, ok := c.workerPool.TryGet()
+	if ok {
 		return w
-	default:
+	} else {
 		if c.workerCount.Add(1)-1 < int64(c.user.PoolSize) {
-			next := &worker{
+			next := &Worker{
 				w: c,
 			}
 			return next
 		} else {
-			w := <-c.workerPool
+			w := c.workerPool.Get()
 			return w
 		}
 	}
+}
+
+func (c *Pool) returnWorker(w *Worker) {
+	c.workerPool.Put(w)
 }
 
 func (c *Pool) EnsureConfig(conf *config.Pool) {
