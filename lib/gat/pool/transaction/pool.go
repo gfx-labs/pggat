@@ -8,6 +8,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"gfx.cafe/gfx/pggat/lib/metrics"
 )
 
 type Pool struct {
@@ -44,7 +45,7 @@ func (c *Pool) GetDatabase() gat.Database {
 func (c *Pool) getWorker() *Worker {
 	start := time.Now()
 	defer func() {
-		c.database.GetStats().AddWaitTime(time.Now().Sub(start).Microseconds())
+		metrics.RecordWaitTime(c.database.GetName(), c.user.Name, time.Since(start))
 	}()
 	w, ok := c.workerPool.TryGet()
 	if ok {

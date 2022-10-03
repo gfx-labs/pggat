@@ -19,7 +19,6 @@ i'll lyk when its done
 | Load balancing of read queries | :white_check_mark:          | :white_check_mark: | Using random between replicas. Primary is included when `primary_reads_enabled` is enabled (default).                                            |
 | Sharding                       | :white_check_mark:          | :white_check_mark: | Transactions are sharded using `SET SHARD TO` and `SET SHARDING KEY TO` syntax extensions; see examples below.                                        |
 | Failover                       | :white_check_mark:          | :white_check_mark: | Replicas are tested with a health check. If a health check fails, remaining replicas are attempted; see below for algorithm description and examples. |
-| Statistics                     | :white_check_mark:          | :white_check_mark: | Statistics available in the admin database (`pgcat` and `pgbouncer`) with `SHOW STATS`, `SHOW POOLS` and others.                                      |
 | Live configuration reloading   | :white_check_mark:          | kind of            | Reload supported settings with a `SIGHUP` to the process, e.g. `kill -s SIGHUP $(pgrep pgcat)` or `RELOAD` query issued to the admin database.        |
 | Client authentication          | :white_check_mark: :wrench: | same as them       | MD5 password authentication is supported, SCRAM is on the roadmap; one user is used to connect to Postgres with both SCRAM and MD5 supported.         |
 | Admin database                 | :white_check_mark:          | :white_check_mark: | The admin database, similar to PgBouncer's, allows to query for statistics and reload the configuration.                                              |
@@ -123,7 +122,6 @@ docker compose up --exit-code-from main # This will also produce coverage report
 | Load balancing        | :white_check_mark: | :white_check_mark:  | We could test this by emitting statistics for each replica and compare them.                                             |
 | Failover              | :white_check_mark: | :white_check_mark:  | Misconfigure a replica in `pgcat.toml` and watch it forward queries to spares. CI testing is using Toxiproxy.            |
 | Sharding              | :white_check_mark: | :white_check_mark:  | See `tests/sharding` and `tests/ruby` for an Rails/ActiveRecord example.                                                 |
-| Statistics            | :white_check_mark: | :white_check_mark:  | Query the admin database with `psql -h 127.0.0.1 -p 6432 -d pgbouncer -c 'SHOW STATS'`.                                  |
 | Live config reloading | :white_check_mark: | :white_check_mark:  | Run `kill -s SIGHUP $(pgrep pgcat)` and watch the config reload.                                                         |
 
 ## Usage
@@ -262,14 +260,6 @@ INSERT INTO users (name, email, zome_id) VALUES ('test user', 'test@example.com'
 
 SET SERVER ROLE TO 'auto'; -- let the query router figure out where the query should go
 SELECT * FROM users WHERE email = 'test@example.com'; -- shard setting lasts until set again; we are reading from the primary
-```
-
-### Statistics reporting
-
-The stats are very similar to what Pgbouncer reports and the names are kept to be comparable. They are accessible by querying the admin database `pgcat`, and `pgbouncer` for compatibility.
-
-```
-psql -h 127.0.0.1 -p 6432 -d pgbouncer -c 'SHOW DATABASES'
 ```
 
 ### Live configuration reloading

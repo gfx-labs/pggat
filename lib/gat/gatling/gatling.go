@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gfx.cafe/gfx/pggat/lib/gat/admin"
-	"gfx.cafe/gfx/pggat/lib/gat/database"
-	"gfx.cafe/gfx/pggat/lib/gat/gatling/server"
-	"gfx.cafe/util/go/generic"
 	"io"
 	"net"
 	"sync"
+
+	"gfx.cafe/util/go/generic"
+
+	"gfx.cafe/gfx/pggat/lib/gat/admin"
+	"gfx.cafe/gfx/pggat/lib/gat/database"
+	"gfx.cafe/gfx/pggat/lib/gat/gatling/server"
+	"gfx.cafe/gfx/pggat/lib/metrics"
 
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/gatling/client"
@@ -154,6 +157,7 @@ func (g *Gatling) ListenAndServe(ctx context.Context) error {
 				if err != nil {
 					errch <- err
 				}
+				metrics.RecordAcceptConnectionStatus(err)
 				close(errch)
 				g.handleConnection(ctx, c)
 			}()
@@ -172,8 +176,10 @@ func (g *Gatling) handleConnection(ctx context.Context, c net.Conn) {
 	cl := client.NewClient(g, g.c, c, false)
 
 	g.clients.Store(cl.GetId(), cl)
+	metrics.RecordActiveConnections(1)
 	defer func() {
 		g.clients.Delete(cl.GetId())
+		metrics.RecordActiveConnections(-1)
 	}()
 
 	err := cl.Accept(ctx)

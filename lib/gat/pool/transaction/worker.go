@@ -12,6 +12,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/pool/transaction/shard"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"gfx.cafe/gfx/pggat/lib/metrics"
 )
 
 // a single use Worker with an embedded connection database.
@@ -102,6 +103,11 @@ func (w *Worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.D
 		defer done()
 	}
 
+	start := time.Now()
+	defer func() {
+		metrics.RecordTransactionTime(w.w.GetDatabase().GetName(), w.w.user.Name, time.Since(start))
+	}()
+
 	errch := make(chan error)
 	go func() {
 		defer close(errch)
@@ -113,8 +119,10 @@ func (w *Worker) HandleDescribe(ctx context.Context, c gat.Client, d *protocol.D
 
 	select {
 	case <-ctx.Done():
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, ctx.Err())
 		return ctx.Err()
 	case err := <-errch:
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, err)
 		return err
 	}
 }
@@ -128,6 +136,11 @@ func (w *Worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Ex
 		defer done()
 	}
 
+	start := time.Now()
+	defer func() {
+		metrics.RecordTransactionTime(w.w.GetDatabase().GetName(), w.w.user.Name, time.Since(start))
+	}()
+
 	errch := make(chan error)
 	go func() {
 		defer close(errch)
@@ -139,8 +152,10 @@ func (w *Worker) HandleExecute(ctx context.Context, c gat.Client, e *protocol.Ex
 
 	select {
 	case <-ctx.Done():
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, ctx.Err())
 		return ctx.Err()
 	case err := <-errch:
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, err)
 		return err
 	}
 }
@@ -154,6 +169,11 @@ func (w *Worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.
 		defer done()
 	}
 
+	start := time.Now()
+	defer func() {
+		metrics.RecordQueryTime(w.w.GetDatabase().GetName(), w.w.user.Name, time.Since(start))
+	}()
+
 	errch := make(chan error)
 	go func() {
 		defer close(errch)
@@ -165,8 +185,10 @@ func (w *Worker) HandleFunction(ctx context.Context, c gat.Client, fn *protocol.
 
 	select {
 	case <-ctx.Done():
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, ctx.Err())
 		return ctx.Err()
 	case err := <-errch:
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, err)
 		return err
 	}
 }
@@ -182,7 +204,7 @@ func (w *Worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query stri
 
 	start := time.Now()
 	defer func() {
-		w.w.database.GetStats().AddQueryTime(time.Now().Sub(start).Microseconds())
+		metrics.RecordQueryTime(w.w.GetDatabase().GetName(), w.w.user.Name, time.Since(start))
 	}()
 
 	errch := make(chan error)
@@ -197,8 +219,10 @@ func (w *Worker) HandleSimpleQuery(ctx context.Context, c gat.Client, query stri
 	// wait until query or close
 	select {
 	case <-ctx.Done():
+		metrics.RecordQueryError(w.w.GetDatabase().GetName(), w.w.user.Name, ctx.Err())
 		return ctx.Err()
 	case err := <-errch:
+		metrics.RecordQueryError(w.w.GetDatabase().GetName(), w.w.user.Name, err)
 		return err
 	}
 }
@@ -214,7 +238,7 @@ func (w *Worker) HandleTransaction(ctx context.Context, c gat.Client, query stri
 
 	start := time.Now()
 	defer func() {
-		w.w.database.GetStats().AddXactTime(time.Now().Sub(start).Microseconds())
+		metrics.RecordTransactionTime(w.w.GetDatabase().GetName(), w.w.user.Name, time.Since(start))
 	}()
 
 	errch := make(chan error)
@@ -229,8 +253,10 @@ func (w *Worker) HandleTransaction(ctx context.Context, c gat.Client, query stri
 	// wait until query or close
 	select {
 	case <-ctx.Done():
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, ctx.Err())
 		return ctx.Err()
 	case err := <-errch:
+		metrics.RecordTransactionError(w.w.GetDatabase().GetName(), w.w.user.Name, err)
 		return err
 	}
 }

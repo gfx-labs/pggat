@@ -22,3 +22,4 @@ services:
       PSQL_PRI_DB_HOST: db
     ports:
       - 6432:6432
+      - 6060:6060
