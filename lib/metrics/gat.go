@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"os"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -21,14 +23,24 @@ func GatMetrics() *gatMetrics {
 }
 
 func newGatmetrics() *gatMetrics {
+	hostname := os.Getenv("HOSTNAME")
+	if hostname == "" {
+		hostname = "default"
+	}
 	o := &gatMetrics{
 		ConnectionCounter: promauto.NewCounter(prometheus.CounterOpts{
 			Name: "pggat_connection_count_total",
 			Help: "total number of connections initiated with pggat",
+			ConstLabels: prometheus.Labels{
+				"pod": hostname,
+			},
 		}),
 		ActiveConnections: promauto.NewGauge(prometheus.GaugeOpts{
 			Name: "pggat_current_connection_count",
 			Help: "number of connections to pggat currently",
+			ConstLabels: prometheus.Labels{
+				"pod": hostname,
+			},
 		}),
 	}
 	return o

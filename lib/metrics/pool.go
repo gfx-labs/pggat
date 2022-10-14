@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"os"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -30,6 +31,10 @@ func PoolMetrics(db string, user string) poolMetrics {
 }
 
 func newPoolMetrics(db string, user string) poolMetrics {
+	hostname := os.Getenv("HOSTNAME")
+	if hostname == "" {
+		hostname = "default"
+	}
 	o := poolMetrics{
 		name: db + user,
 		TxLatency: promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -39,6 +44,7 @@ func newPoolMetrics(db string, user string) poolMetrics {
 			ConstLabels: prometheus.Labels{
 				"db":   db,
 				"user": user,
+				"pod":  hostname,
 			},
 		}, []string{}),
 		QueryLatency: promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -48,6 +54,7 @@ func newPoolMetrics(db string, user string) poolMetrics {
 			ConstLabels: prometheus.Labels{
 				"db":   db,
 				"user": user,
+				"pod":  hostname,
 			},
 		}, []string{}),
 		TxErrorCounts: promauto.NewCounterVec(prometheus.CounterOpts{
@@ -56,6 +63,7 @@ func newPoolMetrics(db string, user string) poolMetrics {
 			ConstLabels: prometheus.Labels{
 				"db":   db,
 				"user": user,
+				"pod":  hostname,
 			},
 		}, []string{"error"}),
 		QueryErrorCounts: promauto.NewCounterVec(prometheus.CounterOpts{
@@ -64,6 +72,7 @@ func newPoolMetrics(db string, user string) poolMetrics {
 			ConstLabels: prometheus.Labels{
 				"db":   db,
 				"user": user,
+				"pod":  hostname,
 			},
 		}, []string{"error"}),
 		WaitLatency: promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -73,6 +82,7 @@ func newPoolMetrics(db string, user string) poolMetrics {
 			ConstLabels: prometheus.Labels{
 				"db":   db,
 				"user": user,
+				"pod":  hostname,
 			},
 		}, []string{}),
 		ReceivedBytes: promauto.NewCounterVec(prometheus.CounterOpts{
@@ -81,6 +91,7 @@ func newPoolMetrics(db string, user string) poolMetrics {
 			ConstLabels: prometheus.Labels{
 				"db":   db,
 				"user": user,
+				"pod":  hostname,
 			},
 		}, []string{}),
 		SentBytes: promauto.NewCounterVec(prometheus.CounterOpts{
@@ -89,6 +100,7 @@ func newPoolMetrics(db string, user string) poolMetrics {
 			ConstLabels: prometheus.Labels{
 				"db":   db,
 				"user": user,
+				"pod":  hostname,
 			},
 		}, []string{}),
 	}
