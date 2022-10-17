@@ -53,7 +53,6 @@ type Server struct {
 	dbpass string
 	user   config.User
 
-	healthy       bool
 	awaitingSync  bool
 	readyForQuery bool
 	copying       bool
@@ -154,7 +153,6 @@ func (s *Server) GetRequestTime() time.Time {
 
 func (s *Server) failHealthCheck(err error) {
 	log.Println("Server failed a health check!!!!", err)
-	s.healthy = false
 }
 
 func (s *Server) healthCheck() {
@@ -164,7 +162,7 @@ func (s *Server) healthCheck() {
 }
 
 func (s *Server) IsCloseNeeded() bool {
-	return !s.healthy
+	return !s.readyForQuery
 }
 
 func (s *Server) GetClient() gat.Client {
