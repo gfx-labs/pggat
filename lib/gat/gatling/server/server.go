@@ -360,18 +360,8 @@ func (s *Server) stabilize() {
 		if err != nil {
 			return
 		}
-		err = s.flush()
-		if err != nil {
-			return
-		}
 	}
-	query := new(protocol.Query)
-	query.Fields.Query = "end"
-	err := s.writePacket(query)
-	if err != nil {
-		return
-	}
-	err = s.flush()
+	err := s.flush()
 	if err != nil {
 		return
 	}
@@ -558,6 +548,8 @@ func (s *Server) handleRecv(client gat.Client, packet protocol.Packet) error {
 		if err != nil {
 			return err
 		}
+	default:
+		return fmt.Errorf("don't know how to handle %T", packet)
 	}
 	return nil
 }
@@ -704,9 +696,12 @@ func (s *Server) CallFunction(ctx context.Context, client gat.Client, payload *p
 	return s.sendAndLink(ctx, client, payload)
 }
 
-func (s *Server) Close(ctx context.Context) error {
-	<-ctx.Done()
-	return nil
+func (s *Server) Close() error {
+	err := s.writePacket(&protocol.Close{})
+	if err != nil {
+		return err
+	}
+	return s.conn.Close()
 }
 
 var _ gat.Connection = (*Server)(nil)

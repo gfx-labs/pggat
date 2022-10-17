@@ -20,6 +20,7 @@ services:
       PSQL_DB_USER_RO: postgres
       PSQL_DB_PASS_RO: example
       PSQL_PRI_DB_HOST: db
+      PSQL_REP_DB_HOST: db
     ports:
       - 6432:6432
       - 6060:6060

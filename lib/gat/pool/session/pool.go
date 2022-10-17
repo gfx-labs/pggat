@@ -78,6 +78,10 @@ func (p *Pool) OnDisconnect(client gat.Client) {
 	if !ok {
 		return
 	}
+	if c.IsCloseNeeded() {
+		_ = c.Close()
+		return
+	}
 	p.servers <- c
 }
 

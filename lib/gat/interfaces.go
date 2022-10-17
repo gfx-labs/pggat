@@ -128,6 +128,7 @@ type Connection interface {
 
 	// IsCloseNeeded returns whether this connection failed a health check
 	IsCloseNeeded() bool
+	Close() error
 
 	// actions
 	Describe(ctx context.Context, client Client, payload *protocol.Describe) error
