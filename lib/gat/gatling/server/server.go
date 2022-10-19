@@ -361,6 +361,9 @@ func (s *Server) flush() error {
 
 func (s *Server) readPacket() (protocol.Packet, error) {
 	p, err := protocol.ReadBackend(s.r)
+	if err != nil {
+		_ = s.Close()
+	}
 	//log.Printf("in %#v", p)
 	return p, err
 }
