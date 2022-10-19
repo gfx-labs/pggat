@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,7 +42,7 @@ func (r UserRole) CanUse(which ServerRole) bool {
 	case USERROLE_READER:
 		return which != SERVERROLE_PRIMARY
 	default:
-		return false
+		panic(fmt.Sprintf("unknown role `%s`", which))
 	}
 }
 
