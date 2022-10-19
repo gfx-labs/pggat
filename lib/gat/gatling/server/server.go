@@ -372,6 +372,15 @@ func (s *Server) stabilize() {
 	if s.readyForQuery {
 		return
 	}
+
+	select {
+	case <-s.closed:
+		// it's closed, there's nothing we can do
+		return
+	default:
+		// try to stabilize connection
+	}
+
 	//log.Println("connection is unstable, attempting to restabilize it")
 	if s.copying {
 		//log.Println("failing copy")
