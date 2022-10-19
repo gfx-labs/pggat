@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"reflect"
 	"sync"
@@ -59,7 +60,8 @@ type Server struct {
 
 	log zlog.Logger
 
-	mu sync.Mutex
+	closed chan struct{}
+	mu     sync.Mutex
 }
 
 func Dial(ctx context.Context, options []protocol.FieldsStartupMessageParameters, user *config.User, shard *config.Shard, server *config.Server) (gat.Connection, error) {
@@ -76,6 +78,8 @@ func Dial(ctx context.Context, options []protocol.FieldsStartupMessageParameters
 
 		dbuser: server.Username,
 		dbpass: server.Password,
+
+		closed: make(chan struct{}),
 	}
 	var err error
 	s.conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", server.Host, server.Port))
@@ -153,6 +157,7 @@ func (s *Server) GetRequestTime() time.Time {
 
 func (s *Server) failHealthCheck(err error) {
 	log.Println("Server failed a health check!!!!", err)
+	_ = s.Close()
 }
 
 func (s *Server) healthCheck() {
@@ -162,7 +167,12 @@ func (s *Server) healthCheck() {
 }
 
 func (s *Server) IsCloseNeeded() bool {
-	return !s.readyForQuery
+	select {
+	case <-s.closed:
+		return true
+	default:
+		return !s.readyForQuery
+	}
 }
 
 func (s *Server) GetClient() gat.Client {
@@ -324,12 +334,29 @@ func (s *Server) connect(ctx context.Context) error {
 
 func (s *Server) writePacket(pkt protocol.Packet) error {
 	//log.Printf("out %#v", pkt)
-	_, err := pkt.Write(s.wr)
-	return err
+	select {
+	case <-s.closed:
+		return io.ErrClosedPipe
+	default:
+		_, err := pkt.Write(s.wr)
+		if err != nil {
+			_ = s.Close()
+		}
+		return err
+	}
 }
 
 func (s *Server) flush() error {
-	return s.wr.Flush()
+	select {
+	case <-s.closed:
+		return io.ErrClosedPipe
+	default:
+		err := s.wr.Flush()
+		if err != nil {
+			_ = s.Close()
+		}
+		return err
+	}
 }
 
 func (s *Server) readPacket() (protocol.Packet, error) {
@@ -405,6 +432,7 @@ func (s *Server) stabilize() {
 }
 
 func (s *Server) ensurePreparedStatement(client gat.Client, name string) error {
+	s.awaitingSync = true
 	// send prepared statement
 	stmt := client.GetPreparedStatement(name)
 	if stmt == nil {
@@ -435,6 +463,7 @@ func (s *Server) ensurePreparedStatement(client gat.Client, name string) error {
 }
 
 func (s *Server) ensurePortal(client gat.Client, name string) error {
+	s.awaitingSync = true
 	portal := client.GetPortal(name)
 	if portal == nil {
 		return &pg_error.Error{
@@ -579,6 +608,8 @@ func (s *Server) link(ctx context.Context, client gat.Client) error {
 		case *protocol.ReadyForQuery:
 			if p.Fields.Status == 'I' {
 				// this client is done
+				s.awaitingSync = false
+				s.copying = false
 				s.readyForQuery = true
 				return nil
 			}
@@ -695,11 +726,15 @@ func (s *Server) CallFunction(ctx context.Context, client gat.Client, payload *p
 }
 
 func (s *Server) Close() error {
-	err := s.writePacket(&protocol.Close{})
-	if err != nil {
-		return err
+	select {
+	case <-s.closed:
+		return io.ErrClosedPipe
+	default:
+		s.readyForQuery = false
+		close(s.closed)
+		_ = s.writePacket(&protocol.Close{})
+		return s.conn.Close()
 	}
-	return s.conn.Close()
 }
 
 var _ gat.Connection = (*Server)(nil)

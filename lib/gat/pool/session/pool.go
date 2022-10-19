@@ -37,12 +37,18 @@ func New(database gat.Database, dialer gat.Dialer, conf *config.Pool, user *conf
 }
 
 func (p *Pool) getConnection(client gat.Client) (gat.Connection, error) {
-	select {
-	case c := <-p.servers:
-		return c, nil
-	default:
-		shard := p.c.Load().Shards[0]
-		return p.dialer(context.TODO(), client.GetOptions(), p.user, shard, shard.Servers[0])
+	for {
+		select {
+		case c := <-p.servers:
+			if c.IsCloseNeeded() {
+				_ = c.Close()
+				continue
+			}
+			return c, nil
+		default:
+			shard := p.c.Load().Shards[0]
+			return p.dialer(context.TODO(), client.GetOptions(), p.user, shard, shard.Servers[0])
+		}
 	}
 }
 
