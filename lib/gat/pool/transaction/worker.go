@@ -292,7 +292,7 @@ func (w *Worker) z_actually_do_describe(ctx context.Context, client gat.Client, 
 func (w *Worker) z_actually_do_execute(ctx context.Context, client gat.Client, payload *protocol.Execute) error {
 	srv := w.chooseShard(client)
 	if srv == nil {
-		return fmt.Errorf("describe('%+v') fail: no server", payload)
+		return fmt.Errorf("execute('%+v') fail: no server", payload)
 	}
 
 	if !w.w.user.Role.CanUse(config.SERVERROLE_PRIMARY) {
@@ -302,7 +302,7 @@ func (w *Worker) z_actually_do_execute(ctx context.Context, client gat.Client, p
 	w.setCurrentBinding(client, target)
 	defer w.unsetCurrentBinding(client, target)
 	if target == nil {
-		return fmt.Errorf("describe('%+v') fail: no server", payload)
+		return fmt.Errorf("execute('%+v') fail: no server", payload)
 	}
 	return target.Execute(ctx, client, payload)
 }
@@ -331,7 +331,7 @@ func (w *Worker) z_actually_do_simple_query(ctx context.Context, client gat.Clie
 	// chose a server
 	srv := w.chooseShard(client)
 	if srv == nil {
-		return fmt.Errorf("call to query '%s' failed", payload)
+		return fmt.Errorf("query('%s') fail: no server", payload)
 	}
 	// run the query on the server
 	which, err := w.w.database.GetRouter().InferRole(payload)
@@ -344,7 +344,7 @@ func (w *Worker) z_actually_do_simple_query(ctx context.Context, client gat.Clie
 	// configures the server to run with a specific role
 	target := srv.Choose(which)
 	if target == nil {
-		return fmt.Errorf("call to query '%s' failed", payload)
+		return fmt.Errorf("query('%s') fail: no server", payload)
 	}
 	w.setCurrentBinding(client, target)
 	defer w.unsetCurrentBinding(client, target)
@@ -359,7 +359,7 @@ func (w *Worker) z_actually_do_transaction(ctx context.Context, client gat.Clien
 	// chose a server
 	srv := w.chooseShard(client)
 	if srv == nil {
-		return fmt.Errorf("call to transaction '%s' failed", payload)
+		return fmt.Errorf("transaction('%s') fail: no server", payload)
 	}
 	// run the query on the server
 	which, err := w.w.database.GetRouter().InferRole(payload)
@@ -372,7 +372,7 @@ func (w *Worker) z_actually_do_transaction(ctx context.Context, client gat.Clien
 	// configures the server to run with a specific role
 	target := srv.Choose(which)
 	if target == nil {
-		return fmt.Errorf("call to transaction '%s' failed", payload)
+		return fmt.Errorf("transaction('%s') fail: no server", payload)
 	}
 	w.setCurrentBinding(client, target)
 	defer w.unsetCurrentBinding(client, target)
