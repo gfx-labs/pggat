@@ -31,8 +31,8 @@ cloud.google.com/go/storage v1.6.0/go.mod h1:N7U0C8pVQ/+NIKOBQyamJIeKQKkZ+mxpohl
 cloud.google.com/go/storage v1.8.0/go.mod h1:Wv1Oy7z6Yz3DshWRJFhqM/UCfaWIRTdp0RXyy7KQOVs=
 cloud.google.com/go/storage v1.10.0/go.mod h1:FLPqc6j+Ki4BU591ie1oL6qBQGu2Bl/tZ9ullr3+Kg0=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
-gfx.cafe/ghalliday1/pg3p v0.0.19 h1:c78xhRKZzssQEKBgsg95n9Xh0ORiLY4GWp7KqlgFqRg=
-gfx.cafe/ghalliday1/pg3p v0.0.19/go.mod h1:dVy94HSyywugiaUJm+4EyhC41TOL3SHSr+FUubKa7s8=
+gfx.cafe/ghalliday1/pg3p v0.1.0 h1:9ONKLcJ+GzF4Fdg6x7xJk9mEkjlgAiU0T5iPVI46SWQ=
+gfx.cafe/ghalliday1/pg3p v0.1.0/go.mod h1:dVy94HSyywugiaUJm+4EyhC41TOL3SHSr+FUubKa7s8=
 gfx.cafe/ghalliday1/pgparser v0.0.9 h1:mj1819zaEO964rFMr9lzGIoKLdZdjWAs6CqPvcSAhYg=
 gfx.cafe/ghalliday1/pgparser v0.0.9/go.mod h1:mte3a6XnIWVexcvJJrkYQ2ozbSx/soIJ4ivXf8pS1No=
 gfx.cafe/util/go/bufpool v0.0.0-20220906091724-3a24b7f40ccf h1:ya4IK1D+Kq0DrFdrrZ7tjmp3BgoO4v5sCAeUytR6j1U=
