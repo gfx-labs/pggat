@@ -368,15 +368,15 @@ func (s *Server) readPacket() (protocol.Packet, error) {
 	return p, err
 }
 
-func (s *Server) stabilize() {
+func (s *Server) stabilize() error {
 	if s.readyForQuery {
-		return
+		return nil
 	}
 
 	select {
 	case <-s.closed:
 		// it's closed, there's nothing we can do
-		return
+		return net.ErrClosed
 	default:
 		// try to stabilize connection
 	}
@@ -387,7 +387,7 @@ func (s *Server) stabilize() {
 		s.copying = false
 		err := s.writePacket(new(protocol.CopyFail))
 		if err != nil {
-			return
+			return err
 		}
 	}
 	if s.awaitingSync {
@@ -395,19 +395,19 @@ func (s *Server) stabilize() {
 		s.awaitingSync = false
 		err := s.writePacket(new(protocol.Sync))
 		if err != nil {
-			return
+			return err
 		}
 	}
 	err := s.flush()
 	if err != nil {
-		return
+		return err
 	}
 
 	for {
 		var pkt protocol.Packet
 		pkt, err = s.readPacket()
 		if err != nil {
-			return
+			return err
 		}
 
 		//log.Printf("received %+v", pkt)
@@ -416,28 +416,28 @@ func (s *Server) stabilize() {
 		case *protocol.ReadyForQuery:
 			if pk.Fields.Status == 'I' {
 				s.readyForQuery = true
-				return
+				return nil
 			} else {
 				query := new(protocol.Query)
 				query.Fields.Query = "end"
 				err = s.writePacket(query)
 				if err != nil {
-					return
+					return err
 				}
 				err = s.flush()
 				if err != nil {
-					return
+					return err
 				}
 			}
 		case *protocol.CopyInResponse, *protocol.CopyBothResponse:
 			fail := new(protocol.CopyFail)
 			err = s.writePacket(fail)
 			if err != nil {
-				return
+				return err
 			}
 			err = s.flush()
 			if err != nil {
-				return
+				return err
 			}
 		}
 	}
@@ -607,7 +607,12 @@ func (s *Server) sendAndLink(ctx context.Context, client gat.Client, initial pro
 }
 
 func (s *Server) link(ctx context.Context, client gat.Client) error {
-	defer s.stabilize()
+	defer func() {
+		err := s.stabilize()
+		if err != nil {
+			log.Println("failed to stabilize connection:", err)
+		}
+	}()
 	for {
 		pkt, err := s.readPacket()
 		if err != nil {
