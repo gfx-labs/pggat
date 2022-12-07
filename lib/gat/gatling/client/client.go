@@ -463,6 +463,8 @@ func (c *Client) recvLoop(cancel context.CancelFunc) {
 			if err != nil {
 				break
 			}
+		case *protocol.Close:
+			break
 		default:
 			c.recv <- recv
 		}
