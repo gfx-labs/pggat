@@ -464,6 +464,17 @@ func (c *Client) recvLoop(cancel context.CancelFunc) {
 				break
 			}
 		case *protocol.Close:
+			switch pkt.Fields.Which {
+			case 'S':
+				delete(c.statements, pkt.Fields.Name)
+			case 'P':
+				delete(c.portals, pkt.Fields.Name)
+			}
+			err = c.Send(new(protocol.CloseComplete))
+			if err != nil {
+				break
+			}
+		case *protocol.Terminate:
 			break
 		default:
 			c.recv <- recv
@@ -505,8 +516,6 @@ func (c *Client) tick(ctx context.Context) (bool, error) {
 		return true, c.handle_query(ctx, cast)
 	case *protocol.FunctionCall:
 		return true, c.handle_function(ctx, cast)
-	case *protocol.Terminate:
-		return false, nil
 	default:
 		log.Printf("unhandled packet %#v", rsp)
 	}

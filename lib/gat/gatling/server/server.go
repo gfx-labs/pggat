@@ -507,9 +507,10 @@ func (s *Server) destructPreparedStatement(name string) {
 		return
 	}
 	delete(s.boundPreparedStatments, name)
-	query := new(protocol.Query)
-	query.Fields.Query = fmt.Sprintf("DEALLOCATE \"%s\"", name)
-	_ = s.writePacket(query)
+	closeRequest := new(protocol.Close)
+	closeRequest.Fields.Which = 'S'
+	closeRequest.Fields.Name = name
+	_ = s.writePacket(closeRequest)
 	_ = s.flush()
 	// await server ready
 	for {
@@ -749,7 +750,7 @@ func (s *Server) Close() error {
 	default:
 		s.readyForQuery = false
 		close(s.closed)
-		_ = s.writePacket(&protocol.Close{})
+		_ = s.writePacket(&protocol.Terminate{})
 		return s.conn.Close()
 	}
 }
