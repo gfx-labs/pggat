@@ -2,73 +2,90 @@ package transaction
 
 import (
 	"context"
-	"sync/atomic"
-	"time"
-
+	"fmt"
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/transaction/shard"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/metrics"
+	"github.com/pingcap/errors"
+	"math/rand"
+	"sync"
+	"time"
 )
 
 type Pool struct {
-	// the database connection
-	c           atomic.Pointer[config.Pool]
-	user        *config.User
-	database    gat.Database
-	workerCount atomic.Int64
+	// config
+	c    *config.Pool
+	user *config.User
 
-	dialer gat.Dialer
+	shards []*shard.Shard
+	mu     sync.RWMutex
 
-	workerPool WorkerPool[*Worker]
+	// these never change
+	database gat.Database
+	dialer   gat.Dialer
 }
 
 func New(database gat.Database, dialer gat.Dialer, conf *config.Pool, user *config.User) *Pool {
 	p := &Pool{
-		user:       user,
-		database:   database,
-		dialer:     dialer,
-		workerPool: NewChannelPool[*Worker](user.PoolSize),
+		database: database,
+		dialer:   dialer,
 	}
-	p.EnsureConfig(conf)
+	p.EnsureConfig(conf, user)
 	return p
-}
-
-func (c *Pool) WithWorkerPool(w WorkerPool[*Worker]) {
-	c.workerPool = w
 }
 
 func (c *Pool) GetDatabase() gat.Database {
 	return c.database
 }
 
-func (c *Pool) getWorker() *Worker {
-	start := time.Now()
-	defer func() {
-		metrics.RecordWaitTime(c.database.GetName(), c.user.Name, time.Since(start))
-	}()
-	w, ok := c.workerPool.TryGet()
-	if ok {
-		return w
-	} else {
-		if c.workerCount.Add(1)-1 < int64(c.user.PoolSize) {
-			next := &Worker{
-				w: c,
-			}
-			return next
-		} else {
-			w := c.workerPool.Get()
-			return w
+func (c *Pool) fetchShard(client gat.Client, n int) *shard.Shard {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.shards[n] != nil {
+		return c.shards[n]
+	}
+
+	c.shards[n] = shard.FromConfig(c.dialer, client.GetOptions(), c.c, c.user, c.c.Shards[n])
+	return c.shards[n]
+}
+
+func (c *Pool) chooseShard(client gat.Client) *shard.Shard {
+	c.mu.RLock()
+	shardCount := len(c.shards)
+	c.mu.RUnlock()
+
+	preferred := rand.Intn(shardCount)
+	if client != nil {
+		if p, ok := client.GetRequestedShard(); ok {
+			preferred = p % shardCount
+		}
+
+		key := client.GetShardingKey()
+		if key != "" {
+			// TODO do sharding function on key
 		}
 	}
+
+	c.mu.RLock()
+	s := c.shards[preferred]
+	c.mu.RUnlock()
+	if s != nil {
+		return s
+	}
+
+	return c.fetchShard(client, preferred)
 }
 
-func (c *Pool) returnWorker(w *Worker) {
-	c.workerPool.Put(w)
-}
+func (c *Pool) EnsureConfig(p *config.Pool, u *config.User) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.c = p
+	c.user = u
 
-func (c *Pool) EnsureConfig(conf *config.Pool) {
-	c.c.Store(conf)
+	c.shards = make([]*shard.Shard, len(p.Shards))
 }
 
 func (c *Pool) OnDisconnect(_ gat.Client) {}
@@ -77,16 +94,97 @@ func (c *Pool) GetUser() *config.User {
 	return c.user
 }
 
+var errNoServer = errors.New("fail: no server")
+var errPermissionDenied = errors.New("permission denied")
+
 func (c *Pool) GetServerInfo(client gat.Client) []*protocol.ParameterStatus {
-	return c.getWorker().GetServerInfo(client)
+	s := c.chooseShard(client)
+	conn := s.Choose(config.SERVERROLE_PRIMARY)
+	if conn == nil {
+		return nil
+	}
+	defer s.Return(conn)
+	conn.SetClient(client)
+	client.SetCurrentConn(conn)
+	defer conn.SetClient(nil)
+	defer client.SetCurrentConn(nil)
+	return conn.GetServerInfo()
 }
 
 func (c *Pool) Describe(ctx context.Context, client gat.Client, d *protocol.Describe) error {
-	return c.getWorker().HandleDescribe(ctx, client, d)
+	if c.user.StatementTimeout != 0 {
+		var done context.CancelFunc
+		ctx, done = context.WithTimeout(ctx, time.Duration(c.user.StatementTimeout)*time.Millisecond)
+		defer done()
+	}
+
+	start := time.Now()
+	defer func() {
+		metrics.RecordTransactionTime(c.GetDatabase().GetName(), c.user.Name, time.Since(start))
+	}()
+
+	if !c.user.Role.CanUse(config.SERVERROLE_REPLICA) {
+		return errPermissionDenied
+	}
+
+	s := c.chooseShard(client)
+	conn := s.Choose(config.SERVERROLE_REPLICA)
+	if conn == nil {
+		return errNoServer
+	}
+	conn.SetClient(client)
+	client.SetCurrentConn(conn)
+	err := conn.Describe(ctx, client, d)
+	conn.SetClient(nil)
+	client.SetCurrentConn(nil)
+	s.Return(conn)
+
+	select {
+	case <-ctx.Done():
+		metrics.RecordTransactionError(c.GetDatabase().GetName(), c.user.Name, ctx.Err())
+		return ctx.Err()
+	default:
+		metrics.RecordTransactionError(c.GetDatabase().GetName(), c.user.Name, err)
+		return err
+	}
 }
 
 func (c *Pool) Execute(ctx context.Context, client gat.Client, e *protocol.Execute) error {
-	return c.getWorker().HandleExecute(ctx, client, e)
+	if c.user.StatementTimeout != 0 {
+		var done context.CancelFunc
+		ctx, done = context.WithTimeout(ctx, time.Duration(c.user.StatementTimeout)*time.Millisecond)
+		defer done()
+	}
+
+	start := time.Now()
+	defer func() {
+		metrics.RecordTransactionTime(c.GetDatabase().GetName(), c.user.Name, time.Since(start))
+	}()
+
+	if !c.user.Role.CanUse(config.SERVERROLE_PRIMARY) {
+		return errPermissionDenied
+	}
+
+	s := c.chooseShard(client)
+	conn := s.Choose(config.SERVERROLE_PRIMARY)
+	if conn == nil {
+		return errNoServer
+	}
+	conn.SetClient(client)
+	client.SetCurrentConn(conn)
+	err := conn.Execute(ctx, client, e)
+	conn.SetClient(nil)
+	client.SetCurrentConn(nil)
+	s.Return(conn)
+
+	select {
+	case <-ctx.Done():
+		metrics.RecordTransactionError(c.GetDatabase().GetName(), c.user.Name, ctx.Err())
+		return ctx.Err()
+	default:
+		metrics.RecordTransactionError(c.GetDatabase().GetName(), c.user.Name, err)
+		return err
+	}
 }
 
 func (c *Pool) SimpleQuery(ctx context.Context, client gat.Client, q string) error {
@@ -98,15 +196,124 @@ func (c *Pool) SimpleQuery(ctx context.Context, client gat.Client, q string) err
 	if handled {
 		return nil
 	}
-	return c.getWorker().HandleSimpleQuery(ctx, client, q)
+
+	if c.user.StatementTimeout != 0 {
+		var done context.CancelFunc
+		ctx, done = context.WithTimeout(ctx, time.Duration(c.user.StatementTimeout)*time.Millisecond)
+		defer done()
+	}
+
+	start := time.Now()
+	defer func() {
+		metrics.RecordQueryTime(c.GetDatabase().GetName(), c.user.Name, time.Since(start))
+	}()
+
+	s := c.chooseShard(client)
+	which, err := c.database.GetRouter().InferRole(q)
+	if err != nil {
+		return fmt.Errorf("error parsing '%s': %w", q, err)
+	}
+	if !c.user.Role.CanUse(which) {
+		return errPermissionDenied
+	}
+	conn := s.Choose(which)
+	if conn == nil {
+		return errNoServer
+	}
+	conn.SetClient(client)
+	client.SetCurrentConn(conn)
+	err = conn.SimpleQuery(ctx, client, q)
+	conn.SetClient(nil)
+	client.SetCurrentConn(nil)
+	s.Return(conn)
+
+	select {
+	case <-ctx.Done():
+		metrics.RecordQueryError(c.GetDatabase().GetName(), c.user.Name, ctx.Err())
+		return ctx.Err()
+	default:
+		metrics.RecordQueryError(c.GetDatabase().GetName(), c.user.Name, err)
+		return err
+	}
 }
 
 func (c *Pool) Transaction(ctx context.Context, client gat.Client, q string) error {
-	return c.getWorker().HandleTransaction(ctx, client, q)
+	if c.user.StatementTimeout != 0 {
+		var done context.CancelFunc
+		ctx, done = context.WithTimeout(ctx, time.Duration(c.user.StatementTimeout)*time.Millisecond)
+		defer done()
+	}
+
+	start := time.Now()
+	defer func() {
+		metrics.RecordTransactionTime(c.GetDatabase().GetName(), c.user.Name, time.Since(start))
+	}()
+
+	s := c.chooseShard(client)
+	which, err := c.database.GetRouter().InferRole(q)
+	if err != nil {
+		return fmt.Errorf("error parsing '%s': %w", q, err)
+	}
+	if !c.user.Role.CanUse(which) {
+		return errPermissionDenied
+	}
+	conn := s.Choose(which)
+	if conn == nil {
+		return errNoServer
+	}
+	conn.SetClient(client)
+	client.SetCurrentConn(conn)
+	err = conn.Transaction(ctx, client, q)
+	conn.SetClient(nil)
+	client.SetCurrentConn(nil)
+	s.Return(conn)
+
+	select {
+	case <-ctx.Done():
+		metrics.RecordTransactionError(c.GetDatabase().GetName(), c.user.Name, ctx.Err())
+		return ctx.Err()
+	default:
+		metrics.RecordTransactionError(c.GetDatabase().GetName(), c.user.Name, err)
+		return err
+	}
 }
 
 func (c *Pool) CallFunction(ctx context.Context, client gat.Client, f *protocol.FunctionCall) error {
-	return c.getWorker().HandleFunction(ctx, client, f)
+	if c.user.StatementTimeout != 0 {
+		var done context.CancelFunc
+		ctx, done = context.WithTimeout(ctx, time.Duration(c.user.StatementTimeout)*time.Millisecond)
+		defer done()
+	}
+
+	start := time.Now()
+	defer func() {
+		metrics.RecordQueryTime(c.GetDatabase().GetName(), c.user.Name, time.Since(start))
+	}()
+
+	if !c.user.Role.CanUse(config.SERVERROLE_PRIMARY) {
+		return errPermissionDenied
+	}
+
+	s := c.chooseShard(client)
+	conn := s.Choose(config.SERVERROLE_PRIMARY)
+	if conn == nil {
+		return errNoServer
+	}
+	conn.SetClient(client)
+	client.SetCurrentConn(conn)
+	err := conn.CallFunction(ctx, client, f)
+	conn.SetClient(nil)
+	client.SetCurrentConn(nil)
+	s.Return(conn)
+
+	select {
+	case <-ctx.Done():
+		metrics.RecordTransactionError(c.GetDatabase().GetName(), c.user.Name, ctx.Err())
+		return ctx.Err()
+	default:
+		metrics.RecordTransactionError(c.GetDatabase().GetName(), c.user.Name, err)
+		return err
+	}
 }
 
 var _ gat.Pool = (*Pool)(nil)

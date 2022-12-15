@@ -14,6 +14,7 @@ require (
 	github.com/auxten/postgresql-parser v1.0.1
 	github.com/iancoleman/strcase v0.2.0
 	github.com/looplab/fsm v0.3.0
+	github.com/pingcap/errors v0.11.4
 	github.com/prometheus/client_golang v1.13.0
 	github.com/xdg-go/scram v1.1.1
 	golang.org/x/net v0.0.0-20220826154423-83b083e8dc8b

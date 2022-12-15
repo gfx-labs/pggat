@@ -1,6 +1,6 @@
-package transaction
+package shard
 
-type WorkerPool[T any] interface {
+type Pool[T any] interface {
 	TryGet() (T, bool)
 	Get() T
 	Put(T)

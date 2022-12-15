@@ -13,7 +13,7 @@ import (
 
 type Pool struct {
 	c        atomic.Pointer[config.Pool]
-	user     *config.User
+	user     atomic.Pointer[config.User]
 	database gat.Database
 
 	dialer gat.Dialer
@@ -25,14 +25,13 @@ type Pool struct {
 
 func New(database gat.Database, dialer gat.Dialer, conf *config.Pool, user *config.User) *Pool {
 	p := &Pool{
-		user:     user,
 		database: database,
 
 		dialer: dialer,
 
 		servers: make(chan gat.Connection, 1+runtime.NumCPU()*4),
 	}
-	p.EnsureConfig(conf)
+	p.EnsureConfig(conf, user)
 	return p
 }
 
@@ -47,7 +46,7 @@ func (p *Pool) getConnection(client gat.Client) (gat.Connection, error) {
 			return c, nil
 		default:
 			shard := p.c.Load().Shards[0]
-			return p.dialer(context.TODO(), client.GetOptions(), p.user, shard, shard.Servers[0])
+			return p.dialer(context.TODO(), client.GetOptions(), p.user.Load(), shard, shard.Servers[0])
 		}
 	}
 }
@@ -74,8 +73,9 @@ func (p *Pool) GetDatabase() gat.Database {
 	return p.database
 }
 
-func (p *Pool) EnsureConfig(c *config.Pool) {
+func (p *Pool) EnsureConfig(c *config.Pool, u *config.User) {
 	p.c.Store(c)
+	p.user.Store(u)
 }
 
 func (p *Pool) OnDisconnect(client gat.Client) {
@@ -92,7 +92,7 @@ func (p *Pool) OnDisconnect(client gat.Client) {
 }
 
 func (p *Pool) GetUser() *config.User {
-	return p.user
+	return p.user.Load()
 }
 
 func (p *Pool) GetServerInfo(client gat.Client) []*protocol.ParameterStatus {

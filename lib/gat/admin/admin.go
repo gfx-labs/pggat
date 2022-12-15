@@ -216,7 +216,7 @@ func (c *Pool) GetDatabase() gat.Database {
 	return c.database
 }
 
-func (c *Pool) EnsureConfig(conf *config.Pool) {
+func (c *Pool) EnsureConfig(conf *config.Pool, u *config.User) {
 	// TODO
 }
 

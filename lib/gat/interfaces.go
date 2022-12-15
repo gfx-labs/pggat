@@ -84,7 +84,7 @@ type Pool interface {
 
 	GetDatabase() Database
 
-	EnsureConfig(c *config.Pool)
+	EnsureConfig(p *config.Pool, u *config.User)
 
 	OnDisconnect(client Client)
 

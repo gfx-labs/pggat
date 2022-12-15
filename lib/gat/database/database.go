@@ -46,10 +46,10 @@ func (p *Database) EnsureConfig(conf *config.Pool) {
 	}
 	// ensure conn pools
 	for name, user := range p.users {
+		u := user
 		if existing, ok := p.connPools[name]; ok {
-			existing.EnsureConfig(conf)
+			existing.EnsureConfig(conf, &u)
 		} else {
-			u := user
 			switch p.c.PoolMode {
 			case config.POOLMODE_SESSION:
 				p.connPools[name] = session.New(p, p.dialer, conf, &u)
