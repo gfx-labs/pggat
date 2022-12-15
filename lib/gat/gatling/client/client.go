@@ -551,7 +551,6 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 				if nestDepth == 0 {
 					// push simple query
 					if lastExec != cmd.Position {
-						c.startRequest()
 						err := c.handle_simple_query(ctx, q.Fields.Query[lastExec:cmd.Position])
 						if err != nil {
 							return err
@@ -575,8 +574,7 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 						end = len(q.Fields.Query)
 					}
 					// push txn
-					c.startRequest()
-					err := c.handle_transaction(ctx, q.Fields.Query[lastExec:end])
+					err := c.handle_simple_query(ctx, q.Fields.Query[lastExec:end])
 					if err != nil {
 						return err
 					}
@@ -587,7 +585,6 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 	}
 
 	if lastExec != len(q.Fields.Query) {
-		c.startRequest()
 		var err error
 		if nestDepth > 0 {
 			err = c.handle_transaction(ctx, q.Fields.Query[lastExec:])
