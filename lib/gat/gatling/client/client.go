@@ -447,7 +447,7 @@ func (c *Client) recvLoop(cancel context.CancelFunc) {
 			if !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
 				log.Err(err)
 			}
-			break
+			return
 		}
 		//log.Printf("got packet(%s) %+v", reflect.TypeOf(recv), recv)
 		switch pkt := recv.(type) {
@@ -455,13 +455,13 @@ func (c *Client) recvLoop(cancel context.CancelFunc) {
 			c.statements[pkt.Fields.PreparedStatement] = pkt
 			err = c.Send(new(protocol.ParseComplete))
 			if err != nil {
-				break
+				return
 			}
 		case *protocol.Bind:
 			c.portals[pkt.Fields.Destination] = pkt
 			err = c.Send(new(protocol.BindComplete))
 			if err != nil {
-				break
+				return
 			}
 		case *protocol.Close:
 			switch pkt.Fields.Which {
@@ -472,10 +472,10 @@ func (c *Client) recvLoop(cancel context.CancelFunc) {
 			}
 			err = c.Send(new(protocol.CloseComplete))
 			if err != nil {
-				break
+				return
 			}
 		case *protocol.Terminate:
-			break
+			return
 		default:
 			c.recv <- recv
 		}
