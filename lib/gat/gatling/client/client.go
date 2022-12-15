@@ -574,7 +574,7 @@ func (c *Client) handle_query(ctx context.Context, q *protocol.Query) error {
 						end = len(q.Fields.Query)
 					}
 					// push txn
-					err := c.handle_simple_query(ctx, q.Fields.Query[lastExec:end])
+					err := c.handle_transaction(ctx, q.Fields.Query[lastExec:end])
 					if err != nil {
 						return err
 					}
@@ -622,6 +622,33 @@ func (c *Client) GetPreparedStatement(name string) *protocol.Parse {
 
 func (c *Client) GetPortal(name string) *protocol.Bind {
 	return c.portals[name]
+}
+
+func (c *Client) GetUnderlyingPreparedStatement(name string) string {
+	s, ok := c.statements[name]
+	if !ok {
+		return ""
+	}
+	return s.Fields.Query
+}
+
+func (c *Client) GetUnderlyingPortal(name string) string {
+	p, ok := c.portals[name]
+	if !ok {
+		return ""
+	}
+	return c.GetUnderlyingPreparedStatement(p.Fields.PreparedStatement)
+}
+
+func (c *Client) GetUnderlying(describe *protocol.Describe) string {
+	switch describe.Fields.Which {
+	case 'S':
+		return c.GetUnderlyingPreparedStatement(describe.Fields.Name)
+	case 'P':
+		return c.GetUnderlyingPortal(describe.Fields.Name)
+	default:
+		return ""
+	}
 }
 
 func (c *Client) Send(pkt protocol.Packet) error {

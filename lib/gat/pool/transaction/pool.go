@@ -123,18 +123,23 @@ func (c *Pool) Describe(ctx context.Context, client gat.Client, d *protocol.Desc
 		metrics.RecordTransactionTime(c.GetDatabase().GetName(), c.user.Name, time.Since(start))
 	}()
 
-	if !c.user.Role.CanUse(config.SERVERROLE_REPLICA) {
+	q := client.GetUnderlying(d)
+	which, err := c.database.GetRouter().InferRole(q)
+	if err != nil {
+		return fmt.Errorf("error parsing '%s': %w", q, err)
+	}
+	if !c.user.Role.CanUse(which) {
 		return errPermissionDenied
 	}
 
 	s := c.chooseShard(client)
-	conn := s.Choose(config.SERVERROLE_REPLICA)
+	conn := s.Choose(which)
 	if conn == nil {
 		return errNoServer
 	}
 	conn.SetClient(client)
 	client.SetCurrentConn(conn)
-	err := conn.Describe(ctx, client, d)
+	err = conn.Describe(ctx, client, d)
 	conn.SetClient(nil)
 	client.SetCurrentConn(nil)
 	s.Return(conn)
@@ -161,18 +166,23 @@ func (c *Pool) Execute(ctx context.Context, client gat.Client, e *protocol.Execu
 		metrics.RecordTransactionTime(c.GetDatabase().GetName(), c.user.Name, time.Since(start))
 	}()
 
-	if !c.user.Role.CanUse(config.SERVERROLE_PRIMARY) {
+	q := client.GetUnderlyingPortal(e.Fields.Name)
+	which, err := c.database.GetRouter().InferRole(q)
+	if err != nil {
+		return fmt.Errorf("error parsing '%s': %w", q, err)
+	}
+	if !c.user.Role.CanUse(which) {
 		return errPermissionDenied
 	}
 
 	s := c.chooseShard(client)
-	conn := s.Choose(config.SERVERROLE_PRIMARY)
+	conn := s.Choose(which)
 	if conn == nil {
 		return errNoServer
 	}
 	conn.SetClient(client)
 	client.SetCurrentConn(conn)
-	err := conn.Execute(ctx, client, e)
+	err = conn.Execute(ctx, client, e)
 	conn.SetClient(nil)
 	client.SetCurrentConn(nil)
 	s.Return(conn)
@@ -208,7 +218,6 @@ func (c *Pool) SimpleQuery(ctx context.Context, client gat.Client, q string) err
 		metrics.RecordQueryTime(c.GetDatabase().GetName(), c.user.Name, time.Since(start))
 	}()
 
-	s := c.chooseShard(client)
 	which, err := c.database.GetRouter().InferRole(q)
 	if err != nil {
 		return fmt.Errorf("error parsing '%s': %w", q, err)
@@ -216,6 +225,8 @@ func (c *Pool) SimpleQuery(ctx context.Context, client gat.Client, q string) err
 	if !c.user.Role.CanUse(which) {
 		return errPermissionDenied
 	}
+
+	s := c.chooseShard(client)
 	conn := s.Choose(which)
 	if conn == nil {
 		return errNoServer
@@ -249,7 +260,6 @@ func (c *Pool) Transaction(ctx context.Context, client gat.Client, q string) err
 		metrics.RecordTransactionTime(c.GetDatabase().GetName(), c.user.Name, time.Since(start))
 	}()
 
-	s := c.chooseShard(client)
 	which, err := c.database.GetRouter().InferRole(q)
 	if err != nil {
 		return fmt.Errorf("error parsing '%s': %w", q, err)
@@ -257,6 +267,8 @@ func (c *Pool) Transaction(ctx context.Context, client gat.Client, q string) err
 	if !c.user.Role.CanUse(which) {
 		return errPermissionDenied
 	}
+
+	s := c.chooseShard(client)
 	conn := s.Choose(which)
 	if conn == nil {
 		return errNoServer
