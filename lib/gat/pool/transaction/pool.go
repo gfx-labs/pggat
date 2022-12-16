@@ -53,14 +53,10 @@ func (c *Pool) fetchShard(client gat.Client, n int) *shard.Shard {
 }
 
 func (c *Pool) chooseShard(client gat.Client) *shard.Shard {
-	c.mu.RLock()
-	shardCount := len(c.shards)
-	c.mu.RUnlock()
-
-	preferred := rand.Intn(shardCount)
+	preferred := -1
 	if client != nil {
 		if p, ok := client.GetRequestedShard(); ok {
-			preferred = p % shardCount
+			preferred = p
 		}
 
 		key := client.GetShardingKey()
@@ -69,8 +65,13 @@ func (c *Pool) chooseShard(client gat.Client) *shard.Shard {
 		}
 	}
 
+	var s *shard.Shard
 	c.mu.RLock()
-	s := c.shards[preferred]
+	if preferred == -1 {
+		s = c.shards[rand.Intn(len(c.shards))]
+	} else {
+		s = c.shards[preferred%len(c.shards)]
+	}
 	c.mu.RUnlock()
 	if s != nil {
 		return s
@@ -123,11 +124,7 @@ func (c *Pool) Describe(ctx context.Context, client gat.Client, d *protocol.Desc
 		metrics.RecordTransactionTime(c.GetDatabase().GetName(), c.user.Name, time.Since(start))
 	}()
 
-	q := client.GetUnderlying(d)
-	which, err := c.database.GetRouter().InferRole(q)
-	if err != nil {
-		return fmt.Errorf("error parsing '%s': %w", q, err)
-	}
+	which := client.GetUnderlyingRole(d)
 	if !c.user.Role.CanUse(which) {
 		return errPermissionDenied
 	}
@@ -139,7 +136,7 @@ func (c *Pool) Describe(ctx context.Context, client gat.Client, d *protocol.Desc
 	}
 	conn.SetClient(client)
 	client.SetCurrentConn(conn)
-	err = conn.Describe(ctx, client, d)
+	err := conn.Describe(ctx, client, d)
 	conn.SetClient(nil)
 	client.SetCurrentConn(nil)
 	s.Return(conn)
@@ -166,11 +163,7 @@ func (c *Pool) Execute(ctx context.Context, client gat.Client, e *protocol.Execu
 		metrics.RecordTransactionTime(c.GetDatabase().GetName(), c.user.Name, time.Since(start))
 	}()
 
-	q := client.GetUnderlyingPortal(e.Fields.Name)
-	which, err := c.database.GetRouter().InferRole(q)
-	if err != nil {
-		return fmt.Errorf("error parsing '%s': %w", q, err)
-	}
+	which := client.GetUnderlyingPortalRole(e.Fields.Name)
 	if !c.user.Role.CanUse(which) {
 		return errPermissionDenied
 	}
@@ -182,7 +175,7 @@ func (c *Pool) Execute(ctx context.Context, client gat.Client, e *protocol.Execu
 	}
 	conn.SetClient(client)
 	client.SetCurrentConn(conn)
-	err = conn.Execute(ctx, client, e)
+	err := conn.Execute(ctx, client, e)
 	conn.SetClient(nil)
 	client.SetCurrentConn(nil)
 	s.Return(conn)

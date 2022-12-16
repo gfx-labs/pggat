@@ -58,7 +58,7 @@ func (s *Shard) init() {
 		switch serv.Role {
 		case config.SERVERROLE_PRIMARY:
 			s.primary = pool
-		default:
+		case config.SERVERROLE_REPLICA:
 			s.replicas = append(s.replicas, pool)
 		}
 	}
@@ -122,12 +122,4 @@ func (s *Shard) Return(conn *conn) {
 		s.replicas[conn.replicaId].Put(conn)
 	default:
 	}
-}
-
-func (s *Shard) GetPrimary() gat.Connection {
-	return s.Choose(config.SERVERROLE_PRIMARY)
-}
-
-func (s *Shard) GetReplica() gat.Connection {
-	return s.Choose(config.SERVERROLE_REPLICA)
 }

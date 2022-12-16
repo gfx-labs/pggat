@@ -28,9 +28,9 @@ type Client interface {
 
 	GetPreparedStatement(name string) *protocol.Parse
 	GetPortal(name string) *protocol.Bind
-	GetUnderlyingPreparedStatement(name string) string
-	GetUnderlyingPortal(name string) string
-	GetUnderlying(describe *protocol.Describe) string
+	GetUnderlyingPreparedStatementRole(name string) config.ServerRole
+	GetUnderlyingPortalRole(name string) config.ServerRole
+	GetUnderlyingRole(describe *protocol.Describe) config.ServerRole
 	GetCurrentConn() Connection
 	SetCurrentConn(conn Connection)
 

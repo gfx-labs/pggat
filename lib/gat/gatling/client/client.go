@@ -62,6 +62,11 @@ func (C *CountWriter[T]) Write(p []byte) (n int, err error) {
 	return
 }
 
+type parsedQuery struct {
+	request *protocol.Parse
+	role    config.ServerRole
+}
+
 // / client state, one per client
 type Client struct {
 	conn net.Conn
@@ -91,7 +96,7 @@ type Client struct {
 
 	gatling     gat.Gat
 	currentConn gat.Connection
-	statements  map[string]*protocol.Parse
+	statements  map[string]parsedQuery
 	portals     map[string]*protocol.Bind
 	conf        *config.Global
 
@@ -180,7 +185,7 @@ func NewClient(
 		pid:        int32(pid.Int64()),
 		secretKey:  int32(skey.Int64()),
 		gatling:    gatling,
-		statements: make(map[string]*protocol.Parse),
+		statements: make(map[string]parsedQuery),
 		portals:    make(map[string]*protocol.Bind),
 		conf:       conf,
 		parser:     pg3p.NewParser(),
@@ -452,7 +457,19 @@ func (c *Client) recvLoop(cancel context.CancelFunc) {
 		//log.Printf("got packet(%s) %+v", reflect.TypeOf(recv), recv)
 		switch pkt := recv.(type) {
 		case *protocol.Parse:
-			c.statements[pkt.Fields.PreparedStatement] = pkt
+			var role config.ServerRole
+			role, err = c.server.GetDatabase().GetRouter().InferRole(pkt.Fields.Query)
+			if err != nil {
+				err = c.Send(pg_error.IntoPacket(err))
+				if err != nil {
+					return
+				}
+				continue
+			}
+			c.statements[pkt.Fields.PreparedStatement] = parsedQuery{
+				request: pkt,
+				role:    role,
+			}
 			err = c.Send(new(protocol.ParseComplete))
 			if err != nil {
 				return
@@ -617,35 +634,35 @@ func (c *Client) handle_function(ctx context.Context, f *protocol.FunctionCall) 
 }
 
 func (c *Client) GetPreparedStatement(name string) *protocol.Parse {
-	return c.statements[name]
+	return c.statements[name].request
 }
 
 func (c *Client) GetPortal(name string) *protocol.Bind {
 	return c.portals[name]
 }
 
-func (c *Client) GetUnderlyingPreparedStatement(name string) string {
+func (c *Client) GetUnderlyingPreparedStatementRole(name string) config.ServerRole {
 	s, ok := c.statements[name]
 	if !ok {
-		return ""
+		return config.SERVERROLE_REPLICA
 	}
-	return s.Fields.Query
+	return s.role
 }
 
-func (c *Client) GetUnderlyingPortal(name string) string {
+func (c *Client) GetUnderlyingPortalRole(name string) config.ServerRole {
 	p, ok := c.portals[name]
 	if !ok {
-		return ""
+		return config.SERVERROLE_REPLICA
 	}
-	return c.GetUnderlyingPreparedStatement(p.Fields.PreparedStatement)
+	return c.GetUnderlyingPreparedStatementRole(p.Fields.PreparedStatement)
 }
 
-func (c *Client) GetUnderlying(describe *protocol.Describe) string {
+func (c *Client) GetUnderlyingRole(describe *protocol.Describe) config.ServerRole {
 	switch describe.Fields.Which {
 	case 'S':
-		return c.GetUnderlyingPreparedStatement(describe.Fields.Name)
+		return c.GetUnderlyingPreparedStatementRole(describe.Fields.Name)
 	case 'P':
-		return c.GetUnderlyingPortal(describe.Fields.Name)
+		return c.GetUnderlyingPortalRole(describe.Fields.Name)
 	default:
 		return ""
 	}
