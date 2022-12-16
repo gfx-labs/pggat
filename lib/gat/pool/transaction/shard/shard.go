@@ -4,7 +4,9 @@ import (
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
+	"gfx.cafe/gfx/pggat/lib/metrics"
 	"math/rand"
+	"time"
 )
 
 type Shard struct {
@@ -15,16 +17,20 @@ type Shard struct {
 	user *config.User
 	conf *config.Shard
 
+	database gat.Database
+
 	options []protocol.FieldsStartupMessageParameters
 
 	dialer gat.Dialer
 }
 
-func FromConfig(dialer gat.Dialer, options []protocol.FieldsStartupMessageParameters, pool *config.Pool, user *config.User, conf *config.Shard) *Shard {
+func FromConfig(dialer gat.Dialer, options []protocol.FieldsStartupMessageParameters, pool *config.Pool, user *config.User, conf *config.Shard, database gat.Database) *Shard {
 	out := &Shard{
 		pool: pool,
 		user: user,
 		conf: conf,
+
+		database: database,
 
 		options: options,
 
@@ -59,6 +65,10 @@ func (s *Shard) init() {
 }
 
 func (s *Shard) Choose(role config.ServerRole) *conn {
+	start := time.Now()
+	defer func() {
+		metrics.RecordWaitTime(s.database.GetName(), s.user.Name, time.Since(start))
+	}()
 	switch role {
 	case config.SERVERROLE_PRIMARY:
 		return s.primary.Get().acquire()

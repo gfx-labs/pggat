@@ -48,7 +48,7 @@ func (c *Pool) fetchShard(client gat.Client, n int) *shard.Shard {
 		return c.shards[n]
 	}
 
-	c.shards[n] = shard.FromConfig(c.dialer, client.GetOptions(), c.c, c.user, c.c.Shards[n])
+	c.shards[n] = shard.FromConfig(c.dialer, client.GetOptions(), c.c, c.user, c.c.Shards[n], c.database)
 	return c.shards[n]
 }
 
