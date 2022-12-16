@@ -64,6 +64,18 @@ func (s *Shard) init() {
 	}
 }
 
+func (s *Shard) tryAcquireAvailableReplica() *conn {
+	// try to get any available conn
+	for _, replica := range s.replicas {
+		c, ok := replica.TryGet()
+		if ok {
+			return c.acquire()
+		}
+	}
+
+	return nil
+}
+
 func (s *Shard) Choose(role config.ServerRole) *conn {
 	start := time.Now()
 	defer func() {
@@ -82,6 +94,20 @@ func (s *Shard) Choose(role config.ServerRole) *conn {
 		}
 
 		// read from a random replica
+		acq := s.tryAcquireAvailableReplica()
+		if acq != nil {
+			return acq
+		}
+
+		// try to fall back to primary if there is available resources there
+		if s.pool.PrimaryReadsEnabled {
+			c, ok := s.primary.TryGet()
+			if ok {
+				return c.acquire()
+			}
+		}
+
+		// wait on a random conn
 		return s.replicas[rand.Intn(len(s.replicas))].Get().acquire()
 	default:
 		return nil
