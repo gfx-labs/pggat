@@ -100,7 +100,7 @@ func Dial(ctx context.Context, options []protocol.FieldsStartupMessageParameters
 }
 
 func (s *Server) Cancel() error {
-	conn, err := net.Dial("tcp", s.addr)
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", s.addr, s.port))
 	if err != nil {
 		return err
 	}
