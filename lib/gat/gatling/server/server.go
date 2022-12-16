@@ -403,6 +403,11 @@ func (s *Server) stabilize() error {
 		return err
 	}
 
+	err = s.Cancel()
+	if err != nil {
+		return err
+	}
+
 	for {
 		var pkt protocol.Packet
 		pkt, err = s.readPacket()
