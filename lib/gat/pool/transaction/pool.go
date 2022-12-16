@@ -44,6 +44,8 @@ func (c *Pool) fetchShard(client gat.Client, n int) *shard.Shard {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	n = n % len(c.shards)
+
 	if c.shards[n] != nil {
 		return c.shards[n]
 	}
@@ -65,13 +67,13 @@ func (c *Pool) chooseShard(client gat.Client) *shard.Shard {
 		}
 	}
 
-	var s *shard.Shard
 	c.mu.RLock()
 	if preferred == -1 {
-		s = c.shards[rand.Intn(len(c.shards))]
+		preferred = rand.Intn(len(c.shards))
 	} else {
-		s = c.shards[preferred%len(c.shards)]
+		preferred = preferred % len(c.shards)
 	}
+	s := c.shards[preferred]
 	c.mu.RUnlock()
 	if s != nil {
 		return s
