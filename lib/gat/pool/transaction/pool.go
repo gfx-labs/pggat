@@ -2,13 +2,13 @@ package transaction
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/pool/transaction/shard"
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/metrics"
-	"github.com/pingcap/errors"
 	"math/rand"
 	"sync"
 	"time"

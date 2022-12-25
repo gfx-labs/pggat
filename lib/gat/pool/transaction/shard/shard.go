@@ -6,6 +6,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/protocol"
 	"gfx.cafe/gfx/pggat/lib/metrics"
 	"math/rand"
+	"sync"
 	"time"
 )
 
@@ -22,6 +23,8 @@ type Shard struct {
 	options []protocol.FieldsStartupMessageParameters
 
 	dialer gat.Dialer
+
+	mu sync.RWMutex
 }
 
 func FromConfig(dialer gat.Dialer, options []protocol.FieldsStartupMessageParameters, pool *config.Pool, user *config.User, conf *config.Shard, database gat.Database) *Shard {
@@ -49,6 +52,8 @@ func (s *Shard) newConn(conf *config.Server, replicaId int) *conn {
 }
 
 func (s *Shard) init() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	poolSize := s.user.PoolSize
 	for _, serv := range s.conf.Servers {
 		pool := NewChannelPool[*conn](poolSize)
@@ -77,6 +82,8 @@ func (s *Shard) tryAcquireAvailableReplica() *conn {
 }
 
 func (s *Shard) Choose(role config.ServerRole) *conn {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	start := time.Now()
 	defer func() {
 		metrics.RecordWaitTime(s.database.GetName(), s.user.Name, time.Since(start))
@@ -115,6 +122,8 @@ func (s *Shard) Choose(role config.ServerRole) *conn {
 }
 
 func (s *Shard) Return(conn *conn) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	switch conn.conf.Role {
 	case config.SERVERROLE_PRIMARY:
 		s.primary.Put(conn)
