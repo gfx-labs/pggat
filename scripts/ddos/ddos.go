@@ -14,9 +14,19 @@ import (
 	"time"
 )
 
+// UsePrest set to true to use the prest spammer, false to use postgres spammer
+const UsePrest = true
+
+// PrestHost only needed if UsePrest is true
 const PrestHost = "http://localhost:3000"
+
+// PostgresHost only needed if UsePrest is false
 const PostgresHost = "postgres://dev_rw:pGf63Aq0M5ck@pggat-dev.gfx.town:6432/prest"
+
+// ThreadCount how many concurrent spammers to run at once
 const ThreadCount = 4
+
+// TestTime how long to run the test. Set to 0 to run forever
 const TestTime = 30 * time.Second
 
 type col struct {
@@ -122,14 +132,24 @@ func main() {
 	start := time.Now()
 	for i := 0; i < ThreadCount; i++ {
 		go func() {
-			err := prestSpammer()
+			var err error
+			if UsePrest {
+				err = prestSpammer()
+			} else {
+				err = postgresSpammer()
+			}
 			if err != nil {
 				panic(err)
 			}
 		}()
 	}
 	ticker := time.NewTicker(1 * time.Second)
-	finish := time.After(TestTime)
+	var finish <-chan time.Time
+	if TestTime != 0 {
+		finish = time.After(TestTime)
+	} else {
+		finish = make(chan time.Time)
+	}
 	for {
 		select {
 		case now := <-ticker.C:
