@@ -14,9 +14,10 @@ import (
 	"time"
 )
 
-const PrestHost = "https://psql-prest.staging.gfx.town"
+const PrestHost = "http://localhost:3000"
 const PostgresHost = "postgres://dev_rw:pGf63Aq0M5ck@pggat-dev.gfx.town:6432/prest"
-const ThreadCount = 1000
+const ThreadCount = 4
+const TestTime = 30 * time.Second
 
 type col struct {
 	V int `json:"v"`
@@ -45,7 +46,7 @@ func spamPrest() error {
 		return fmt.Errorf("error unmarshaling '%s': %w", string(body), err)
 	}
 	if rc != c {
-		return fmt.Errorf("mismatch!!! %#v vs %#v", c, rc)
+		return fmt.Errorf("mismatch!!! %#v vs %#v (raw '%s')", c, rc, string(body))
 	}
 	return nil
 }
@@ -65,37 +66,41 @@ var stats struct {
 
 func spammer(spam func() error) error {
 	for {
-		start := time.Now()
-		ticker := time.NewTicker(1 * time.Second)
-		errch := make(chan error, 1)
-		go func() {
-			errch <- spam()
-		}()
-	a:
-		for {
-			select {
-			case <-ticker.C:
-				wait := time.Now().Sub(start)
-				stats.Lock()
-				if wait > stats.max {
-					stats.max = wait
+		func() {
+			start := time.Now()
+			ticker := time.NewTicker(1 * time.Second)
+			defer ticker.Stop()
+			errch := make(chan error, 1)
+			go func() {
+				errch <- spam()
+				close(errch)
+			}()
+		a:
+			for {
+				select {
+				case now := <-ticker.C:
+					wait := now.Sub(start)
+					stats.Lock()
+					if wait > stats.max {
+						stats.max = wait
+					}
+					stats.Unlock()
+				case err := <-errch:
+					if err != nil {
+						panic(err)
+					}
+					stats.Lock()
+					wait := time.Now().Sub(start)
+					stats.total += wait
+					stats.count += 1
+					if wait > stats.max {
+						stats.max = wait
+					}
+					stats.Unlock()
+					break a
 				}
-				stats.Unlock()
-			case err := <-errch:
-				if err != nil {
-					panic(err)
-				}
-				stats.Lock()
-				wait := time.Now().Sub(start)
-				stats.total += wait
-				stats.count += 1
-				if wait > stats.max {
-					stats.max = wait
-				}
-				stats.Unlock()
-				break a
 			}
-		}
+		}()
 	}
 }
 
@@ -114,21 +119,28 @@ func prestSpammer() error {
 }
 
 func main() {
+	start := time.Now()
 	for i := 0; i < ThreadCount; i++ {
 		go func() {
-			err := postgresSpammer()
+			err := prestSpammer()
 			if err != nil {
 				panic(err)
 			}
 		}()
 	}
 	ticker := time.NewTicker(1 * time.Second)
+	finish := time.After(TestTime)
 	for {
 		select {
-		case <-ticker.C:
+		case now := <-ticker.C:
 			stats.Lock()
-			log.Printf("avg %f max %f", stats.total.Seconds()/float64(stats.count), stats.max.Seconds())
+			log.Printf("avg %f - max %f - %f/s", stats.total.Seconds()/float64(stats.count), stats.max.Seconds(), float64(stats.count)/now.Sub(start).Seconds())
 			stats.Unlock()
+		case now := <-finish:
+			stats.Lock()
+			log.Printf("TEST FINISHED: avg %f - max %f - %f/s - %d requests completed", stats.total.Seconds()/float64(stats.count), stats.max.Seconds(), float64(stats.count)/now.Sub(start).Seconds(), stats.count)
+			stats.Unlock()
+			return
 		}
 	}
 }

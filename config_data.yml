@@ -1,0 +1,90 @@
+general:
+  host: 0.0.0.0
+  port: 6432
+  enable_prometheus_exporter: true
+  prometheus_exporter_port: 9090
+  connect_timeout: 5000
+  healthcheck_timeout: 1000
+  healthcheck_delay: 30000
+  shutdown_timeout: 60000
+  ban_time: 60
+  autoreload: false
+  admin_username: ENV$PSQL_DB_ADMIN_USER
+  admin_password: ENV$PSQL_DB_ADMIN_PASS
+pools:
+  postgres:
+    pool_mode: transaction
+    default_role: primary
+    query_parser_enabled: true
+    primary_reads_enabled: true
+    sharding_function: pg_bigint_hash
+    users:
+      - username: ENV$PSQL_DB_USER_RW
+        password: ENV$PSQL_DB_PASS_RW
+        role: writer
+        pool_size: 1
+        statement_timeout: 0
+    shards:
+      - pool_size: 5
+        statement_timeout: 0
+        database: postgres
+        servers:
+          - host: ENV$PSQL_PRI_DB_HOST
+            port: 5432
+            role: primary
+            username: ENV$PSQL_DB_USER_RW
+            password: ENV$PSQL_DB_PASS_RW
+          - host: ENV$PSQL_REP_DB_HOST
+            port: 5432
+            role: replica
+            username: ENV$PSQL_DB_USER_RO
+            password: ENV$PSQL_DB_PASS_RO
+  prest:
+    pool_mode: transaction
+    default_role: primary
+    query_parser_enabled: true
+    primary_reads_enabled: true
+    sharding_function: pg_bigint_hash
+    users:
+      - username: ENV$PSQL_DB_USER_RW
+        password: ENV$PSQL_DB_PASS_RW
+        role: writer
+        pool_size: 1
+        statement_timeout: 0
+    shards:
+      - pool_size: 5
+        statement_timeout: 0
+        database: prest
+        servers:
+          - host: ENV$PSQL_PRI_DB_HOST
+            port: 5432
+            role: primary
+            username: ENV$PSQL_DB_USER_RW
+            password: ENV$PSQL_DB_PASS_RW
+          - host: ENV$PSQL_REP_DB_HOST
+            port: 5432
+            role: replica
+            username: ENV$PSQL_DB_USER_RO
+            password: ENV$PSQL_DB_PASS_RO
+#  poolname OR databasename:
+#    pool_mode: session OR transaction
+#    default_role: primary OR replica
+#    query_parser_enabled: true or false
+#    primary_reads_enabled: true or false
+#    sharding_function: pg_bigint_hash
+#    users:
+#      - username: postgres
+#        password: password
+#        role: writer OR reader OR admin
+#        pool_size: 20
+#        statement_timeout: 0
+#    shards:
+#      - pool_size: 5
+#        statement_timeout: 0
+#        database: regression
+#        servers:
+#          - host: db
+#            port: 5432
+#            role: primary OR replica
+#            username: postgres
+#            password: ENV$PGGAT_DB_PASS

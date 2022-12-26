@@ -24,3 +24,17 @@ services:
     ports:
       - 6432:6432
       - 6060:6060
+    depends_on:
+      - "db"
+  prest:
+    image: prest/prest
+    restart: always
+    environment:
+      PREST_PG_URL: postgres://postgres:example@pggat:6432/prest
+      PREST_DEBUG: true
+      PREST_SSL_MODE: disable
+    ports:
+      - 3000:3000
+    depends_on:
+      - "pggat"
+      - "db"
