@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"errors"
+	"gfx.cafe/gfx/pggat/lib/util/gatutil"
 
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
@@ -92,8 +93,45 @@ func New(g gat.Gat) *Database {
 	out.r.Register([]string{"show", "clients"}, func(_ gat.Client, _ []string) error {
 		return nil
 	})
-	out.r.Register([]string{"show", "pools"}, func(_ gat.Client, _ []string) error {
-		return nil
+	out.r.Register([]string{"show", "pools"}, func(c gat.Client, _ []string) error {
+		table := gatutil.Table{
+			Header: gatutil.TableHeader{
+				Columns: []gatutil.TableHeaderColumn{
+					{
+						Name: "Table name",
+						Type: gatutil.Text{},
+					},
+					{
+						Name: "Min latency",
+						Type: gatutil.Float64{},
+					},
+					{
+						Name: "Max latency",
+						Type: gatutil.Float64{},
+					},
+					{
+						Name: "Avg latency",
+						Type: gatutil.Float64{},
+					},
+					{
+						Name: "Request Count",
+						Type: gatutil.Int64{},
+					},
+				},
+			},
+			Rows: []gatutil.TableRow{
+				{
+					Columns: []any{
+						"Test",
+						float64(1.0),
+						float64(2.0),
+						float64(3.0),
+						int64(123),
+					},
+				},
+			},
+		}
+		return table.Send(c)
 	})
 	out.r.Register([]string{"show", "lists"}, func(_ gat.Client, _ []string) error {
 		return nil

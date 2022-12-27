@@ -15,10 +15,10 @@ services:
     build: ../
     restart: always
     environment:
+      PSQL_DB_ADMIN_USER: postgres
+      PSQL_DB_ADMIN_PASS: example
       PSQL_DB_USER_RW: postgres
       PSQL_DB_PASS_RW: example
-      PSQL_DB_USER_RO: postgres
-      PSQL_DB_PASS_RO: example
       PSQL_PRI_DB_HOST: db
       PSQL_REP_DB_HOST: db
     ports:
@@ -30,7 +30,7 @@ services:
     image: prest/prest
     restart: always
     environment:
-      PREST_PG_URL: postgres://postgres:example@pggat:6432/prest
+      PREST_PG_URL: postgres://postgres:example@db:5432/prest
       PREST_DEBUG: true
       PREST_SSL_MODE: disable
     ports:

@@ -34,11 +34,6 @@ pools:
             role: primary
             username: ENV$PSQL_DB_USER_RW
             password: ENV$PSQL_DB_PASS_RW
-          - host: ENV$PSQL_REP_DB_HOST
-            port: 5432
-            role: replica
-            username: ENV$PSQL_DB_USER_RO
-            password: ENV$PSQL_DB_PASS_RO
   prest:
     pool_mode: transaction
     default_role: primary
@@ -61,11 +56,6 @@ pools:
             role: primary
             username: ENV$PSQL_DB_USER_RW
             password: ENV$PSQL_DB_PASS_RW
-          - host: ENV$PSQL_REP_DB_HOST
-            port: 5432
-            role: replica
-            username: ENV$PSQL_DB_USER_RO
-            password: ENV$PSQL_DB_PASS_RO
 #  poolname OR databasename:
 #    pool_mode: session OR transaction
 #    default_role: primary OR replica
