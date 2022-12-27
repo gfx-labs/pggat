@@ -11,8 +11,8 @@ import (
 )
 
 type Shard struct {
-	primary  Pool[*conn]
-	replicas []Pool[*conn]
+	primary  Pool[*Conn]
+	replicas []Pool[*Conn]
 
 	pool *config.Pool
 	user *config.User
@@ -43,8 +43,8 @@ func FromConfig(dialer gat.Dialer, options []protocol.FieldsStartupMessageParame
 	return out
 }
 
-func (s *Shard) newConn(conf *config.Server, replicaId int) *conn {
-	return &conn{
+func (s *Shard) newConn(conf *config.Server, replicaId int) *Conn {
+	return &Conn{
 		conf:      conf,
 		replicaId: replicaId,
 		s:         s,
@@ -56,7 +56,7 @@ func (s *Shard) init() {
 	defer s.mu.Unlock()
 	poolSize := s.user.PoolSize
 	for _, serv := range s.conf.Servers {
-		pool := NewChannelPool[*conn](poolSize)
+		pool := NewChannelPool[*Conn](poolSize)
 		for i := 0; i < poolSize; i++ {
 			pool.Put(s.newConn(serv, len(s.replicas)))
 		}
@@ -69,7 +69,7 @@ func (s *Shard) init() {
 	}
 }
 
-func (s *Shard) tryAcquireAvailableReplica() *conn {
+func (s *Shard) tryAcquireAvailableReplica() *Conn {
 	// try to get any available conn
 	for _, replica := range s.replicas {
 		c, ok := replica.TryGet()
@@ -81,7 +81,7 @@ func (s *Shard) tryAcquireAvailableReplica() *conn {
 	return nil
 }
 
-func (s *Shard) Choose(role config.ServerRole) *conn {
+func (s *Shard) Choose(role config.ServerRole) *Conn {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	start := time.Now()
@@ -121,7 +121,7 @@ func (s *Shard) Choose(role config.ServerRole) *conn {
 	}
 }
 
-func (s *Shard) Return(conn *conn) {
+func (s *Shard) Return(conn *Conn) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	switch conn.conf.Role {

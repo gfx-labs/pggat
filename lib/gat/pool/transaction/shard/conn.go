@@ -10,98 +10,98 @@ import (
 	"time"
 )
 
-type conn struct {
+type Conn struct {
 	conn      gat.Connection
 	conf      *config.Server
 	replicaId int
 	s         *Shard
 }
 
-func (s *conn) GetServerInfo() []*protocol.ParameterStatus {
+func (s *Conn) GetServerInfo() []*protocol.ParameterStatus {
 	return s.conn.GetServerInfo()
 }
 
-func (s *conn) GetDatabase() string {
+func (s *Conn) GetDatabase() string {
 	return s.conn.GetDatabase()
 }
 
-func (s *conn) GetState() gat.ConnectionState {
+func (s *Conn) GetState() gat.ConnectionState {
 	return s.conn.GetState()
 }
 
-func (s *conn) GetHost() string {
+func (s *Conn) GetHost() string {
 	return s.conn.GetHost()
 }
 
-func (s *conn) GetPort() int {
+func (s *Conn) GetPort() int {
 	return s.conn.GetPort()
 }
 
-func (s *conn) GetAddress() net.Addr {
+func (s *Conn) GetAddress() net.Addr {
 	return s.conn.GetAddress()
 }
 
-func (s *conn) GetLocalAddress() net.Addr {
+func (s *Conn) GetLocalAddress() net.Addr {
 	return s.conn.GetLocalAddress()
 }
 
-func (s *conn) GetConnectTime() time.Time {
+func (s *Conn) GetConnectTime() time.Time {
 	return s.conn.GetConnectTime()
 }
 
-func (s *conn) GetRequestTime() time.Time {
+func (s *Conn) GetRequestTime() time.Time {
 	return s.conn.GetRequestTime()
 }
 
-func (s *conn) GetClient() gat.Client {
+func (s *Conn) GetClient() gat.Client {
 	return s.conn.GetClient()
 }
 
-func (s *conn) SetClient(client gat.Client) {
+func (s *Conn) SetClient(client gat.Client) {
 	s.conn.SetClient(client)
 }
 
-func (s *conn) GetRemotePid() int {
+func (s *Conn) GetRemotePid() int {
 	return s.conn.GetRemotePid()
 }
 
-func (s *conn) GetTLS() string {
+func (s *Conn) GetTLS() string {
 	return s.conn.GetTLS()
 }
 
-func (s *conn) IsCloseNeeded() bool {
+func (s *Conn) IsCloseNeeded() bool {
 	return s.conn.IsCloseNeeded()
 }
 
-func (s *conn) Close() error {
+func (s *Conn) Close() error {
 	return s.conn.Close()
 }
 
-func (s *conn) Describe(ctx context.Context, client gat.Client, payload *protocol.Describe) error {
+func (s *Conn) Describe(ctx context.Context, client gat.Client, payload *protocol.Describe) error {
 	return s.conn.Describe(ctx, client, payload)
 }
 
-func (s *conn) Execute(ctx context.Context, client gat.Client, payload *protocol.Execute) error {
+func (s *Conn) Execute(ctx context.Context, client gat.Client, payload *protocol.Execute) error {
 	return s.conn.Execute(ctx, client, payload)
 }
 
-func (s *conn) CallFunction(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
+func (s *Conn) CallFunction(ctx context.Context, client gat.Client, payload *protocol.FunctionCall) error {
 	return s.conn.CallFunction(ctx, client, payload)
 }
 
-func (s *conn) SimpleQuery(ctx context.Context, client gat.Client, payload string) error {
+func (s *Conn) SimpleQuery(ctx context.Context, client gat.Client, payload string) error {
 	return s.conn.SimpleQuery(ctx, client, payload)
 }
 
-func (s *conn) Transaction(ctx context.Context, client gat.Client, payload string) error {
+func (s *Conn) Transaction(ctx context.Context, client gat.Client, payload string) error {
 	return s.conn.Transaction(ctx, client, payload)
 }
 
-func (s *conn) Cancel() error {
+func (s *Conn) Cancel() error {
 	return s.conn.Cancel()
 }
 
-func (s *conn) connect() {
+func (s *Conn) connect() {
 	if s.s == nil || s.conf == nil {
 		return
 	}
@@ -116,7 +116,7 @@ func (s *conn) connect() {
 	return
 }
 
-func (s *conn) acquire() *conn {
+func (s *Conn) acquire() *Conn {
 	if s.conn == nil || s.conn.IsCloseNeeded() {
 		s.connect()
 	}

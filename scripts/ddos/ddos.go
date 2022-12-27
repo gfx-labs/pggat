@@ -27,7 +27,7 @@ const PostgresHost = "postgres://dev_rw:pGf63Aq0M5ck@pggat-dev.gfx.town:6432/pre
 const ThreadCount = 1000
 
 // TestTime how long to run the test. Set to 0 to run forever
-const TestTime = 30 * time.Second
+const TestTime = 0 * time.Second
 
 type col struct {
 	V int `json:"v"`

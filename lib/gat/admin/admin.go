@@ -98,7 +98,11 @@ func New(g gat.Gat) *Database {
 			Header: gatutil.TableHeader{
 				Columns: []gatutil.TableHeaderColumn{
 					{
-						Name: "Table name",
+						Name: "Database",
+						Type: gatutil.Text{},
+					},
+					{
+						Name: "User",
 						Type: gatutil.Text{},
 					},
 					{
@@ -119,17 +123,21 @@ func New(g gat.Gat) *Database {
 					},
 				},
 			},
-			Rows: []gatutil.TableRow{
-				{
+		}
+		for dbname, db := range g.GetDatabases() {
+			for _, pool := range db.GetPools() {
+				uname := pool.GetUser().Name
+				table.Rows = append(table.Rows, gatutil.TableRow{
 					Columns: []any{
-						"Test",
-						float64(1.0),
-						float64(2.0),
-						float64(3.0),
-						int64(123),
+						dbname,
+						uname,
+						float64(0),
+						float64(0),
+						float64(0),
+						int64(0),
 					},
-				},
-			},
+				})
+			}
 		}
 		return table.Send(c)
 	})
