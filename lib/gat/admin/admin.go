@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"errors"
+	"gfx.cafe/gfx/pggat/lib/util/gatutil"
 
 	"gfx.cafe/gfx/pggat/lib/config"
 	"gfx.cafe/gfx/pggat/lib/gat"
@@ -92,8 +93,53 @@ func New(g gat.Gat) *Database {
 	out.r.Register([]string{"show", "clients"}, func(_ gat.Client, _ []string) error {
 		return nil
 	})
-	out.r.Register([]string{"show", "pools"}, func(_ gat.Client, _ []string) error {
-		return nil
+	out.r.Register([]string{"show", "pools"}, func(c gat.Client, _ []string) error {
+		table := gatutil.Table{
+			Header: gatutil.TableHeader{
+				Columns: []gatutil.TableHeaderColumn{
+					{
+						Name: "Database",
+						Type: gatutil.Text{},
+					},
+					{
+						Name: "User",
+						Type: gatutil.Text{},
+					},
+					{
+						Name: "Min latency",
+						Type: gatutil.Float64{},
+					},
+					{
+						Name: "Max latency",
+						Type: gatutil.Float64{},
+					},
+					{
+						Name: "Avg latency",
+						Type: gatutil.Float64{},
+					},
+					{
+						Name: "Request Count",
+						Type: gatutil.Int64{},
+					},
+				},
+			},
+		}
+		for dbname, db := range g.GetDatabases() {
+			for _, pool := range db.GetPools() {
+				uname := pool.GetUser().Name
+				table.Rows = append(table.Rows, gatutil.TableRow{
+					Columns: []any{
+						dbname,
+						uname,
+						float64(0),
+						float64(0),
+						float64(0),
+						int64(0),
+					},
+				})
+			}
+		}
+		return table.Send(c)
 	})
 	out.r.Register([]string{"show", "lists"}, func(_ gat.Client, _ []string) error {
 		return nil
