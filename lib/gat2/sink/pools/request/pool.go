@@ -3,7 +3,7 @@ package request
 import (
 	"gfx.cafe/gfx/pggat/lib/gat2/request"
 	"gfx.cafe/gfx/pggat/lib/gat2/sink"
-	"math/rand"
+	"gfx.cafe/gfx/pggat/lib/util/race"
 )
 
 type Pool struct {
@@ -28,12 +28,20 @@ func (T *Pool) handle(req request.Request) {
 		default:
 		}
 	}
-	// choose a random sink to wait for
 	if len(T.sinks) == 0 {
 		// TODO(garet) this should just error
 		panic("no free pools")
 	}
-	T.sinks[rand.Intn(len(T.sinks))].In() <- req
+	// choose a random sink to wait for
+	ok := race.Send(func(i int) (chan<- request.Request, bool) {
+		if i >= len(T.sinks) {
+			return nil, false
+		}
+		return T.sinks[i].In(), true
+	}, req)
+	if !ok {
+		panic("failed to send req to pool")
+	}
 }
 
 func (T *Pool) run() {
