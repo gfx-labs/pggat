@@ -12,13 +12,13 @@ func Send[T any](next iter.Iter[chan<- T], value T) bool {
 	defer func() {
 		casePool.Put(cases)
 	}()
-	for ch, ok := next(); ok; ch, ok = next() {
+	iter.ForEach(next, func(ch chan<- T) {
 		cases = append(cases, reflect.SelectCase{
 			Dir:  reflect.SelectSend,
 			Chan: reflect.ValueOf(ch),
 			Send: reflectValue,
 		})
-	}
+	})
 	_, _, ok := reflect.Select(cases)
 	return ok
 }

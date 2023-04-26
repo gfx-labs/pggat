@@ -11,12 +11,12 @@ func Recv[T any](next iter.Iter[<-chan T]) (T, bool) {
 	defer func() {
 		casePool.Put(cases)
 	}()
-	for ch, ok := next(); ok; ch, ok = next() {
+	iter.ForEach(next, func(ch <-chan T) {
 		cases = append(cases, reflect.SelectCase{
 			Dir:  reflect.SelectRecv,
 			Chan: reflect.ValueOf(ch),
 		})
-	}
+	})
 	_, value, ok := reflect.Select(cases)
 	if !ok {
 		return *new(T), false
