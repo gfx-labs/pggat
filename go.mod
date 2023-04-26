@@ -12,6 +12,7 @@ require (
 	github.com/BurntSushi/toml v1.2.0
 	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20220911224424-aa1f1f12a846
 	github.com/auxten/postgresql-parser v1.0.1
+	github.com/google/uuid v1.1.2
 	github.com/iancoleman/strcase v0.2.0
 	github.com/jackc/pgx/v5 v5.2.0
 	github.com/looplab/fsm v0.3.0

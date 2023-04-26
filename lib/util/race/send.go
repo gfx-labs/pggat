@@ -6,7 +6,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/iter"
 )
 
-func Send[T any](next iter.Iter[chan<- T], value T) bool {
+func Send[T any](next iter.Iter[chan<- T], value T) {
 	reflectValue := reflect.ValueOf(value)
 	cases := casePool.Get()[:0]
 	defer func() {
@@ -19,6 +19,5 @@ func Send[T any](next iter.Iter[chan<- T], value T) bool {
 			Send: reflectValue,
 		})
 	})
-	_, _, ok := reflect.Select(cases)
-	return ok
+	reflect.Select(cases)
 }

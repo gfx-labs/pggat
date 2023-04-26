@@ -87,3 +87,44 @@ func TestForEach(t *testing.T) {
 	})
 	end(t, iter)
 }
+
+func TestEmpty(t *testing.T) {
+	iter := Empty[int]()
+
+	end(t, iter)
+}
+
+func TestFlatten(t *testing.T) {
+	slice := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
+	iter := Slice(slice)
+	iter2 := Map(iter, func(v []int) Iter[int] {
+		return Slice(v)
+	})
+	iter3 := Flatten(iter2)
+
+	expect(t, iter3, 1)
+	expect(t, iter3, 2)
+	expect(t, iter3, 3)
+	expect(t, iter3, 4)
+	expect(t, iter3, 5)
+	expect(t, iter3, 6)
+	expect(t, iter3, 7)
+	expect(t, iter3, 8)
+	expect(t, iter3, 9)
+	end(t, iter3)
+}
+
+func BenchmarkFlatten(b *testing.B) {
+	b.ReportAllocs()
+	slice := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
+
+	for i := 0; i < b.N; i++ {
+		iter := Slice(slice)
+		iter2 := Map(iter, func(v []int) Iter[int] {
+			return Slice(v)
+		})
+		iter3 := Flatten(iter2)
+
+		ForEach(iter3, func(i int) {})
+	}
+}

@@ -6,7 +6,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/iter"
 )
 
-func Recv[T any](next iter.Iter[<-chan T]) (T, bool) {
+func Recv[T any](next iter.Iter[<-chan T]) (T, int, bool) {
 	cases := casePool.Get()[:0]
 	defer func() {
 		casePool.Put(cases)
@@ -17,9 +17,9 @@ func Recv[T any](next iter.Iter[<-chan T]) (T, bool) {
 			Chan: reflect.ValueOf(ch),
 		})
 	})
-	_, value, ok := reflect.Select(cases)
+	idx, value, ok := reflect.Select(cases)
 	if !ok {
-		return *new(T), false
+		return *new(T), idx, false
 	}
-	return value.Interface().(T), true
+	return value.Interface().(T), idx, true
 }
