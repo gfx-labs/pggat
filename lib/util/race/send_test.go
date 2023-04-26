@@ -3,6 +3,8 @@ package race
 import (
 	"math/rand"
 	"testing"
+
+	"gfx.cafe/gfx/pggat/lib/util/iter"
 )
 
 func TestSend(t *testing.T) {
@@ -11,24 +13,15 @@ func TestSend(t *testing.T) {
 		chans = append(chans, make(chan int))
 	}
 	go func() {
-		Send(func(i int) (chan<- int, bool) {
-			if i >= len(chans) {
-				return nil, false
-			}
-			return chans[i], true
-		}, 1)
-		Send(func(i int) (chan<- int, bool) {
-			if i >= len(chans) {
-				return nil, false
-			}
-			return chans[i], true
-		}, 2)
-		Send(func(i int) (chan<- int, bool) {
-			if i >= len(chans) {
-				return nil, false
-			}
-			return chans[i], true
-		}, 3)
+		Send(iter.Map(iter.Slice(chans), func(c chan int) chan<- int {
+			return c
+		}), 1)
+		Send(iter.Map(iter.Slice(chans), func(c chan int) chan<- int {
+			return c
+		}), 2)
+		Send(iter.Map(iter.Slice(chans), func(c chan int) chan<- int {
+			return c
+		}), 3)
 	}()
 	if <-chans[7] != 1 {
 		panic("expected to receive 1")
@@ -54,12 +47,9 @@ func BenchmarkSend(b *testing.B) {
 				panic("expected correct value")
 			}
 		}()
-		Send(func(i int) (chan<- int, bool) {
-			if i >= len(chans) {
-				return nil, false
-			}
-			return chans[i], true
-		}, v)
+		Send(iter.Map(iter.Slice(chans), func(c chan int) chan<- int {
+			return c
+		}), v)
 	}
 }
 

@@ -1,21 +1,21 @@
 package race
 
-import "reflect"
+import (
+	"reflect"
 
-func Recv[T any](next func(int) (<-chan T, bool)) (T, bool) {
+	"gfx.cafe/gfx/pggat/lib/util/iter"
+)
+
+func Recv[T any](next iter.Iter[<-chan T]) (T, bool) {
 	cases := casePool.Get()[:0]
 	defer func() {
 		casePool.Put(cases)
 	}()
-	for i := 0; ; i++ {
-		if ch, ok := next(i); ok {
-			cases = append(cases, reflect.SelectCase{
-				Dir:  reflect.SelectRecv,
-				Chan: reflect.ValueOf(ch),
-			})
-		} else {
-			break
-		}
+	for ch, ok := next(); ok; ch, ok = next() {
+		cases = append(cases, reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(ch),
+		})
 	}
 	_, value, ok := reflect.Select(cases)
 	if !ok {

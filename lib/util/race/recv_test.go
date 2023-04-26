@@ -2,6 +2,8 @@ package race
 
 import (
 	"testing"
+
+	"gfx.cafe/gfx/pggat/lib/util/iter"
 )
 
 func TestRecv(t *testing.T) {
@@ -10,12 +12,9 @@ func TestRecv(t *testing.T) {
 		chans = append(chans, make(chan int))
 	}
 	go func() {
-		v, ok := Recv(func(i int) (<-chan int, bool) {
-			if i >= len(chans) {
-				return nil, false
-			}
-			return chans[i], true
-		})
+		v, ok := Recv(iter.Map(iter.Slice(chans), func(c chan int) <-chan int {
+			return c
+		}))
 		if !ok || v != 1234 {
 			panic("expected to receive 1234")
 		}

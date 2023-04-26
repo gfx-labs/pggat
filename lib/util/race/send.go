@@ -1,23 +1,23 @@
 package race
 
-import "reflect"
+import (
+	"reflect"
 
-func Send[T any](next func(int) (chan<- T, bool), value T) bool {
+	"gfx.cafe/gfx/pggat/lib/util/iter"
+)
+
+func Send[T any](next iter.Iter[chan<- T], value T) bool {
 	reflectValue := reflect.ValueOf(value)
 	cases := casePool.Get()[:0]
 	defer func() {
 		casePool.Put(cases)
 	}()
-	for i := 0; ; i++ {
-		if ch, ok := next(i); ok {
-			cases = append(cases, reflect.SelectCase{
-				Dir:  reflect.SelectSend,
-				Chan: reflect.ValueOf(ch),
-				Send: reflectValue,
-			})
-		} else {
-			break
-		}
+	for ch, ok := next(); ok; ch, ok = next() {
+		cases = append(cases, reflect.SelectCase{
+			Dir:  reflect.SelectSend,
+			Chan: reflect.ValueOf(ch),
+			Send: reflectValue,
+		})
 	}
 	_, _, ok := reflect.Select(cases)
 	return ok
