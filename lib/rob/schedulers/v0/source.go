@@ -1,36 +1,63 @@
 package v0
 
 import (
-	"github.com/google/uuid"
+	"sync"
+	"sync/atomic"
 
 	"pggat2/lib/rob"
 )
 
 type Source struct {
-	scheduler *Scheduler
+	sink atomic.Pointer[Sink]
 
-	id        uuid.UUID
-	preferred *Sink
+	// vruntime in CFS
+	runtime atomic.Int64
+
+	queue []any
+	mu    sync.RWMutex
 }
 
-func newSource(scheduler *Scheduler) *Source {
-	return &Source{
-		scheduler: scheduler,
+func newSource() *Source {
+	return &Source{}
+}
 
-		id: uuid.New(),
+func (T *Source) Schedule(w any) {
+	T.mu.Lock()
+	wasEmpty := len(T.queue) == 0
+	T.queue = append(T.queue, w)
+	T.mu.Unlock()
+	if wasEmpty {
+		sink := T.sink.Load()
+		if sink != nil {
+			sink.runnable(T)
+		}
 	}
 }
 
-func (T *Source) Schedule(a any) {
-	w := newWork(T, a)
-	if T.preferred == nil {
-		T.preferred = T.scheduler.getSink()
+func (T *Source) idle() bool {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+	return len(T.queue) == 0
+}
+
+func (T *Source) pop() any {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	if len(T.queue) == 0 {
+		panic("pop on empty Source")
 	}
-	if T.preferred != nil {
-		T.preferred.enqueue(w)
-		return
+
+	w := T.queue[0]
+	for i := 1; i < len(T.queue)-1; i++ {
+		T.queue[i] = T.queue[i+1]
 	}
-	T.scheduler.backOrder(w)
+	T.queue = T.queue[:len(T.queue)-1]
+	return w
+}
+
+func (T *Source) assign(sink *Sink) {
+	T.sink.Store(sink)
 }
 
 var _ rob.Source = (*Source)(nil)

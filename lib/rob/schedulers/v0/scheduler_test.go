@@ -113,4 +113,9 @@ func TestScheduler(t *testing.T) {
 	log.Println("share of 1:", t1)
 	log.Println("share of 2:", t2)
 	log.Println("share of 3:", t3)
+	log.Println("total:",
+		time.Duration((t1+t3)*10)*time.Millisecond+
+			time.Duration(t2*50)*time.Millisecond+
+			time.Duration(t1*100)*time.Millisecond,
+	)
 }

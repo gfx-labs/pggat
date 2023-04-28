@@ -5,88 +5,70 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"pggat2/lib/rob"
 )
 
-const (
-	// tIdleTimeout is how long a thread can be idle before it is no longer runnable
-	tIdleTimeout = 5 * time.Millisecond
-)
-
 type Sink struct {
-	scheduler *Scheduler
+	// currently active Source
+	active *Source
+	// start time of the current thread
+	start time.Time
 
-	threads map[uuid.UUID]*thread
+	awake chan struct{}
 
-	active      *thread
-	activeStart time.Time
-
-	sigRunnable chan struct{}
 	// TODO(garet) change for red black tree
-	runnable []*thread
-
-	minRuntime time.Duration
+	// runnable queue
+	queue []*Source
 
 	mu sync.Mutex
 }
 
-func newSink(scheduler *Scheduler) *Sink {
+func newSink() *Sink {
 	sink := &Sink{
-		scheduler: scheduler,
-
-		threads: make(map[uuid.UUID]*thread),
-
-		sigRunnable: make(chan struct{}),
+		awake: make(chan struct{}),
 	}
 	return sink
 }
 
-func (T *Sink) newThread(source *Source) *thread {
-	t := &thread{
-		source: source,
-	}
-	T.threads[source.id] = t
-	return t
-}
-
-func (T *Sink) getOrCreateThread(source *Source) *thread {
-	var t *thread
-	var ok bool
-	// get or create thread
-	if t, ok = T.threads[source.id]; !ok {
-		t = T.newThread(source)
-	}
-	return t
-}
-
-func (T *Sink) enqueueRunnable(t *thread) {
-	if len(t.queue) == 0 {
-		panic("tried to enqueue a stalled thread")
+func (T *Sink) _runnable(t *Source) {
+	for _, q := range T.queue {
+		if t == q {
+			return
+		}
 	}
 
-	if t == T.active {
-		return
-	}
-
-	T.runnable = append(T.runnable, t)
+	T.queue = append(T.queue, t)
 	sort.Slice(
-		T.runnable,
+		T.queue,
 		func(i, j int) bool {
-			return T.runnable[i].runtime > T.runnable[j].runtime
+			return T.queue[i].runtime.Load() > T.queue[j].runtime.Load()
 		},
 	)
 
 	select {
-	case T.sigRunnable <- struct{}{}:
+	case T.awake <- struct{}{}:
 	default:
 	}
 }
 
-func (T *Sink) popThread() *thread {
-	t := T.runnable[len(T.runnable)-1]
-	T.runnable = T.runnable[:len(T.runnable)-1]
+func (T *Sink) runnable(t *Source) {
+	if t.idle() {
+		panic("tried to enqueue a stalled thread")
+	}
+
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	if T.active == t {
+		return
+	}
+
+	T._runnable(t)
+}
+
+func (T *Sink) _next() *Source {
+	t := T.queue[len(T.queue)-1]
+	T.queue = T.queue[:len(T.queue)-1]
 	return t
 }
 
@@ -100,47 +82,29 @@ func (T *Sink) Read() any {
 		t := T.active
 		T.active = nil
 
-		t.finish = now
-		dur := now.Sub(T.activeStart)
-		t.runtime += dur
+		dur := now.Sub(T.start)
+		t.runtime.Add(dur.Nanoseconds())
 
 		// reschedule if thread has more work
-		if len(t.queue) > 0 {
-			T.enqueueRunnable(t)
+		if !t.idle() {
+			T._runnable(t)
 		}
 	}
 
-	for len(T.runnable) == 0 {
+	for len(T.queue) == 0 {
 		T.mu.Unlock()
-		<-T.sigRunnable
+		<-T.awake
 		T.mu.Lock()
 	}
 
 	// pop thread off
-	t := T.popThread()
+	t := T._next()
 
-	T.minRuntime = t.runtime
 	T.active = t
-	T.activeStart = now
+	T.start = now
 
 	// pop work from thread
-	w := t.popWork()
-
-	return w.payload
-}
-
-func (T *Sink) enqueue(w *work) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	t := T.getOrCreateThread(w.source)
-
-	if len(t.queue) == 0 && time.Since(t.finish) > tIdleTimeout {
-		t.runtime = T.minRuntime
-	}
-
-	t.enqueue(w)
-	T.enqueueRunnable(t)
+	return t.pop()
 }
 
 var _ rob.Sink = (*Sink)(nil)
