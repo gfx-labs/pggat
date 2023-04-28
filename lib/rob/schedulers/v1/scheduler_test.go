@@ -42,12 +42,7 @@ func testSink(sched *Scheduler, table *ShareTable) {
 		w := sink.Read()
 		switch v := w.(type) {
 		case Work:
-			now := time.Now()
-			// dummy load to prevent the routines from sleeping (if they sleep, they will be awoken late making the
-			// overhead of the scheduler seem abnormally high)
-			for time.Since(now) < v.Duration {
-
-			}
+			time.Sleep(v.Duration)
 			table.Inc(v.Sender)
 			close(v.Done)
 		}

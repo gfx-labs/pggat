@@ -4,6 +4,7 @@ type Ring[T any] struct {
 	buffer []T
 	head   int
 	tail   int
+	length int
 }
 
 func MakeRing[T any](length, capacity int) Ring[T] {
@@ -14,10 +15,15 @@ func MakeRing[T any](length, capacity int) Ring[T] {
 	if capacity < 0 {
 		panic("capacity must be >= 0")
 	}
+	tail := length + 1
+	if tail >= capacity {
+		tail -= capacity
+	}
 	return Ring[T]{
-		buffer: make([]T, capacity+1),
+		buffer: make([]T, capacity),
 		head:   0,
-		tail:   length + 1,
+		length: length,
+		tail:   tail,
 	}
 }
 
@@ -49,7 +55,7 @@ func (r *Ring[T]) grow() {
 }
 
 func (r *Ring[T]) PushBack(value T) {
-	if r.tail == r.head {
+	if r.length == cap(r.buffer) {
 		r.grow()
 	}
 	r.buffer[r.tail] = value
@@ -57,10 +63,11 @@ func (r *Ring[T]) PushBack(value T) {
 	if r.tail >= len(r.buffer) {
 		r.tail -= len(r.buffer)
 	}
+	r.length++
 }
 
 func (r *Ring[T]) PushFront(value T) {
-	if r.head == r.tail {
+	if r.length == cap(r.buffer) {
 		r.grow()
 	}
 	r.buffer[r.head] = value
@@ -68,40 +75,39 @@ func (r *Ring[T]) PushFront(value T) {
 	if r.head < 0 {
 		r.head += len(r.buffer)
 	}
+	r.length++
 }
 
 func (r *Ring[T]) PopBack() (T, bool) {
+	if r.length == 0 {
+		return *new(T), false
+	}
 	tail := r.tail - 1
 	if tail < 0 {
 		tail += len(r.buffer)
 	}
-	if tail == r.head {
-		return *new(T), false
-	}
 	r.tail = tail
+	r.length--
 	return r.buffer[tail], true
 }
 
 func (r *Ring[T]) PopFront() (T, bool) {
+	if r.length == 0 {
+		return *new(T), false
+	}
 	head := r.head + 1
 	if head >= len(r.buffer) {
 		head -= len(r.buffer)
 	}
-	if head == r.tail {
-		return *new(T), false
-	}
 	r.head = head
+	r.length--
 	return r.buffer[head], true
 }
 
 func (r *Ring[T]) Length() int {
-	if length := r.tail - r.head; length > 0 {
-		return length - 1
-	}
-	// wraps, must calculate differently
-	return len(r.buffer) - r.head + r.tail - 1
+	return r.length
 }
 
 func (r *Ring[T]) Capacity() int {
-	return cap(r.buffer) - 1
+	return cap(r.buffer)
 }
