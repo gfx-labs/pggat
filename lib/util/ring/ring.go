@@ -1,0 +1,107 @@
+package ring
+
+type Ring[T any] struct {
+	buffer []T
+	head   int
+	tail   int
+}
+
+func MakeRing[T any](length, capacity int) Ring[T] {
+	if length > capacity {
+		// programmer error, panic
+		panic("length must be < capacity")
+	}
+	if capacity < 0 {
+		panic("capacity must be >= 0")
+	}
+	return Ring[T]{
+		buffer: make([]T, capacity+1),
+		head:   0,
+		tail:   length + 1,
+	}
+}
+
+func NewRing[T any](length, capacity int) *Ring[T] {
+	ring := MakeRing[T](length, capacity)
+	return &ring
+}
+
+func (r *Ring[T]) grow() {
+	if cap(r.buffer) == 0 {
+		// special case, uninitialized
+		r.buffer = make([]T, 2)
+		r.head = 0
+		r.tail = 1
+		return
+	}
+
+	// make new buffer with twice as much space
+	buf := make([]T, cap(r.buffer)*2)
+
+	// copy from [head, end of buffer] into new buffer
+	copy(buf, r.buffer[r.head:])
+	// copy from [beginning of buffer, tail) into new buffer
+	copy(buf[len(r.buffer)-r.head:], r.buffer[:r.tail])
+
+	r.tail = len(r.buffer) - r.head + r.tail
+	r.head = 0
+	r.buffer = buf
+}
+
+func (r *Ring[T]) PushBack(value T) {
+	if r.tail == r.head {
+		r.grow()
+	}
+	r.buffer[r.tail] = value
+	r.tail++
+	if r.tail >= len(r.buffer) {
+		r.tail -= len(r.buffer)
+	}
+}
+
+func (r *Ring[T]) PushFront(value T) {
+	if r.head == r.tail {
+		r.grow()
+	}
+	r.buffer[r.head] = value
+	r.head--
+	if r.head < 0 {
+		r.head += len(r.buffer)
+	}
+}
+
+func (r *Ring[T]) PopBack() (T, bool) {
+	tail := r.tail - 1
+	if tail < 0 {
+		tail += len(r.buffer)
+	}
+	if tail == r.head {
+		return *new(T), false
+	}
+	r.tail = tail
+	return r.buffer[tail], true
+}
+
+func (r *Ring[T]) PopFront() (T, bool) {
+	head := r.head + 1
+	if head >= len(r.buffer) {
+		head -= len(r.buffer)
+	}
+	if head == r.tail {
+		return *new(T), false
+	}
+	r.head = head
+	return r.buffer[head], true
+}
+
+func (r *Ring[T]) Length() int {
+	if length := r.tail - r.head; length > 0 {
+		return length - 1
+	}
+	// wraps, must calculate differently
+	return len(r.buffer) - r.head + r.tail - 1
+}
+
+func (r *Ring[T]) Capacity() int {
+	return cap(r.buffer) - 1
+}

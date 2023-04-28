@@ -1,4 +1,4 @@
-package v0
+package schedulers
 
 import (
 	"math/rand"
@@ -10,36 +10,42 @@ import (
 type Scheduler struct {
 	sinks     []*Sink
 	backorder []*Source
-	mu        sync.Mutex
+
+	mu sync.Mutex
 }
 
 func NewScheduler() *Scheduler {
-	return &Scheduler{}
+	return new(Scheduler)
 }
 
 func (T *Scheduler) NewSink() rob.Sink {
 	sink := newSink()
+
 	T.mu.Lock()
 	defer T.mu.Unlock()
+
+	T.sinks = append(T.sinks, sink)
 	for _, source := range T.backorder {
-		source.assign(sink)
+		sink.assign(source)
 	}
 	T.backorder = T.backorder[:0]
-	T.sinks = append(T.sinks, sink)
+
 	return sink
 }
 
 func (T *Scheduler) NewSource() rob.Source {
 	source := newSource()
+
 	T.mu.Lock()
 	defer T.mu.Unlock()
-	if len(T.sinks) == 0 {
-		T.backorder = append(T.backorder, source)
+
+	if len(T.sinks) != 0 {
+		sink := T.sinks[rand.Intn(len(T.sinks))]
+		sink.assign(source)
 	} else {
-		idx := rand.Intn(len(T.sinks))
-		sink := T.sinks[idx]
-		source.assign(sink)
+		T.backorder = append(T.backorder, source)
 	}
+
 	return source
 }
 
