@@ -76,13 +76,14 @@ func (T *Sink) Read() any {
 	defer T.mu.Unlock()
 
 	if T.active != nil {
-		T.runtime[T.active.id] += time.Since(T.start)
+		active := T.active
+		T.active = nil
+
+		T.runtime[active.id] += time.Since(T.start)
 
 		if T.requeue {
-			T._enqueue(T.active)
+			T._enqueue(active)
 		}
-
-		T.active = nil
 	}
 
 	for {
