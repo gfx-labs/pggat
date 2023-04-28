@@ -75,10 +75,8 @@ func (T *Sink) Read() any {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	now := time.Now()
-
 	if T.active != nil {
-		T.runtime[T.active.id] += now.Sub(T.start)
+		T.runtime[T.active.id] += time.Since(T.start)
 
 		if T.requeue {
 			T._enqueue(T.active)
@@ -103,7 +101,7 @@ func (T *Sink) Read() any {
 			break
 		}
 
-		T.start = now
+		T.start = time.Now()
 
 		work, ok, hasMore := T.active.pop()
 		if !ok {
