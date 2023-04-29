@@ -42,7 +42,10 @@ func testSink(sched *Scheduler, table *ShareTable) {
 		w := sink.Read()
 		switch v := w.(type) {
 		case Work:
-			time.Sleep(v.Duration)
+			// dummy load
+			start := time.Now()
+			for time.Since(start) < v.Duration {
+			}
 			table.Inc(v.Sender)
 			close(v.Done)
 		}
@@ -82,9 +85,44 @@ func TestScheduler(t *testing.T) {
 	log.Println("share of 1:", t1)
 	log.Println("share of 2:", t2)
 	log.Println("share of 3:", t3)
-	log.Println("total:",
-		time.Duration((t0+t1)*10)*time.Millisecond+
-			time.Duration(t2*50)*time.Millisecond+
-			time.Duration(t3*100)*time.Millisecond,
-	)
+
+	/*
+		Expectations:
+		- 0 and 1 should be similar and have roughly 10x of 3
+		- 2 should have about twice as many executions as 3
+	*/
+}
+
+func TestScheduler_Late(t *testing.T) {
+	var table ShareTable
+	sched := NewScheduler()
+	go testSink(sched, &table)
+
+	go testSource(sched, 0, 10*time.Millisecond)
+	go testSource(sched, 1, 10*time.Millisecond)
+
+	time.Sleep(10 * time.Second)
+
+	go testSource(sched, 2, 10*time.Millisecond)
+	go testSource(sched, 3, 10*time.Millisecond)
+
+	time.Sleep(10 * time.Second)
+	t0 := table.Get(0)
+	t1 := table.Get(1)
+	t2 := table.Get(2)
+	t3 := table.Get(3)
+	log.Println("share of 0:", t0)
+	log.Println("share of 1:", t1)
+	log.Println("share of 2:", t2)
+	log.Println("share of 3:", t3)
+
+	/*
+		Expectations:
+		- 0 and 1 should be similar
+		- 2 and 3 should be similar
+		- 0 and 1 should have more than three times as many executions as 2 and 3
+
+		IF THEY ARE ROUGHLY SIMILAR, THIS TEST IS A FAIL!!!! 0 AND 1 SHOULD NOT STALL WHEN 2 AND 3 ARE INTRODUCED
+		i need to make these automatic, but it's easy enough to eyeball it
+	*/
 }

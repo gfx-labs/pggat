@@ -18,6 +18,7 @@ type Sink struct {
 	start   time.Time
 
 	queue rbtree.RBTree[time.Duration, *Source]
+	floor time.Duration
 	ready chan struct{}
 
 	mu sync.Mutex
@@ -50,6 +51,11 @@ func (T *Sink) _enqueue(source *Source) {
 	}
 
 	runtime, _ := T.runtime[source.id]
+
+	if runtime < T.floor {
+		runtime = T.floor
+		T.runtime[source.id] = runtime
+	}
 
 	for {
 		// find unique runtime (usually will only run once)
@@ -99,6 +105,7 @@ func (T *Sink) Read() any {
 				continue
 			}
 			T.queue.Delete(runtime)
+			T.floor = runtime
 			break
 		}
 
