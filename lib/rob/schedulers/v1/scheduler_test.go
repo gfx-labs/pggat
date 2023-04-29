@@ -120,7 +120,7 @@ func TestScheduler_Late(t *testing.T) {
 		Expectations:
 		- 0 and 1 should be similar
 		- 2 and 3 should be similar
-		- 0 and 1 should have more than three times as many executions as 2 and 3
+		- 0 and 1 should have roughly three times as many executions as 2 and 3
 
 		IF THEY ARE ROUGHLY SIMILAR, THIS TEST IS A FAIL!!!! 0 AND 1 SHOULD NOT STALL WHEN 2 AND 3 ARE INTRODUCED
 		i need to make these automatic, but it's easy enough to eyeball it
