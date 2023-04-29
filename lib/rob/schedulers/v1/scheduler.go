@@ -11,7 +11,7 @@ type Scheduler struct {
 	sinks     []*Sink
 	backorder []*Source
 
-	mu sync.Mutex
+	mu sync.RWMutex
 }
 
 func NewScheduler() *Scheduler {
@@ -19,7 +19,7 @@ func NewScheduler() *Scheduler {
 }
 
 func (T *Scheduler) NewSink() rob.Sink {
-	sink := newSink()
+	sink := newSink(T)
 
 	T.mu.Lock()
 	defer T.mu.Unlock()
@@ -47,6 +47,18 @@ func (T *Scheduler) NewSource() rob.Source {
 	}
 
 	return source
+}
+
+func (T *Scheduler) steal() *Source {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+
+	for _, sink := range T.sinks {
+		if source := sink.steal(); source != nil {
+			return source
+		}
+	}
+	return nil
 }
 
 var _ rob.Scheduler = (*Scheduler)(nil)

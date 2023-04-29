@@ -126,3 +126,54 @@ func TestScheduler_Late(t *testing.T) {
 		i need to make these automatic, but it's easy enough to eyeball it
 	*/
 }
+
+func TestScheduler_StealBalanced(t *testing.T) {
+	var table ShareTable
+	sched := NewScheduler()
+	go testSink(sched, &table)
+	go testSink(sched, &table)
+
+	go testSource(sched, 0, 10*time.Millisecond)
+	go testSource(sched, 1, 10*time.Millisecond)
+	go testSource(sched, 2, 10*time.Millisecond)
+	go testSource(sched, 3, 10*time.Millisecond)
+
+	time.Sleep(20 * time.Second)
+	t0 := table.Get(0)
+	t1 := table.Get(1)
+	t2 := table.Get(2)
+	t3 := table.Get(3)
+	log.Println("share of 0:", t0)
+	log.Println("share of 1:", t1)
+	log.Println("share of 2:", t2)
+	log.Println("share of 3:", t3)
+
+	/*
+		Expectations:
+		- all users should get similar # of executions
+	*/
+}
+
+func TestScheduler_StealUnbalanced(t *testing.T) {
+	var table ShareTable
+	sched := NewScheduler()
+	go testSink(sched, &table)
+	go testSink(sched, &table)
+
+	go testSource(sched, 0, 10*time.Millisecond)
+	go testSource(sched, 1, 10*time.Millisecond)
+	go testSource(sched, 2, 10*time.Millisecond)
+
+	time.Sleep(20 * time.Second)
+	t0 := table.Get(0)
+	t1 := table.Get(1)
+	t2 := table.Get(2)
+	log.Println("share of 0:", t0)
+	log.Println("share of 1:", t1)
+	log.Println("share of 2:", t2)
+
+	/*
+		Expectations:
+		- all users should get similar # of executions
+	*/
+}
