@@ -1,6 +1,7 @@
 package schedulers
 
 import (
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -91,6 +92,18 @@ func similar(v0, v1 int, vn ...int) bool {
 		return false
 	}
 	return true
+}
+
+// like debug.Stack but gets all stacks
+func allStacks() []byte {
+	buf := make([]byte, 1024)
+	for {
+		n := runtime.Stack(buf, true)
+		if n < len(buf) {
+			return buf[:n]
+		}
+		buf = make([]byte, 2*len(buf))
+	}
 }
 
 func TestScheduler(t *testing.T) {
@@ -210,6 +223,7 @@ func TestScheduler_StealBalanced(t *testing.T) {
 
 	if t0 == 0 {
 		t.Error("expected executions on all sources (is there a race in the balancer??)")
+		t.Errorf("%s", allStacks())
 	}
 }
 
@@ -243,5 +257,6 @@ func TestScheduler_StealUnbalanced(t *testing.T) {
 
 	if t0 == 0 {
 		t.Error("expected executions on all sources (is there a race in the balancer??)")
+		t.Errorf("%s", allStacks())
 	}
 }
