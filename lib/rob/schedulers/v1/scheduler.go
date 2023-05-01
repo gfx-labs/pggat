@@ -49,11 +49,14 @@ func (T *Scheduler) NewSource() rob.Source {
 	return source
 }
 
-func (T *Scheduler) steal() *Source {
+func (T *Scheduler) steal(ignore *Sink) *Source {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 
 	for _, sink := range T.sinks {
+		if sink == ignore {
+			continue
+		}
 		if source := sink.steal(); source != nil {
 			return source
 		}
@@ -62,3 +65,4 @@ func (T *Scheduler) steal() *Source {
 }
 
 var _ rob.Scheduler = (*Scheduler)(nil)
+var _ stealer = (*Scheduler)(nil)

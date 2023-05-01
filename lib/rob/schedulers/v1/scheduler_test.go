@@ -1,7 +1,6 @@
 package schedulers
 
 import (
-	"log"
 	"sync"
 	"testing"
 	"time"
@@ -66,6 +65,34 @@ func testSource(sched *Scheduler, id int, dur time.Duration) {
 	}
 }
 
+func similar(v0, v1 int, vn ...int) bool {
+	const margin = 0.05 // 5% margin of error
+
+	min := v0
+	max := v0
+
+	if v1 < min {
+		min = v1
+	}
+	if v1 > max {
+		max = v1
+	}
+
+	for _, v := range vn {
+		if v < min {
+			min = v
+		}
+		if v > max {
+			max = v
+		}
+	}
+
+	if (float64(max-min) / float64(max)) > margin {
+		return false
+	}
+	return true
+}
+
 func TestScheduler(t *testing.T) {
 	var table ShareTable
 	sched := NewScheduler()
@@ -81,16 +108,29 @@ func TestScheduler(t *testing.T) {
 	t1 := table.Get(1)
 	t2 := table.Get(2)
 	t3 := table.Get(3)
-	log.Println("share of 0:", t0)
-	log.Println("share of 1:", t1)
-	log.Println("share of 2:", t2)
-	log.Println("share of 3:", t3)
 
 	/*
 		Expectations:
 		- 0 and 1 should be similar and have roughly 10x of 3
 		- 2 should have about twice as many executions as 3
 	*/
+
+	t.Log("share of 0:", t0)
+	t.Log("share of 1:", t1)
+	t.Log("share of 2:", t2)
+	t.Log("share of 3:", t3)
+
+	if !similar(t0, t1) {
+		t.Error("expected s0 and s1 to be similar")
+	}
+
+	if !similar(t0, t3*10) {
+		t.Error("expected s0 and s3*10 to be similar")
+	}
+
+	if !similar(t2, t3*2) {
+		t.Error("expected s2 and s3*2 to be similar")
+	}
 }
 
 func TestScheduler_Late(t *testing.T) {
@@ -111,20 +151,30 @@ func TestScheduler_Late(t *testing.T) {
 	t1 := table.Get(1)
 	t2 := table.Get(2)
 	t3 := table.Get(3)
-	log.Println("share of 0:", t0)
-	log.Println("share of 1:", t1)
-	log.Println("share of 2:", t2)
-	log.Println("share of 3:", t3)
 
 	/*
 		Expectations:
 		- 0 and 1 should be similar
 		- 2 and 3 should be similar
 		- 0 and 1 should have roughly three times as many executions as 2 and 3
-
-		IF THEY ARE ROUGHLY SIMILAR, THIS TEST IS A FAIL!!!! 0 AND 1 SHOULD NOT STALL WHEN 2 AND 3 ARE INTRODUCED
-		i need to make these automatic, but it's easy enough to eyeball it
 	*/
+
+	t.Log("share of 0:", t0)
+	t.Log("share of 1:", t1)
+	t.Log("share of 2:", t2)
+	t.Log("share of 3:", t3)
+
+	if !similar(t0, t1) {
+		t.Error("expected s0 and s1 to be similar")
+	}
+
+	if !similar(t2, t3) {
+		t.Error("expected s2 and s3 to be similar")
+	}
+
+	if !similar(t0, 3*t2) {
+		t.Error("expected s0 and s2*3 to be similar")
+	}
 }
 
 func TestScheduler_StealBalanced(t *testing.T) {
@@ -143,15 +193,20 @@ func TestScheduler_StealBalanced(t *testing.T) {
 	t1 := table.Get(1)
 	t2 := table.Get(2)
 	t3 := table.Get(3)
-	log.Println("share of 0:", t0)
-	log.Println("share of 1:", t1)
-	log.Println("share of 2:", t2)
-	log.Println("share of 3:", t3)
 
 	/*
 		Expectations:
 		- all users should get similar # of executions
 	*/
+
+	t.Log("share of 0:", t0)
+	t.Log("share of 1:", t1)
+	t.Log("share of 2:", t2)
+	t.Log("share of 3:", t3)
+
+	if !similar(t0, t1, t2, t3) {
+		t.Error("expected all shares to be similar")
+	}
 }
 
 func TestScheduler_StealUnbalanced(t *testing.T) {
@@ -168,12 +223,17 @@ func TestScheduler_StealUnbalanced(t *testing.T) {
 	t0 := table.Get(0)
 	t1 := table.Get(1)
 	t2 := table.Get(2)
-	log.Println("share of 0:", t0)
-	log.Println("share of 1:", t1)
-	log.Println("share of 2:", t2)
 
 	/*
 		Expectations:
 		- all users should get similar # of executions
 	*/
+
+	t.Log("share of 0:", t0)
+	t.Log("share of 1:", t1)
+	t.Log("share of 2:", t2)
+
+	if !similar(t0, t1, t2) {
+		t.Error("expected all shares to be similar")
+	}
 }

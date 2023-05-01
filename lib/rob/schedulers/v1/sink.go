@@ -16,7 +16,7 @@ const (
 )
 
 type Sink struct {
-	scheduler   *Scheduler
+	stealer     stealer
 	constraints rob.Constraints
 
 	runtime map[uuid.UUID]time.Duration
@@ -32,9 +32,9 @@ type Sink struct {
 	mu sync.Mutex
 }
 
-func newSink(scheduler *Scheduler, constraints rob.Constraints) *Sink {
+func newSink(stealer stealer, constraints rob.Constraints) *Sink {
 	return &Sink{
-		scheduler:   scheduler,
+		stealer:     stealer,
 		constraints: constraints,
 		runtime:     make(map[uuid.UUID]time.Duration),
 		ready:       make(chan struct{}),
@@ -42,9 +42,16 @@ func newSink(scheduler *Scheduler, constraints rob.Constraints) *Sink {
 }
 
 func (T *Sink) assign(source *Source) {
-	source.setNotifier(T.enqueue)
+	T.mu.Lock()
+	defer T.mu.Unlock()
 
-	T.enqueue(source)
+	T._assign(source)
+}
+
+func (T *Sink) _assign(source *Source) {
+	source.setNotifier(T)
+
+	T._enqueue(source)
 }
 
 // steal a thread from this Sink. Note: you can only steal pending threads
@@ -60,7 +67,7 @@ func (T *Sink) steal() *Source {
 	return source
 }
 
-func (T *Sink) enqueue(source *Source) {
+func (T *Sink) notify(source *Source) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 	T._enqueue(source)
@@ -100,6 +107,31 @@ func (T *Sink) _enqueue(source *Source) {
 	}
 }
 
+func (T *Sink) _next() *Source {
+	for {
+		runtime, source, ok := T.queue.Min()
+		if !ok {
+			// attempt to steal
+			source = T.stealer.steal(T)
+			if source != nil {
+				T._assign(source)
+			} else {
+				// unlock to allow work to be added to queue while we wait
+				T.mu.Unlock()
+				select {
+				case <-T.ready:
+				case <-time.After(stealPeriod):
+				}
+				T.mu.Lock()
+			}
+			continue
+		}
+		T.queue.Delete(runtime)
+		T.floor = runtime
+		return source
+	}
+}
+
 func (T *Sink) Read() any {
 	T.mu.Lock()
 	defer T.mu.Unlock()
@@ -117,36 +149,7 @@ func (T *Sink) Read() any {
 
 	for {
 		// get next runnable thread
-		for {
-			var runtime time.Duration
-			var ok bool
-			runtime, T.active, ok = T.queue.Min()
-			if !ok {
-				T.mu.Unlock()
-
-				// attempt to steal
-				source := T.scheduler.steal()
-				if source != nil {
-					T.assign(source)
-				}
-
-				T.mu.Lock()
-				if runtime, T.active, ok = T.queue.Min(); ok {
-					// we have gotten it successfully
-				} else {
-					T.mu.Unlock()
-					select {
-					case <-T.ready:
-					case <-time.After(stealPeriod):
-					}
-					T.mu.Lock()
-					continue
-				}
-			}
-			T.queue.Delete(runtime)
-			T.floor = runtime
-			break
-		}
+		T.active = T._next()
 
 		T.start = time.Now()
 
@@ -162,3 +165,4 @@ func (T *Sink) Read() any {
 }
 
 var _ rob.Sink = (*Sink)(nil)
+var _ notifier = (*Sink)(nil)

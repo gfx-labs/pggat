@@ -12,9 +12,9 @@ import (
 type Source struct {
 	id uuid.UUID
 
-	queue    ring.Ring[any]
-	notifier func(*Source)
-	mu       sync.Mutex
+	queue  ring.Ring[any]
+	notify notifier
+	mu     sync.Mutex
 }
 
 func newSource() *Source {
@@ -26,11 +26,11 @@ func newSource() *Source {
 func (T *Source) Schedule(w any, constraints rob.Constraints) {
 	T.mu.Lock()
 	T.queue.PushBack(w)
-	notifier := T.notifier
+	notify := T.notify
 	T.mu.Unlock()
 
-	if notifier != nil {
-		notifier(T)
+	if notify != nil {
+		notify.notify(T)
 	}
 }
 
@@ -42,10 +42,10 @@ func (T *Source) pop() (next any, ok, hasMore bool) {
 	return
 }
 
-func (T *Source) setNotifier(notifier func(*Source)) {
+func (T *Source) setNotifier(notify notifier) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
-	T.notifier = notifier
+	T.notify = notify
 }
 
 var _ rob.Source = (*Source)(nil)
