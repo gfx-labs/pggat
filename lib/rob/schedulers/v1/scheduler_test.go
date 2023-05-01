@@ -37,7 +37,7 @@ func (T *ShareTable) Get(user int) int {
 }
 
 func testSink(sched *Scheduler, table *ShareTable) {
-	sink := sched.NewSink()
+	sink := sched.NewSink(0)
 	for {
 		w := sink.Read()
 		switch v := w.(type) {
@@ -61,7 +61,7 @@ func testSource(sched *Scheduler, id int, dur time.Duration) {
 			Duration: dur,
 			Done:     done,
 		}
-		source.Schedule(w)
+		source.Schedule(w, 0)
 		<-done
 	}
 }

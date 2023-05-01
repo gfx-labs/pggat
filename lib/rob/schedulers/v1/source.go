@@ -23,7 +23,7 @@ func newSource() *Source {
 	}
 }
 
-func (T *Source) Schedule(w any) {
+func (T *Source) Schedule(w any, constraints rob.Constraints) {
 	T.mu.Lock()
 	T.queue.PushBack(w)
 	notifier := T.notifier

@@ -18,8 +18,8 @@ func NewScheduler() *Scheduler {
 	return new(Scheduler)
 }
 
-func (T *Scheduler) NewSink() rob.Sink {
-	sink := newSink(T)
+func (T *Scheduler) NewSink(constraints rob.Constraints) rob.Sink {
+	sink := newSink(T, constraints)
 
 	T.mu.Lock()
 	defer T.mu.Unlock()

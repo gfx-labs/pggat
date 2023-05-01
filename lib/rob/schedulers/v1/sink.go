@@ -16,7 +16,8 @@ const (
 )
 
 type Sink struct {
-	scheduler *Scheduler
+	scheduler   *Scheduler
+	constraints rob.Constraints
 
 	runtime map[uuid.UUID]time.Duration
 
@@ -31,11 +32,12 @@ type Sink struct {
 	mu sync.Mutex
 }
 
-func newSink(scheduler *Scheduler) *Sink {
+func newSink(scheduler *Scheduler, constraints rob.Constraints) *Sink {
 	return &Sink{
-		scheduler: scheduler,
-		runtime:   make(map[uuid.UUID]time.Duration),
-		ready:     make(chan struct{}),
+		scheduler:   scheduler,
+		constraints: constraints,
+		runtime:     make(map[uuid.UUID]time.Duration),
+		ready:       make(chan struct{}),
 	}
 }
 
