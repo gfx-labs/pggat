@@ -207,6 +207,10 @@ func TestScheduler_StealBalanced(t *testing.T) {
 	if !similar(t0, t1, t2, t3) {
 		t.Error("expected all shares to be similar")
 	}
+
+	if t0 == 0 {
+		t.Error("expected executions on all sources (is there a race in the balancer??)")
+	}
 }
 
 func TestScheduler_StealUnbalanced(t *testing.T) {
@@ -235,5 +239,9 @@ func TestScheduler_StealUnbalanced(t *testing.T) {
 
 	if !similar(t0, t1, t2) {
 		t.Error("expected all shares to be similar")
+	}
+
+	if t0 == 0 {
+		t.Error("expected executions on all sources (is there a race in the balancer??)")
 	}
 }
