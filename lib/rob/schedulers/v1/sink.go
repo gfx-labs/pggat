@@ -111,13 +111,14 @@ func (T *Sink) _next() *Source {
 	for {
 		runtime, source, ok := T.queue.Min()
 		if !ok {
+			// unlock to allow work to be added to queue (or stolen) while we wait
+			T.mu.Unlock()
 			// attempt to steal
 			source = T.stealer.steal(T)
 			if source != nil {
+				T.mu.Lock()
 				T._assign(source)
 			} else {
-				// unlock to allow work to be added to queue while we wait
-				T.mu.Unlock()
 				select {
 				case <-T.ready:
 				case <-time.After(stealPeriod):
