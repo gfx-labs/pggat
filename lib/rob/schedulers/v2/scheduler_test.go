@@ -298,7 +298,7 @@ func TestScheduler_Constraints(t *testing.T) {
 
 	/*
 		Expectations:
-		- all users should get similar # of executions (shares of 0 and 1 may be less because they have less sinks they can use: 2 vs 4)
+		- all users should get similar # of executions (shares of 0 and 1 may be less because they have less sinks they can use: 1 vs 2)
 		- all constraints should be honored
 	*/
 
