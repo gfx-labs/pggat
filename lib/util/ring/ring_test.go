@@ -8,7 +8,7 @@ import (
 func assertSome[T comparable](t *testing.T, f func() (T, bool), value T) {
 	v, ok := f()
 	if !ok {
-		t.Error("expected items but go nothing")
+		t.Error("expected items but got nothing")
 		return
 	}
 	if v != value {
@@ -25,6 +25,26 @@ func assertNone[T any](t *testing.T, f func() (T, bool)) {
 	}
 }
 
+func assertGetSome[T comparable](t *testing.T, ring *Ring[T], index int, value T) {
+	v, ok := ring.Get(index)
+	if !ok {
+		t.Error("expected items but got nothing")
+		return
+	}
+	if v != value {
+		t.Error("expected", value, "but got", v)
+		return
+	}
+}
+
+func assertGetNone[T comparable](t *testing.T, ring *Ring[T], index int) {
+	v, ok := ring.Get(index)
+	if ok {
+		t.Error("expected nothing but got", v)
+		return
+	}
+}
+
 func assertLength[T any](t *testing.T, ring *Ring[T], length int) {
 	l := ring.Length()
 	if length != l {
@@ -37,6 +57,21 @@ func assertCapacity[T any](t *testing.T, ring *Ring[T], capacity int) {
 	if capacity != c {
 		t.Error("expected capacity to be", capacity, "but got", c)
 	}
+}
+
+func TestRing_Get(t *testing.T) {
+	r := new(Ring[int])
+	r.PushBack(2)
+	r.PushBack(3)
+	r.PushBack(4)
+	r.PushFront(1)
+	assertGetSome(t, r, 0, 1)
+	assertGetSome(t, r, 1, 2)
+	assertGetSome(t, r, 2, 3)
+	assertGetSome(t, r, 3, 4)
+	r.PopBack()
+	assertGetNone(t, r, 3)
+	assertGetNone(t, r, -1)
 }
 
 func TestRing_New(t *testing.T) {

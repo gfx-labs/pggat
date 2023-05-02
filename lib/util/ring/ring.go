@@ -104,6 +104,17 @@ func (r *Ring[T]) PopFront() (T, bool) {
 	return r.buffer[head], true
 }
 
+func (r *Ring[T]) Get(i int) (T, bool) {
+	if i >= r.Length() || i < 0 {
+		return *new(T), false
+	}
+	ptr := r.head + 1 + i
+	if ptr >= len(r.buffer) {
+		ptr -= len(r.buffer)
+	}
+	return r.buffer[ptr], true
+}
+
 func (r *Ring[T]) Length() int {
 	return r.length
 }
