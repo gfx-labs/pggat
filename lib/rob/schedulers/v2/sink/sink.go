@@ -14,6 +14,7 @@ import (
 
 type Sink struct {
 	constraints rob.Constraints
+	steal       func()
 
 	active uuid.UUID
 	start  time.Time
@@ -27,9 +28,10 @@ type Sink struct {
 	mu        sync.Mutex
 }
 
-func NewSink(constraints rob.Constraints) *Sink {
+func NewSink(constraints rob.Constraints, steal func()) *Sink {
 	return &Sink{
 		constraints: constraints,
+		steal:       steal,
 		stride:      make(map[uuid.UUID]time.Duration),
 		pending:     make(map[uuid.UUID]*ring.Ring[job.Job]),
 		signal:      make(chan struct{}),
@@ -63,32 +65,6 @@ func (T *Sink) Queue(work job.Job) {
 	}
 
 	T.pending[work.Source].PushBack(work)
-}
-
-func (T *Sink) Steal(constraints rob.Constraints) (job.Job, *ring.Ring[job.Job], bool) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	iter := T.scheduled.Iter()
-	for stride, work, ok := iter(); ok; stride, work, ok = iter() {
-		if constraints.Satisfies(work.Constraints) {
-			// steal it
-			T.scheduled.Delete(stride)
-
-			// steal pending
-			pending, _ := T.pending[work.Source]
-			if pending.Length() == 0 {
-				pending = nil
-			} else {
-				delete(T.pending, work.Source)
-			}
-
-			return work, pending, true
-		}
-	}
-
-	// no stealable work
-	return job.Job{}, nil, false
 }
 
 // schedule the next work for source
@@ -141,10 +117,45 @@ func (T *Sink) scheduleWork(work job.Job) bool {
 	return true
 }
 
+// Steal work from this Sink that is satisfied by constraints
+func (T *Sink) Steal(constraints rob.Constraints) ([]job.Job, bool) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	iter := T.scheduled.Iter()
+	for stride, work, ok := iter(); ok; stride, work, ok = iter() {
+		if constraints.Satisfies(work.Constraints) {
+			// steal it
+			T.scheduled.Delete(stride)
+
+			// steal pending
+			pending, _ := T.pending[work.Source]
+
+			jobs := make([]job.Job, 0, pending.Length()+1)
+			jobs = append(jobs, work)
+
+			for work, ok = pending.PopFront(); ok; work, ok = pending.PopFront() {
+				jobs = append(jobs, work)
+			}
+
+			return jobs, true
+		}
+	}
+
+	// no stealable work
+	return nil, false
+}
+
 func (T *Sink) findWork() {
-	// Note: the sink is not locked in this func
-	// TODO(garet) try to steal work
+	T.mu.Unlock()
+	T.steal()
+	T.mu.Lock()
+	if _, _, ok := T.scheduled.Min(); ok {
+		return
+	}
+	T.mu.Unlock()
 	<-T.signal
+	T.mu.Lock()
 }
 
 func (T *Sink) Read() any {
@@ -163,9 +174,7 @@ func (T *Sink) Read() any {
 	for {
 		stride, j, ok := T.scheduled.Min()
 		if !ok {
-			T.mu.Unlock()
 			T.findWork()
-			T.mu.Lock()
 			continue
 		}
 		T.scheduled.Delete(stride)

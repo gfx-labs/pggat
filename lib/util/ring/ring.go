@@ -55,6 +55,9 @@ func (r *Ring[T]) grow() {
 }
 
 func (r *Ring[T]) PushBack(value T) {
+	if r == nil {
+		panic("PushBack() on nil Ring")
+	}
 	if r.length == cap(r.buffer) {
 		r.grow()
 	}
@@ -67,6 +70,9 @@ func (r *Ring[T]) PushBack(value T) {
 }
 
 func (r *Ring[T]) PushFront(value T) {
+	if r == nil {
+		panic("PushFront() on nil Ring")
+	}
 	if r.length == cap(r.buffer) {
 		r.grow()
 	}
@@ -79,7 +85,7 @@ func (r *Ring[T]) PushFront(value T) {
 }
 
 func (r *Ring[T]) PopBack() (T, bool) {
-	if r.length == 0 {
+	if r == nil || r.length == 0 {
 		return *new(T), false
 	}
 	tail := r.tail - 1
@@ -92,7 +98,7 @@ func (r *Ring[T]) PopBack() (T, bool) {
 }
 
 func (r *Ring[T]) PopFront() (T, bool) {
-	if r.length == 0 {
+	if r == nil || r.length == 0 {
 		return *new(T), false
 	}
 	head := r.head + 1
@@ -105,7 +111,7 @@ func (r *Ring[T]) PopFront() (T, bool) {
 }
 
 func (r *Ring[T]) Get(i int) (T, bool) {
-	if i >= r.Length() || i < 0 {
+	if r == nil || i >= r.length || i < 0 {
 		return *new(T), false
 	}
 	ptr := r.head + 1 + i
@@ -116,9 +122,15 @@ func (r *Ring[T]) Get(i int) (T, bool) {
 }
 
 func (r *Ring[T]) Length() int {
+	if r == nil {
+		return 0
+	}
 	return r.length
 }
 
 func (r *Ring[T]) Capacity() int {
+	if r == nil {
+		return 0
+	}
 	return cap(r.buffer)
 }

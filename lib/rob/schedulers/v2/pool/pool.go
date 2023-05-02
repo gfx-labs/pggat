@@ -1,7 +1,6 @@
 package pool
 
 import (
-	"math/rand"
 	"sync"
 
 	"github.com/google/uuid"
@@ -12,25 +11,29 @@ import (
 )
 
 type Pool struct {
-	affinity  map[uuid.UUID]int
-	sinks     []*sink.Sink
+	affinity  map[uuid.UUID]uuid.UUID
+	sinks     map[uuid.UUID]*sink.Sink
 	backorder []job.Job
 	mu        sync.Mutex
 }
 
 func MakePool() Pool {
 	return Pool{
-		affinity: make(map[uuid.UUID]int),
+		affinity: make(map[uuid.UUID]uuid.UUID),
+		sinks:    make(map[uuid.UUID]*sink.Sink),
 	}
 }
 
 func (T *Pool) NewSink(constraints rob.Constraints) *sink.Sink {
-	snk := sink.NewSink(constraints)
+	id := uuid.New()
+	snk := sink.NewSink(constraints, func() {
+		T.stealFor(id)
+	})
 
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	T.sinks = append(T.sinks, snk)
+	T.sinks[id] = snk
 
 	i := 0
 	for _, j := range T.backorder {
@@ -55,14 +58,13 @@ func (T *Pool) Schedule(work job.Job) {
 		return
 	}
 
+	var snk *sink.Sink
 	affinity, ok := T.affinity[work.Source]
-	if !ok {
-		affinity = rand.Intn(len(T.sinks))
-		T.affinity[work.Source] = affinity
+	if ok {
+		snk = T.sinks[affinity]
 	}
 
-	snk := T.sinks[affinity]
-	if !snk.Constraints().Satisfies(work.Constraints) || !snk.Idle() {
+	if !ok || !snk.Constraints().Satisfies(work.Constraints) || !snk.Idle() {
 		// choose a new affinity that satisfies constraints
 		ok = false
 		for id, s := range T.sinks {
@@ -86,4 +88,29 @@ func (T *Pool) Schedule(work job.Job) {
 
 	// yay, queued
 	snk.Queue(work)
+}
+
+func (T *Pool) stealFor(id uuid.UUID) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	snk, ok := T.sinks[id]
+	if !ok {
+		return
+	}
+
+	constraints := snk.Constraints()
+
+	for _, s := range T.sinks {
+		if s == snk {
+			continue
+		}
+		works, ok := s.Steal(constraints)
+		for _, work := range works {
+			snk.Queue(work)
+		}
+		if ok {
+			break
+		}
+	}
 }
