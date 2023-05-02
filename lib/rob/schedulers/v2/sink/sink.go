@@ -14,6 +14,8 @@ import (
 type job struct {
 	source uuid.UUID
 	work   any
+	// need to keep track of constraints for work stealing
+	constraints rob.Constraints
 }
 
 type Sink struct {
@@ -23,33 +25,48 @@ type Sink struct {
 	floor time.Duration
 
 	stride    map[uuid.UUID]time.Duration
-	pending   map[uuid.UUID]*ring.Ring[any]
+	pending   map[uuid.UUID]*ring.Ring[job]
 	scheduled rbtree.RBTree[time.Duration, job]
+	signal    chan struct{}
 	mu        sync.Mutex
 }
 
 func NewSink() *Sink {
 	return &Sink{
 		stride:  make(map[uuid.UUID]time.Duration),
-		pending: make(map[uuid.UUID]*ring.Ring[any]),
+		pending: make(map[uuid.UUID]*ring.Ring[job]),
+		signal:  make(chan struct{}),
 	}
 }
 
-func (T *Sink) Queue(source uuid.UUID, work any) {
+func (T *Sink) Idle() bool {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
+	return T.active == uuid.Nil
+}
+
+func (T *Sink) Queue(source uuid.UUID, work any, constraints rob.Constraints) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	j := job{
+		source:      source,
+		work:        work,
+		constraints: constraints,
+	}
+
 	// try to schedule right away
-	if ok := T.scheduleWork(source, work); ok {
+	if ok := T.scheduleWork(j); ok {
 		return
 	}
 
 	// add to pending queue
 	if _, ok := T.pending[source]; !ok {
-		T.pending[source] = new(ring.Ring[any])
+		T.pending[source] = new(ring.Ring[job])
 	}
 
-	T.pending[source].PushBack(work)
+	T.pending[source].PushBack(j)
 }
 
 // schedule the next work for source
@@ -62,41 +79,50 @@ func (T *Sink) schedule(source uuid.UUID) {
 	if !ok {
 		return
 	}
-	if ok = T.scheduleWork(source, work); !ok {
+	if ok = T.scheduleWork(work); !ok {
 		return
 	}
 	pending.PopFront()
 }
 
-func (T *Sink) scheduleWork(source uuid.UUID, work any) bool {
-	if T.active == source {
+func (T *Sink) scheduleWork(work job) bool {
+	if T.active == work.source {
 		return false
 	}
 
-	stride := T.stride[source]
+	stride := T.stride[work.source]
 	if stride < T.floor {
 		stride = T.floor
-		T.stride[source] = stride
+		T.stride[work.source] = stride
 	}
 
 	for {
 		// find unique stride to schedule on
 		if j, ok := T.scheduled.Get(stride); ok {
-			if j.source == source {
+			if j.source == work.source {
 				return false
 			}
 			stride += 1
 			continue
 		}
 
-		T.scheduled.Set(stride, job{
-			source: source,
-			work:   work,
-		})
+		T.scheduled.Set(stride, work)
 		break
 	}
 
+	// signal that more work is available if someone is waiting
+	select {
+	case T.signal <- struct{}{}:
+	default:
+	}
+
 	return true
+}
+
+func (T *Sink) findWork() {
+	// Note: the sink is not locked in this func
+	// TODO(garet) try to steal work
+	<-T.signal
 }
 
 func (T *Sink) Read() any {
@@ -116,7 +142,7 @@ func (T *Sink) Read() any {
 		stride, j, ok := T.scheduled.Min()
 		if !ok {
 			T.mu.Unlock()
-			// TODO(garet) try to steal or sleep until more work is available
+			T.findWork()
 			T.mu.Lock()
 			continue
 		}

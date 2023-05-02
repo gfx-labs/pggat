@@ -48,7 +48,7 @@ func (T *Pool) NewSink(constraints rob.Constraints) *sink.Sink {
 	i := 0
 	for _, j := range T.backorder {
 		if constraints.Satisfies(j.constraints) {
-			snk.Queue(j.source, j.work)
+			snk.Queue(j.source, j.work, j.constraints)
 		} else {
 			T.backorder[i] = j
 			i++
@@ -79,16 +79,18 @@ func (T *Pool) Schedule(source uuid.UUID, work any, constraints rob.Constraints)
 	}
 
 	snk := T.sinks[affinity]
-	if !snk.constraints.Satisfies(constraints) {
+	if !snk.sink.Idle() || !snk.constraints.Satisfies(constraints) {
 		// choose a new affinity that satisfies constraints
 		ok = false
 		for id, s := range T.sinks {
 			if s.constraints.Satisfies(constraints) {
 				snk = s
 				affinity = id
-				T.affinity[source] = affinity
 				ok = true
-				break
+				if s.sink.Idle() {
+					// prefer idle core, if not idle try to see if we can find one that is
+					break
+				}
 			}
 		}
 		if !ok {
@@ -99,8 +101,9 @@ func (T *Pool) Schedule(source uuid.UUID, work any, constraints rob.Constraints)
 			})
 			return
 		}
+		T.affinity[source] = affinity
 	}
 
 	// yay, queued
-	snk.sink.Queue(source, work)
+	snk.sink.Queue(source, work, constraints)
 }

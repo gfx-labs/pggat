@@ -5,3 +5,6 @@ over-represented. This new scheduler should be able to balance between users, gi
 
 If you want to take a shot at improving or rewriting the scheduler, put it in the next version folder
 (e.g. `schedulers/v1`)
+
+###  References
+- https://tsung-wei-huang.github.io/papers/icpads20.pdf
