@@ -4,12 +4,13 @@ import (
 	"encoding/binary"
 	"io"
 
-	"pggat2/lib/frontend/pnet/packet"
+	"pggat2/lib/pnet/packet"
 )
 
 type Reader struct {
 	reader io.Reader
 	// buffer for reading packet headers
+	// (allocating within Read would escape to heap)
 	buffer [4]byte
 }
 
@@ -26,19 +27,17 @@ func NewReader(reader io.Reader) *Reader {
 
 func (T *Reader) Read() (packet.Raw, error) {
 	// read type byte
-	_, err := io.ReadFull(T.reader, T.buffer[:1])
+	typ, err := T.ReadByte()
 	if err != nil {
 		return packet.Raw{}, err
 	}
-
-	typ := packet.Type(T.buffer[0])
 
 	pkt, err := T.ReadUntyped()
 	if err != nil {
 		return packet.Raw{}, err
 	}
 
-	pkt.Type = typ
+	pkt.Type = packet.Type(typ)
 	return pkt, nil
 }
 
@@ -61,4 +60,10 @@ func (T *Reader) ReadUntyped() (packet.Raw, error) {
 	}
 
 	return pkt, nil
+}
+
+func (T *Reader) ReadByte() (byte, error) {
+	T.buffer[0] = 0
+	_, err := io.ReadFull(T.reader, T.buffer[:1])
+	return T.buffer[0], err
 }

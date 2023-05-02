@@ -28,7 +28,10 @@ func (T *Frontend) Run() error {
 			return err
 		}
 
-		client := NewClient(conn)
+		client, err := NewClient(conn)
+		if err != nil {
+			return err
+		}
 		T.clients = append(T.clients, client)
 	}
 }
