@@ -6,13 +6,14 @@ import (
 	"net"
 
 	"pggat2/lib/frontend"
+	"pggat2/lib/frontend/frontends/v0/auth"
 	"pggat2/lib/perror"
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
 )
 
 var ErrBadPacketFormat = perror.New(
-	perror.ERROR,
+	perror.FATAL,
 	perror.ProtocolViolation,
 	"Bad packet format",
 )
@@ -63,7 +64,7 @@ func (T *Client) accept() error {
 			case 5678:
 				// Cancel
 				err = T.Error(perror.New(
-					perror.ERROR,
+					perror.FATAL,
 					perror.FeatureNotSupported,
 					"Cancel is not supported yet",
 				))
@@ -87,7 +88,7 @@ func (T *Client) accept() error {
 				continue
 			default:
 				err = T.Error(perror.New(
-					perror.ERROR,
+					perror.FATAL,
 					perror.ProtocolViolation,
 					"Unknown request code",
 				))
@@ -100,7 +101,7 @@ func (T *Client) accept() error {
 
 		if majorVersion != 3 || minorVersion != 0 {
 			err = T.Error(perror.New(
-				perror.ERROR,
+				perror.FATAL,
 				perror.ProtocolViolation,
 				"Unsupported protocol version",
 			))
@@ -128,19 +129,19 @@ func (T *Client) accept() error {
 				T.database = value
 			case "options":
 				return T.Error(perror.New(
-					perror.ERROR,
+					perror.FATAL,
 					perror.FeatureNotSupported,
 					"Startup options are not supported yet",
 				))
 			case "replication":
 				return T.Error(perror.New(
-					perror.ERROR,
+					perror.FATAL,
 					perror.FeatureNotSupported,
 					"Replication mode is not supported yet",
 				))
 			default:
 				return T.Error(perror.New(
-					perror.ERROR,
+					perror.FATAL,
 					perror.ProtocolViolation,
 					"Unsupported startup parameter",
 				))
@@ -149,8 +150,8 @@ func (T *Client) accept() error {
 
 		if T.user == "" {
 			return T.Error(perror.New(
-				perror.ERROR,
-				perror.InvalidPassword,
+				perror.FATAL,
+				perror.InvalidAuthorizationSpecification,
 				"User is required",
 			))
 		}
@@ -190,7 +191,7 @@ func (T *Client) accept() error {
 	reader := packet.MakeReader(password)
 	if reader.Type() != packet.AuthenticationResponse {
 		return T.Error(perror.New(
-			perror.ERROR,
+			perror.FATAL,
 			perror.ProtocolViolation,
 			"Expected password",
 		))
@@ -202,6 +203,13 @@ func (T *Client) accept() error {
 	}
 
 	log.Print("password=", pw)
+	if !auth.CheckMD5("test", "password", salt, pw) {
+		return T.Error(perror.New(
+			perror.FATAL,
+			perror.InvalidPassword,
+			"Invalid password",
+		))
+	}
 
 	return nil
 }
