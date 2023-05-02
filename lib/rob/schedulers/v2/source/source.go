@@ -4,6 +4,7 @@ import (
 	"github.com/google/uuid"
 
 	"pggat2/lib/rob"
+	"pggat2/lib/rob/schedulers/v2/job"
 	"pggat2/lib/rob/schedulers/v2/pool"
 )
 
@@ -20,7 +21,11 @@ func NewSource(p *pool.Pool) *Source {
 }
 
 func (T *Source) Schedule(work any, constraints rob.Constraints) {
-	T.pool.Schedule(T.uuid, work, constraints)
+	T.pool.Schedule(job.Job{
+		Source:      T.uuid,
+		Work:        work,
+		Constraints: constraints,
+	})
 }
 
 var _ rob.Source = (*Source)(nil)

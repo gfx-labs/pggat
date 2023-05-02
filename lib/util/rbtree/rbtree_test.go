@@ -35,6 +35,23 @@ func assertMin[K order, V comparable](t *testing.T, tree *RBTree[K, V], key K, v
 	}
 }
 
+func assertIterSome[K order, V comparable](t *testing.T, iter func() (K, V, bool), key K, value V) {
+	k, v, ok := iter()
+	if !ok {
+		t.Error("expected iterator to have values")
+	}
+	if k != key || v != value {
+		t.Error("expected key, value to be", key, value, "but got", k, v)
+	}
+}
+
+func assertIterNone[K order, V any](t *testing.T, iter func() (K, V, bool)) {
+	k, v, ok := iter()
+	if ok {
+		t.Error("expected no items but got", k, v)
+	}
+}
+
 func TestRBTree_Insert(t *testing.T) {
 	tree := new(RBTree[int, int])
 	tree.Set(1, 2)
@@ -66,6 +83,18 @@ func TestRBTree_Min(t *testing.T) {
 	tree.Delete(3)
 	tree.Delete(1)
 	assertMin(t, tree, 5, 6)
+}
+
+func TestRBTree_Iter(t *testing.T) {
+	tree := new(RBTree[int, int])
+	tree.Set(1, 2)
+	tree.Set(5, 6)
+	tree.Set(3, 4)
+	iter := tree.Iter()
+	assertIterSome(t, iter, 1, 2)
+	assertIterSome(t, iter, 3, 4)
+	assertIterSome(t, iter, 5, 6)
+	assertIterNone(t, iter)
 }
 
 func TestRBTree_Stress(t *testing.T) {

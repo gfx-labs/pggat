@@ -7,36 +7,38 @@ import (
 	"github.com/google/uuid"
 
 	"pggat2/lib/rob"
+	"pggat2/lib/rob/schedulers/v2/job"
 	"pggat2/lib/util/rbtree"
 	"pggat2/lib/util/ring"
 )
 
-type job struct {
-	source uuid.UUID
-	work   any
-	// need to keep track of constraints for work stealing
-	constraints rob.Constraints
-}
-
 type Sink struct {
+	constraints rob.Constraints
+
 	active uuid.UUID
 	start  time.Time
 
 	floor time.Duration
 
 	stride    map[uuid.UUID]time.Duration
-	pending   map[uuid.UUID]*ring.Ring[job]
-	scheduled rbtree.RBTree[time.Duration, job]
+	pending   map[uuid.UUID]*ring.Ring[job.Job]
+	scheduled rbtree.RBTree[time.Duration, job.Job]
 	signal    chan struct{}
 	mu        sync.Mutex
 }
 
-func NewSink() *Sink {
+func NewSink(constraints rob.Constraints) *Sink {
 	return &Sink{
-		stride:  make(map[uuid.UUID]time.Duration),
-		pending: make(map[uuid.UUID]*ring.Ring[job]),
-		signal:  make(chan struct{}),
+		constraints: constraints,
+		stride:      make(map[uuid.UUID]time.Duration),
+		pending:     make(map[uuid.UUID]*ring.Ring[job.Job]),
+		signal:      make(chan struct{}),
 	}
+}
+
+func (T *Sink) Constraints() rob.Constraints {
+	// no lock needed because these never change
+	return T.constraints
 }
 
 func (T *Sink) Idle() bool {
@@ -46,27 +48,47 @@ func (T *Sink) Idle() bool {
 	return T.active == uuid.Nil
 }
 
-func (T *Sink) Queue(source uuid.UUID, work any, constraints rob.Constraints) {
+func (T *Sink) Queue(work job.Job) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	j := job{
-		source:      source,
-		work:        work,
-		constraints: constraints,
-	}
-
 	// try to schedule right away
-	if ok := T.scheduleWork(j); ok {
+	if ok := T.scheduleWork(work); ok {
 		return
 	}
 
 	// add to pending queue
-	if _, ok := T.pending[source]; !ok {
-		T.pending[source] = new(ring.Ring[job])
+	if _, ok := T.pending[work.Source]; !ok {
+		T.pending[work.Source] = new(ring.Ring[job.Job])
 	}
 
-	T.pending[source].PushBack(j)
+	T.pending[work.Source].PushBack(work)
+}
+
+func (T *Sink) Steal(constraints rob.Constraints) (job.Job, *ring.Ring[job.Job], bool) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	iter := T.scheduled.Iter()
+	for stride, work, ok := iter(); ok; stride, work, ok = iter() {
+		if constraints.Satisfies(work.Constraints) {
+			// steal it
+			T.scheduled.Delete(stride)
+
+			// steal pending
+			pending, _ := T.pending[work.Source]
+			if pending.Length() == 0 {
+				pending = nil
+			} else {
+				delete(T.pending, work.Source)
+			}
+
+			return work, pending, true
+		}
+	}
+
+	// no stealable work
+	return job.Job{}, nil, false
 }
 
 // schedule the next work for source
@@ -85,21 +107,21 @@ func (T *Sink) schedule(source uuid.UUID) {
 	pending.PopFront()
 }
 
-func (T *Sink) scheduleWork(work job) bool {
-	if T.active == work.source {
+func (T *Sink) scheduleWork(work job.Job) bool {
+	if T.active == work.Source {
 		return false
 	}
 
-	stride := T.stride[work.source]
+	stride := T.stride[work.Source]
 	if stride < T.floor {
 		stride = T.floor
-		T.stride[work.source] = stride
+		T.stride[work.Source] = stride
 	}
 
 	for {
 		// find unique stride to schedule on
 		if j, ok := T.scheduled.Get(stride); ok {
-			if j.source == work.source {
+			if j.Source == work.Source {
 				return false
 			}
 			stride += 1
@@ -149,9 +171,9 @@ func (T *Sink) Read() any {
 		T.scheduled.Delete(stride)
 		T.floor = stride
 
-		T.active = j.source
+		T.active = j.Source
 		T.start = time.Now()
-		return j.work
+		return j.Work
 	}
 }
 

@@ -7,24 +7,14 @@ import (
 	"github.com/google/uuid"
 
 	"pggat2/lib/rob"
+	"pggat2/lib/rob/schedulers/v2/job"
 	"pggat2/lib/rob/schedulers/v2/sink"
 )
 
-type sinkAndConstraints struct {
-	sink        *sink.Sink
-	constraints rob.Constraints
-}
-
-type job struct {
-	source      uuid.UUID
-	work        any
-	constraints rob.Constraints
-}
-
 type Pool struct {
 	affinity  map[uuid.UUID]int
-	sinks     []sinkAndConstraints
-	backorder []job
+	sinks     []*sink.Sink
+	backorder []job.Job
 	mu        sync.Mutex
 }
 
@@ -35,20 +25,17 @@ func MakePool() Pool {
 }
 
 func (T *Pool) NewSink(constraints rob.Constraints) *sink.Sink {
-	snk := sink.NewSink()
+	snk := sink.NewSink(constraints)
 
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	T.sinks = append(T.sinks, sinkAndConstraints{
-		sink:        snk,
-		constraints: constraints,
-	})
+	T.sinks = append(T.sinks, snk)
 
 	i := 0
 	for _, j := range T.backorder {
-		if constraints.Satisfies(j.constraints) {
-			snk.Queue(j.source, j.work, j.constraints)
+		if constraints.Satisfies(j.Constraints) {
+			snk.Queue(j)
 		} else {
 			T.backorder[i] = j
 			i++
@@ -59,51 +46,44 @@ func (T *Pool) NewSink(constraints rob.Constraints) *sink.Sink {
 	return snk
 }
 
-func (T *Pool) Schedule(source uuid.UUID, work any, constraints rob.Constraints) {
+func (T *Pool) Schedule(work job.Job) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
 	if len(T.sinks) == 0 {
-		T.backorder = append(T.backorder, job{
-			source:      source,
-			work:        work,
-			constraints: constraints,
-		})
+		T.backorder = append(T.backorder, work)
 		return
 	}
 
-	affinity, ok := T.affinity[source]
+	affinity, ok := T.affinity[work.Source]
 	if !ok {
 		affinity = rand.Intn(len(T.sinks))
-		T.affinity[source] = affinity
+		T.affinity[work.Source] = affinity
 	}
 
 	snk := T.sinks[affinity]
-	if !snk.sink.Idle() || !snk.constraints.Satisfies(constraints) {
+	if !snk.Constraints().Satisfies(work.Constraints) || !snk.Idle() {
 		// choose a new affinity that satisfies constraints
 		ok = false
 		for id, s := range T.sinks {
-			if s.constraints.Satisfies(constraints) {
+			if s.Constraints().Satisfies(work.Constraints) {
+				current := id == affinity
 				snk = s
 				affinity = id
 				ok = true
-				if s.sink.Idle() {
+				if !current && s.Idle() {
 					// prefer idle core, if not idle try to see if we can find one that is
 					break
 				}
 			}
 		}
 		if !ok {
-			T.backorder = append(T.backorder, job{
-				source:      source,
-				work:        work,
-				constraints: constraints,
-			})
+			T.backorder = append(T.backorder, work)
 			return
 		}
-		T.affinity[source] = affinity
+		T.affinity[work.Source] = affinity
 	}
 
 	// yay, queued
-	snk.sink.Queue(source, work, constraints)
+	snk.Queue(work)
 }

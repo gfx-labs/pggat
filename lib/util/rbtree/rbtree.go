@@ -184,11 +184,38 @@ func (T *RBTree[K, V]) min(n *node[K, V]) *node[K, V] {
 	return T.min(n.left)
 }
 
-type color int
+func (T *RBTree[K, V]) Iter() func() (K, V, bool) {
+	// TODO(garet) make this not allocate
+	nodes := T.all(T.root, nil)
+	i := 0
+
+	return func() (K, V, bool) {
+		if i >= len(nodes) {
+			return *new(K), *new(V), false
+		}
+
+		n := nodes[i]
+		i++
+		return n.key, n.value, true
+	}
+}
+
+func (T *RBTree[K, V]) all(n *node[K, V], slice []*node[K, V]) []*node[K, V] {
+	if n == nil {
+		return slice
+	}
+
+	slice = T.all(n.left, slice)
+	slice = append(slice, n)
+	slice = T.all(n.right, slice)
+	return slice
+}
+
+type color bool
 
 const (
-	black color = 0
-	red   color = 1
+	black color = false
+	red   color = true
 )
 
 func (T color) opposite() color {
