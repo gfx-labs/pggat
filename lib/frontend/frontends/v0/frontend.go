@@ -1,7 +1,6 @@
 package frontends
 
 import (
-	"log"
 	"net"
 
 	"pggat2/lib/frontend"
@@ -22,6 +21,13 @@ func NewFrontend() (*Frontend, error) {
 	}, nil
 }
 
+func (T *Frontend) accept(conn net.Conn) {
+	client := NewClient(conn)
+	if client != nil {
+		T.clients = append(T.clients, client)
+	}
+}
+
 func (T *Frontend) Run() error {
 	for {
 		conn, err := T.listener.Accept()
@@ -29,12 +35,7 @@ func (T *Frontend) Run() error {
 			return err
 		}
 
-		client, err := NewClient(conn)
-		if err != nil {
-			log.Println("rejected client:", err)
-		} else {
-			T.clients = append(T.clients, client)
-		}
+		go T.accept(conn)
 	}
 }
 
