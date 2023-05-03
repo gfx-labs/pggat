@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"net"
 
-	"pggat2/lib/auth"
+	"pggat2/lib/auth/md5"
 	"pggat2/lib/frontend"
 	"pggat2/lib/perror"
 	"pggat2/lib/pnet"
@@ -215,7 +215,7 @@ func (T *Client) accept() error {
 		return T.Error(ErrBadPacketFormat)
 	}
 
-	if !auth.CheckMD5("test", "password", salt, pw) {
+	if !md5.Check("test", "password", salt, pw) {
 		return T.Error(perror.New(
 			perror.FATAL,
 			perror.InvalidPassword,

@@ -107,3 +107,7 @@ func (T *Reader) Bytes(count int) ([]byte, bool) {
 	T.bytes = T.bytes[count:]
 	return v, true
 }
+
+func (T *Reader) Remaining() []byte {
+	return T.bytes
+}

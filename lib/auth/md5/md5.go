@@ -1,4 +1,4 @@
-package auth
+package md5
 
 import (
 	"crypto/md5"
@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func EncodeMD5(username, password string, salt [4]byte) string {
+func Encode(username, password string, salt [4]byte) string {
 	hash := md5.New()
 	hash.Write([]byte(password))
 	hash.Write([]byte(username))
@@ -31,6 +31,6 @@ func EncodeMD5(username, password string, salt [4]byte) string {
 	return out.String()
 }
 
-func CheckMD5(username, password string, salt [4]byte, encoded string) bool {
-	return EncodeMD5(username, password, salt) == encoded
+func Check(username, password string, salt [4]byte, encoded string) bool {
+	return Encode(username, password, salt) == encoded
 }

@@ -1,4 +1,4 @@
-package auth
+package md5
 
 import "testing"
 
@@ -38,7 +38,7 @@ var Cases = []TestCase{
 
 func TestEncodeMD5(t *testing.T) {
 	for _, c := range Cases {
-		encoded := EncodeMD5(c.Username, c.Password, c.Salt)
+		encoded := Encode(c.Username, c.Password, c.Salt)
 		if encoded != c.Encoded {
 			t.Error("encoding failed! expected", c.Encoded, "but got", encoded)
 		}
@@ -47,7 +47,7 @@ func TestEncodeMD5(t *testing.T) {
 
 func TestCheckMD5(t *testing.T) {
 	for _, c := range Cases {
-		if !CheckMD5(c.Username, c.Password, c.Salt, c.Encoded) {
+		if !Check(c.Username, c.Password, c.Salt, c.Encoded) {
 			t.Error("check failed!")
 		}
 	}
