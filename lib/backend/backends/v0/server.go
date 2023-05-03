@@ -2,13 +2,16 @@ package backends
 
 import (
 	"errors"
+	"log"
 	"net"
 
 	"pggat2/lib/auth/md5"
 	"pggat2/lib/auth/sasl"
 	"pggat2/lib/backend"
+	"pggat2/lib/perror"
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
+	"pggat2/lib/request"
 )
 
 var ErrBadPacketFormat = errors.New("bad packet format")
@@ -267,6 +270,72 @@ func (T *Server) accept() error {
 	// startup complete, connection is ready for queries
 
 	return nil
+}
+
+func (T *Server) simple() (bool, perror.Error) {
+	pkt, err := T.Read()
+	if err != nil {
+		return false, perror.WrapError(err)
+	}
+
+	log.Printf("%#v", pkt)
+
+	reader := packet.MakeReader(pkt)
+	switch reader.Type() {
+	case packet.CommandComplete,
+		packet.RowDescription,
+		packet.DataRow,
+		packet.EmptyQueryResponse,
+		packet.ErrorResponse,
+		packet.NoticeResponse:
+		return false, nil
+	case packet.CopyInResponse:
+		return false, nil
+	case packet.CopyOutResponse:
+		return false, nil
+	case packet.ReadyForQuery:
+		v, ok := reader.Uint8()
+		if !ok {
+			return false, perror.New(
+				perror.FATAL,
+				perror.ProtocolViolation,
+				"Bad packet format",
+			)
+		}
+		return v == 'I', nil
+	default:
+		return false, perror.New(
+			perror.FATAL,
+			perror.ProtocolViolation,
+			"Unexpected packet",
+		)
+	}
+}
+
+func (T *Server) simpleRequest(req *request.Simple) perror.Error {
+	// send forward
+	err := T.Write(req.Query())
+	if err != nil {
+		return perror.WrapError(err)
+	}
+
+	for {
+		done, perr := T.simple()
+		if perr != nil {
+			return perr
+		}
+		if done {
+			break
+		}
+	}
+	return nil
+}
+
+func (T *Server) Request(req request.Request) {
+	switch v := req.(type) {
+	case *request.Simple:
+		T.simpleRequest(v)
+	}
 }
 
 var _ backend.Server = (*Server)(nil)
