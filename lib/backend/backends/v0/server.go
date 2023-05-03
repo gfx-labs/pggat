@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net"
 
+	"pggat2/lib/auth/md5"
 	"pggat2/lib/auth/sasl"
 	"pggat2/lib/backend"
 	"pggat2/lib/pnet"
@@ -115,6 +116,20 @@ func (T *Server) authenticationSASL(mechanisms []string, username, password stri
 	return nil
 }
 
+func (T *Server) authenticationMD5(salt [4]byte, username, password string) error {
+	var builder packet.Builder
+	builder.Type(packet.AuthenticationResponse)
+	builder.String(md5.Encode(username, password, salt))
+	return T.Write(builder.Raw())
+}
+
+func (T *Server) authenticationCleartext(password string) error {
+	var builder packet.Builder
+	builder.Type(packet.AuthenticationResponse)
+	builder.String(password)
+	return T.Write(builder.Raw())
+}
+
 func (T *Server) startup0(username, password string) (bool, error) {
 	pkt, err := T.Read()
 	if err != nil {
@@ -138,9 +153,13 @@ func (T *Server) startup0(username, password string) (bool, error) {
 		case 2:
 			return false, errors.New("kerberos v5 is not supported")
 		case 3:
-			return false, errors.New("cleartext is not supported")
+			return false, T.authenticationCleartext(password)
 		case 5:
-			return false, errors.New("md5 password is not supported")
+			salt, ok := reader.Bytes(4)
+			if !ok {
+				return false, ErrBadPacketFormat
+			}
+			return false, T.authenticationMD5([4]byte(salt), username, password)
 		case 6:
 			return false, errors.New("scm credential is not supported")
 		case 7:
@@ -163,10 +182,10 @@ func (T *Server) startup0(username, password string) (bool, error) {
 
 			return false, T.authenticationSASL(mechanisms, username, password)
 		default:
-			// we only support protocol 3.0 for now
 			return false, errors.New("unknown authentication method")
 		}
 	case packet.NegotiateProtocolVersion:
+		// we only support protocol 3.0 for now
 		return false, errors.New("server wanted to negotiate protocol version")
 	default:
 		return false, ErrProtocolError
@@ -186,7 +205,7 @@ func (T *Server) startup1() (bool, error) {
 		if !ok {
 			return false, ErrBadPacketFormat
 		}
-		copy(T.cancellationKey[:], cancellationKey)
+		T.cancellationKey = [8]byte(cancellationKey)
 		return false, nil
 	case packet.ParameterStatus:
 		parameter, ok := reader.String()

@@ -3,6 +3,7 @@ package frontends
 import (
 	"crypto/rand"
 	"net"
+	"strings"
 
 	"pggat2/lib/auth/md5"
 	"pggat2/lib/auth/sasl"
@@ -46,13 +47,15 @@ type Client struct {
 
 	// cancellation key data
 	cancellationKey [8]byte
+	parameters      map[string]string
 }
 
 func NewClient(conn net.Conn) *Client {
 	client := &Client{
-		conn:   conn,
-		Reader: pnet.MakeReader(conn),
-		Writer: pnet.MakeWriter(conn),
+		conn:       conn,
+		Reader:     pnet.MakeReader(conn),
+		Writer:     pnet.MakeWriter(conn),
+		parameters: make(map[string]string),
 	}
 	err := client.accept()
 	if err != nil {
@@ -147,7 +150,12 @@ func (T *Client) startup0() (bool, perror.Error) {
 				"Replication mode is not supported yet",
 			)
 		default:
-			unsupportedOptions = append(unsupportedOptions, key)
+			if strings.HasPrefix(key, "_pq_.") {
+				// we don't support protocol extensions at the moment
+				unsupportedOptions = append(unsupportedOptions, key)
+			} else {
+				T.parameters[key] = value
+			}
 		}
 	}
 
@@ -299,6 +307,47 @@ func (T *Client) authenticationMD5(username, password string) perror.Error {
 	}
 
 	if !md5.Check(username, password, salt, pw) {
+		return perror.New(
+			perror.FATAL,
+			perror.InvalidPassword,
+			"Invalid password",
+		)
+	}
+
+	return nil
+}
+
+func (T *Client) authenticationCleartext(password string) perror.Error {
+	var builder packet.Builder
+	builder.Type(packet.Authentication)
+	builder.Uint32(3)
+
+	err := T.Write(builder.Raw())
+	if err != nil {
+		return WrapError(err)
+	}
+
+	// read password
+	pkt, err := T.Read()
+	if err != nil {
+		return WrapError(err)
+	}
+
+	reader := packet.MakeReader(pkt)
+	if reader.Type() != packet.AuthenticationResponse {
+		return perror.New(
+			perror.FATAL,
+			perror.ProtocolViolation,
+			"Expected password",
+		)
+	}
+
+	pw, ok := reader.String()
+	if !ok {
+		return ErrBadPacketFormat
+	}
+
+	if pw != password {
 		return perror.New(
 			perror.FATAL,
 			perror.InvalidPassword,
