@@ -7,12 +7,17 @@ import (
 
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v2/job"
-	"pggat2/lib/rob/schedulers/v2/sink"
+	"pggat2/lib/rob/schedulers/v2/queue"
 )
+
+type constrainedQueue struct {
+	queue       *queue.Queue
+	constraints rob.Constraints
+}
 
 type Pool struct {
 	affinity  map[uuid.UUID]uuid.UUID
-	sinks     map[uuid.UUID]*sink.Sink
+	queues    map[uuid.UUID]constrainedQueue
 	backorder []job.Job
 	mu        sync.Mutex
 }
@@ -20,25 +25,25 @@ type Pool struct {
 func MakePool() Pool {
 	return Pool{
 		affinity: make(map[uuid.UUID]uuid.UUID),
-		sinks:    make(map[uuid.UUID]*sink.Sink),
+		queues:   make(map[uuid.UUID]constrainedQueue),
 	}
 }
 
-func (T *Pool) NewSink(constraints rob.Constraints) *sink.Sink {
-	id := uuid.New()
-	snk := sink.NewSink(constraints, func() {
-		T.stealFor(id)
-	})
+func (T *Pool) NewQueue(id uuid.UUID, constraints rob.Constraints) *queue.Queue {
+	q := queue.NewQueue()
 
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	T.sinks[id] = snk
+	T.queues[id] = constrainedQueue{
+		queue:       q,
+		constraints: constraints,
+	}
 
 	i := 0
 	for _, j := range T.backorder {
 		if constraints.Satisfies(j.Constraints) {
-			snk.Queue(j)
+			q.Queue(j)
 		} else {
 			T.backorder[i] = j
 			i++
@@ -46,34 +51,34 @@ func (T *Pool) NewSink(constraints rob.Constraints) *sink.Sink {
 	}
 	T.backorder = T.backorder[:i]
 
-	return snk
+	return q
 }
 
 func (T *Pool) Schedule(work job.Job) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	if len(T.sinks) == 0 {
+	if len(T.queues) == 0 {
 		T.backorder = append(T.backorder, work)
 		return
 	}
 
-	var snk *sink.Sink
+	var q constrainedQueue
 	affinity, ok := T.affinity[work.Source]
 	if ok {
-		snk = T.sinks[affinity]
+		q = T.queues[affinity]
 	}
 
-	if !ok || !snk.Constraints().Satisfies(work.Constraints) || !snk.Idle() {
+	if !ok || !q.constraints.Satisfies(work.Constraints) || !q.queue.Idle() {
 		// choose a new affinity that satisfies constraints
 		ok = false
-		for id, s := range T.sinks {
-			if s.Constraints().Satisfies(work.Constraints) {
+		for id, s := range T.queues {
+			if s.constraints.Satisfies(work.Constraints) {
 				current := id == affinity
-				snk = s
+				q = s
 				affinity = id
 				ok = true
-				if !current && s.Idle() {
+				if !current && s.queue.Idle() {
 					// prefer idle core, if not idle try to see if we can find one that is
 					break
 				}
@@ -87,25 +92,23 @@ func (T *Pool) Schedule(work job.Job) {
 	}
 
 	// yay, queued
-	snk.Queue(work)
+	q.queue.Queue(work)
 }
 
-func (T *Pool) stealFor(id uuid.UUID) {
+func (T *Pool) StealFor(id uuid.UUID) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	snk, ok := T.sinks[id]
+	q, ok := T.queues[id]
 	if !ok {
 		return
 	}
 
-	constraints := snk.Constraints()
-
-	for _, s := range T.sinks {
-		if s == snk {
+	for _, s := range T.queues {
+		if s == q {
 			continue
 		}
-		works, ok := s.Steal(constraints)
+		works, ok := s.queue.Steal(q.constraints)
 		if !ok {
 			continue
 		}
@@ -114,7 +117,7 @@ func (T *Pool) stealFor(id uuid.UUID) {
 			T.affinity[source] = id
 		}
 		for _, work := range works {
-			snk.Queue(work)
+			q.queue.Queue(work)
 		}
 		break
 	}

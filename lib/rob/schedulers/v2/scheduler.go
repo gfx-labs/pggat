@@ -1,8 +1,11 @@
 package schedulers
 
 import (
+	"github.com/google/uuid"
+
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v2/pool"
+	"pggat2/lib/rob/schedulers/v2/sink"
 	"pggat2/lib/rob/schedulers/v2/source"
 )
 
@@ -17,7 +20,9 @@ func NewScheduler() *Scheduler {
 }
 
 func (T *Scheduler) NewSink(fulfills rob.Constraints) rob.Sink {
-	return T.pool.NewSink(fulfills)
+	id := uuid.New()
+	q := T.pool.NewQueue(id, fulfills)
+	return sink.NewSink(id, &T.pool, q)
 }
 
 func (T *Scheduler) NewSource() rob.Source {
