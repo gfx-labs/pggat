@@ -2,7 +2,6 @@ package frontends
 
 import (
 	"crypto/rand"
-	"log"
 	"net"
 
 	"pggat2/lib/auth"
@@ -26,6 +25,9 @@ type Client struct {
 
 	user     string
 	database string
+
+	// cancellation key data
+	cancellationKey [8]byte
 }
 
 func NewClient(conn net.Conn) (*Client, error) {
@@ -99,14 +101,15 @@ func (T *Client) accept() error {
 			}
 		}
 
-		if majorVersion != 3 || minorVersion != 0 {
+		if majorVersion != 3 {
 			err = T.Error(perror.New(
 				perror.FATAL,
 				perror.ProtocolViolation,
 				"Unsupported protocol version",
 			))
-			continue
 		}
+
+		var unsupportedOptions []string
 
 		for {
 			key, ok := reader.String()
@@ -140,11 +143,23 @@ func (T *Client) accept() error {
 					"Replication mode is not supported yet",
 				))
 			default:
-				return T.Error(perror.New(
-					perror.FATAL,
-					perror.ProtocolViolation,
-					"Unsupported startup parameter",
-				))
+				unsupportedOptions = append(unsupportedOptions, key)
+			}
+		}
+
+		if minorVersion != 0 || len(unsupportedOptions) > 0 {
+			// negotiate protocol
+			var builder packet.Builder
+			builder.Type(packet.NegotiateProtocolVersion)
+			builder.Int32(0)
+			builder.Int32(int32(len(unsupportedOptions)))
+			for _, v := range unsupportedOptions {
+				builder.String(v)
+			}
+
+			err = T.Write(builder.Raw())
+			if err != nil {
+				return err
 			}
 		}
 
@@ -161,8 +176,6 @@ func (T *Client) accept() error {
 
 		break
 	}
-
-	log.Print("got here with user=", T.user, " database=", T.database)
 
 	var salt [4]byte
 	_, err := rand.Read(salt[:])
@@ -202,14 +215,46 @@ func (T *Client) accept() error {
 		return T.Error(ErrBadPacketFormat)
 	}
 
-	log.Print("salt=", salt)
-	log.Print("password=", pw)
 	if !auth.CheckMD5("test", "password", salt, pw) {
 		return T.Error(perror.New(
 			perror.FATAL,
 			perror.InvalidPassword,
 			"Invalid password",
 		))
+	}
+
+	// send auth ok
+	builder = packet.Builder{}
+	builder.Type(packet.Authentication)
+	builder.Uint32(0)
+
+	err = T.Write(builder.Raw())
+	if err != nil {
+		return err
+	}
+
+	// send backend key data
+	_, err = rand.Read(T.cancellationKey[:])
+	if err != nil {
+		return err
+	}
+	builder = packet.Builder{}
+	builder.Type(packet.BackendKeyData)
+	builder.Bytes(T.cancellationKey[:])
+
+	err = T.Write(builder.Raw())
+	if err != nil {
+		return err
+	}
+
+	// send ready for query
+	builder = packet.Builder{}
+	builder.Type(packet.ReadyForQuery)
+	builder.Uint8('I')
+
+	err = T.Write(builder.Raw())
+	if err != nil {
+		return err
 	}
 
 	return nil
