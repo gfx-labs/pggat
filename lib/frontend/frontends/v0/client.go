@@ -5,6 +5,7 @@ import (
 	"net"
 
 	"pggat2/lib/auth/md5"
+	"pggat2/lib/auth/sasl"
 	"pggat2/lib/frontend"
 	"pggat2/lib/perror"
 	"pggat2/lib/pnet"
@@ -15,6 +16,12 @@ var ErrBadPacketFormat = perror.New(
 	perror.FATAL,
 	perror.ProtocolViolation,
 	"Bad packet format",
+)
+
+var ErrProtocolError = perror.New(
+	perror.FATAL,
+	perror.ProtocolViolation,
+	"Expected a different packet",
 )
 
 type Client struct {
@@ -43,140 +50,206 @@ func NewClient(conn net.Conn) (*Client, error) {
 	return client, nil
 }
 
-func (T *Client) accept() error {
-	for {
-		startup, err := T.ReadUntyped()
-		if err != nil {
-			return err
-		}
-		reader := packet.MakeReader(startup)
+func (T *Client) startup0() (bool, error) {
+	startup, err := T.ReadUntyped()
+	if err != nil {
+		return false, err
+	}
+	reader := packet.MakeReader(startup)
 
-		majorVersion, ok := reader.Uint16()
-		if !ok {
-			return T.Error(ErrBadPacketFormat)
-		}
-		minorVersion, ok := reader.Uint16()
-		if !ok {
-			return T.Error(ErrBadPacketFormat)
-		}
+	majorVersion, ok := reader.Uint16()
+	if !ok {
+		return false, T.Error(ErrBadPacketFormat)
+	}
+	minorVersion, ok := reader.Uint16()
+	if !ok {
+		return false, T.Error(ErrBadPacketFormat)
+	}
 
-		if majorVersion == 1234 {
-			// Cancel or SSL
-			switch minorVersion {
-			case 5678:
-				// Cancel
-				err = T.Error(perror.New(
-					perror.FATAL,
-					perror.FeatureNotSupported,
-					"Cancel is not supported yet",
-				))
-				if err != nil {
-					return err
-				}
-				continue
-			case 5679:
-				// SSL is not supported yet
-				err = T.WriteByte('N')
-				if err != nil {
-					return err
-				}
-				continue
-			case 5680:
-				// GSSAPI is not supported yet
-				err = T.WriteByte('N')
-				if err != nil {
-					return err
-				}
-				continue
-			default:
-				err = T.Error(perror.New(
-					perror.FATAL,
-					perror.ProtocolViolation,
-					"Unknown request code",
-				))
-				if err != nil {
-					return err
-				}
-				continue
-			}
-		}
-
-		if majorVersion != 3 {
+	if majorVersion == 1234 {
+		// Cancel or SSL
+		switch minorVersion {
+		case 5678:
+			// Cancel
+			err = T.Error(perror.New(
+				perror.FATAL,
+				perror.FeatureNotSupported,
+				"Cancel is not supported yet",
+			))
+			return false, err
+		case 5679:
+			// SSL is not supported yet
+			err = T.WriteByte('N')
+			return false, err
+		case 5680:
+			// GSSAPI is not supported yet
+			err = T.WriteByte('N')
+			return false, err
+		default:
 			err = T.Error(perror.New(
 				perror.FATAL,
 				perror.ProtocolViolation,
-				"Unsupported protocol version",
+				"Unknown request code",
 			))
+			return false, err
+		}
+	}
+
+	if majorVersion != 3 {
+		err = T.Error(perror.New(
+			perror.FATAL,
+			perror.ProtocolViolation,
+			"Unsupported protocol version",
+		))
+	}
+
+	var unsupportedOptions []string
+
+	for {
+		key, ok := reader.String()
+		if !ok {
+			return false, T.Error(ErrBadPacketFormat)
+		}
+		if key == "" {
+			break
 		}
 
-		var unsupportedOptions []string
-
-		for {
-			key, ok := reader.String()
-			if !ok {
-				return T.Error(ErrBadPacketFormat)
-			}
-			if key == "" {
-				break
-			}
-
-			value, ok := reader.String()
-			if !ok {
-				return T.Error(ErrBadPacketFormat)
-			}
-
-			switch key {
-			case "user":
-				T.user = value
-			case "database":
-				T.database = value
-			case "options":
-				return T.Error(perror.New(
-					perror.FATAL,
-					perror.FeatureNotSupported,
-					"Startup options are not supported yet",
-				))
-			case "replication":
-				return T.Error(perror.New(
-					perror.FATAL,
-					perror.FeatureNotSupported,
-					"Replication mode is not supported yet",
-				))
-			default:
-				unsupportedOptions = append(unsupportedOptions, key)
-			}
+		value, ok := reader.String()
+		if !ok {
+			return false, T.Error(ErrBadPacketFormat)
 		}
 
-		if minorVersion != 0 || len(unsupportedOptions) > 0 {
-			// negotiate protocol
-			var builder packet.Builder
-			builder.Type(packet.NegotiateProtocolVersion)
-			builder.Int32(0)
-			builder.Int32(int32(len(unsupportedOptions)))
-			for _, v := range unsupportedOptions {
-				builder.String(v)
-			}
+		switch key {
+		case "user":
+			T.user = value
+		case "database":
+			T.database = value
+		case "options":
+			return false, T.Error(perror.New(
+				perror.FATAL,
+				perror.FeatureNotSupported,
+				"Startup options are not supported yet",
+			))
+		case "replication":
+			return false, T.Error(perror.New(
+				perror.FATAL,
+				perror.FeatureNotSupported,
+				"Replication mode is not supported yet",
+			))
+		default:
+			unsupportedOptions = append(unsupportedOptions, key)
+		}
+	}
 
+	if minorVersion != 0 || len(unsupportedOptions) > 0 {
+		// negotiate protocol
+		var builder packet.Builder
+		builder.Type(packet.NegotiateProtocolVersion)
+		builder.Int32(0)
+		builder.Int32(int32(len(unsupportedOptions)))
+		for _, v := range unsupportedOptions {
+			builder.String(v)
+		}
+
+		err = T.Write(builder.Raw())
+		if err != nil {
+			return false, err
+		}
+	}
+
+	if T.user == "" {
+		return false, T.Error(perror.New(
+			perror.FATAL,
+			perror.InvalidAuthorizationSpecification,
+			"User is required",
+		))
+	}
+	if T.database == "" {
+		T.database = T.user
+	}
+
+	return true, nil
+}
+
+func (T *Client) authenticationSASL(username, password string) error {
+	var builder packet.Builder
+	builder.Type(packet.Authentication)
+	builder.Int32(10)
+	for _, mechanism := range sasl.Mechanisms {
+		builder.String(mechanism)
+	}
+	builder.String("")
+
+	err := T.Write(builder.Raw())
+	if err != nil {
+		return err
+	}
+
+	// check which authentication method the client wants
+	pkt, err := T.Read()
+	if err != nil {
+		return err
+	}
+	if pkt.Type != packet.AuthenticationResponse {
+		return T.Error(ErrBadPacketFormat)
+	}
+
+	reader := packet.MakeReader(pkt)
+	mechanism, ok := reader.String()
+	if !ok {
+		return T.Error(ErrBadPacketFormat)
+	}
+	tool, err := sasl.NewServer(mechanism, username, password)
+	if err != nil {
+		return err
+	}
+	_, ok = reader.Int32()
+	if !ok {
+		return T.Error(ErrBadPacketFormat)
+	}
+
+	resp, done, err := tool.InitialResponse(reader.Remaining())
+
+	for {
+		if err != nil {
+			return err
+		}
+		if done {
+			builder = packet.Builder{}
+			builder.Type(packet.Authentication)
+			builder.Int32(12)
+			builder.Bytes(resp)
+			err = T.Write(builder.Raw())
+			if err != nil {
+				return err
+			}
+			break
+		} else {
+			builder = packet.Builder{}
+			builder.Type(packet.Authentication)
+			builder.Int32(11)
+			builder.Bytes(resp)
 			err = T.Write(builder.Raw())
 			if err != nil {
 				return err
 			}
 		}
 
-		if T.user == "" {
-			return T.Error(perror.New(
-				perror.FATAL,
-				perror.InvalidAuthorizationSpecification,
-				"User is required",
-			))
+		pkt, err = T.Read()
+		if err != nil {
+			return err
 		}
-		if T.database == "" {
-			T.database = T.user
+		if pkt.Type != packet.AuthenticationResponse {
+			return T.Error(ErrProtocolError)
 		}
 
-		break
+		resp, done, err = tool.Continue(pkt.Payload)
 	}
 
+	return nil
+}
+
+func (T *Client) authenticationMD5(username, password string) error {
 	var salt [4]byte
 	_, err := rand.Read(salt[:])
 	if err != nil {
@@ -196,12 +269,12 @@ func (T *Client) accept() error {
 	}
 
 	// read password
-	password, err := T.Read()
+	pkt, err := T.Read()
 	if err != nil {
 		return err
 	}
 
-	reader := packet.MakeReader(password)
+	reader := packet.MakeReader(pkt)
 	if reader.Type() != packet.AuthenticationResponse {
 		return T.Error(perror.New(
 			perror.FATAL,
@@ -215,7 +288,7 @@ func (T *Client) accept() error {
 		return T.Error(ErrBadPacketFormat)
 	}
 
-	if !md5.Check("test", "password", salt, pw) {
+	if !md5.Check(username, password, salt, pw) {
 		return T.Error(perror.New(
 			perror.FATAL,
 			perror.InvalidPassword,
@@ -223,8 +296,28 @@ func (T *Client) accept() error {
 		))
 	}
 
+	return nil
+}
+
+func (T *Client) accept() error {
+	for {
+		done, err := T.startup0()
+		if err != nil {
+			return err
+		}
+		if done {
+			break
+		}
+	}
+
+	// TODO(garet) don't hardcode username and password
+	err := T.authenticationSASL("test", "password")
+	if err != nil {
+		return err
+	}
+
 	// send auth ok
-	builder = packet.Builder{}
+	builder := packet.Builder{}
 	builder.Type(packet.Authentication)
 	builder.Uint32(0)
 

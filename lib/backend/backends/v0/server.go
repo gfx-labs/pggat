@@ -37,8 +37,51 @@ func NewServer(conn net.Conn) (*Server, error) {
 	return server, nil
 }
 
-func (T *Server) authenticationSASL(mechanisms []string) error {
-	mechanism, err := sasl.NewClient(mechanisms, "test", "password")
+func (T *Server) authenticationSASLChallenge(mechanism sasl.Client) (bool, error) {
+	challenge, err := T.Read()
+	if err != nil {
+		return false, err
+	}
+
+	reader := packet.MakeReader(challenge)
+	if reader.Type() != packet.Authentication {
+		return false, ErrProtocolError
+	}
+
+	method, ok := reader.Int32()
+	if !ok {
+		return false, ErrBadPacketFormat
+	}
+
+	switch method {
+	case 11:
+		// challenge
+		response, err := mechanism.Continue(reader.Remaining())
+		if err != nil {
+			return false, err
+		}
+
+		builder := packet.Builder{}
+		builder.Type(packet.AuthenticationResponse)
+		builder.Bytes(response)
+
+		err = T.Write(builder.Raw())
+		return false, err
+	case 12:
+		// finish
+		err = mechanism.Final(reader.Remaining())
+		if err != nil {
+			return false, err
+		}
+
+		return true, nil
+	default:
+		return false, ErrProtocolError
+	}
+}
+
+func (T *Server) authenticationSASL(mechanisms []string, username, password string) error {
+	mechanism, err := sasl.NewClient(mechanisms, username, password)
 	if err != nil {
 		return err
 	}
@@ -59,56 +102,20 @@ func (T *Server) authenticationSASL(mechanisms []string) error {
 	}
 
 	// challenge loop
-outer:
 	for {
-		challenge, err := T.Read()
+		done, err := T.authenticationSASLChallenge(mechanism)
 		if err != nil {
 			return err
 		}
-
-		reader := packet.MakeReader(challenge)
-		if reader.Type() != packet.Authentication {
-			return ErrProtocolError
-		}
-
-		method, ok := reader.Int32()
-		if !ok {
-			return ErrBadPacketFormat
-		}
-
-		switch method {
-		case 11:
-			// challenge
-			response, err := mechanism.Continue(reader.Remaining())
-			if err != nil {
-				return err
-			}
-
-			builder = packet.Builder{}
-			builder.Type(packet.AuthenticationResponse)
-			builder.Bytes(response)
-
-			err = T.Write(builder.Raw())
-			if err != nil {
-				return err
-			}
-		case 12:
-			// finish
-			err = mechanism.Final(reader.Remaining())
-			if err != nil {
-				return err
-			}
-
-			break outer
-		default:
-			return ErrProtocolError
+		if done {
+			break
 		}
 	}
 
 	return nil
 }
 
-func (T *Server) startup0() (bool, error) {
+func (T *Server) startup0(username, password string) (bool, error) {
 	pkt, err := T.Read()
 	if err != nil {
 		return false, err
@@ -154,7 +161,7 @@ func (T *Server) startup0() (bool, error) {
 				mechanisms = append(mechanisms, mechanism)
 			}
 
-			return false, T.authenticationSASL(mechanisms)
+			return false, T.authenticationSASL(mechanisms, username, password)
 		default:
 			// we only support protocol 3.0 for now
 			return false, errors.New("unknown authentication method")
@@ -218,7 +225,8 @@ func (T *Server) accept() error {
 	}
 
 	for {
-		done, err := T.startup0()
+		// TODO(garet) don't hardcode username and password
+		done, err := T.startup0("test", "password")
 		if err != nil {
 			return err
 		}

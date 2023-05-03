@@ -1,19 +1,16 @@
 package main
 
 import (
-	"net"
-
-	"pggat2/lib/backend/backends/v0"
+	"pggat2/lib/frontend/frontends/v0"
 )
 
 func main() {
-	conn, err := net.Dial("tcp", "localhost:5432")
+	frontend, err := frontends.NewFrontend()
 	if err != nil {
 		panic(err)
 	}
-	srv, err := backends.NewServer(conn)
+	err = frontend.Run()
 	if err != nil {
 		panic(err)
 	}
-	_ = srv
 }

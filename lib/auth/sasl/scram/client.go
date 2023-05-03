@@ -1,15 +1,7 @@
 package scram
 
 import (
-	"errors"
-
 	"github.com/xdg-go/scram"
-)
-
-var ErrUnsupportedMethod = errors.New("unsupported SCRAM method")
-
-const (
-	SHA256 = "SCRAM-SHA-256"
 )
 
 type Client struct {
@@ -17,22 +9,23 @@ type Client struct {
 	conversation *scram.ClientConversation
 }
 
-func NewClient(method, username, password string) (*Client, error) {
-	var client *scram.Client
+func NewClient(mechanism, username, password string) (*Client, error) {
+	var generator scram.HashGeneratorFcn
 
-	switch method {
+	switch mechanism {
 	case SHA256:
-		var err error
-		client, err = scram.SHA256.NewClient(username, password, "")
-		if err != nil {
-			return nil, err
-		}
+		generator = scram.SHA256
 	default:
 		return nil, ErrUnsupportedMethod
 	}
 
+	client, err := generator.NewClient(username, password, "")
+	if err != nil {
+		return nil, err
+	}
+
 	return &Client{
-		name:         method,
+		name:         mechanism,
 		conversation: client.NewConversation(),
 	}, nil
 }
