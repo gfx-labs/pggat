@@ -5,8 +5,8 @@ import (
 	"log"
 	"net"
 
+	"pggat2/lib/auth"
 	"pggat2/lib/frontend"
-	"pggat2/lib/frontend/frontends/v0/auth"
 	"pggat2/lib/perror"
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
@@ -202,6 +202,7 @@ func (T *Client) accept() error {
 		return T.Error(ErrBadPacketFormat)
 	}
 
+	log.Print("salt=", salt)
 	log.Print("password=", pw)
 	if !auth.CheckMD5("test", "password", salt, pw) {
 		return T.Error(perror.New(
