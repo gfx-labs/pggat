@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"pggat2/lib/pnet/packet"
+	"pggat2/lib/util/slices"
 )
 
 type Reader struct {
@@ -26,40 +27,51 @@ func NewReader(reader io.Reader) *Reader {
 }
 
 func (T *Reader) Read() (packet.Raw, error) {
+	raw := packet.Raw{}
+	err := T.ReadInto(&raw)
+	return raw, err
+}
+
+func (T *Reader) ReadInto(raw *packet.Raw) error {
 	// read type byte
 	typ, err := T.ReadByte()
 	if err != nil {
-		return packet.Raw{}, err
+		return err
 	}
+	raw.Type = packet.Type(typ)
 
-	pkt, err := T.ReadUntyped()
+	err = T.ReadUntypedInto(raw)
 	if err != nil {
-		return packet.Raw{}, err
+		return err
 	}
 
-	pkt.Type = packet.Type(typ)
-	return pkt, nil
+	return nil
 }
 
 func (T *Reader) ReadUntyped() (packet.Raw, error) {
 	pkt := packet.Raw{}
+	err := T.ReadUntypedInto(&pkt)
+	return pkt, err
+}
 
+func (T *Reader) ReadUntypedInto(raw *packet.Raw) error {
 	// read length int32
 	_, err := io.ReadFull(T.reader, T.buffer[:])
 	if err != nil {
-		return pkt, err
+		return err
 	}
 
 	length := binary.BigEndian.Uint32(T.buffer[:]) - 4
 
+	// resize body to length
+	raw.Payload = slices.Resize(raw.Payload, int(length))
 	// read body
-	pkt.Payload = make([]byte, length)
-	_, err = io.ReadFull(T.reader, pkt.Payload)
+	_, err = io.ReadFull(T.reader, raw.Payload)
 	if err != nil {
-		return pkt, err
+		return err
 	}
 
-	return pkt, nil
+	return nil
 }
 
 func (T *Reader) ReadByte() (byte, error) {

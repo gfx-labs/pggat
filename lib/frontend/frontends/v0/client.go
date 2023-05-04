@@ -54,12 +54,23 @@ func NewClient(conn net.Conn) *Client {
 	return client
 }
 
-func (T *Client) startup0() (bool, perror.Error) {
-	startup, err := T.ReadUntyped()
+func (T *Client) negotiateProtocolVersionPacket(raw *packet.Raw, unsupportedOptions []string) {
+	builder := packet.MakeBuilder(raw.Payload[:0])
+	builder.Type(packet.NegotiateProtocolVersion)
+	builder.Int32(0)
+	builder.Int32(int32(len(unsupportedOptions)))
+	for _, v := range unsupportedOptions {
+		builder.String(v)
+	}
+	*raw = builder.Raw()
+}
+
+func (T *Client) startup0(pkt *packet.Raw) (bool, perror.Error) {
+	err := T.ReadUntypedInto(pkt)
 	if err != nil {
 		return false, perror.WrapError(err)
 	}
-	reader := packet.MakeReader(startup)
+	reader := packet.MakeReader(pkt)
 
 	majorVersion, ok := reader.Uint16()
 	if !ok {
@@ -150,15 +161,9 @@ func (T *Client) startup0() (bool, perror.Error) {
 
 	if minorVersion != 0 || len(unsupportedOptions) > 0 {
 		// negotiate protocol
-		var builder packet.Builder
-		builder.Type(packet.NegotiateProtocolVersion)
-		builder.Int32(0)
-		builder.Int32(int32(len(unsupportedOptions)))
-		for _, v := range unsupportedOptions {
-			builder.String(v)
-		}
+		T.negotiateProtocolVersionPacket(pkt, unsupportedOptions)
 
-		err = T.Write(builder.Raw())
+		err = T.Write(*pkt)
 		if err != nil {
 			return false, perror.WrapError(err)
 		}
@@ -178,22 +183,42 @@ func (T *Client) startup0() (bool, perror.Error) {
 	return true, nil
 }
 
-func (T *Client) authenticationSASL(username, password string) perror.Error {
-	var builder packet.Builder
+func (T *Client) authenticationSASLPacket(raw *packet.Raw) {
+	builder := packet.MakeBuilder(raw.Payload[:0])
 	builder.Type(packet.Authentication)
 	builder.Int32(10)
 	for _, mechanism := range sasl.Mechanisms {
 		builder.String(mechanism)
 	}
 	builder.String("")
+	*raw = builder.Raw()
+}
 
-	err := T.Write(builder.Raw())
+func (T *Client) authenticationSASLContinuePacket(raw *packet.Raw, resp []byte) {
+	builder := packet.MakeBuilder(raw.Payload[:0])
+	builder.Type(packet.Authentication)
+	builder.Int32(11)
+	builder.Bytes(resp)
+	*raw = builder.Raw()
+}
+
+func (T *Client) authenticationSASLFinalPacket(raw *packet.Raw, resp []byte) {
+	builder := packet.MakeBuilder(raw.Payload[:0])
+	builder.Type(packet.Authentication)
+	builder.Int32(12)
+	builder.Bytes(resp)
+	*raw = builder.Raw()
+}
+
+func (T *Client) authenticationSASL(pkt *packet.Raw, username, password string) perror.Error {
+	T.authenticationSASLPacket(pkt)
+	err := T.Write(*pkt)
 	if err != nil {
 		return perror.WrapError(err)
 	}
 
 	// check which authentication method the client wants
-	pkt, err := T.Read()
+	err = T.ReadInto(pkt)
 	if err != nil {
 		return perror.WrapError(err)
 	}
@@ -222,27 +247,21 @@ func (T *Client) authenticationSASL(username, password string) perror.Error {
 			return perror.WrapError(err)
 		}
 		if done {
-			builder = packet.Builder{}
-			builder.Type(packet.Authentication)
-			builder.Int32(12)
-			builder.Bytes(resp)
-			err = T.Write(builder.Raw())
+			T.authenticationSASLFinalPacket(pkt, resp)
+			err = T.Write(*pkt)
 			if err != nil {
 				return perror.WrapError(err)
 			}
 			break
 		} else {
-			builder = packet.Builder{}
-			builder.Type(packet.Authentication)
-			builder.Int32(11)
-			builder.Bytes(resp)
-			err = T.Write(builder.Raw())
+			T.authenticationSASLContinuePacket(pkt, resp)
+			err = T.Write(*pkt)
 			if err != nil {
 				return perror.WrapError(err)
 			}
 		}
 
-		pkt, err = T.Read()
+		err = T.ReadInto(pkt)
 		if err != nil {
 			return perror.WrapError(err)
 		}
@@ -256,7 +275,7 @@ func (T *Client) authenticationSASL(username, password string) perror.Error {
 	return nil
 }
 
-func (T *Client) authenticationMD5(username, password string) perror.Error {
+func (T *Client) authenticationMD5(pkt *packet.Raw, username, password string) perror.Error {
 	var salt [4]byte
 	_, err := rand.Read(salt[:])
 	if err != nil {
@@ -276,7 +295,7 @@ func (T *Client) authenticationMD5(username, password string) perror.Error {
 	}
 
 	// read password
-	pkt, err := T.Read()
+	err = T.ReadInto(pkt)
 	if err != nil {
 		return perror.WrapError(err)
 	}
@@ -306,7 +325,7 @@ func (T *Client) authenticationMD5(username, password string) perror.Error {
 	return nil
 }
 
-func (T *Client) authenticationCleartext(password string) perror.Error {
+func (T *Client) authenticationCleartext(pkt *packet.Raw, password string) perror.Error {
 	var builder packet.Builder
 	builder.Type(packet.Authentication)
 	builder.Uint32(3)
@@ -317,7 +336,7 @@ func (T *Client) authenticationCleartext(password string) perror.Error {
 	}
 
 	// read password
-	pkt, err := T.Read()
+	err = T.ReadInto(pkt)
 	if err != nil {
 		return perror.WrapError(err)
 	}
@@ -348,8 +367,10 @@ func (T *Client) authenticationCleartext(password string) perror.Error {
 }
 
 func (T *Client) accept() perror.Error {
+	var pkt packet.Raw
+
 	for {
-		done, err := T.startup0()
+		done, err := T.startup0(&pkt)
 		if err != nil {
 			return err
 		}
@@ -359,13 +380,13 @@ func (T *Client) accept() perror.Error {
 	}
 
 	// TODO(garet) don't hardcode username and password
-	perr := T.authenticationSASL("test", "password")
+	perr := T.authenticationSASL(&pkt, "test", "password")
 	if perr != nil {
 		return perr
 	}
 
 	// send auth ok
-	builder := packet.Builder{}
+	builder := packet.MakeBuilder(pkt.Payload[:0])
 	builder.Type(packet.Authentication)
 	builder.Uint32(0)
 

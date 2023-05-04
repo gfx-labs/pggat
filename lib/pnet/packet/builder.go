@@ -10,6 +10,12 @@ type Builder struct {
 	bytes []byte
 }
 
+func MakeBuilder(buf []byte) Builder {
+	return Builder{
+		bytes: buf,
+	}
+}
+
 func (T *Builder) Type(typ Type) {
 	T.typ = typ
 }

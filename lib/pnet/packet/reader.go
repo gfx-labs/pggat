@@ -10,7 +10,7 @@ type Reader struct {
 	bytes []byte
 }
 
-func MakeReader(raw Raw) Reader {
+func MakeReader(raw *Raw) Reader {
 	return Reader{
 		typ:   raw.Type,
 		bytes: raw.Payload,
