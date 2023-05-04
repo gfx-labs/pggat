@@ -2,16 +2,13 @@ package backends
 
 import (
 	"errors"
-	"log"
 	"net"
 
 	"pggat2/lib/auth/md5"
 	"pggat2/lib/auth/sasl"
 	"pggat2/lib/backend"
-	"pggat2/lib/perror"
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
-	"pggat2/lib/request"
 )
 
 var ErrBadPacketFormat = errors.New("bad packet format")
@@ -42,17 +39,17 @@ func NewServer(conn net.Conn) (*Server, error) {
 }
 
 func (T *Server) authenticationSASLChallenge(mechanism sasl.Client) (bool, error) {
-	challenge, err := T.Read()
+	in, err := T.Read()
 	if err != nil {
 		return false, err
 	}
+	defer in.Done()
 
-	reader := packet.MakeReader(challenge)
-	if reader.Type() != packet.Authentication {
+	if in.Type() != packet.Authentication {
 		return false, ErrProtocolError
 	}
 
-	method, ok := reader.Int32()
+	method, ok := in.Int32()
 	if !ok {
 		return false, ErrBadPacketFormat
 	}
@@ -60,20 +57,20 @@ func (T *Server) authenticationSASLChallenge(mechanism sasl.Client) (bool, error
 	switch method {
 	case 11:
 		// challenge
-		response, err := mechanism.Continue(reader.Remaining())
+		response, err := mechanism.Continue(in.Remaining())
 		if err != nil {
 			return false, err
 		}
 
-		builder := packet.Builder{}
-		builder.Type(packet.AuthenticationResponse)
-		builder.Bytes(response)
+		out := T.Write()
+		out.Type(packet.AuthenticationResponse)
+		out.Bytes(response)
 
-		err = T.Write(builder.Raw())
+		err = out.Done()
 		return false, err
 	case 12:
 		// finish
-		err = mechanism.Final(reader.Remaining())
+		err = mechanism.Final(in.Remaining())
 		if err != nil {
 			return false, err
 		}
@@ -89,18 +86,18 @@ func (T *Server) authenticationSASL(mechanisms []string, username, password stri
 	if err != nil {
 		return err
 	}
-
-	builder := packet.Builder{}
-	builder.Type(packet.AuthenticationResponse)
-	builder.String(mechanism.Name())
 	initialResponse := mechanism.InitialResponse()
+
+	out := T.Write()
+	out.Type(packet.AuthenticationResponse)
+	out.String(mechanism.Name())
 	if initialResponse == nil {
-		builder.Int32(-1)
+		out.Int32(-1)
 	} else {
-		builder.Int32(int32(len(initialResponse)))
-		builder.Bytes(initialResponse)
+		out.Int32(int32(len(initialResponse)))
+		out.Bytes(initialResponse)
 	}
-	err = T.Write(builder.Raw())
+	err = out.Done()
 	if err != nil {
 		return err
 	}
@@ -120,31 +117,31 @@ func (T *Server) authenticationSASL(mechanisms []string, username, password stri
 }
 
 func (T *Server) authenticationMD5(salt [4]byte, username, password string) error {
-	var builder packet.Builder
-	builder.Type(packet.AuthenticationResponse)
-	builder.String(md5.Encode(username, password, salt))
-	return T.Write(builder.Raw())
+	out := T.Write()
+	out.Type(packet.AuthenticationResponse)
+	out.String(md5.Encode(username, password, salt))
+	return out.Done()
 }
 
 func (T *Server) authenticationCleartext(password string) error {
-	var builder packet.Builder
-	builder.Type(packet.AuthenticationResponse)
-	builder.String(password)
-	return T.Write(builder.Raw())
+	out := T.Write()
+	out.Type(packet.AuthenticationResponse)
+	out.String(password)
+	return out.Done()
 }
 
 func (T *Server) startup0(username, password string) (bool, error) {
-	pkt, err := T.Read()
+	in, err := T.Read()
 	if err != nil {
 		return false, err
 	}
+	defer in.Done()
 
-	reader := packet.MakeReader(pkt)
-	switch reader.Type() {
+	switch in.Type() {
 	case packet.ErrorResponse:
 		return false, errors.New("received error response")
 	case packet.Authentication:
-		method, ok := reader.Int32()
+		method, ok := in.Int32()
 		if !ok {
 			return false, ErrBadPacketFormat
 		}
@@ -156,13 +153,16 @@ func (T *Server) startup0(username, password string) (bool, error) {
 		case 2:
 			return false, errors.New("kerberos v5 is not supported")
 		case 3:
+			in.Done()
 			return false, T.authenticationCleartext(password)
 		case 5:
-			salt, ok := reader.Bytes(4)
+			var salt [4]byte
+			ok = in.Bytes(salt[:])
 			if !ok {
 				return false, ErrBadPacketFormat
 			}
-			return false, T.authenticationMD5([4]byte(salt), username, password)
+			in.Done()
+			return false, T.authenticationMD5(salt, username, password)
 		case 6:
 			return false, errors.New("scm credential is not supported")
 		case 7:
@@ -173,7 +173,7 @@ func (T *Server) startup0(username, password string) (bool, error) {
 			// read list of mechanisms
 			var mechanisms []string
 			for {
-				mechanism, ok := reader.String()
+				mechanism, ok := in.String()
 				if !ok {
 					return false, ErrBadPacketFormat
 				}
@@ -183,6 +183,7 @@ func (T *Server) startup0(username, password string) (bool, error) {
 				mechanisms = append(mechanisms, mechanism)
 			}
 
+			in.Done()
 			return false, T.authenticationSASL(mechanisms, username, password)
 		default:
 			return false, errors.New("unknown authentication method")
@@ -196,26 +197,25 @@ func (T *Server) startup0(username, password string) (bool, error) {
 }
 
 func (T *Server) startup1() (bool, error) {
-	pkt, err := T.Read()
+	in, err := T.Read()
 	if err != nil {
 		return false, err
 	}
+	defer in.Done()
 
-	reader := packet.MakeReader(pkt)
-	switch reader.Type() {
+	switch in.Type() {
 	case packet.BackendKeyData:
-		cancellationKey, ok := reader.Bytes(8)
+		ok := in.Bytes(T.cancellationKey[:])
 		if !ok {
 			return false, ErrBadPacketFormat
 		}
-		T.cancellationKey = [8]byte(cancellationKey)
 		return false, nil
 	case packet.ParameterStatus:
-		parameter, ok := reader.String()
+		parameter, ok := in.String()
 		if !ok {
 			return false, ErrBadPacketFormat
 		}
-		value, ok := reader.String()
+		value, ok := in.String()
 		if !ok {
 			return false, ErrBadPacketFormat
 		}
@@ -234,14 +234,16 @@ func (T *Server) startup1() (bool, error) {
 }
 
 func (T *Server) accept() error {
-	var builder packet.Builder
-	builder.Int16(3)
-	builder.Int16(0)
-	builder.String("user")
-	builder.String("postgres")
-	builder.String("")
+	// we can re-use the memory for this pkt most of the way down because we don't pass this anywhere
+	out := T.Write()
+	out.Int16(3)
+	out.Int16(0)
+	// TODO(garet) don't hardcode username and password
+	out.String("user")
+	out.String("postgres")
+	out.String("")
 
-	err := T.WriteUntyped(builder.Raw())
+	err := out.Done()
 	if err != nil {
 		return err
 	}
@@ -270,72 +272,6 @@ func (T *Server) accept() error {
 	// startup complete, connection is ready for queries
 
 	return nil
-}
-
-func (T *Server) simple() (bool, perror.Error) {
-	pkt, err := T.Read()
-	if err != nil {
-		return false, perror.WrapError(err)
-	}
-
-	log.Printf("%#v", pkt)
-
-	reader := packet.MakeReader(pkt)
-	switch reader.Type() {
-	case packet.CommandComplete,
-		packet.RowDescription,
-		packet.DataRow,
-		packet.EmptyQueryResponse,
-		packet.ErrorResponse,
-		packet.NoticeResponse:
-		return false, nil
-	case packet.CopyInResponse:
-		return false, nil
-	case packet.CopyOutResponse:
-		return false, nil
-	case packet.ReadyForQuery:
-		v, ok := reader.Uint8()
-		if !ok {
-			return false, perror.New(
-				perror.FATAL,
-				perror.ProtocolViolation,
-				"Bad packet format",
-			)
-		}
-		return v == 'I', nil
-	default:
-		return false, perror.New(
-			perror.FATAL,
-			perror.ProtocolViolation,
-			"Unexpected packet",
-		)
-	}
-}
-
-func (T *Server) simpleRequest(req *request.Simple) perror.Error {
-	// send forward
-	err := T.Write(req.Query())
-	if err != nil {
-		return perror.WrapError(err)
-	}
-
-	for {
-		done, perr := T.simple()
-		if perr != nil {
-			return perr
-		}
-		if done {
-			break
-		}
-	}
-	return nil
-}
-
-func (T *Server) Request(req request.Request) {
-	switch v := req.(type) {
-	case *request.Simple:
-		T.simpleRequest(v)
-	}
 }
 
 var _ backend.Server = (*Server)(nil)

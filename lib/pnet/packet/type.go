@@ -3,6 +3,7 @@ package packet
 type Type byte
 
 const (
+	None                     Type = 0
 	Authentication           Type = 'R'
 	BackendKeyData           Type = 'K'
 	Bind                     Type = 'B'

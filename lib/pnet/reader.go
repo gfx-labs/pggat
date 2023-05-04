@@ -12,12 +12,14 @@ type Reader struct {
 	reader io.Reader
 	// buffer for reading packet headers
 	// (allocating within Read would escape to heap)
-	buffer [4]byte
+	buffer  [4]byte
+	payload []byte
 }
 
 func MakeReader(reader io.Reader) Reader {
 	return Reader{
-		reader: reader,
+		reader:  reader,
+		payload: make([]byte, 1024),
 	}
 }
 
@@ -26,35 +28,51 @@ func NewReader(reader io.Reader) *Reader {
 	return &v
 }
 
-func (T *Reader) Read() (packet.Raw, error) {
-	raw := packet.Raw{}
-	err := T.ReadInto(&raw)
-	return raw, err
-}
-
-func (T *Reader) ReadInto(raw *packet.Raw) error {
-	// read type byte
+func (T *Reader) Read() (packet.In, error) {
 	typ, err := T.ReadByte()
 	if err != nil {
-		return err
+		return packet.In{}, err
 	}
-	raw.Type = packet.Type(typ)
 
-	err = T.ReadUntypedInto(raw)
+	err = T.readPayload()
 	if err != nil {
-		return err
+		return packet.In{}, err
 	}
 
-	return nil
+	payload := T.payload
+	T.payload = nil
+
+	return packet.MakeIn(
+		packet.Type(typ),
+		payload,
+		func(payload []byte) {
+			T.payload = payload
+		},
+	), nil
 }
 
-func (T *Reader) ReadUntyped() (packet.Raw, error) {
-	pkt := packet.Raw{}
-	err := T.ReadUntypedInto(&pkt)
-	return pkt, err
+func (T *Reader) ReadUntyped() (packet.In, error) {
+	err := T.readPayload()
+	if err != nil {
+		return packet.In{}, err
+	}
+
+	payload := T.payload
+	T.payload = nil
+	return packet.MakeIn(
+		packet.None,
+		payload,
+		func(bytes []byte) {
+			T.payload = payload
+		},
+	), nil
 }
 
-func (T *Reader) ReadUntypedInto(raw *packet.Raw) error {
+func (T *Reader) readPayload() error {
+	if T.payload == nil {
+		panic("Previous Read was never finished")
+	}
+
 	// read length int32
 	_, err := io.ReadFull(T.reader, T.buffer[:])
 	if err != nil {
@@ -64,9 +82,9 @@ func (T *Reader) ReadUntypedInto(raw *packet.Raw) error {
 	length := binary.BigEndian.Uint32(T.buffer[:]) - 4
 
 	// resize body to length
-	raw.Payload = slices.Resize(raw.Payload, int(length))
+	T.payload = slices.Resize(T.payload, int(length))
 	// read body
-	_, err = io.ReadFull(T.reader, raw.Payload)
+	_, err = io.ReadFull(T.reader, T.payload)
 	if err != nil {
 		return err
 	}

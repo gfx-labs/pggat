@@ -11,12 +11,14 @@ type Writer struct {
 	writer io.Writer
 	// buffer for writing packet headers
 	// (allocating within Write would escape to heap)
-	buffer [4]byte
+	buffer  [4]byte
+	payload []byte
 }
 
 func MakeWriter(writer io.Writer) Writer {
 	return Writer{
-		writer: writer,
+		writer:  writer,
+		payload: make([]byte, 1024),
 	}
 }
 
@@ -25,26 +27,39 @@ func NewWriter(writer io.Writer) *Writer {
 	return &v
 }
 
-func (T *Writer) Write(raw packet.Raw) error {
-	// write type byte
-	err := T.WriteByte(byte(raw.Type))
-	if err != nil {
-		return err
+func (T *Writer) Write() packet.Out {
+	if T.payload == nil {
+		panic("Previous Write was never finished")
 	}
 
-	return T.WriteUntyped(raw)
+	payload := T.payload
+	T.payload = nil
+	return packet.MakeOut(
+		payload[:0],
+		T.write,
+	)
 }
 
-func (T *Writer) WriteUntyped(raw packet.Raw) error {
+func (T *Writer) write(typ packet.Type, payload []byte) error {
+	T.payload = payload
+
+	// write type byte (if present)
+	if typ != packet.None {
+		err := T.WriteByte(byte(typ))
+		if err != nil {
+			return err
+		}
+	}
+
 	// write len+4
-	binary.BigEndian.PutUint32(T.buffer[:], uint32(len(raw.Payload)+4))
+	binary.BigEndian.PutUint32(T.buffer[:], uint32(len(payload)+4))
 	_, err := T.writer.Write(T.buffer[:])
 	if err != nil {
 		return err
 	}
 
 	// write payload
-	_, err = T.writer.Write(raw.Payload)
+	_, err = T.writer.Write(payload)
 	if err != nil {
 		return err
 	}
