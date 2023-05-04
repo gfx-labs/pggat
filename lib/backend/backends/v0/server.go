@@ -271,7 +271,7 @@ func (T *Server) accept() error {
 	return nil
 }
 
-func (T *Server) proxy(in *packet.In) error {
+func (T *Server) proxy(in packet.In) error {
 	out := T.Write()
 	out.Type(in.Type())
 	out.Bytes(in.Full())
@@ -291,7 +291,7 @@ func (T *Server) Transaction(peer pnet.ReadWriter) error {
 	switch in.Type() {
 	case packet.Query:
 		// proxy to backend
-		err = T.proxy(&in)
+		err = T.proxy(in)
 		if err != nil {
 			return err
 		}

@@ -57,7 +57,7 @@ func NewClient(conn net.Conn) *Client {
 	return client
 }
 
-func negotiateProtocolVersionPacket(pkt *packet.Out, unsupportedOptions []string) {
+func negotiateProtocolVersionPacket(pkt packet.Out, unsupportedOptions []string) {
 	pkt.Type(packet.NegotiateProtocolVersion)
 	pkt.Int32(0)
 	pkt.Int32(int32(len(unsupportedOptions)))
@@ -162,7 +162,7 @@ func (T *Client) startup0() (bool, perror.Error) {
 	if minorVersion != 0 || len(unsupportedOptions) > 0 {
 		// negotiate protocol
 		out := T.Write()
-		negotiateProtocolVersionPacket(&out, unsupportedOptions)
+		negotiateProtocolVersionPacket(out, unsupportedOptions)
 
 		err = out.Send()
 		if err != nil {
@@ -184,7 +184,7 @@ func (T *Client) startup0() (bool, perror.Error) {
 	return true, nil
 }
 
-func authenticationSASLPacket(pkt *packet.Out) {
+func authenticationSASLPacket(pkt packet.Out) {
 	pkt.Type(packet.Authentication)
 	pkt.Int32(10)
 	for _, mechanism := range sasl.Mechanisms {
@@ -193,13 +193,13 @@ func authenticationSASLPacket(pkt *packet.Out) {
 	pkt.String("")
 }
 
-func authenticationSASLContinuePacket(pkt *packet.Out, resp []byte) {
+func authenticationSASLContinuePacket(pkt packet.Out, resp []byte) {
 	pkt.Type(packet.Authentication)
 	pkt.Int32(11)
 	pkt.Bytes(resp)
 }
 
-func authenticationSASLFinalPacket(pkt *packet.Out, resp []byte) {
+func authenticationSASLFinalPacket(pkt packet.Out, resp []byte) {
 	pkt.Type(packet.Authentication)
 	pkt.Int32(12)
 	pkt.Bytes(resp)
@@ -253,7 +253,7 @@ func (T *Client) authenticationSASLContinue(tool sasl.Server) ([]byte, bool, per
 
 func (T *Client) authenticationSASL(username, password string) perror.Error {
 	out := T.Write()
-	authenticationSASLPacket(&out)
+	authenticationSASLPacket(out)
 	err := out.Send()
 	if err != nil {
 		return perror.WrapError(err)
@@ -267,7 +267,7 @@ func (T *Client) authenticationSASL(username, password string) perror.Error {
 		}
 		if done {
 			out = T.Write()
-			authenticationSASLFinalPacket(&out, resp)
+			authenticationSASLFinalPacket(out, resp)
 			err = out.Send()
 			if err != nil {
 				return perror.WrapError(err)
@@ -275,7 +275,7 @@ func (T *Client) authenticationSASL(username, password string) perror.Error {
 			break
 		} else {
 			out = T.Write()
-			authenticationSASLContinuePacket(&out, resp)
+			authenticationSASLContinuePacket(out, resp)
 			err = out.Send()
 			if err != nil {
 				return perror.WrapError(err)
@@ -288,7 +288,7 @@ func (T *Client) authenticationSASL(username, password string) perror.Error {
 	return nil
 }
 
-func authenticationMD5Packet(pkt *packet.Out, salt [4]byte) {
+func authenticationMD5Packet(pkt packet.Out, salt [4]byte) {
 	pkt.Type(packet.Authentication)
 	pkt.Uint32(5)
 	pkt.Bytes(salt[:])
@@ -303,7 +303,7 @@ func (T *Client) authenticationMD5(username, password string) perror.Error {
 
 	// password time
 	out := T.Write()
-	authenticationMD5Packet(&out, salt)
+	authenticationMD5Packet(out, salt)
 
 	err = out.Send()
 	if err != nil {
@@ -340,14 +340,14 @@ func (T *Client) authenticationMD5(username, password string) perror.Error {
 	return nil
 }
 
-func authenticationCleartextPacket(pkt *packet.Out) {
+func authenticationCleartextPacket(pkt packet.Out) {
 	pkt.Type(packet.Authentication)
 	pkt.Uint32(3)
 }
 
 func (T *Client) authenticationCleartext(password string) perror.Error {
 	out := T.Write()
-	authenticationCleartextPacket(&out)
+	authenticationCleartextPacket(out)
 
 	err := out.Send()
 	if err != nil {
@@ -384,17 +384,17 @@ func (T *Client) authenticationCleartext(password string) perror.Error {
 	return nil
 }
 
-func authenticationOkPacket(pkt *packet.Out) {
+func authenticationOkPacket(pkt packet.Out) {
 	pkt.Type(packet.Authentication)
 	pkt.Uint32(0)
 }
 
-func backendKeyDataPacket(pkt *packet.Out, cancellationKey [8]byte) {
+func backendKeyDataPacket(pkt packet.Out, cancellationKey [8]byte) {
 	pkt.Type(packet.BackendKeyData)
 	pkt.Bytes(cancellationKey[:])
 }
 
-func readyForQueryPacket(pkt *packet.Out, state byte) {
+func readyForQueryPacket(pkt packet.Out, state byte) {
 	pkt.Type(packet.ReadyForQuery)
 	pkt.Uint8(state)
 }
@@ -418,7 +418,7 @@ func (T *Client) accept() perror.Error {
 
 	// send auth ok
 	out := T.Write()
-	authenticationOkPacket(&out)
+	authenticationOkPacket(out)
 
 	err := out.Send()
 	if err != nil {
@@ -431,7 +431,7 @@ func (T *Client) accept() perror.Error {
 		return perror.WrapError(err)
 	}
 	out = T.Write()
-	backendKeyDataPacket(&out, T.cancellationKey)
+	backendKeyDataPacket(out, T.cancellationKey)
 
 	err = out.Send()
 	if err != nil {
@@ -440,7 +440,7 @@ func (T *Client) accept() perror.Error {
 
 	// send ready for query
 	out = T.Write()
-	readyForQueryPacket(&out, 'I')
+	readyForQueryPacket(out, 'I')
 
 	err = out.Send()
 	if err != nil {

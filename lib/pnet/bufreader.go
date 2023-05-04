@@ -31,7 +31,7 @@ func NewBufReader(reader Reader) *BufReader {
 	return &v
 }
 
-func (T *BufReader) Buffer(in *packet.In) {
+func (T *BufReader) Buffer(in packet.In) {
 	if T.ins.Length() == 0 {
 		// reset header
 		T.payloads = T.payloads[:0]
