@@ -9,12 +9,15 @@ import (
 	"pggat2/lib/backend"
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
+	"pggat2/lib/util/decorator"
 )
 
 var ErrBadPacketFormat = errors.New("bad packet format")
 var ErrProtocolError = errors.New("server sent unexpected packet")
 
 type Server struct {
+	noCopy decorator.NoCopy
+
 	conn net.Conn
 
 	pnet.IOReader

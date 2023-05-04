@@ -3,9 +3,12 @@ package packet
 import (
 	"encoding/binary"
 	"math"
+
+	"pggat2/lib/util/decorator"
 )
 
 type OutBuf struct {
+	noCopy decorator.NoCopy
 	typ    Type
 	buf    []byte
 	rev    int

@@ -11,6 +11,7 @@ import (
 	"pggat2/lib/perror"
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
+	"pggat2/lib/util/decorator"
 )
 
 var ErrBadPacketFormat = perror.New(
@@ -26,6 +27,8 @@ var ErrProtocolError = perror.New(
 )
 
 type Client struct {
+	noCopy decorator.NoCopy
+
 	conn net.Conn
 
 	pnet.IOReader

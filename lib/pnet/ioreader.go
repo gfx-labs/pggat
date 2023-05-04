@@ -5,10 +5,12 @@ import (
 	"io"
 
 	"pggat2/lib/pnet/packet"
+	"pggat2/lib/util/decorator"
 	"pggat2/lib/util/slices"
 )
 
 type IOReader struct {
+	noCopy decorator.NoCopy
 	reader io.Reader
 	// header buffer for reading packet headers
 	// (allocating within Read would escape to heap)

@@ -2,6 +2,7 @@ package pnet
 
 import (
 	"pggat2/lib/pnet/packet"
+	"pggat2/lib/util/decorator"
 	"pggat2/lib/util/ring"
 )
 
@@ -12,6 +13,7 @@ type bufIn struct {
 }
 
 type BufReader struct {
+	noCopy   decorator.NoCopy
 	buf      packet.InBuf
 	payloads []byte
 	ins      ring.Ring[bufIn]

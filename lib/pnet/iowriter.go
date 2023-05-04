@@ -5,9 +5,11 @@ import (
 	"io"
 
 	"pggat2/lib/pnet/packet"
+	"pggat2/lib/util/decorator"
 )
 
 type IOWriter struct {
+	noCopy decorator.NoCopy
 	writer io.Writer
 	// header buffer for writing packet headers
 	// (allocating within Write would escape to heap)

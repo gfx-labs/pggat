@@ -3,13 +3,16 @@ package packet
 import (
 	"encoding/binary"
 	"math"
+
+	"pggat2/lib/util/decorator"
 )
 
 type InBuf struct {
-	typ Type
-	buf []byte
-	pos int
-	rev int
+	noCopy decorator.NoCopy
+	typ    Type
+	buf    []byte
+	pos    int
+	rev    int
 }
 
 func (T *InBuf) Reset(
