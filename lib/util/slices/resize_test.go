@@ -33,3 +33,23 @@ func TestResize_Reslice(t *testing.T) {
 		t.Error("slice was re-allocated")
 	}
 }
+
+func TestResize_Copy(t *testing.T) {
+	initial := make([]byte, 4)
+	initial[0] = 1
+	initial[1] = 2
+	initial[2] = 3
+	initial[3] = 4
+	initial = Resize(initial, 10)
+	if initial[3] != 4 {
+		t.Error("expected initial data to be copied over")
+	}
+	initial = Resize(initial, 1)
+	if initial[0] != 1 {
+		t.Error("expected initial data to remain")
+	}
+	initial = Resize(initial, 10)
+	if initial[3] != 0 {
+		t.Error("expected old data to be wiped")
+	}
+}
