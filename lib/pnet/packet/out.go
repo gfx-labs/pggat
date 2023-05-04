@@ -5,99 +5,123 @@ import (
 	"math"
 )
 
-type Out struct {
-	noCopy noCopy
+type OutBuf struct {
 	typ    Type
 	buf    []byte
-	done   bool
+	rev    int
 	finish func(Type, []byte) error
 }
 
+func (T *OutBuf) Initialized() bool {
+	return T.finish != nil
+}
+
+func (T *OutBuf) Initialize(finish func(Type, []byte) error) {
+	T.finish = finish
+}
+
+func (T *OutBuf) Reset() {
+	T.typ = None
+	T.buf = T.buf[:0]
+	T.rev++
+}
+
+type Out struct {
+	buf *OutBuf
+	rev int
+}
+
 func MakeOut(
-	buf []byte,
-	finish func(Type, []byte) error,
+	buf *OutBuf,
 ) Out {
 	return Out{
-		buf:    buf,
-		finish: finish,
+		buf: buf,
+		rev: buf.rev,
 	}
 }
 
-func (T *Out) Type(typ Type) {
-	T.typ = typ
+func (T Out) done() bool {
+	return T.rev != T.buf.rev
 }
 
-func (T *Out) Int8(v int8) {
+func (T Out) Type(typ Type) {
+	if T.done() {
+		panic("Write after Send")
+	}
+	T.buf.typ = typ
+}
+
+func (T Out) Int8(v int8) {
 	T.Uint8(uint8(v))
 }
 
-func (T *Out) Int16(v int16) {
+func (T Out) Int16(v int16) {
 	T.Uint16(uint16(v))
 }
 
-func (T *Out) Int32(v int32) {
+func (T Out) Int32(v int32) {
 	T.Uint32(uint32(v))
 }
 
-func (T *Out) Int64(v int64) {
+func (T Out) Int64(v int64) {
 	T.Uint64(uint64(v))
 }
 
-func (T *Out) Uint8(v uint8) {
-	if T.done {
-		panic("Write after Done")
+func (T Out) Uint8(v uint8) {
+	if T.done() {
+		panic("Write after Send")
 	}
-	T.buf = append(T.buf, v)
+	T.buf.buf = append(T.buf.buf, v)
 }
 
-func (T *Out) Uint16(v uint16) {
-	if T.done {
-		panic("Write after Done")
+func (T Out) Uint16(v uint16) {
+	if T.done() {
+		panic("Write after Send")
 	}
-	T.buf = binary.BigEndian.AppendUint16(T.buf, v)
+	T.buf.buf = binary.BigEndian.AppendUint16(T.buf.buf, v)
 }
 
-func (T *Out) Uint32(v uint32) {
-	if T.done {
-		panic("Write after Done")
+func (T Out) Uint32(v uint32) {
+	if T.done() {
+		panic("Write after Send")
 	}
-	T.buf = binary.BigEndian.AppendUint32(T.buf, v)
+	T.buf.buf = binary.BigEndian.AppendUint32(T.buf.buf, v)
 }
 
-func (T *Out) Uint64(v uint64) {
-	if T.done {
-		panic("Write after Done")
+func (T Out) Uint64(v uint64) {
+	if T.done() {
+		panic("Write after Send")
 	}
-	T.buf = binary.BigEndian.AppendUint64(T.buf, v)
+	T.buf.buf = binary.BigEndian.AppendUint64(T.buf.buf, v)
 }
 
-func (T *Out) Float32(v float32) {
+func (T Out) Float32(v float32) {
 	T.Uint32(math.Float32bits(v))
 }
 
-func (T *Out) Float64(v float64) {
+func (T Out) Float64(v float64) {
 	T.Uint64(math.Float64bits(v))
 }
 
-func (T *Out) String(v string) {
-	if T.done {
-		panic("Write after Done")
+func (T Out) String(v string) {
+	if T.done() {
+		panic("Write after Send")
 	}
-	T.buf = append(T.buf, v...)
+	T.buf.buf = append(T.buf.buf, v...)
 	T.Uint8(0)
 }
 
-func (T *Out) Bytes(v []byte) {
-	if T.done {
-		panic("Write after Done")
+func (T Out) Bytes(v []byte) {
+	if T.done() {
+		panic("Write after Send")
 	}
-	T.buf = append(T.buf, v...)
+	T.buf.buf = append(T.buf.buf, v...)
 }
 
-func (T *Out) Done() error {
-	if T.done {
-		panic("Done called twice")
+func (T Out) Send() error {
+	if T.done() {
+		panic("Send called twice")
 	}
-	T.done = true
-	return T.finish(T.typ, T.buf)
+	T.buf.rev++
+	return T.buf.finish(T.buf.typ, T.buf.buf)
 }

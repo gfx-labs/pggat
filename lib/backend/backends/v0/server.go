@@ -17,8 +17,8 @@ var ErrProtocolError = errors.New("server sent unexpected packet")
 type Server struct {
 	conn net.Conn
 
-	pnet.Reader
-	pnet.Writer
+	pnet.IOReader
+	pnet.IOWriter
 
 	cancellationKey [8]byte
 	parameters      map[string]string
@@ -27,8 +27,8 @@ type Server struct {
 func NewServer(conn net.Conn) (*Server, error) {
 	server := &Server{
 		conn:       conn,
-		Reader:     pnet.MakeReader(conn),
-		Writer:     pnet.MakeWriter(conn),
+		IOReader:   pnet.MakeIOReader(conn),
+		IOWriter:   pnet.MakeIOWriter(conn),
 		parameters: make(map[string]string),
 	}
 	err := server.accept()
@@ -43,7 +43,6 @@ func (T *Server) authenticationSASLChallenge(mechanism sasl.Client) (bool, error
 	if err != nil {
 		return false, err
 	}
-	defer in.Done()
 
 	if in.Type() != packet.Authentication {
 		return false, ErrProtocolError
@@ -66,7 +65,7 @@ func (T *Server) authenticationSASLChallenge(mechanism sasl.Client) (bool, error
 		out.Type(packet.AuthenticationResponse)
 		out.Bytes(response)
 
-		err = out.Done()
+		err = out.Send()
 		return false, err
 	case 12:
 		// finish
@@ -97,7 +96,7 @@ func (T *Server) authenticationSASL(mechanisms []string, username, password stri
 		out.Int32(int32(len(initialResponse)))
 		out.Bytes(initialResponse)
 	}
-	err = out.Done()
+	err = out.Send()
 	if err != nil {
 		return err
 	}
@@ -120,14 +119,14 @@ func (T *Server) authenticationMD5(salt [4]byte, username, password string) erro
 	out := T.Write()
 	out.Type(packet.AuthenticationResponse)
 	out.String(md5.Encode(username, password, salt))
-	return out.Done()
+	return out.Send()
 }
 
 func (T *Server) authenticationCleartext(password string) error {
 	out := T.Write()
 	out.Type(packet.AuthenticationResponse)
 	out.String(password)
-	return out.Done()
+	return out.Send()
 }
 
 func (T *Server) startup0(username, password string) (bool, error) {
@@ -138,25 +137,20 @@ func (T *Server) startup0(username, password string) (bool, error) {
 
 	switch in.Type() {
 	case packet.ErrorResponse:
-		in.Done()
 		return false, errors.New("received error response")
 	case packet.Authentication:
 		method, ok := in.Int32()
 		if !ok {
-			in.Done()
 			return false, ErrBadPacketFormat
 		}
 		// they have more authentication methods than there are pokemon
 		switch method {
 		case 0:
 			// we're good to go, that was easy
-			in.Done()
 			return true, nil
 		case 2:
-			in.Done()
 			return false, errors.New("kerberos v5 is not supported")
 		case 3:
-			in.Done()
 			return false, T.authenticationCleartext(password)
 		case 5:
 			var salt [4]byte
@@ -164,16 +158,12 @@ func (T *Server) startup0(username, password string) (bool, error) {
 			if !ok {
 				return false, ErrBadPacketFormat
 			}
-			in.Done()
 			return false, T.authenticationMD5(salt, username, password)
 		case 6:
-			in.Done()
 			return false, errors.New("scm credential is not supported")
 		case 7:
-			in.Done()
 			return false, errors.New("gss is not supported")
 		case 9:
-			in.Done()
 			return false, errors.New("sspi is not supported")
 		case 10:
 			// read list of mechanisms
@@ -189,18 +179,14 @@ func (T *Server) startup0(username, password string) (bool, error) {
 				mechanisms = append(mechanisms, mechanism)
 			}
 
-			in.Done()
 			return false, T.authenticationSASL(mechanisms, username, password)
 		default:
-			in.Done()
 			return false, errors.New("unknown authentication method")
 		}
 	case packet.NegotiateProtocolVersion:
 		// we only support protocol 3.0 for now
-		in.Done()
 		return false, errors.New("server wanted to negotiate protocol version")
 	default:
-		in.Done()
 		return false, ErrProtocolError
 	}
 }
@@ -210,7 +196,6 @@ func (T *Server) startup1() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer in.Done()
 
 	switch in.Type() {
 	case packet.BackendKeyData:
@@ -252,7 +237,7 @@ func (T *Server) accept() error {
 	out.String("postgres")
 	out.String("")
 
-	err := out.Done()
+	err := out.Send()
 	if err != nil {
 		return err
 	}
@@ -281,6 +266,36 @@ func (T *Server) accept() error {
 	// startup complete, connection is ready for queries
 
 	return nil
+}
+
+func (T *Server) proxy(in *packet.In) error {
+	out := T.Write()
+	out.Type(in.Type())
+	out.Bytes(in.Full())
+	return out.Send()
+}
+
+func (T *Server) query(peer pnet.ReadWriter) error {
+	return nil
+}
+
+// Transaction handles a transaction from peer, returning when the transaction is complete
+func (T *Server) Transaction(peer pnet.ReadWriter) error {
+	in, err := peer.Read()
+	if err != nil {
+		return err
+	}
+	switch in.Type() {
+	case packet.Query:
+		// proxy to backend
+		err = T.proxy(&in)
+		if err != nil {
+			return err
+		}
+		return T.query(peer)
+	default:
+		return errors.New("unsupported operation")
+	}
 }
 
 var _ backend.Server = (*Server)(nil)

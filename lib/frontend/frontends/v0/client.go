@@ -28,8 +28,8 @@ var ErrProtocolError = perror.New(
 type Client struct {
 	conn net.Conn
 
-	pnet.Reader
-	pnet.Writer
+	pnet.IOReader
+	pnet.IOWriter
 
 	user     string
 	database string
@@ -42,8 +42,8 @@ type Client struct {
 func NewClient(conn net.Conn) *Client {
 	client := &Client{
 		conn:       conn,
-		Reader:     pnet.MakeReader(conn),
-		Writer:     pnet.MakeWriter(conn),
+		IOReader:   pnet.MakeIOReader(conn),
+		IOWriter:   pnet.MakeIOWriter(conn),
 		parameters: make(map[string]string),
 	}
 	err := client.accept()
@@ -68,7 +68,6 @@ func (T *Client) startup0() (bool, perror.Error) {
 	if err != nil {
 		return false, perror.WrapError(err)
 	}
-	defer pkt.Done()
 
 	majorVersion, ok := pkt.Uint16()
 	if !ok {
@@ -162,7 +161,7 @@ func (T *Client) startup0() (bool, perror.Error) {
 		out := T.Write()
 		negotiateProtocolVersionPacket(&out, unsupportedOptions)
 
-		err = out.Done()
+		err = out.Send()
 		if err != nil {
 			return false, perror.WrapError(err)
 		}
@@ -209,7 +208,6 @@ func (T *Client) authenticationSASLInitial(username, password string) (sasl.Serv
 	if err != nil {
 		return nil, nil, false, perror.WrapError(err)
 	}
-	defer in.Done()
 	if in.Type() != packet.AuthenticationResponse {
 		return nil, nil, false, ErrBadPacketFormat
 	}
@@ -239,7 +237,6 @@ func (T *Client) authenticationSASLContinue(tool sasl.Server) ([]byte, bool, per
 	if err != nil {
 		return nil, false, perror.WrapError(err)
 	}
-	defer in.Done()
 	if in.Type() != packet.AuthenticationResponse {
 		return nil, false, ErrProtocolError
 	}
@@ -254,7 +251,7 @@ func (T *Client) authenticationSASLContinue(tool sasl.Server) ([]byte, bool, per
 func (T *Client) authenticationSASL(username, password string) perror.Error {
 	out := T.Write()
 	authenticationSASLPacket(&out)
-	err := out.Done()
+	err := out.Send()
 	if err != nil {
 		return perror.WrapError(err)
 	}
@@ -268,7 +265,7 @@ func (T *Client) authenticationSASL(username, password string) perror.Error {
 		if done {
 			out = T.Write()
 			authenticationSASLFinalPacket(&out, resp)
-			err = out.Done()
+			err = out.Send()
 			if err != nil {
 				return perror.WrapError(err)
 			}
@@ -276,7 +273,7 @@ func (T *Client) authenticationSASL(username, password string) perror.Error {
 		} else {
 			out = T.Write()
 			authenticationSASLContinuePacket(&out, resp)
-			err = out.Done()
+			err = out.Send()
 			if err != nil {
 				return perror.WrapError(err)
 			}
@@ -305,7 +302,7 @@ func (T *Client) authenticationMD5(username, password string) perror.Error {
 	out := T.Write()
 	authenticationMD5Packet(&out, salt)
 
-	err = out.Done()
+	err = out.Send()
 	if err != nil {
 		return perror.WrapError(err)
 	}
@@ -315,7 +312,6 @@ func (T *Client) authenticationMD5(username, password string) perror.Error {
 	if err != nil {
 		return perror.WrapError(err)
 	}
-	defer in.Done()
 
 	if in.Type() != packet.AuthenticationResponse {
 		return perror.New(
@@ -350,7 +346,7 @@ func (T *Client) authenticationCleartext(password string) perror.Error {
 	out := T.Write()
 	authenticationCleartextPacket(&out)
 
-	err := out.Done()
+	err := out.Send()
 	if err != nil {
 		return perror.WrapError(err)
 	}
@@ -360,7 +356,6 @@ func (T *Client) authenticationCleartext(password string) perror.Error {
 	if err != nil {
 		return perror.WrapError(err)
 	}
-	defer in.Done()
 
 	if in.Type() != packet.AuthenticationResponse {
 		return perror.New(
@@ -422,7 +417,7 @@ func (T *Client) accept() perror.Error {
 	out := T.Write()
 	authenticationOkPacket(&out)
 
-	err := out.Done()
+	err := out.Send()
 	if err != nil {
 		return perror.WrapError(err)
 	}
@@ -435,7 +430,7 @@ func (T *Client) accept() perror.Error {
 	out = T.Write()
 	backendKeyDataPacket(&out, T.cancellationKey)
 
-	err = out.Done()
+	err = out.Send()
 	if err != nil {
 		return perror.WrapError(err)
 	}
@@ -444,7 +439,7 @@ func (T *Client) accept() perror.Error {
 	out = T.Write()
 	readyForQueryPacket(&out, 'I')
 
-	err = out.Done()
+	err = out.Send()
 	if err != nil {
 		return perror.WrapError(err)
 	}
@@ -473,7 +468,7 @@ func (T *Client) Close(err perror.Error) {
 
 		out.Uint8(0)
 
-		_ = out.Done()
+		_ = out.Send()
 	}
 	_ = T.conn.Close()
 }
