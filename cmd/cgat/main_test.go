@@ -3,5 +3,7 @@ package main
 import "testing"
 
 func Test(t *testing.T) {
-	main()
+	for i := 0; i < 1000; i++ {
+		main()
+	}
 }

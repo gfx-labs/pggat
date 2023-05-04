@@ -140,7 +140,7 @@ func (T *In) Bytes(b []byte) bool {
 
 func (T *In) Done() {
 	if T.done {
-		return
+		panic("Done called twice")
 	}
 	T.done = true
 	T.finish(T.buf)

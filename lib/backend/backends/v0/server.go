@@ -135,22 +135,25 @@ func (T *Server) startup0(username, password string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer in.Done()
 
 	switch in.Type() {
 	case packet.ErrorResponse:
+		in.Done()
 		return false, errors.New("received error response")
 	case packet.Authentication:
 		method, ok := in.Int32()
 		if !ok {
+			in.Done()
 			return false, ErrBadPacketFormat
 		}
 		// they have more authentication methods than there are pokemon
 		switch method {
 		case 0:
 			// we're good to go, that was easy
+			in.Done()
 			return true, nil
 		case 2:
+			in.Done()
 			return false, errors.New("kerberos v5 is not supported")
 		case 3:
 			in.Done()
@@ -164,10 +167,13 @@ func (T *Server) startup0(username, password string) (bool, error) {
 			in.Done()
 			return false, T.authenticationMD5(salt, username, password)
 		case 6:
+			in.Done()
 			return false, errors.New("scm credential is not supported")
 		case 7:
+			in.Done()
 			return false, errors.New("gss is not supported")
 		case 9:
+			in.Done()
 			return false, errors.New("sspi is not supported")
 		case 10:
 			// read list of mechanisms
@@ -186,12 +192,15 @@ func (T *Server) startup0(username, password string) (bool, error) {
 			in.Done()
 			return false, T.authenticationSASL(mechanisms, username, password)
 		default:
+			in.Done()
 			return false, errors.New("unknown authentication method")
 		}
 	case packet.NegotiateProtocolVersion:
 		// we only support protocol 3.0 for now
+		in.Done()
 		return false, errors.New("server wanted to negotiate protocol version")
 	default:
+		in.Done()
 		return false, ErrProtocolError
 	}
 }

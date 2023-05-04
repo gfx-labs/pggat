@@ -1,23 +1,17 @@
 package main
 
-import (
-	"net"
-
-	"pggat2/lib/backend/backends/v0"
-)
+import "pggat2/lib/frontend/frontends/v0"
 
 func main() {
+	frontend, err := frontends.NewFrontend()
+	if err != nil {
+		panic(err)
+	}
+	err = frontend.Run()
+	if err != nil {
+		panic(err)
+	}
 	/*
-		frontend, err := frontends.NewFrontend()
-		if err != nil {
-			panic(err)
-		}
-		err = frontend.Run()
-		if err != nil {
-			panic(err)
-		}
-	*/
-	for i := 0; i < 1000; i++ {
 		conn, err := net.Dial("tcp", "localhost:5432")
 		if err != nil {
 			panic(err)
@@ -27,6 +21,5 @@ func main() {
 			panic(err)
 		}
 		_ = server
-		_ = conn.Close()
-	}
+		_ = conn.Close()*/
 }
