@@ -194,6 +194,19 @@ func (T *Server) startup0(username, password string) (bool, error) {
 	}
 }
 
+func (T *Server) parameterStatus(in packet.In) error {
+	parameter, ok := in.String()
+	if !ok {
+		return ErrBadPacketFormat
+	}
+	value, ok := in.String()
+	if !ok {
+		return ErrBadPacketFormat
+	}
+	T.parameters[parameter] = value
+	return nil
+}
+
 func (T *Server) startup1() (bool, error) {
 	in, err := T.Read()
 	if err != nil {
@@ -208,16 +221,8 @@ func (T *Server) startup1() (bool, error) {
 		}
 		return false, nil
 	case packet.ParameterStatus:
-		parameter, ok := in.String()
-		if !ok {
-			return false, ErrBadPacketFormat
-		}
-		value, ok := in.String()
-		if !ok {
-			return false, ErrBadPacketFormat
-		}
-		T.parameters[parameter] = value
-		return false, nil
+		err = T.parameterStatus(in)
+		return false, err
 	case packet.ReadyForQuery:
 		return true, nil
 	case packet.ErrorResponse:
@@ -271,14 +276,66 @@ func (T *Server) accept() error {
 	return nil
 }
 
-func (T *Server) proxy(in packet.In) error {
+func (T *Server) proxyIn(in packet.In) error {
 	out := T.Write()
 	out.Type(in.Type())
 	out.Bytes(in.Full())
 	return out.Send()
 }
 
-func (T *Server) query(peer pnet.ReadWriter) error {
+func (T *Server) proxyOut(peer pnet.Writer, in packet.In) error {
+	out := peer.Write()
+	out.Type(in.Type())
+	out.Bytes(in.Full())
+	return out.Send()
+}
+
+func (T *Server) query0(peer pnet.ReadWriter) (bool, error) {
+	in, err := T.Read()
+	if err != nil {
+		return false, err
+	}
+	switch in.Type() {
+	case packet.CommandComplete,
+		packet.RowDescription,
+		packet.DataRow,
+		packet.EmptyQueryResponse,
+		packet.ErrorResponse,
+		packet.NoticeResponse:
+		return false, T.proxyOut(peer, in)
+	case packet.CopyInResponse:
+		return false, errors.New("not implemented") // TODO(garet)
+	case packet.CopyOutResponse:
+		return false, errors.New("not implemented") // TODO(garet)
+	case packet.ReadyForQuery:
+		return true, T.proxyOut(peer, in)
+	case packet.ParameterStatus:
+		err = T.parameterStatus(in)
+		if err != nil {
+			return false, err
+		}
+		return false, T.proxyOut(peer, in)
+	default:
+		return false, ErrProtocolError
+	}
+}
+
+func (T *Server) query(peer pnet.ReadWriter, in packet.In) error {
+	// send in (initial query) to server
+	err := T.proxyIn(in)
+	if err != nil {
+		return err
+	}
+
+	for {
+		done, err := T.query0(peer)
+		if err != nil {
+			return err
+		}
+		if done {
+			break
+		}
+	}
 	return nil
 }
 
@@ -290,12 +347,7 @@ func (T *Server) Transaction(peer pnet.ReadWriter) error {
 	}
 	switch in.Type() {
 	case packet.Query:
-		// proxy to backend
-		err = T.proxy(in)
-		if err != nil {
-			return err
-		}
-		return T.query(peer)
+		return T.query(peer, in)
 	default:
 		return errors.New("unsupported operation")
 	}
