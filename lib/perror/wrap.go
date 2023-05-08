@@ -1,6 +1,6 @@
 package perror
 
-func WrapError(err error) Error {
+func Wrap(err error) Error {
 	if err == nil {
 		return nil
 	}

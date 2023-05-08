@@ -2,8 +2,9 @@ package main
 
 import (
 	"io"
+	"net"
 
-	"pggat2/lib/frontend/frontends/v0"
+	"pggat2/lib/backend/backends/v0"
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
 )
@@ -65,56 +66,56 @@ func (T *LogWriter) Write() packet.Out {
 var _ pnet.Writer = (*LogWriter)(nil)
 
 func main() {
-	frontend, err := frontends.NewListener()
-	if err != nil {
-		panic(err)
-	}
-	err = frontend.Listen()
-	if err != nil {
-		panic(err)
-	}
 	/*
-		conn, err := net.Dial("tcp", "localhost:5432")
+		frontend, err := frontends.NewListener()
 		if err != nil {
 			panic(err)
 		}
-		server, err := backends.NewServer(conn)
+		err = frontend.Listen()
 		if err != nil {
 			panic(err)
 		}
-		readWriter := pnet.JoinedReadWriter{
-			Reader: &TestReader{
-				packets: []testPacket{
-					{
-						typ:   packet.Query,
-						bytes: []byte("select 1\x00"),
-					},
-					{
-						typ:   packet.Query,
-						bytes: []byte("set TimeZone = \"America/Denver\"\x00"),
-					},
-					{
-						typ:   packet.Query,
-						bytes: []byte("reset all\x00"),
-					},
+	*/
+	conn, err := net.Dial("tcp", "localhost:5432")
+	if err != nil {
+		panic(err)
+	}
+	server := backends.NewServer(conn)
+	if server == nil {
+		panic("failed to connect to server")
+	}
+	readWriter := pnet.JoinedReadWriter{
+		Reader: &TestReader{
+			packets: []testPacket{
+				{
+					typ:   packet.Query,
+					bytes: []byte("select 1\x00"),
+				},
+				{
+					typ:   packet.Query,
+					bytes: []byte("set TimeZone = \"America/Denver\"\x00"),
+				},
+				{
+					typ:   packet.Query,
+					bytes: []byte("reset all\x00"),
 				},
 			},
-			Writer: &LogWriter{},
-		}
-		err = server.Transaction(readWriter)
-		if err != nil {
-			panic(err)
-		}
-		err = server.Transaction(readWriter)
-		if err != nil {
-			panic(err)
-		}
-		err = server.Transaction(readWriter)
-		if err != nil {
-			panic(err)
-		}
-		// log.Println(server)
-		_ = server
-		_ = conn.Close()
-	*/
+		},
+		Writer: &LogWriter{},
+	}
+	perr := server.Transaction(readWriter)
+	if perr != nil {
+		panic(perr)
+	}
+	perr = server.Transaction(readWriter)
+	if perr != nil {
+		panic(perr)
+	}
+	perr = server.Transaction(readWriter)
+	if perr != nil {
+		panic(perr)
+	}
+	// log.Println(server)
+	_ = server
+	_ = conn.Close()
 }

@@ -1,19 +1,18 @@
 package backends
 
 import (
-	"errors"
+	"fmt"
 	"net"
 
 	"pggat2/lib/auth/md5"
 	"pggat2/lib/auth/sasl"
 	"pggat2/lib/backend"
+	"pggat2/lib/perror"
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
+	"pggat2/lib/pnet/packet/packets/v3.0"
 	"pggat2/lib/util/decorator"
 )
-
-var ErrBadPacketFormat = errors.New("bad packet format")
-var ErrProtocolError = errors.New("server sent unexpected packet")
 
 type Server struct {
 	noCopy decorator.NoCopy
@@ -27,7 +26,7 @@ type Server struct {
 	parameters      map[string]string
 }
 
-func NewServer(conn net.Conn) (*Server, error) {
+func NewServer(conn net.Conn) *Server {
 	server := &Server{
 		conn:       conn,
 		IOReader:   pnet.MakeIOReader(conn),
@@ -36,24 +35,25 @@ func NewServer(conn net.Conn) (*Server, error) {
 	}
 	err := server.accept()
 	if err != nil {
-		return nil, err
+		panic(fmt.Sprint("failed to connect to server: ", err))
+		return nil
 	}
-	return server, nil
+	return server
 }
 
-func (T *Server) authenticationSASLChallenge(mechanism sasl.Client) (bool, error) {
+func (T *Server) authenticationSASLChallenge(mechanism sasl.Client) (bool, perror.Error) {
 	in, err := T.Read()
 	if err != nil {
-		return false, err
+		return false, perror.Wrap(err)
 	}
 
 	if in.Type() != packet.Authentication {
-		return false, ErrProtocolError
+		return false, pnet.ErrProtocolError
 	}
 
 	method, ok := in.Int32()
 	if !ok {
-		return false, ErrBadPacketFormat
+		return false, pnet.ErrBadPacketFormat
 	}
 
 	switch method {
@@ -61,47 +61,39 @@ func (T *Server) authenticationSASLChallenge(mechanism sasl.Client) (bool, error
 		// challenge
 		response, err := mechanism.Continue(in.Remaining())
 		if err != nil {
-			return false, err
+			return false, perror.Wrap(err)
 		}
 
 		out := T.Write()
-		out.Type(packet.AuthenticationResponse)
-		out.Bytes(response)
+		packets.WriteAuthenticationResponse(out, response)
 
 		err = out.Send()
-		return false, err
+		return false, perror.Wrap(err)
 	case 12:
 		// finish
 		err = mechanism.Final(in.Remaining())
 		if err != nil {
-			return false, err
+			return false, perror.Wrap(err)
 		}
 
 		return true, nil
 	default:
-		return false, ErrProtocolError
+		return false, pnet.ErrProtocolError
 	}
 }
 
-func (T *Server) authenticationSASL(mechanisms []string, username, password string) error {
+func (T *Server) authenticationSASL(mechanisms []string, username, password string) perror.Error {
 	mechanism, err := sasl.NewClient(mechanisms, username, password)
 	if err != nil {
-		return err
+		return perror.Wrap(err)
 	}
 	initialResponse := mechanism.InitialResponse()
 
 	out := T.Write()
-	out.Type(packet.AuthenticationResponse)
-	out.String(mechanism.Name())
-	if initialResponse == nil {
-		out.Int32(-1)
-	} else {
-		out.Int32(int32(len(initialResponse)))
-		out.Bytes(initialResponse)
-	}
+	packets.WriteSASLInitialResponse(out, mechanism.Name(), initialResponse)
 	err = out.Send()
 	if err != nil {
-		return err
+		return perror.Wrap(err)
 	}
 
 	// challenge loop
@@ -118,33 +110,35 @@ func (T *Server) authenticationSASL(mechanisms []string, username, password stri
 	return nil
 }
 
-func (T *Server) authenticationMD5(salt [4]byte, username, password string) error {
+func (T *Server) authenticationMD5(salt [4]byte, username, password string) perror.Error {
 	out := T.Write()
-	out.Type(packet.AuthenticationResponse)
-	out.String(md5.Encode(username, password, salt))
-	return out.Send()
+	packets.WritePasswordMessage(out, md5.Encode(username, password, salt))
+	return perror.Wrap(out.Send())
 }
 
-func (T *Server) authenticationCleartext(password string) error {
+func (T *Server) authenticationCleartext(password string) perror.Error {
 	out := T.Write()
-	out.Type(packet.AuthenticationResponse)
-	out.String(password)
-	return out.Send()
+	packets.WritePasswordMessage(out, password)
+	return perror.Wrap(out.Send())
 }
 
-func (T *Server) startup0(username, password string) (bool, error) {
+func (T *Server) startup0(username, password string) (bool, perror.Error) {
 	in, err := T.Read()
 	if err != nil {
-		return false, err
+		return false, perror.Wrap(err)
 	}
 
 	switch in.Type() {
 	case packet.ErrorResponse:
-		return false, errors.New("received error response")
+		perr, ok := packets.ReadErrorResponse(in)
+		if !ok {
+			return false, pnet.ErrBadPacketFormat
+		}
+		return false, perr
 	case packet.Authentication:
 		method, ok := in.Int32()
 		if !ok {
-			return false, ErrBadPacketFormat
+			return false, pnet.ErrBadPacketFormat
 		}
 		// they have more authentication methods than there are pokemon
 		switch method {
@@ -152,90 +146,106 @@ func (T *Server) startup0(username, password string) (bool, error) {
 			// we're good to go, that was easy
 			return true, nil
 		case 2:
-			return false, errors.New("kerberos v5 is not supported")
+			return false, perror.New(
+				perror.FATAL,
+				perror.FeatureNotSupported,
+				"kerberos v5 is not supported",
+			)
 		case 3:
 			return false, T.authenticationCleartext(password)
 		case 5:
-			var salt [4]byte
-			ok = in.Bytes(salt[:])
+			salt, ok := packets.ReadAuthenticationMD5(in)
 			if !ok {
-				return false, ErrBadPacketFormat
+				return false, pnet.ErrBadPacketFormat
 			}
 			return false, T.authenticationMD5(salt, username, password)
 		case 6:
-			return false, errors.New("scm credential is not supported")
+			return false, perror.New(
+				perror.FATAL,
+				perror.FeatureNotSupported,
+				"scm credential is not supported",
+			)
 		case 7:
-			return false, errors.New("gss is not supported")
+			return false, perror.New(
+				perror.FATAL,
+				perror.FeatureNotSupported,
+				"gss is not supported",
+			)
 		case 9:
-			return false, errors.New("sspi is not supported")
+			return false, perror.New(
+				perror.FATAL,
+				perror.FeatureNotSupported,
+				"sspi is not supported",
+			)
 		case 10:
 			// read list of mechanisms
-			var mechanisms []string
-			for {
-				mechanism, ok := in.String()
-				if !ok {
-					return false, ErrBadPacketFormat
-				}
-				if mechanism == "" {
-					break
-				}
-				mechanisms = append(mechanisms, mechanism)
+			mechanisms, ok := packets.ReadAuthenticationSASL(in)
+			if !ok {
+				return false, pnet.ErrBadPacketFormat
 			}
 
 			return false, T.authenticationSASL(mechanisms, username, password)
 		default:
-			return false, errors.New("unknown authentication method")
+			return false, perror.New(
+				perror.FATAL,
+				perror.FeatureNotSupported,
+				"unknown authentication method",
+			)
 		}
 	case packet.NegotiateProtocolVersion:
 		// we only support protocol 3.0 for now
-		return false, errors.New("server wanted to negotiate protocol version")
+		return false, perror.New(
+			perror.FATAL,
+			perror.FeatureNotSupported,
+			"server wanted to negotiate protocol version",
+		)
 	default:
-		return false, ErrProtocolError
+		return false, pnet.ErrProtocolError
 	}
 }
 
-func (T *Server) parameterStatus(in packet.In) error {
-	parameter, ok := in.String()
+func (T *Server) parameterStatus(in packet.In) perror.Error {
+	key, value, ok := packets.ReadParameterStatus(in)
 	if !ok {
-		return ErrBadPacketFormat
+		return pnet.ErrBadPacketFormat
 	}
-	value, ok := in.String()
-	if !ok {
-		return ErrBadPacketFormat
-	}
-	T.parameters[parameter] = value
+	T.parameters[key] = value
 	return nil
 }
 
-func (T *Server) startup1() (bool, error) {
+func (T *Server) startup1() (bool, perror.Error) {
 	in, err := T.Read()
 	if err != nil {
-		return false, err
+		return false, perror.Wrap(err)
 	}
 
 	switch in.Type() {
 	case packet.BackendKeyData:
 		ok := in.Bytes(T.cancellationKey[:])
 		if !ok {
-			return false, ErrBadPacketFormat
+			return false, pnet.ErrBadPacketFormat
 		}
 		return false, nil
 	case packet.ParameterStatus:
-		err = T.parameterStatus(in)
+		err := T.parameterStatus(in)
 		return false, err
 	case packet.ReadyForQuery:
 		return true, nil
 	case packet.ErrorResponse:
-		return false, errors.New("received error response")
+		err, ok := packets.ReadErrorResponse(in)
+		if !ok {
+			return false, pnet.ErrBadPacketFormat
+		}
+		return false, err
 	case packet.NoticeResponse:
 		// TODO(garet) do something with notice
 		return false, nil
 	default:
-		return false, ErrProtocolError
+		return false, pnet.ErrProtocolError
 	}
 }
 
-func (T *Server) accept() error {
+func (T *Server) accept() perror.Error {
 	// we can re-use the memory for this pkt most of the way down because we don't pass this anywhere
 	out := T.Write()
 	out.Int16(3)
@@ -247,7 +257,7 @@ func (T *Server) accept() error {
 
 	err := out.Send()
 	if err != nil {
-		return err
+		return perror.Wrap(err)
 	}
 
 	for {
@@ -276,24 +286,10 @@ func (T *Server) accept() error {
 	return nil
 }
 
-func (T *Server) proxyIn(in packet.In) error {
-	out := T.Write()
-	out.Type(in.Type())
-	out.Bytes(in.Full())
-	return out.Send()
-}
-
-func (T *Server) proxyOut(peer pnet.Writer, in packet.In) error {
-	out := peer.Write()
-	out.Type(in.Type())
-	out.Bytes(in.Full())
-	return out.Send()
-}
-
-func (T *Server) query0(peer pnet.ReadWriter) (bool, error) {
+func (T *Server) query0(peer pnet.ReadWriter) (bool, perror.Error) {
 	in, err := T.Read()
 	if err != nil {
-		return false, err
+		return false, perror.Wrap(err)
 	}
 	switch in.Type() {
 	case packet.CommandComplete,
@@ -302,29 +298,48 @@ func (T *Server) query0(peer pnet.ReadWriter) (bool, error) {
 		packet.EmptyQueryResponse,
 		packet.ErrorResponse,
 		packet.NoticeResponse:
-		return false, T.proxyOut(peer, in)
+		out := peer.Write()
+		packet.Proxy(out, in)
+		err := out.Send()
+		return false, perror.Wrap(err)
 	case packet.CopyInResponse:
-		return false, errors.New("not implemented") // TODO(garet)
+		return false, perror.New(
+			perror.FATAL,
+			perror.FeatureNotSupported,
+			"not implemented",
+		) // TODO(garet)
 	case packet.CopyOutResponse:
-		return false, errors.New("not implemented") // TODO(garet)
+		return false, perror.New(
+			perror.FATAL,
+			perror.FeatureNotSupported,
+			"not implemented",
+		) // TODO(garet)
 	case packet.ReadyForQuery:
-		return true, T.proxyOut(peer, in)
+		out := peer.Write()
+		packet.Proxy(out, in)
+		err := out.Send()
+		return true, perror.Wrap(err)
 	case packet.ParameterStatus:
-		err = T.parameterStatus(in)
+		err := T.parameterStatus(in)
 		if err != nil {
 			return false, err
 		}
-		return false, T.proxyOut(peer, in)
+		out := peer.Write()
+		packet.Proxy(out, in)
+		err = perror.Wrap(out.Send())
+		return false, err
 	default:
-		return false, ErrProtocolError
+		return false, pnet.ErrProtocolError
 	}
 }
 
-func (T *Server) query(peer pnet.ReadWriter, in packet.In) error {
+func (T *Server) query(peer pnet.ReadWriter, in packet.In) perror.Error {
 	// send in (initial query) to server
-	err := T.proxyIn(in)
+	out := T.Write()
+	packet.Proxy(out, in)
+	err := out.Send()
 	if err != nil {
-		return err
+		return perror.Wrap(err)
 	}
 
 	for {
@@ -340,16 +355,20 @@ func (T *Server) query(peer pnet.ReadWriter, in packet.In) error {
 }
 
 // Transaction handles a transaction from peer, returning when the transaction is complete
-func (T *Server) Transaction(peer pnet.ReadWriter) error {
+func (T *Server) Transaction(peer pnet.ReadWriter) perror.Error {
 	in, err := peer.Read()
 	if err != nil {
-		return err
+		return perror.Wrap(err)
 	}
 	switch in.Type() {
 	case packet.Query:
 		return T.query(peer, in)
 	default:
-		return errors.New("unsupported operation")
+		return perror.New(
+			perror.FATAL,
+			perror.FeatureNotSupported,
+			"unsupported operation",
+		)
 	}
 }
 

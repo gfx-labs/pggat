@@ -54,6 +54,13 @@ func (T Out) Type(typ Type) {
 	T.buf.typ = typ
 }
 
+func (T Out) Reset() {
+	if T.done() {
+		panic("Write after Send")
+	}
+	T.buf.buf = T.buf.buf[:0]
+}
+
 func (T Out) Int8(v int8) {
 	T.Uint8(uint8(v))
 }

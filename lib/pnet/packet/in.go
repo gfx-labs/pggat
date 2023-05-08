@@ -66,6 +66,13 @@ func (T In) Remaining() []byte {
 	return full[T.buf.pos:]
 }
 
+func (T In) Reset() {
+	if T.done() {
+		panic("Read after Send")
+	}
+	T.buf.pos = 0
+}
+
 func (T In) Int8() (int8, bool) {
 	v, ok := T.Uint8()
 	return int8(v), ok
