@@ -52,7 +52,6 @@ func NewClient(conn net.Conn) *Client {
 	err := client.accept()
 	if err != nil {
 		client.Close(err)
-		return nil
 	}
 	return client
 }
