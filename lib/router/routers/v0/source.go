@@ -10,6 +10,12 @@ type Source struct {
 	source rob.Source
 }
 
+func MakeSource(source rob.Source) Source {
+	return Source{
+		source: source,
+	}
+}
+
 func (T Source) Handle(peer pnet.ReadWriter, write bool) {
 	T.source.Schedule(peer, constraints(write))
 }

@@ -10,6 +10,12 @@ type Handler struct {
 	sink rob.Sink
 }
 
+func MakeHandler(sink rob.Sink) Handler {
+	return Handler{
+		sink: sink,
+	}
+}
+
 func (T Handler) Next() pnet.ReadWriter {
 	return T.sink.Read().(pnet.ReadWriter)
 }

@@ -3,7 +3,8 @@ package main
 import (
 	"io"
 	"net"
-	"sync"
+	"net/http"
+	_ "net/http/pprof"
 
 	"pggat2/lib/backend/backends/v0"
 	"pggat2/lib/frontend/frontends/v0"
@@ -69,7 +70,7 @@ func (T *LogWriter) Write() packet.Out {
 
 var _ pnet.Writer = (*LogWriter)(nil)
 
-func makeTestServer(r router.Router, wg *sync.WaitGroup) {
+func makeTestServer(r router.Router) {
 	conn, err := net.Dial("tcp", "localhost:5432")
 	if err != nil {
 		panic(err)
@@ -81,17 +82,18 @@ func makeTestServer(r router.Router, wg *sync.WaitGroup) {
 	go func() {
 		handler := r.NewHandler(true)
 		for {
-			peer := handler.Next()
-			server.Handle(peer)
-			wg.Done()
+			server.Handle(handler.Next())
 		}
 	}()
 }
 
 func main() {
+	go func() {
+		panic(http.ListenAndServe(":8080", nil))
+	}()
+
 	r := routers.MakeRouter()
-	var wg sync.WaitGroup
-	makeTestServer(&r, &wg)
+	makeTestServer(&r)
 
 	listener, err := net.Listen("tcp", "0.0.0.0:6432") // TODO(garet) make this configurable
 	if err != nil {
@@ -106,9 +108,7 @@ func main() {
 			source := r.NewSource()
 			client := frontends.NewClient(conn)
 			for {
-				wg.Add(1)
 				source.Handle(client, false)
-				wg.Wait()
 			}
 		}()
 	}

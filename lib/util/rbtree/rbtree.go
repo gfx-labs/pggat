@@ -107,10 +107,10 @@ func (T *RBTree[K, V]) deleteMin(n *node[K, V]) *node[K, V] {
 }
 
 func (T *RBTree[K, V]) Min() (K, V, bool) {
-	if T.root == nil {
+	m := T.min(T.root)
+	if m == nil {
 		return *new(K), *new(V), false
 	}
-	m := T.min(T.root)
 	return m.key, m.value, true
 }
 
@@ -178,37 +178,50 @@ func (T *RBTree[K, V]) balance(n *node[K, V]) *node[K, V] {
 }
 
 func (T *RBTree[K, V]) min(n *node[K, V]) *node[K, V] {
+	if n == nil {
+		return nil
+	}
 	if n.left == nil {
 		return n
 	}
 	return T.min(n.left)
 }
 
-func (T *RBTree[K, V]) Iter() func() (K, V, bool) {
-	// TODO(garet) make this not allocate
-	nodes := T.all(T.root, nil)
-	i := 0
-
-	return func() (K, V, bool) {
-		if i >= len(nodes) {
-			return *new(K), *new(V), false
-		}
-
-		n := nodes[i]
-		i++
-		return n.key, n.value, true
+func (T *RBTree[K, V]) max(n *node[K, V]) *node[K, V] {
+	if n == nil {
+		return nil
 	}
+	if n.right == nil {
+		return n
+	}
+	return T.max(n.right)
 }
 
-func (T *RBTree[K, V]) all(n *node[K, V], slice []*node[K, V]) []*node[K, V] {
+func (T *RBTree[K, V]) next(n *node[K, V], key K) *node[K, V] {
 	if n == nil {
-		return slice
+		return nil
+	}
+	if n.key == key {
+		return T.min(n.right)
+	}
+	if n.key < key {
+		return T.next(n.right, key)
 	}
 
-	slice = T.all(n.left, slice)
-	slice = append(slice, n)
-	slice = T.all(n.right, slice)
-	return slice
+	// n.key > key
+	next := T.next(n.left, key)
+	if next == nil {
+		return n
+	}
+	return next
+}
+
+func (T *RBTree[K, V]) Next(key K) (K, V, bool) {
+	n := T.next(T.root, key)
+	if n == nil {
+		return *new(K), *new(V), false
+	}
+	return n.key, n.value, true
 }
 
 type color bool

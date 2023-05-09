@@ -121,8 +121,7 @@ func (T *Queue) Steal(constraints rob.Constraints) ([]job.Job, bool) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	iter := T.scheduled.Iter()
-	for stride, work, ok := iter(); ok; stride, work, ok = iter() {
+	for stride, work, ok := T.scheduled.Min(); ok; stride, work, ok = T.scheduled.Next(stride) {
 		if constraints.Satisfies(work.Constraints) {
 			// steal it
 			T.scheduled.Delete(stride)

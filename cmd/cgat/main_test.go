@@ -1,9 +1,13 @@
 package main
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func Test(t *testing.T) {
-	for i := 0; i < 1000; i++ {
+	go func() {
 		main()
-	}
+	}()
+	time.Sleep(10 * time.Second)
 }

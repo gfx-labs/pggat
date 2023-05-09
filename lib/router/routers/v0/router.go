@@ -22,16 +22,12 @@ func NewRouter() *Router {
 
 func (r *Router) NewHandler(write bool) router.Handler {
 	sink := r.scheduler.NewSink(constraints(write))
-	return Handler{
-		sink: sink,
-	}
+	return MakeHandler(sink)
 }
 
 func (r *Router) NewSource() router.Source {
 	source := r.scheduler.NewSource()
-	return Source{
-		source: source,
-	}
+	return MakeSource(source)
 }
 
 var _ router.Router = (*Router)(nil)
