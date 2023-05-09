@@ -17,7 +17,8 @@ func ReadAuthenticationSASL(in packet.In) ([]string, bool) {
 		return nil, false
 	}
 
-	var mechanisms []string
+	// get count first to prevent reallocating the slice a bunch
+	var mechanismCount int
 	for {
 		mechanism, ok := in.String()
 		if !ok {
@@ -25,6 +26,17 @@ func ReadAuthenticationSASL(in packet.In) ([]string, bool) {
 		}
 		if mechanism == "" {
 			break
+		}
+		mechanismCount++
+	}
+
+	mechanisms := make([]string, 0, mechanismCount)
+	in.Reset()
+	in.Int32()
+	for i := 0; i < mechanismCount; i++ {
+		mechanism, ok := in.String()
+		if !ok {
+			return nil, false
 		}
 		mechanisms = append(mechanisms, mechanism)
 	}

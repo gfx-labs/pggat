@@ -286,6 +286,44 @@ func (T *Server) accept() perror.Error {
 	return nil
 }
 
+func (T *Server) copyIn0(peer pnet.ReadWriter) (bool, perror.Error) {
+	in, err := peer.Read()
+	if err != nil {
+		return false, perror.Wrap(err)
+	}
+
+	switch in.Type() {
+	case packet.CopyData:
+		err = pnet.ProxyPacket(T, in)
+		return false, perror.Wrap(err)
+	case packet.CopyDone, packet.CopyFail:
+		err = pnet.ProxyPacket(T, in)
+		return true, perror.Wrap(err)
+	default:
+		return false, pnet.ErrProtocolError
+	}
+}
+
+func (T *Server) copyIn(peer pnet.ReadWriter, in packet.In) perror.Error {
+	// send in (copyInResponse) to client
+	err := pnet.ProxyPacket(peer, in)
+	if err != nil {
+		return perror.Wrap(err)
+	}
+
+	// copy in from client
+	for {
+		done, err := T.copyIn0(peer)
+		if err != nil {
+			return err
+		}
+		if done {
+			break
+		}
+	}
+	return nil
+}
+
 func (T *Server) query0(peer pnet.ReadWriter) (bool, perror.Error) {
 	in, err := T.Read()
 	if err != nil {
@@ -298,16 +336,11 @@ func (T *Server) query0(peer pnet.ReadWriter) (bool, perror.Error) {
 		packet.EmptyQueryResponse,
 		packet.ErrorResponse,
 		packet.NoticeResponse:
-		out := peer.Write()
-		packet.Proxy(out, in)
-		err := out.Send()
+		err = pnet.ProxyPacket(peer, in)
 		return false, perror.Wrap(err)
 	case packet.CopyInResponse:
-		return false, perror.New(
-			perror.FATAL,
-			perror.FeatureNotSupported,
-			"not implemented",
-		) // TODO(garet)
+		err := T.copyIn(peer, in)
+		return false, err
 	case packet.CopyOutResponse:
 		return false, perror.New(
 			perror.FATAL,
@@ -315,19 +348,14 @@ func (T *Server) query0(peer pnet.ReadWriter) (bool, perror.Error) {
 			"not implemented",
 		) // TODO(garet)
 	case packet.ReadyForQuery:
-		out := peer.Write()
-		packet.Proxy(out, in)
-		err := out.Send()
+		err = pnet.ProxyPacket(peer, in)
 		return true, perror.Wrap(err)
 	case packet.ParameterStatus:
 		err := T.parameterStatus(in)
 		if err != nil {
 			return false, err
 		}
-		out := peer.Write()
-		packet.Proxy(out, in)
-		err = perror.Wrap(out.Send())
-		return false, err
+		return false, perror.Wrap(pnet.ProxyPacket(peer, in))
 	default:
 		return false, pnet.ErrProtocolError
 	}
@@ -335,9 +363,7 @@ func (T *Server) query0(peer pnet.ReadWriter) (bool, perror.Error) {
 
 func (T *Server) query(peer pnet.ReadWriter, in packet.In) perror.Error {
 	// send in (initial query) to server
-	out := T.Write()
-	packet.Proxy(out, in)
-	err := out.Send()
+	err := pnet.ProxyPacket(T, in)
 	if err != nil {
 		return perror.Wrap(err)
 	}
