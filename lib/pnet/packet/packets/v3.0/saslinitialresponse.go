@@ -22,11 +22,7 @@ func ReadSASLInitialResponse(in packet.In) (mechanism string, initialResponse []
 		return
 	}
 
-	initialResponse = make([]byte, int(initialResponseSize))
-	ok = in.Bytes(initialResponse[:])
-	if !ok {
-		return
-	}
+	initialResponse, ok = in.UnsafeBytes(int(initialResponseSize))
 	return
 }
 

@@ -164,3 +164,12 @@ func (T In) Bytes(b []byte) bool {
 	T.buf.pos += len(b)
 	return true
 }
+
+// UnsafeBytes returns a byte slice without copying. Use this only if you plan to be done with the slice when the In is reset or the data will be replaced with garbage.
+func (T In) UnsafeBytes(count int) ([]byte, bool) {
+	rem := T.Remaining()
+	if count > len(rem) {
+		return nil, false
+	}
+	return rem[:count], true
+}

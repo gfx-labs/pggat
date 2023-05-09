@@ -53,6 +53,10 @@ func (T *Queue) Queue(work job.Job) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
+	T.queue(work)
+}
+
+func (T *Queue) queue(work job.Job) {
 	// try to schedule right away
 	if ok := T.scheduleWork(work); ok {
 		return
@@ -117,31 +121,40 @@ func (T *Queue) scheduleWork(work job.Job) bool {
 }
 
 // Steal work from this Sink that is satisfied by constraints
-func (T *Queue) Steal(constraints rob.Constraints) ([]job.Job, bool) {
+func (T *Queue) Steal(constraints rob.Constraints, dst *Queue) (uuid.UUID, bool) {
+	if T == dst {
+		// cannot steal from ourselves
+		return uuid.Nil, false
+	}
+
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
 	for stride, work, ok := T.scheduled.Min(); ok; stride, work, ok = T.scheduled.Next(stride) {
 		if constraints.Satisfies(work.Constraints) {
+			source := work.Source
+
+			dst.mu.Lock()
+			defer dst.mu.Unlock()
+
 			// steal it
 			T.scheduled.Delete(stride)
+
+			dst.queue(work)
 
 			// steal pending
 			pending, _ := T.pending[work.Source]
 
-			jobs := make([]job.Job, 0, pending.Length()+1)
-			jobs = append(jobs, work)
-
 			for work, ok = pending.PopFront(); ok; work, ok = pending.PopFront() {
-				jobs = append(jobs, work)
+				dst.queue(work)
 			}
 
-			return jobs, true
+			return source, true
 		}
 	}
 
 	// no stealable work
-	return nil, false
+	return uuid.Nil, false
 }
 
 func (T *Queue) Ready() <-chan struct{} {

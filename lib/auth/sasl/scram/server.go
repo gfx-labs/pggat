@@ -10,19 +10,19 @@ type Server struct {
 	conversation *scram.ServerConversation
 }
 
-func NewServer(mechanism, username, password string) (*Server, error) {
+func MakeServer(mechanism, username, password string) (Server, error) {
 	var generator scram.HashGeneratorFcn
 
 	switch mechanism {
 	case SHA256:
 		generator = scram.SHA256
 	default:
-		return nil, ErrUnsupportedMethod
+		return Server{}, ErrUnsupportedMethod
 	}
 
 	client, err := generator.NewClient(username, password, "")
 	if err != nil {
-		return nil, err
+		return Server{}, err
 	}
 
 	kf := scram.KeyFactors{
@@ -36,19 +36,19 @@ func NewServer(mechanism, username, password string) (*Server, error) {
 		},
 	)
 	if err != nil {
-		return nil, err
+		return Server{}, err
 	}
 
-	return &Server{
+	return Server{
 		conversation: server.NewConversation(),
 	}, nil
 }
 
-func (T *Server) InitialResponse(bytes []byte) ([]byte, bool, error) {
+func (T Server) InitialResponse(bytes []byte) ([]byte, bool, error) {
 	return T.Continue(bytes)
 }
 
-func (T *Server) Continue(bytes []byte) ([]byte, bool, error) {
+func (T Server) Continue(bytes []byte) ([]byte, bool, error) {
 	msg, err := T.conversation.Step(string(bytes))
 	if err != nil {
 		return nil, false, err

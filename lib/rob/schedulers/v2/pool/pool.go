@@ -108,17 +108,9 @@ func (T *Pool) StealFor(id uuid.UUID) {
 		if s == q {
 			continue
 		}
-		works, ok := s.queue.Steal(q.constraints)
-		if !ok {
-			continue
-		}
-		if len(works) > 0 {
-			source := works[0].Source
+		if source, ok := s.queue.Steal(q.constraints, q.queue); ok {
 			T.affinity[source] = id
+			break
 		}
-		for _, work := range works {
-			q.queue.Queue(work)
-		}
-		break
 	}
 }

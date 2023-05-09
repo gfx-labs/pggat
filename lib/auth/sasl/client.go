@@ -19,7 +19,7 @@ func NewClient(mechanisms []string, username, password string) (Client, error) {
 	for _, mechanism := range mechanisms {
 		switch mechanism {
 		case scram.SHA256:
-			return scram.NewClient(mechanism, username, password)
+			return scram.MakeClient(mechanism, username, password)
 		}
 	}
 	return nil, ErrMechanismsNotSupported

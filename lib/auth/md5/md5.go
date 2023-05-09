@@ -4,6 +4,8 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"strings"
+
+	"pggat2/lib/util/slices"
 )
 
 func Encode(username, password string, salt [4]byte) string {
@@ -18,10 +20,7 @@ func Encode(username, password string, salt [4]byte) string {
 	hash.Write(hexEncoded)
 	hash.Write(salt[:])
 	sum2 := hash.Sum(nil)
-	hexEncoded = hexEncoded[:0]
-	for i := 0; i < hex.EncodedLen(len(sum2)); i++ {
-		hexEncoded = append(hexEncoded, 0)
-	}
+	hexEncoded = slices.Resize(hexEncoded, hex.EncodedLen(len(sum2)))
 	hex.Encode(hexEncoded, sum2)
 
 	var out strings.Builder
