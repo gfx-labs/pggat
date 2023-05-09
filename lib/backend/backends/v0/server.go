@@ -506,7 +506,7 @@ func (T *Server) handle(peer pnet.ReadWriter) perror.Error {
 func (T *Server) Handle(peer pnet.ReadWriter) {
 	err := T.handle(peer)
 	if err != nil {
-		out := T.Write()
+		out := peer.Write()
 		packets.WriteErrorResponse(out, err)
 		_ = out.Send()
 	}

@@ -50,6 +50,8 @@ func (T *IOReader) Read() (packet.In, error) {
 		T.payload,
 	)
 
+	// log.Printf("read typed packet %c %v\n", typ, T.payload)
+
 	return packet.MakeIn(
 		&T.buf,
 	), nil
@@ -66,6 +68,8 @@ func (T *IOReader) ReadUntyped() (packet.In, error) {
 		packet.None,
 		T.payload,
 	)
+
+	// log.Println("read untyped packet", T.payload)
 
 	return packet.MakeIn(
 		&T.buf,

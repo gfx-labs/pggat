@@ -43,6 +43,12 @@ func (T *IOWriter) Write() packet.Out {
 }
 
 func (T *IOWriter) write(typ packet.Type, payload []byte) error {
+	/* if typ != packet.None {
+		log.Printf("write typed packet %c %v\n", typ, payload)
+	} else {
+		log.Println("write untyped packet", payload)
+	} */
+
 	// write type byte (if present)
 	if typ != packet.None {
 		err := T.WriteByte(byte(typ))

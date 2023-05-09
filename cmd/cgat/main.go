@@ -2,6 +2,7 @@ package main
 
 import (
 	"io"
+	"log"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -70,6 +71,11 @@ func (T *LogWriter) Write() packet.Out {
 
 var _ pnet.Writer = (*LogWriter)(nil)
 
+type job struct {
+	rw   pnet.ReadWriter
+	done chan<- struct{}
+}
+
 func testServer(r rob.Scheduler) {
 	conn, err := net.Dial("tcp", "localhost:5432")
 	if err != nil {
@@ -82,7 +88,12 @@ func testServer(r rob.Scheduler) {
 
 	sink := r.NewSink(0)
 	for {
-		server.Handle(sink.Read().(pnet.ReadWriter))
+		j := sink.Read().(job)
+		server.Handle(j.rw)
+		select {
+		case j.done <- struct{}{}:
+		default:
+		}
 	}
 }
 
@@ -106,8 +117,21 @@ func main() {
 		go func() {
 			source := r.NewSource()
 			client := frontends.NewClient(conn)
+			done := make(chan struct{})
 			for {
-				source.Schedule(client, 0)
+				reader, err := pnet.PreRead(client)
+				if err != nil {
+					log.Println("failed", err)
+					break
+				}
+				source.Schedule(job{
+					rw: pnet.JoinedReadWriter{
+						Reader: reader,
+						Writer: client,
+					},
+					done: done,
+				}, 0)
+				<-done
 			}
 		}()
 	}

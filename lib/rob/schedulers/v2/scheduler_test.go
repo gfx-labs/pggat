@@ -309,3 +309,28 @@ func TestScheduler_Constraints(t *testing.T) {
 	t.Log("share of 4:", t4)
 	t.Log("share of 5:", t5)
 }
+
+func TestScheduler_IdleWake(t *testing.T) {
+	var table ShareTable
+	sched := NewScheduler()
+
+	go testSink(sched, &table, 0)
+
+	time.Sleep(10 * time.Second)
+
+	go testSource(sched, 0, 10*time.Millisecond, 0)
+
+	time.Sleep(10 * time.Second)
+	t0 := table.Get(0)
+
+	/*
+		Expectations:
+		- 0 should have some executions
+	*/
+
+	if t0 == 0 {
+		t.Error("expected executions to be greater than 0 (is idle waking broken?)")
+	}
+
+	t.Log("share of 0:", t0)
+}
