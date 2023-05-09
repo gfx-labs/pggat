@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"pggat2/lib/backend/backends/v0"
+	"pggat2/lib/frontend/frontends/v0"
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
 	"pggat2/lib/router"
@@ -88,45 +89,27 @@ func makeTestServer(r router.Router, wg *sync.WaitGroup) {
 }
 
 func main() {
-	/*
-		frontend, err := frontends.NewListener()
-		if err != nil {
-			panic(err)
-		}
-		err = frontend.Listen()
-		if err != nil {
-			panic(err)
-		}
-	*/
 	r := routers.MakeRouter()
 	var wg sync.WaitGroup
 	makeTestServer(&r, &wg)
-	// makeTestServer(&r, &wg)
 
-	src := r.NewSource()
-	readWriter := pnet.JoinedReadWriter{
-		Reader: &TestReader{
-			packets: []testPacket{
-				{
-					typ:   packet.Query,
-					bytes: []byte("select 1\x00"),
-				},
-				{
-					typ:   packet.Query,
-					bytes: []byte("set TimeZone = \"America/Denver\"\x00"),
-				},
-				{
-					typ:   packet.Query,
-					bytes: []byte("reset all\x00"),
-				},
-			},
-		},
-		Writer: &LogWriter{},
+	listener, err := net.Listen("tcp", "0.0.0.0:6432") // TODO(garet) make this configurable
+	if err != nil {
+		panic(err)
 	}
-	wg.Add(3)
-	src.Handle(readWriter, true)
-	src.Handle(readWriter, true)
-	src.Handle(readWriter, true)
-	wg.Wait()
-	// log.Println(server)
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			panic(err)
+		}
+		go func() {
+			source := r.NewSource()
+			client := frontends.NewClient(conn)
+			for {
+				wg.Add(1)
+				source.Handle(client, false)
+				wg.Wait()
+			}
+		}()
+	}
 }

@@ -270,7 +270,7 @@ func (T *Server) accept() perror.Error {
 
 	for {
 		// TODO(garet) don't hardcode username and password
-		done, err := T.startup0("test", "password")
+		done, err := T.startup0("postgres", "password")
 		if err != nil {
 			return err
 		}

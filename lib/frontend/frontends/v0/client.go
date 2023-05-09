@@ -325,6 +325,12 @@ func (T *Client) authenticationCleartext(password string) perror.Error {
 	return nil
 }
 
+func (T *Client) updateParameter(name, value string) perror.Error {
+	out := T.Write()
+	packets.WriteParameterStatus(out, name, value)
+	return perror.Wrap(out.Send())
+}
+
 func (T *Client) accept() perror.Error {
 	for {
 		done, err := T.startup0()
@@ -349,6 +355,59 @@ func (T *Client) accept() perror.Error {
 	err := out.Send()
 	if err != nil {
 		return perror.Wrap(err)
+	}
+
+	perr = T.updateParameter("DateStyle", "ISO, MDY")
+	if perr != nil {
+		return perr
+	}
+	perr = T.updateParameter("IntervalStyle", "postgres")
+	if perr != nil {
+		return perr
+	}
+	perr = T.updateParameter("TimeZone", "America/Chicago")
+	if perr != nil {
+		return perr
+	}
+	perr = T.updateParameter("application_name", "")
+	if perr != nil {
+		return perr
+	}
+	perr = T.updateParameter("client_encoding", "UTF8")
+	if perr != nil {
+		return perr
+	}
+	perr = T.updateParameter("default_transaction_read_only", "off")
+	if perr != nil {
+		return perr
+	}
+	perr = T.updateParameter("in_hot_standby", "off")
+	if perr != nil {
+		return perr
+	}
+	perr = T.updateParameter("integer_datetimes", "on")
+	if perr != nil {
+		return perr
+	}
+	perr = T.updateParameter("is_superuser", "on")
+	if perr != nil {
+		return perr
+	}
+	perr = T.updateParameter("server_encoding", "UTF8")
+	if perr != nil {
+		return perr
+	}
+	perr = T.updateParameter("server_version", "14.5")
+	if perr != nil {
+		return perr
+	}
+	perr = T.updateParameter("session_authorization", "postgres")
+	if perr != nil {
+		return perr
+	}
+	perr = T.updateParameter("standard_conforming_strings", "on")
+	if perr != nil {
+		return perr
 	}
 
 	// send backend key data
