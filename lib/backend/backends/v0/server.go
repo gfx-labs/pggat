@@ -2,7 +2,9 @@ package backends
 
 import (
 	"fmt"
+	"log"
 	"net"
+	"runtime/debug"
 
 	"pggat2/lib/auth/md5"
 	"pggat2/lib/auth/sasl"
@@ -12,6 +14,12 @@ import (
 	"pggat2/lib/pnet/packet"
 	"pggat2/lib/pnet/packet/packets/v3.0"
 	"pggat2/lib/util/decorator"
+)
+
+var ErrServerFailed = perror.New(
+	perror.ERROR,
+	perror.InternalError,
+	"Internal server error",
 )
 
 type Server struct {
@@ -286,6 +294,11 @@ func (T *Server) accept() perror.Error {
 	return nil
 }
 
+func (T *Server) fail() {
+	log.Println("!!!!!!!!!!!!!!!!!!!!SERVER FAILED!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	debug.PrintStack()
+}
+
 func (T *Server) copyIn0(peer pnet.ReadWriter) (bool, perror.Error) {
 	in, err := peer.Read()
 	if err != nil {
@@ -295,10 +308,18 @@ func (T *Server) copyIn0(peer pnet.ReadWriter) (bool, perror.Error) {
 	switch in.Type() {
 	case packet.CopyData:
 		err = pnet.ProxyPacket(T, in)
-		return false, perror.Wrap(err)
+		if err != nil {
+			T.fail()
+			return false, ErrServerFailed
+		}
+		return false, nil
 	case packet.CopyDone, packet.CopyFail:
 		err = pnet.ProxyPacket(T, in)
-		return true, perror.Wrap(err)
+		if err != nil {
+			T.fail()
+			return false, ErrServerFailed
+		}
+		return true, nil
 	default:
 		return false, pnet.ErrProtocolError
 	}
@@ -315,6 +336,49 @@ func (T *Server) copyIn(peer pnet.ReadWriter, in packet.In) perror.Error {
 	for {
 		done, err := T.copyIn0(peer)
 		if err != nil {
+			// TODO(garet) return the server to a normal state
+			return err
+		}
+		if done {
+			break
+		}
+	}
+	return nil
+}
+
+func (T *Server) copyOut0(peer pnet.ReadWriter) (bool, perror.Error) {
+	in, err := T.Read()
+	if err != nil {
+		T.fail()
+		return false, ErrServerFailed
+	}
+
+	switch in.Type() {
+	case packet.CopyData:
+		err = pnet.ProxyPacket(peer, in)
+		return false, perror.Wrap(err)
+	case packet.CopyDone, packet.ErrorResponse:
+		err = pnet.ProxyPacket(peer, in)
+		return true, perror.Wrap(err)
+	default:
+		T.fail()
+		return false, ErrServerFailed
+	}
+}
+
+func (T *Server) copyOut(peer pnet.ReadWriter, in packet.In) perror.Error {
+	// send in (copyOutResponse) to server
+	err := pnet.ProxyPacket(T, in)
+	if err != nil {
+		T.fail()
+		return ErrServerFailed
+	}
+
+	// copy out from server
+	for {
+		done, err := T.copyOut0(peer)
+		if err != nil {
+			// TODO(garet) return the server to a normal state
 			return err
 		}
 		if done {
@@ -327,7 +391,8 @@ func (T *Server) copyIn(peer pnet.ReadWriter, in packet.In) perror.Error {
 func (T *Server) query0(peer pnet.ReadWriter) (bool, perror.Error) {
 	in, err := T.Read()
 	if err != nil {
-		return false, perror.Wrap(err)
+		T.fail()
+		return false, ErrServerFailed
 	}
 	switch in.Type() {
 	case packet.CommandComplete,
@@ -342,11 +407,8 @@ func (T *Server) query0(peer pnet.ReadWriter) (bool, perror.Error) {
 		err := T.copyIn(peer, in)
 		return false, err
 	case packet.CopyOutResponse:
-		return false, perror.New(
-			perror.FATAL,
-			perror.FeatureNotSupported,
-			"not implemented",
-		) // TODO(garet)
+		err := T.copyOut(peer, in)
+		return false, err
 	case packet.ReadyForQuery:
 		err = pnet.ProxyPacket(peer, in)
 		return true, perror.Wrap(err)
@@ -357,7 +419,8 @@ func (T *Server) query0(peer pnet.ReadWriter) (bool, perror.Error) {
 		}
 		return false, perror.Wrap(pnet.ProxyPacket(peer, in))
 	default:
-		return false, pnet.ErrProtocolError
+		T.fail()
+		return false, ErrServerFailed
 	}
 }
 
@@ -365,12 +428,55 @@ func (T *Server) query(peer pnet.ReadWriter, in packet.In) perror.Error {
 	// send in (initial query) to server
 	err := pnet.ProxyPacket(T, in)
 	if err != nil {
-		return perror.Wrap(err)
+		T.fail()
+		return ErrServerFailed
 	}
 
 	for {
 		done, err := T.query0(peer)
 		if err != nil {
+			// TODO(garet) return to normal state
+			return err
+		}
+		if done {
+			break
+		}
+	}
+	return nil
+}
+
+func (T *Server) functionCall0(peer pnet.ReadWriter) (bool, perror.Error) {
+	in, err := T.Read()
+	if err != nil {
+		T.fail()
+		return false, ErrServerFailed
+	}
+
+	switch in.Type() {
+	case packet.ErrorResponse, packet.FunctionCallResponse, packet.NoticeResponse:
+		err = pnet.ProxyPacket(peer, in)
+		return false, perror.Wrap(err)
+	case packet.ReadyForQuery:
+		err = pnet.ProxyPacket(peer, in)
+		return true, perror.Wrap(err)
+	default:
+		T.fail()
+		return false, ErrServerFailed
+	}
+}
+
+func (T *Server) functionCall(peer pnet.ReadWriter, in packet.In) perror.Error {
+	// send in (FunctionCall) to server
+	err := pnet.ProxyPacket(T, in)
+	if err != nil {
+		T.fail()
+		return ErrServerFailed
+	}
+
+	for {
+		done, err := T.functionCall0(peer)
+		if err != nil {
+			// TODO(garet) return to normal state
 			return err
 		}
 		if done {
@@ -389,6 +495,8 @@ func (T *Server) Transaction(peer pnet.ReadWriter) perror.Error {
 	switch in.Type() {
 	case packet.Query:
 		return T.query(peer, in)
+	case packet.FunctionCall:
+		return T.functionCall(peer, in)
 	default:
 		return perror.New(
 			perror.FATAL,
