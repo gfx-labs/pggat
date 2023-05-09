@@ -13,7 +13,6 @@ import (
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
 	"pggat2/lib/pnet/packet/packets/v3.0"
-	"pggat2/lib/util/decorator"
 )
 
 var ErrServerFailed = perror.New(
@@ -23,8 +22,6 @@ var ErrServerFailed = perror.New(
 )
 
 type Server struct {
-	noCopy decorator.NoCopy
-
 	conn net.Conn
 
 	pnet.IOReader

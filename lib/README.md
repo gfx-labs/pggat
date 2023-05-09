@@ -24,8 +24,5 @@ Packet reading/writing helpers
 ## rob
 A fair-share scheduler
 
-## router
-Routing between frontends and backends
-
 ## util
 Project generic helper structures and functions

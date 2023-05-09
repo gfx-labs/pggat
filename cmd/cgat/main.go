@@ -10,8 +10,8 @@ import (
 	"pggat2/lib/frontend/frontends/v0"
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
-	"pggat2/lib/router"
-	"pggat2/lib/router/routers/v0"
+	"pggat2/lib/rob"
+	"pggat2/lib/rob/schedulers/v2"
 )
 
 type testPacket struct {
@@ -70,7 +70,7 @@ func (T *LogWriter) Write() packet.Out {
 
 var _ pnet.Writer = (*LogWriter)(nil)
 
-func makeTestServer(r router.Router) {
+func testServer(r rob.Scheduler) {
 	conn, err := net.Dial("tcp", "localhost:5432")
 	if err != nil {
 		panic(err)
@@ -79,12 +79,11 @@ func makeTestServer(r router.Router) {
 	if server == nil {
 		panic("failed to connect to server")
 	}
-	go func() {
-		handler := r.NewHandler(true)
-		for {
-			server.Handle(handler.Next())
-		}
-	}()
+
+	sink := r.NewSink(0)
+	for {
+		server.Handle(sink.Read().(pnet.ReadWriter))
+	}
 }
 
 func main() {
@@ -92,8 +91,8 @@ func main() {
 		panic(http.ListenAndServe(":8080", nil))
 	}()
 
-	r := routers.MakeRouter()
-	makeTestServer(&r)
+	r := schedulers.MakeScheduler()
+	go testServer(&r)
 
 	listener, err := net.Listen("tcp", "0.0.0.0:6432") // TODO(garet) make this configurable
 	if err != nil {
@@ -108,7 +107,7 @@ func main() {
 			source := r.NewSource()
 			client := frontends.NewClient(conn)
 			for {
-				source.Handle(client, false)
+				source.Schedule(client, 0)
 			}
 		}()
 	}
