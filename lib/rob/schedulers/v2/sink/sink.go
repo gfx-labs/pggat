@@ -14,15 +14,15 @@ type Sink struct {
 	queue *queue.Queue
 }
 
-func NewSink(id uuid.UUID, p *pool.Pool, q *queue.Queue) *Sink {
-	return &Sink{
+func MakeSink(id uuid.UUID, p *pool.Pool, q *queue.Queue) Sink {
+	return Sink{
 		id:    id,
 		pool:  p,
 		queue: q,
 	}
 }
 
-func (T *Sink) findWork() {
+func (T Sink) findWork() {
 	T.pool.StealFor(T.id)
 	// see if we stole some work
 	if T.queue.HasWork() {
@@ -32,7 +32,7 @@ func (T *Sink) findWork() {
 	<-T.queue.Ready()
 }
 
-func (T *Sink) Read() any {
+func (T Sink) Read() any {
 	for {
 		v, ok := T.queue.Read()
 		if ok {
@@ -42,4 +42,4 @@ func (T *Sink) Read() any {
 	}
 }
 
-var _ rob.Sink = (*Sink)(nil)
+var _ rob.Sink = Sink{}

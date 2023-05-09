@@ -13,14 +13,14 @@ type Source struct {
 	pool *pool.Pool
 }
 
-func NewSource(p *pool.Pool) *Source {
-	return &Source{
+func MakeSource(p *pool.Pool) Source {
+	return Source{
 		uuid: uuid.New(),
 		pool: p,
 	}
 }
 
-func (T *Source) Schedule(work any, constraints rob.Constraints) {
+func (T Source) Schedule(work any, constraints rob.Constraints) {
 	T.pool.Schedule(job.Job{
 		Source:      T.uuid,
 		Work:        work,
@@ -28,4 +28,4 @@ func (T *Source) Schedule(work any, constraints rob.Constraints) {
 	})
 }
 
-var _ rob.Source = (*Source)(nil)
+var _ rob.Source = Source{}

@@ -3,10 +3,13 @@ package main
 import (
 	"io"
 	"net"
+	"sync"
 
 	"pggat2/lib/backend/backends/v0"
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
+	"pggat2/lib/router"
+	"pggat2/lib/router/routers/v0"
 )
 
 type testPacket struct {
@@ -65,6 +68,25 @@ func (T *LogWriter) Write() packet.Out {
 
 var _ pnet.Writer = (*LogWriter)(nil)
 
+func makeTestServer(r router.Router, wg *sync.WaitGroup) {
+	conn, err := net.Dial("tcp", "localhost:5432")
+	if err != nil {
+		panic(err)
+	}
+	server := backends.NewServer(conn)
+	if server == nil {
+		panic("failed to connect to server")
+	}
+	go func() {
+		handler := r.NewHandler(true)
+		for {
+			peer := handler.Next()
+			server.Handle(peer)
+			wg.Done()
+		}
+	}()
+}
+
 func main() {
 	/*
 		frontend, err := frontends.NewListener()
@@ -76,14 +98,12 @@ func main() {
 			panic(err)
 		}
 	*/
-	conn, err := net.Dial("tcp", "localhost:5432")
-	if err != nil {
-		panic(err)
-	}
-	server := backends.NewServer(conn)
-	if server == nil {
-		panic("failed to connect to server")
-	}
+	r := routers.MakeRouter()
+	var wg sync.WaitGroup
+	makeTestServer(&r, &wg)
+	// makeTestServer(&r, &wg)
+
+	src := r.NewSource()
 	readWriter := pnet.JoinedReadWriter{
 		Reader: &TestReader{
 			packets: []testPacket{
@@ -103,19 +123,10 @@ func main() {
 		},
 		Writer: &LogWriter{},
 	}
-	perr := server.Transaction(readWriter)
-	if perr != nil {
-		panic(perr)
-	}
-	perr = server.Transaction(readWriter)
-	if perr != nil {
-		panic(perr)
-	}
-	perr = server.Transaction(readWriter)
-	if perr != nil {
-		panic(perr)
-	}
+	wg.Add(3)
+	src.Handle(readWriter, true)
+	src.Handle(readWriter, true)
+	src.Handle(readWriter, true)
+	wg.Wait()
 	// log.Println(server)
-	_ = server
-	_ = conn.Close()
 }

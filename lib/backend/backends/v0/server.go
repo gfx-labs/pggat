@@ -486,8 +486,7 @@ func (T *Server) functionCall(peer pnet.ReadWriter, in packet.In) perror.Error {
 	return nil
 }
 
-// Transaction handles a transaction from peer, returning when the transaction is complete
-func (T *Server) Transaction(peer pnet.ReadWriter) perror.Error {
+func (T *Server) handle(peer pnet.ReadWriter) perror.Error {
 	in, err := peer.Read()
 	if err != nil {
 		return perror.Wrap(err)
@@ -503,6 +502,16 @@ func (T *Server) Transaction(peer pnet.ReadWriter) perror.Error {
 			perror.FeatureNotSupported,
 			"unsupported operation",
 		)
+	}
+}
+
+// Handle handles a transaction from peer, returning when the transaction is complete
+func (T *Server) Handle(peer pnet.ReadWriter) {
+	err := T.handle(peer)
+	if err != nil {
+		out := T.Write()
+		packets.WriteErrorResponse(out, err)
+		_ = out.Send()
 	}
 }
 

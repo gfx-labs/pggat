@@ -13,20 +13,25 @@ type Scheduler struct {
 	pool pool.Pool
 }
 
-func NewScheduler() *Scheduler {
-	return &Scheduler{
+func MakeScheduler() Scheduler {
+	return Scheduler{
 		pool: pool.MakePool(),
 	}
+}
+
+func NewScheduler() *Scheduler {
+	scheduler := MakeScheduler()
+	return &scheduler
 }
 
 func (T *Scheduler) NewSink(fulfills rob.Constraints) rob.Sink {
 	id := uuid.New()
 	q := T.pool.NewQueue(id, fulfills)
-	return sink.NewSink(id, &T.pool, q)
+	return sink.MakeSink(id, &T.pool, q)
 }
 
 func (T *Scheduler) NewSource() rob.Source {
-	return source.NewSource(&T.pool)
+	return source.MakeSource(&T.pool)
 }
 
 var _ rob.Scheduler = (*Scheduler)(nil)
