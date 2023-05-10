@@ -7,8 +7,9 @@ import (
 
 	"pggat2/lib/backend/backends/v0"
 	"pggat2/lib/bouncer/bouncers/v0"
-	"pggat2/lib/frontend/frontends/v0"
+	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/middleware/middlewares/unread"
+	"pggat2/lib/middleware/middlewares/unterminate"
 	"pggat2/lib/pnet"
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v2"
@@ -59,12 +60,13 @@ func main() {
 		}
 		go func() {
 			source := r.NewSource()
-			client := frontends.NewClient(conn)
-			defer client.Close(nil)
+			client := pnet.MakeIOReadWriter(conn)
+			ut := unterminate.MakeUnterminate(&client)
+			frontends.Accept(ut)
 			done := make(chan struct{})
 			defer close(done)
 			for {
-				u, err := unread.NewUnread(client)
+				u, err := unread.NewUnread(ut)
 				if err != nil {
 					break
 				}

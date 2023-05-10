@@ -32,6 +32,10 @@ func (T Consumer) Write() packet.Out {
 	return T.inner.Write().WithSender(T)
 }
 
+func (T Consumer) WriteByte(b byte) error {
+	return T.inner.WriteByte(b)
+}
+
 func (T Consumer) Send(typ packet.Type, bytes []byte) error {
 	buf := packet.MakeInBuf(typ, bytes)
 	in := packet.MakeIn(&buf)

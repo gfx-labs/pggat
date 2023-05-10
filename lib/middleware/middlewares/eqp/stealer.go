@@ -36,6 +36,10 @@ func (T *Stealer) Write() packet.Out {
 	return T.consumer.Write().WithSender(T)
 }
 
+func (T *Stealer) WriteByte(b byte) error {
+	return T.consumer.WriteByte(b)
+}
+
 func (T *Stealer) bindPreparedStatement(target string, preparedStatement PreparedStatement) error {
 	T.buf.Reset()
 	out := packet.MakeOut(&T.buf, T.consumer)

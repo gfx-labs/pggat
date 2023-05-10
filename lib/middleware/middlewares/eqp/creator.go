@@ -95,6 +95,10 @@ func (T Creator) Write() packet.Out {
 	return T.inner.Write()
 }
 
+func (T Creator) WriteByte(b byte) error {
+	return T.inner.WriteByte(b)
+}
+
 func (T Creator) Send(typ packet.Type, payload []byte) error {
 	return T.inner.Send(typ, payload)
 }

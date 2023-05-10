@@ -281,6 +281,10 @@ func (T *Server) Write() packet.Out {
 	return T.writer.Write()
 }
 
+func (T *Server) WriteByte(b byte) error {
+	return T.writer.WriteByte(b)
+}
+
 func (T *Server) Send(typ packet.Type, payload []byte) error {
 	return T.writer.Send(typ, payload)
 }

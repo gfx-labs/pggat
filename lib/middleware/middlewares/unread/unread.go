@@ -53,6 +53,10 @@ func (T *Unread) Write() packet.Out {
 	return T.inner.Write()
 }
 
+func (T *Unread) WriteByte(b byte) error {
+	return T.inner.WriteByte(b)
+}
+
 func (T *Unread) Send(typ packet.Type, bytes []byte) error {
 	return T.inner.Send(typ, bytes)
 }
