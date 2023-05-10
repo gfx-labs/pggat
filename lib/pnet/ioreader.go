@@ -14,7 +14,7 @@ type IOReader struct {
 	reader io.Reader
 	// header buffer for reading packet headers
 	// (allocating within Read would escape to heap)
-	header [4]byte
+	header [5]byte
 
 	buf     packet.InBuf
 	payload []byte
@@ -22,8 +22,7 @@ type IOReader struct {
 
 func MakeIOReader(reader io.Reader) IOReader {
 	return IOReader{
-		reader:  reader,
-		payload: make([]byte, 1024),
+		reader: reader,
 	}
 }
 
@@ -35,7 +34,8 @@ func NewIOReader(reader io.Reader) *IOReader {
 // Read fetches the next packet from the underlying io.Reader and gives you a packet.In
 // Calling Read will invalidate all other packet.In's for this IOReader
 func (T *IOReader) Read() (packet.In, error) {
-	typ, err := T.ReadByte()
+	// read header
+	_, err := io.ReadFull(T.reader, T.header[:])
 	if err != nil {
 		return packet.In{}, err
 	}
@@ -46,7 +46,7 @@ func (T *IOReader) Read() (packet.In, error) {
 	}
 
 	T.buf.Reset(
-		packet.Type(typ),
+		packet.Type(T.header[0]),
 		T.payload,
 	)
 
@@ -59,7 +59,13 @@ func (T *IOReader) Read() (packet.In, error) {
 
 // ReadUntyped is similar to Read, but it doesn't read a packet.Type
 func (T *IOReader) ReadUntyped() (packet.In, error) {
-	err := T.readPayload()
+	// read header
+	_, err := io.ReadFull(T.reader, T.header[1:])
+	if err != nil {
+		return packet.In{}, err
+	}
+
+	err = T.readPayload()
 	if err != nil {
 		return packet.In{}, err
 	}
@@ -77,22 +83,12 @@ func (T *IOReader) ReadUntyped() (packet.In, error) {
 }
 
 func (T *IOReader) readPayload() error {
-	if T.payload == nil {
-		panic("Previous Read was never finished")
-	}
-
-	// read length int32
-	_, err := io.ReadFull(T.reader, T.header[:])
-	if err != nil {
-		return err
-	}
-
-	length := binary.BigEndian.Uint32(T.header[:]) - 4
+	length := binary.BigEndian.Uint32(T.header[1:]) - 4
 
 	// resize body to length
 	T.payload = slices.Resize(T.payload, int(length))
 	// read body
-	_, err = io.ReadFull(T.reader, T.payload)
+	_, err := io.ReadFull(T.reader, T.payload)
 	if err != nil {
 		return err
 	}

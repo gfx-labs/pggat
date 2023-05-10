@@ -13,7 +13,7 @@ type IOWriter struct {
 	writer io.Writer
 	// header buffer for writing packet headers
 	// (allocating within Write would escape to heap)
-	header [4]byte
+	header [5]byte
 
 	buf packet.OutBuf
 }
@@ -49,23 +49,25 @@ func (T *IOWriter) write(typ packet.Type, payload []byte) error {
 		log.Println("write untyped packet", payload)
 	} */
 
-	// write type byte (if present)
+	// prepare header
+	T.header[0] = byte(typ)
+	binary.BigEndian.PutUint32(T.header[1:], uint32(len(payload)+4))
+
+	// write header
 	if typ != packet.None {
-		err := T.WriteByte(byte(typ))
+		_, err := T.writer.Write(T.header[:])
+		if err != nil {
+			return err
+		}
+	} else {
+		_, err := T.writer.Write(T.header[1:])
 		if err != nil {
 			return err
 		}
 	}
 
-	// write len+4
-	binary.BigEndian.PutUint32(T.header[:], uint32(len(payload)+4))
-	_, err := T.writer.Write(T.header[:])
-	if err != nil {
-		return err
-	}
-
 	// write payload
-	_, err = T.writer.Write(payload)
+	_, err := T.writer.Write(payload)
 	if err != nil {
 		return err
 	}

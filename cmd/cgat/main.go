@@ -2,7 +2,6 @@ package main
 
 import (
 	"io"
-	"log"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -117,11 +116,12 @@ func main() {
 		go func() {
 			source := r.NewSource()
 			client := frontends.NewClient(conn)
+			defer client.Close(nil)
 			done := make(chan struct{})
+			defer close(done)
 			for {
 				reader, err := pnet.PreRead(client)
 				if err != nil {
-					log.Println("failed", err)
 					break
 				}
 				source.Schedule(job{

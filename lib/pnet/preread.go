@@ -4,6 +4,8 @@ import (
 	"pggat2/lib/pnet/packet"
 )
 
+// PreRead returns a buffered reader containing the first packet
+// useful for waiting for a full packet before actually doing work
 func PreRead(reader Reader) (Reader, error) {
 	in, err := reader.Read()
 	if err != nil {
@@ -12,6 +14,7 @@ func PreRead(reader Reader) (Reader, error) {
 	return newPolled(in, reader), nil
 }
 
+// PreReadUntyped does the same thing as PreReadUntyped but uses Reader.ReadUntyped
 func PreReadUntyped(reader Reader) (Reader, error) {
 	in, err := reader.ReadUntyped()
 	if err != nil {
@@ -20,20 +23,20 @@ func PreReadUntyped(reader Reader) (Reader, error) {
 	return newPolled(in, reader), nil
 }
 
-type polled struct {
+type preRead struct {
 	in     packet.In
 	read   bool
 	reader Reader
 }
 
-func newPolled(in packet.In, reader Reader) *polled {
-	return &polled{
+func newPolled(in packet.In, reader Reader) *preRead {
+	return &preRead{
 		in:     in,
 		reader: reader,
 	}
 }
 
-func (T *polled) Read() (packet.In, error) {
+func (T *preRead) Read() (packet.In, error) {
 	if !T.read {
 		T.read = true
 		return T.in, nil
@@ -41,7 +44,7 @@ func (T *polled) Read() (packet.In, error) {
 	return T.reader.Read()
 }
 
-func (T *polled) ReadUntyped() (packet.In, error) {
+func (T *preRead) ReadUntyped() (packet.In, error) {
 	if !T.read {
 		T.read = true
 		return T.in, nil
@@ -49,4 +52,4 @@ func (T *polled) ReadUntyped() (packet.In, error) {
 	return T.reader.ReadUntyped()
 }
 
-var _ Reader = (*polled)(nil)
+var _ Reader = (*preRead)(nil)
