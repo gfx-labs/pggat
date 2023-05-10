@@ -1,4 +1,4 @@
-package frontends
+package eqp
 
 type PreparedStatement struct {
 	Query              string

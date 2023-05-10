@@ -15,6 +15,13 @@ type InBuf struct {
 	rev    int
 }
 
+func MakeInBuf(typ Type, buf []byte) InBuf {
+	return InBuf{
+		typ: typ,
+		buf: buf,
+	}
+}
+
 func (T *InBuf) Reset(
 	typ Type,
 	buf []byte,

@@ -9,6 +9,7 @@ import (
 
 	"pggat2/lib/auth/md5"
 	"pggat2/lib/auth/sasl"
+	"pggat2/lib/eqp"
 	"pggat2/lib/frontend"
 	"pggat2/lib/perror"
 	"pggat2/lib/pnet"
@@ -22,8 +23,8 @@ type Client struct {
 
 	conn net.Conn
 
-	pnet.IOReader
-	pnet.IOWriter
+	reader pnet.IOReader
+	writer pnet.IOWriter
 
 	user     string
 	database string
@@ -31,24 +32,34 @@ type Client struct {
 	// cancellation key data
 	cancellationKey    [8]byte
 	parameters         map[string]string
-	preparedStatements map[string]PreparedStatement
-	portals            map[string]Portal
+	preparedStatements map[string]eqp.PreparedStatement
+	portals            map[string]eqp.Portal
 }
 
 func NewClient(conn net.Conn) *Client {
 	client := &Client{
 		conn:               conn,
-		IOReader:           pnet.MakeIOReader(conn),
-		IOWriter:           pnet.MakeIOWriter(conn),
+		reader:             pnet.MakeIOReader(conn),
+		writer:             pnet.MakeIOWriter(conn),
 		parameters:         make(map[string]string),
-		preparedStatements: make(map[string]PreparedStatement),
-		portals:            make(map[string]Portal),
+		preparedStatements: make(map[string]eqp.PreparedStatement),
+		portals:            make(map[string]eqp.Portal),
 	}
 	err := client.accept()
 	if err != nil {
 		client.Close(err)
 	}
 	return client
+}
+
+func (T *Client) GetPreparedStatement(name string) (eqp.PreparedStatement, bool) {
+	v, ok := T.preparedStatements[name]
+	return v, ok
+}
+
+func (T *Client) GetPortal(name string) (eqp.Portal, bool) {
+	v, ok := T.portals[name]
+	return v, ok
 }
 
 func (T *Client) startup0() (bool, perror.Error) {
@@ -78,11 +89,11 @@ func (T *Client) startup0() (bool, perror.Error) {
 			)
 		case 5679:
 			// SSL is not supported yet
-			err = T.WriteByte('N')
+			err = T.writer.WriteByte('N')
 			return false, perror.Wrap(err)
 		case 5680:
 			// GSSAPI is not supported yet
-			err = T.WriteByte('N')
+			err = T.writer.WriteByte('N')
 			return false, perror.Wrap(err)
 		default:
 			return false, perror.New(
@@ -441,9 +452,33 @@ func (T *Client) accept() perror.Error {
 	return nil
 }
 
+func (T *Client) Wait() error {
+	_, err := T.conn.Read(nil)
+	return err
+}
+
+func (T *Client) Write() packet.Out {
+	T.writer.WriteFunc(T.write)
+	return T.writer.Write()
+}
+
+func (T *Client) write(typ packet.Type, payload []byte) error {
+	inBuf := packet.MakeInBuf(typ, payload)
+	in := packet.MakeIn(&inBuf)
+	switch in.Type() {
+	case packet.ParameterStatus:
+		parameter, value, ok := packets.ReadParameterStatus(in)
+		if !ok {
+			return errors.New("bad packet format")
+		}
+		T.parameters[parameter] = value
+	}
+	return T.writer.WriteRaw(typ, payload)
+}
+
 func (T *Client) Read() (packet.In, error) {
 	for {
-		in, err := T.IOReader.Read()
+		in, err := T.reader.Read()
 		if err != nil {
 			return packet.In{}, err
 		}
@@ -461,7 +496,7 @@ func (T *Client) Read() (packet.In, error) {
 			if !ok {
 				return packet.In{}, errors.New("bad packet format")
 			}
-			T.preparedStatements[destination] = PreparedStatement{
+			T.preparedStatements[destination] = eqp.PreparedStatement{
 				Query:              query,
 				ParameterDataTypes: parameterDataTypes,
 			}
@@ -470,7 +505,7 @@ func (T *Client) Read() (packet.In, error) {
 			if !ok {
 				return packet.In{}, errors.New("bad packet format")
 			}
-			T.portals[destination] = Portal{
+			T.portals[destination] = eqp.Portal{
 				Source:               source,
 				ParameterFormatCodes: parameterFormatCodes,
 				ParameterValues:      parameterValues,
@@ -493,6 +528,10 @@ func (T *Client) Read() (packet.In, error) {
 			return in, nil
 		}
 	}
+}
+
+func (T *Client) ReadUntyped() (packet.In, error) {
+	return T.reader.ReadUntyped()
 }
 
 func (T *Client) Close(err perror.Error) {

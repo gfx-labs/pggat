@@ -1,4 +1,4 @@
-package frontends
+package eqp
 
 type Portal struct {
 	Source               string

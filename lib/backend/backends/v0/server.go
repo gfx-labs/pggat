@@ -9,6 +9,8 @@ import (
 	"pggat2/lib/auth/md5"
 	"pggat2/lib/auth/sasl"
 	"pggat2/lib/backend"
+	"pggat2/lib/eqp"
+	"pggat2/lib/frontend"
 	"pggat2/lib/perror"
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
@@ -24,19 +26,23 @@ var ErrServerFailed = perror.New(
 type Server struct {
 	conn net.Conn
 
-	pnet.IOReader
-	pnet.IOWriter
+	reader pnet.IOReader
+	writer pnet.IOWriter
 
-	cancellationKey [8]byte
-	parameters      map[string]string
+	cancellationKey    [8]byte
+	parameters         map[string]string
+	preparedStatements map[string]eqp.PreparedStatement
+	portals            map[string]eqp.Portal
 }
 
 func NewServer(conn net.Conn) *Server {
 	server := &Server{
-		conn:       conn,
-		IOReader:   pnet.MakeIOReader(conn),
-		IOWriter:   pnet.MakeIOWriter(conn),
-		parameters: make(map[string]string),
+		conn:               conn,
+		reader:             pnet.MakeIOReader(conn),
+		writer:             pnet.MakeIOWriter(conn),
+		parameters:         make(map[string]string),
+		preparedStatements: make(map[string]eqp.PreparedStatement),
+		portals:            make(map[string]eqp.Portal),
 	}
 	err := server.accept()
 	if err != nil {
@@ -296,7 +302,7 @@ func (T *Server) fail() {
 	debug.PrintStack()
 }
 
-func (T *Server) copyIn0(peer pnet.ReadWriter) (bool, perror.Error) {
+func (T *Server) copyIn0(peer frontend.Client) (bool, perror.Error) {
 	in, err := peer.Read()
 	if err != nil {
 		return false, perror.Wrap(err)
@@ -322,7 +328,7 @@ func (T *Server) copyIn0(peer pnet.ReadWriter) (bool, perror.Error) {
 	}
 }
 
-func (T *Server) copyIn(peer pnet.ReadWriter, in packet.In) perror.Error {
+func (T *Server) copyIn(peer frontend.Client, in packet.In) perror.Error {
 	// send in (copyInResponse) to client
 	err := pnet.ProxyPacket(peer, in)
 	if err != nil {
@@ -343,7 +349,7 @@ func (T *Server) copyIn(peer pnet.ReadWriter, in packet.In) perror.Error {
 	return nil
 }
 
-func (T *Server) copyOut0(peer pnet.ReadWriter) (bool, perror.Error) {
+func (T *Server) copyOut0(peer frontend.Client) (bool, perror.Error) {
 	in, err := T.Read()
 	if err != nil {
 		T.fail()
@@ -363,7 +369,7 @@ func (T *Server) copyOut0(peer pnet.ReadWriter) (bool, perror.Error) {
 	}
 }
 
-func (T *Server) copyOut(peer pnet.ReadWriter, in packet.In) perror.Error {
+func (T *Server) copyOut(peer frontend.Client, in packet.In) perror.Error {
 	// send in (copyOutResponse) to server
 	err := pnet.ProxyPacket(T, in)
 	if err != nil {
@@ -385,7 +391,7 @@ func (T *Server) copyOut(peer pnet.ReadWriter, in packet.In) perror.Error {
 	return nil
 }
 
-func (T *Server) query0(peer pnet.ReadWriter) (bool, perror.Error) {
+func (T *Server) query0(peer frontend.Client) (bool, perror.Error) {
 	in, err := T.Read()
 	if err != nil {
 		T.fail()
@@ -421,7 +427,7 @@ func (T *Server) query0(peer pnet.ReadWriter) (bool, perror.Error) {
 	}
 }
 
-func (T *Server) query(peer pnet.ReadWriter, in packet.In) perror.Error {
+func (T *Server) query(peer frontend.Client, in packet.In) perror.Error {
 	// send in (initial query) to server
 	err := pnet.ProxyPacket(T, in)
 	if err != nil {
@@ -442,7 +448,7 @@ func (T *Server) query(peer pnet.ReadWriter, in packet.In) perror.Error {
 	return nil
 }
 
-func (T *Server) functionCall0(peer pnet.ReadWriter) (bool, perror.Error) {
+func (T *Server) functionCall0(peer frontend.Client) (bool, perror.Error) {
 	in, err := T.Read()
 	if err != nil {
 		T.fail()
@@ -462,7 +468,7 @@ func (T *Server) functionCall0(peer pnet.ReadWriter) (bool, perror.Error) {
 	}
 }
 
-func (T *Server) functionCall(peer pnet.ReadWriter, in packet.In) perror.Error {
+func (T *Server) functionCall(peer frontend.Client, in packet.In) perror.Error {
 	// send in (FunctionCall) to server
 	err := pnet.ProxyPacket(T, in)
 	if err != nil {
@@ -483,7 +489,7 @@ func (T *Server) functionCall(peer pnet.ReadWriter, in packet.In) perror.Error {
 	return nil
 }
 
-func (T *Server) handle(peer pnet.ReadWriter) perror.Error {
+func (T *Server) handle(peer frontend.Client) perror.Error {
 	in, err := peer.Read()
 	if err != nil {
 		return perror.Wrap(err)
@@ -493,6 +499,12 @@ func (T *Server) handle(peer pnet.ReadWriter) perror.Error {
 		return T.query(peer, in)
 	case packet.FunctionCall:
 		return T.functionCall(peer, in)
+	case packet.Sync:
+		// TODO(garet) send ready for query
+		return nil
+	case packet.Flush:
+		// nothing really to do
+		return nil
 	default:
 		return perror.New(
 			perror.FATAL,
@@ -503,13 +515,30 @@ func (T *Server) handle(peer pnet.ReadWriter) perror.Error {
 }
 
 // Handle handles a transaction from peer, returning when the transaction is complete
-func (T *Server) Handle(peer pnet.ReadWriter) {
+func (T *Server) Handle(peer frontend.Client) {
 	err := T.handle(peer)
 	if err != nil {
 		out := peer.Write()
 		packets.WriteErrorResponse(out, err)
 		_ = out.Send()
 	}
+}
+
+func (T *Server) Write() packet.Out {
+	T.writer.WriteFunc(T.write)
+	return T.writer.Write()
+}
+
+func (T *Server) write(typ packet.Type, payload []byte) error {
+	return T.writer.WriteRaw(typ, payload)
+}
+
+func (T *Server) Read() (packet.In, error) {
+	return T.reader.Read()
+}
+
+func (T *Server) ReadUntyped() (packet.In, error) {
+	return T.reader.ReadUntyped()
 }
 
 var _ backend.Server = (*Server)(nil)

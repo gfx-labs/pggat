@@ -33,7 +33,7 @@ func NewIOWriter(writer io.Writer) *IOWriter {
 // Calling Write will invalidate all other packet.Out's for this IOWriter
 func (T *IOWriter) Write() packet.Out {
 	if !T.buf.Initialized() {
-		T.buf.Initialize(T.write)
+		T.buf.Initialize(T.WriteRaw)
 	}
 	T.buf.Reset()
 
@@ -42,7 +42,11 @@ func (T *IOWriter) Write() packet.Out {
 	)
 }
 
-func (T *IOWriter) write(typ packet.Type, payload []byte) error {
+func (T *IOWriter) WriteFunc(f func(packet.Type, []byte) error) {
+	T.buf.Initialize(f)
+}
+
+func (T *IOWriter) WriteRaw(typ packet.Type, payload []byte) error {
 	/* if typ != packet.None {
 		log.Printf("write typed packet %c %v\n", typ, payload)
 	} else {

@@ -6,15 +6,15 @@ import (
 	_ "net/http/pprof"
 
 	"pggat2/lib/backend/backends/v0"
+	"pggat2/lib/frontend"
 	"pggat2/lib/frontend/frontends/v0"
-	"pggat2/lib/pnet"
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v2"
 )
 
 type job struct {
-	rw   pnet.ReadWriter
-	done chan<- struct{}
+	client frontend.Client
+	done   chan<- struct{}
 }
 
 func testServer(r rob.Scheduler) {
@@ -30,7 +30,7 @@ func testServer(r rob.Scheduler) {
 	sink := r.NewSink(0)
 	for {
 		j := sink.Read().(job)
-		server.Handle(j.rw)
+		server.Handle(j.client)
 		select {
 		case j.done <- struct{}{}:
 		default:
@@ -62,16 +62,13 @@ func main() {
 			done := make(chan struct{})
 			defer close(done)
 			for {
-				reader, err := pnet.PreRead(client)
+				err := client.Wait()
 				if err != nil {
 					break
 				}
 				source.Schedule(job{
-					rw: pnet.JoinedReadWriter{
-						Reader: reader,
-						Writer: client,
-					},
-					done: done,
+					client: client,
+					done:   done,
 				}, 0)
 				<-done
 			}
