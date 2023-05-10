@@ -5,7 +5,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
-	"pggat2/lib/backend/backends/v0"
+	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/bouncers/v0"
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/middleware/middlewares/unread"
@@ -25,15 +25,12 @@ func testServer(r rob.Scheduler) {
 	if err != nil {
 		panic(err)
 	}
-	server := backends.NewServer(conn)
-	if server == nil {
-		panic("failed to connect to server")
-	}
-
+	server := pnet.MakeIOReadWriter(conn)
+	backends.Accept(&server)
 	sink := r.NewSink(0)
 	for {
 		j := sink.Read().(job)
-		bouncers.Bounce(j.client, server)
+		bouncers.Bounce(j.client, &server)
 		select {
 		case j.done <- struct{}{}:
 		default:
