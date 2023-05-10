@@ -45,7 +45,7 @@ func (T Creator) Read() (packet.In, error) {
 			// send parse complete
 			out := T.inner.Write()
 			out.Type(packet.ParseComplete)
-			err = out.Send()
+			err = T.inner.Send(out.Finish())
 			if err != nil {
 				return packet.In{}, err
 			}
@@ -64,7 +64,7 @@ func (T Creator) Read() (packet.In, error) {
 			// send bind complete
 			out := T.inner.Write()
 			out.Type(packet.BindComplete)
-			err = out.Send()
+			err = T.inner.Send(out.Finish())
 			if err != nil {
 				return packet.In{}, err
 			}
