@@ -458,11 +458,11 @@ func (T *Client) Wait() error {
 }
 
 func (T *Client) Write() packet.Out {
-	T.writer.WriteFunc(T.write)
-	return T.writer.Write()
+	out := T.writer.Write()
+	return out.WithSender(T)
 }
 
-func (T *Client) write(typ packet.Type, payload []byte) error {
+func (T *Client) Send(typ packet.Type, payload []byte) error {
 	inBuf := packet.MakeInBuf(typ, payload)
 	in := packet.MakeIn(&inBuf)
 	switch in.Type() {
@@ -473,7 +473,7 @@ func (T *Client) write(typ packet.Type, payload []byte) error {
 		}
 		T.parameters[parameter] = value
 	}
-	return T.writer.WriteRaw(typ, payload)
+	return T.writer.Send(typ, payload)
 }
 
 func (T *Client) Read() (packet.In, error) {

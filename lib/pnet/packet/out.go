@@ -12,15 +12,6 @@ type OutBuf struct {
 	typ    Type
 	buf    []byte
 	rev    int
-	finish func(Type, []byte) error
-}
-
-func (T *OutBuf) Initialized() bool {
-	return T.finish != nil
-}
-
-func (T *OutBuf) Initialize(finish func(Type, []byte) error) {
-	T.finish = finish
 }
 
 func (T *OutBuf) Reset() {
@@ -30,16 +21,35 @@ func (T *OutBuf) Reset() {
 }
 
 type Out struct {
-	buf *OutBuf
-	rev int
+	buf    *OutBuf
+	rev    int
+	sender Sender
 }
 
 func MakeOut(
 	buf *OutBuf,
+	sender Sender,
 ) Out {
+	if sender == nil {
+		panic("sender cannot be nil")
+	}
 	return Out{
-		buf: buf,
-		rev: buf.rev,
+		buf:    buf,
+		rev:    buf.rev,
+		sender: sender,
+	}
+}
+
+func (T Out) WithSender(
+	sender Sender,
+) Out {
+	if sender == nil {
+		panic("sender cannot be nil")
+	}
+	return Out{
+		buf:    T.buf,
+		rev:    T.rev,
+		sender: sender,
 	}
 }
 
@@ -133,5 +143,5 @@ func (T Out) Send() error {
 		panic("Send called twice")
 	}
 	T.buf.rev++
-	return T.buf.finish(T.buf.typ, T.buf.buf)
+	return T.sender.Send(T.buf.typ, T.buf.buf)
 }

@@ -525,12 +525,12 @@ func (T *Server) Handle(peer frontend.Client) {
 }
 
 func (T *Server) Write() packet.Out {
-	T.writer.WriteFunc(T.write)
-	return T.writer.Write()
+	out := T.writer.Write()
+	return out.WithSender(T)
 }
 
-func (T *Server) write(typ packet.Type, payload []byte) error {
-	return T.writer.WriteRaw(typ, payload)
+func (T *Server) Send(typ packet.Type, payload []byte) error {
+	return T.writer.Send(typ, payload)
 }
 
 func (T *Server) Read() (packet.In, error) {
