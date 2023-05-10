@@ -17,6 +17,13 @@ type Stealer struct {
 	buf packet.OutBuf
 }
 
+func NewStealer(consumer Consumer, creator Creator) *Stealer {
+	return &Stealer{
+		creator:  creator,
+		consumer: consumer,
+	}
+}
+
 func (T *Stealer) Read() (packet.In, error) {
 	return T.consumer.Read()
 }

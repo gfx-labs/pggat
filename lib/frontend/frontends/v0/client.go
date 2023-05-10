@@ -2,8 +2,6 @@ package frontends
 
 import (
 	"crypto/rand"
-	"errors"
-	"io"
 	"net"
 	"strings"
 
@@ -458,76 +456,15 @@ func (T *Client) Wait() error {
 }
 
 func (T *Client) Write() packet.Out {
-	out := T.writer.Write()
-	return out.WithSender(T)
+	return T.writer.Write()
 }
 
 func (T *Client) Send(typ packet.Type, payload []byte) error {
-	inBuf := packet.MakeInBuf(typ, payload)
-	in := packet.MakeIn(&inBuf)
-	switch in.Type() {
-	case packet.ParameterStatus:
-		parameter, value, ok := packets.ReadParameterStatus(in)
-		if !ok {
-			return errors.New("bad packet format")
-		}
-		T.parameters[parameter] = value
-	}
 	return T.writer.Send(typ, payload)
 }
 
 func (T *Client) Read() (packet.In, error) {
-	for {
-		in, err := T.reader.Read()
-		if err != nil {
-			return packet.In{}, err
-		}
-		switch in.Type() {
-		case packet.Terminate:
-			T.Close(nil)
-			return packet.In{}, io.EOF
-		case packet.Query:
-			// clobber unnamed portal and unnamed prepared statement
-			delete(T.preparedStatements, "")
-			delete(T.portals, "")
-			return in, nil
-		case packet.Parse:
-			destination, query, parameterDataTypes, ok := packets.ReadParse(in)
-			if !ok {
-				return packet.In{}, errors.New("bad packet format")
-			}
-			T.preparedStatements[destination] = eqp.PreparedStatement{
-				Query:              query,
-				ParameterDataTypes: parameterDataTypes,
-			}
-		case packet.Bind:
-			destination, source, parameterFormatCodes, parameterValues, resultFormatCodes, ok := packets.ReadBind(in)
-			if !ok {
-				return packet.In{}, errors.New("bad packet format")
-			}
-			T.portals[destination] = eqp.Portal{
-				Source:               source,
-				ParameterFormatCodes: parameterFormatCodes,
-				ParameterValues:      parameterValues,
-				ResultFormatCodes:    resultFormatCodes,
-			}
-		case packet.Close:
-			which, target, ok := packets.ReadClose(in)
-			if !ok {
-				return packet.In{}, errors.New("bad packet format")
-			}
-			switch which {
-			case 'S':
-				delete(T.preparedStatements, target)
-			case 'P':
-				delete(T.portals, target)
-			default:
-				return packet.In{}, errors.New("unknown close target")
-			}
-		default:
-			return in, nil
-		}
-	}
+	return T.reader.Read()
 }
 
 func (T *Client) ReadUntyped() (packet.In, error) {

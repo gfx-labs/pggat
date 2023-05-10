@@ -6,6 +6,7 @@ import (
 	_ "net/http/pprof"
 
 	"pggat2/lib/backend/backends/v0"
+	"pggat2/lib/bouncer/bouncers/v0"
 	"pggat2/lib/frontend"
 	"pggat2/lib/frontend/frontends/v0"
 	"pggat2/lib/rob"
@@ -30,7 +31,7 @@ func testServer(r rob.Scheduler) {
 	sink := r.NewSink(0)
 	for {
 		j := sink.Read().(job)
-		server.Handle(j.client)
+		bouncers.Bounce(j.client, server)
 		select {
 		case j.done <- struct{}{}:
 		default:

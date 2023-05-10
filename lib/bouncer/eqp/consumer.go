@@ -14,6 +14,14 @@ type Consumer struct {
 	inner              pnet.ReadWriteSender
 }
 
+func MakeConsumer(inner pnet.ReadWriteSender) Consumer {
+	return Consumer{
+		preparedStatements: make(map[string]PreparedStatement),
+		portals:            make(map[string]Portal),
+		inner:              inner,
+	}
+}
+
 func (T Consumer) Read() (packet.In, error) {
 	return T.inner.Read()
 }

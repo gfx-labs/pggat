@@ -14,6 +14,14 @@ type Creator struct {
 	inner              pnet.ReadWriteSender
 }
 
+func MakeCreator(inner pnet.ReadWriteSender) Creator {
+	return Creator{
+		preparedStatements: make(map[string]PreparedStatement),
+		portals:            make(map[string]Portal),
+		inner:              inner,
+	}
+}
+
 func (T Creator) Read() (packet.In, error) {
 	for {
 		in, err := T.inner.Read()
