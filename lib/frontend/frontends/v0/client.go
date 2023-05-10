@@ -2,12 +2,12 @@ package frontends
 
 import (
 	"crypto/rand"
+	"io"
 	"net"
 	"strings"
 
 	"pggat2/lib/auth/md5"
 	"pggat2/lib/auth/sasl"
-	"pggat2/lib/eqp"
 	"pggat2/lib/frontend"
 	"pggat2/lib/perror"
 	"pggat2/lib/pnet"
@@ -28,36 +28,20 @@ type Client struct {
 	database string
 
 	// cancellation key data
-	cancellationKey    [8]byte
-	parameters         map[string]string
-	preparedStatements map[string]eqp.PreparedStatement
-	portals            map[string]eqp.Portal
+	cancellationKey [8]byte
 }
 
 func NewClient(conn net.Conn) *Client {
 	client := &Client{
-		conn:               conn,
-		reader:             pnet.MakeIOReader(conn),
-		writer:             pnet.MakeIOWriter(conn),
-		parameters:         make(map[string]string),
-		preparedStatements: make(map[string]eqp.PreparedStatement),
-		portals:            make(map[string]eqp.Portal),
+		conn:   conn,
+		reader: pnet.MakeIOReader(conn),
+		writer: pnet.MakeIOWriter(conn),
 	}
 	err := client.accept()
 	if err != nil {
 		client.Close(err)
 	}
 	return client
-}
-
-func (T *Client) GetPreparedStatement(name string) (eqp.PreparedStatement, bool) {
-	v, ok := T.preparedStatements[name]
-	return v, ok
-}
-
-func (T *Client) GetPortal(name string) (eqp.Portal, bool) {
-	v, ok := T.portals[name]
-	return v, ok
 }
 
 func (T *Client) startup0() (bool, perror.Error) {
@@ -148,7 +132,7 @@ func (T *Client) startup0() (bool, perror.Error) {
 				// we don't support protocol extensions at the moment
 				unsupportedOptions = append(unsupportedOptions, key)
 			} else {
-				T.parameters[key] = value
+				// TODO(garet) save parameters somewhere
 			}
 		}
 	}
@@ -450,11 +434,6 @@ func (T *Client) accept() perror.Error {
 	return nil
 }
 
-func (T *Client) Wait() error {
-	_, err := T.conn.Read(nil)
-	return err
-}
-
 func (T *Client) Write() packet.Out {
 	return T.writer.Write()
 }
@@ -464,7 +443,15 @@ func (T *Client) Send(typ packet.Type, payload []byte) error {
 }
 
 func (T *Client) Read() (packet.In, error) {
-	return T.reader.Read()
+	in, err := T.reader.Read()
+	if err != nil {
+		return packet.In{}, err
+	}
+	switch in.Type() {
+	case packet.Terminate:
+		return packet.In{}, io.EOF
+	}
+	return in, nil
 }
 
 func (T *Client) ReadUntyped() (packet.In, error) {

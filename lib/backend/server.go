@@ -5,5 +5,5 @@ import (
 )
 
 type Server interface {
-	pnet.ReadWriter
+	pnet.ReadWriteSender
 }

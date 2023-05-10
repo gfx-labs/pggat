@@ -32,4 +32,8 @@ func (T err) Extra() []ExtraField {
 	return T.extra
 }
 
+func (T err) String() string {
+	return string(T.severity) + ": " + T.message
+}
+
 var _ Error = err{}

@@ -7,14 +7,15 @@ import (
 
 	"pggat2/lib/backend/backends/v0"
 	"pggat2/lib/bouncer/bouncers/v0"
-	"pggat2/lib/frontend"
 	"pggat2/lib/frontend/frontends/v0"
+	"pggat2/lib/middleware/middlewares/unread"
+	"pggat2/lib/pnet"
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v2"
 )
 
 type job struct {
-	client frontend.Client
+	client pnet.ReadWriteSender
 	done   chan<- struct{}
 }
 
@@ -63,12 +64,12 @@ func main() {
 			done := make(chan struct{})
 			defer close(done)
 			for {
-				err := client.Wait()
+				u, err := unread.NewUnread(client)
 				if err != nil {
 					break
 				}
 				source.Schedule(job{
-					client: client,
+					client: u,
 					done:   done,
 				}, 0)
 				<-done

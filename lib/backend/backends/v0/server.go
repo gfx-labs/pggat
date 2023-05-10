@@ -7,7 +7,6 @@ import (
 	"pggat2/lib/auth/md5"
 	"pggat2/lib/auth/sasl"
 	"pggat2/lib/backend"
-	"pggat2/lib/eqp"
 	"pggat2/lib/perror"
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
@@ -20,20 +19,14 @@ type Server struct {
 	reader pnet.IOReader
 	writer pnet.IOWriter
 
-	cancellationKey    [8]byte
-	parameters         map[string]string
-	preparedStatements map[string]eqp.PreparedStatement
-	portals            map[string]eqp.Portal
+	cancellationKey [8]byte
 }
 
 func NewServer(conn net.Conn) *Server {
 	server := &Server{
-		conn:               conn,
-		reader:             pnet.MakeIOReader(conn),
-		writer:             pnet.MakeIOWriter(conn),
-		parameters:         make(map[string]string),
-		preparedStatements: make(map[string]eqp.PreparedStatement),
-		portals:            make(map[string]eqp.Portal),
+		conn:   conn,
+		reader: pnet.MakeIOReader(conn),
+		writer: pnet.MakeIOWriter(conn),
 	}
 	err := server.accept()
 	if err != nil {
@@ -207,11 +200,7 @@ func (T *Server) startup0(username, password string) (bool, perror.Error) {
 }
 
 func (T *Server) parameterStatus(in packet.In) perror.Error {
-	key, value, ok := packets.ReadParameterStatus(in)
-	if !ok {
-		return pnet.ErrBadPacketFormat
-	}
-	T.parameters[key] = value
+	// TODO(garet) do something with parameters
 	return nil
 }
 
