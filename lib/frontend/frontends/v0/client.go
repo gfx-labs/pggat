@@ -2,6 +2,7 @@ package frontends
 
 import (
 	"crypto/rand"
+	"io"
 	"net"
 	"strings"
 
@@ -433,6 +434,22 @@ func (T *Client) accept() perror.Error {
 	}
 
 	return nil
+}
+
+func (T *Client) Read() (packet.In, error) {
+	for {
+		in, err := T.IOReader.Read()
+		if err != nil {
+			return packet.In{}, err
+		}
+		switch in.Type() {
+		case packet.Terminate:
+			T.Close(nil)
+			return packet.In{}, io.EOF
+		default:
+			return in, nil
+		}
+	}
 }
 
 func (T *Client) Close(err perror.Error) {
