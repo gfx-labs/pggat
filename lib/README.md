@@ -6,11 +6,11 @@ In general, the top level folder will hold the interface. A subfolder (generally
 ## auth
 All authentication functions. Protocol unspecific.
 
-## backend
-Connection handler for pggat -> postgres
+## bounce
+All routing: accepting frontends, backends, and handling transactions.
 
-## frontend
-Connection handler for client -> pggat
+## middleware
+Intercept packets and perform operations on them
 
 ## perror
 Special postgres error types
