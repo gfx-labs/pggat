@@ -1,8 +1,6 @@
 package eqp
 
 import (
-	"errors"
-
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
 	packets "pggat2/lib/pnet/packet/packets/v3.0"
@@ -37,16 +35,24 @@ func (T Creator) Read() (packet.In, error) {
 		case packet.Parse:
 			destination, query, parameterDataTypes, ok := packets.ReadParse(in)
 			if !ok {
-				return packet.In{}, errors.New("bad packet format")
+				return packet.In{}, ErrBadPacketFormat
 			}
 			T.preparedStatements[destination] = PreparedStatement{
 				Query:              query,
 				ParameterDataTypes: parameterDataTypes,
 			}
+
+			// send parse complete
+			out := T.inner.Write()
+			out.Type(packet.ParseComplete)
+			err = out.Send()
+			if err != nil {
+				return packet.In{}, err
+			}
 		case packet.Bind:
 			destination, source, parameterFormatCodes, parameterValues, resultFormatCodes, ok := packets.ReadBind(in)
 			if !ok {
-				return packet.In{}, errors.New("bad packet format")
+				return packet.In{}, ErrBadPacketFormat
 			}
 			T.portals[destination] = Portal{
 				Source:               source,
@@ -54,10 +60,18 @@ func (T Creator) Read() (packet.In, error) {
 				ParameterValues:      parameterValues,
 				ResultFormatCodes:    resultFormatCodes,
 			}
+
+			// send bind complete
+			out := T.inner.Write()
+			out.Type(packet.BindComplete)
+			err = out.Send()
+			if err != nil {
+				return packet.In{}, err
+			}
 		case packet.Close:
 			which, target, ok := packets.ReadClose(in)
 			if !ok {
-				return packet.In{}, errors.New("bad packet format")
+				return packet.In{}, ErrBadPacketFormat
 			}
 			switch which {
 			case 'S':
@@ -65,7 +79,7 @@ func (T Creator) Read() (packet.In, error) {
 			case 'P':
 				delete(T.portals, target)
 			default:
-				return packet.In{}, errors.New("unknown close target")
+				return packet.In{}, ErrBadPacketFormat
 			}
 		default:
 			return in, nil

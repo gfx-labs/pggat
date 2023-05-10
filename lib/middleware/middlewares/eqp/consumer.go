@@ -1,8 +1,6 @@
 package eqp
 
 import (
-	"errors"
-
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
 	packets "pggat2/lib/pnet/packet/packets/v3.0"
@@ -45,7 +43,12 @@ func (T Consumer) Send(typ packet.Type, bytes []byte) error {
 	case packet.Parse:
 		destination, query, parameterDataTypes, ok := packets.ReadParse(in)
 		if !ok {
-			return errors.New("bad packet format")
+			return ErrBadPacketFormat
+		}
+		if destination != "" {
+			if _, ok = T.preparedStatements[destination]; ok {
+				return ErrPreparedStatementExists
+			}
 		}
 		T.preparedStatements[destination] = PreparedStatement{
 			Query:              query,
@@ -54,7 +57,12 @@ func (T Consumer) Send(typ packet.Type, bytes []byte) error {
 	case packet.Bind:
 		destination, source, parameterFormatCodes, parameterValues, resultFormatCodes, ok := packets.ReadBind(in)
 		if !ok {
-			return errors.New("bad packet format")
+			return ErrBadPacketFormat
+		}
+		if destination != "" {
+			if _, ok = T.portals[destination]; ok {
+				return ErrPortalExists
+			}
 		}
 		T.portals[destination] = Portal{
 			Source:               source,
@@ -65,7 +73,7 @@ func (T Consumer) Send(typ packet.Type, bytes []byte) error {
 	case packet.Close:
 		which, target, ok := packets.ReadClose(in)
 		if !ok {
-			return errors.New("bad packet format")
+			return ErrBadPacketFormat
 		}
 		switch which {
 		case 'S':
@@ -73,7 +81,7 @@ func (T Consumer) Send(typ packet.Type, bytes []byte) error {
 		case 'P':
 			delete(T.portals, target)
 		default:
-			return errors.New("unknown close target")
+			return ErrUnknownCloseTarget
 		}
 	}
 	return T.inner.Send(typ, bytes)
