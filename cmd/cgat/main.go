@@ -16,7 +16,7 @@ import (
 )
 
 type job struct {
-	client pnet.ReadWriteSender
+	client pnet.ReadWriter
 	done   chan<- struct{}
 }
 

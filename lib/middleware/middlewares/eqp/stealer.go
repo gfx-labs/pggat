@@ -33,7 +33,7 @@ func (T *Stealer) ReadUntyped() (packet.In, error) {
 }
 
 func (T *Stealer) Write() packet.Out {
-	return T.consumer.Write().WithSender(T)
+	return T.consumer.Write()
 }
 
 func (T *Stealer) WriteByte(b byte) error {
@@ -42,16 +42,16 @@ func (T *Stealer) WriteByte(b byte) error {
 
 func (T *Stealer) bindPreparedStatement(target string, preparedStatement PreparedStatement) error {
 	T.buf.Reset()
-	out := packet.MakeOut(&T.buf, T.consumer)
+	out := packet.MakeOut(&T.buf)
 	packets.WriteParse(out, target, preparedStatement.Query, preparedStatement.ParameterDataTypes)
-	return out.Send()
+	return T.consumer.Send(out.Finish())
 }
 
 func (T *Stealer) bindPortal(target string, portal Portal) error {
 	T.buf.Reset()
-	out := packet.MakeOut(&T.buf, T.consumer)
+	out := packet.MakeOut(&T.buf)
 	packets.WriteBind(out, target, portal.Source, portal.ParameterFormatCodes, portal.ParameterValues, portal.ResultFormatCodes)
-	return out.Send()
+	return T.consumer.Send(out.Finish())
 }
 
 func (T *Stealer) syncPreparedStatement(target string) error {
@@ -112,4 +112,4 @@ func (T *Stealer) Send(typ packet.Type, bytes []byte) error {
 	return T.consumer.Send(typ, bytes)
 }
 
-var _ pnet.ReadWriteSender = (*Stealer)(nil)
+var _ pnet.ReadWriter = (*Stealer)(nil)

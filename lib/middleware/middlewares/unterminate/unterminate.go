@@ -8,17 +8,17 @@ import (
 )
 
 type Unterminate struct {
-	pnet.ReadWriteSender
+	pnet.ReadWriter
 }
 
-func MakeUnterminate(inner pnet.ReadWriteSender) Unterminate {
+func MakeUnterminate(inner pnet.ReadWriter) Unterminate {
 	return Unterminate{
-		ReadWriteSender: inner,
+		ReadWriter: inner,
 	}
 }
 
 func (T Unterminate) Read() (packet.In, error) {
-	in, err := T.ReadWriteSender.Read()
+	in, err := T.ReadWriter.Read()
 	if err != nil {
 		return packet.In{}, err
 	}
@@ -28,4 +28,4 @@ func (T Unterminate) Read() (packet.In, error) {
 	return in, nil
 }
 
-var _ pnet.ReadWriteSender = Unterminate{}
+var _ pnet.ReadWriter = Unterminate{}

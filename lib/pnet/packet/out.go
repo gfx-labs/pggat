@@ -21,40 +21,28 @@ func (T *OutBuf) Reset() {
 }
 
 type Out struct {
-	buf    *OutBuf
-	rev    int
-	sender Sender
+	buf *OutBuf
+	rev int
 }
 
 func MakeOut(
 	buf *OutBuf,
-	sender Sender,
 ) Out {
-	if sender == nil {
-		panic("sender cannot be nil")
-	}
 	return Out{
-		buf:    buf,
-		rev:    buf.rev,
-		sender: sender,
-	}
-}
-
-func (T Out) WithSender(
-	sender Sender,
-) Out {
-	if sender == nil {
-		panic("sender cannot be nil")
-	}
-	return Out{
-		buf:    T.buf,
-		rev:    T.rev,
-		sender: sender,
+		buf: buf,
+		rev: buf.rev,
 	}
 }
 
 func (T Out) done() bool {
 	return T.rev != T.buf.rev
+}
+
+func (T Out) Finish() (Type, []byte) {
+	if T.done() {
+		panic("Write after Send")
+	}
+	return T.buf.typ, T.buf.buf
 }
 
 func (T Out) Type(typ Type) {
@@ -136,12 +124,4 @@ func (T Out) Bytes(v []byte) {
 		panic("Write after Send")
 	}
 	T.buf.buf = append(T.buf.buf, v...)
-}
-
-func (T Out) Send() error {
-	if T.done() {
-		panic("Send called twice")
-	}
-	T.buf.rev++
-	return T.sender.Send(T.buf.typ, T.buf.buf)
 }

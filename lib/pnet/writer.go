@@ -10,4 +10,5 @@ type Writer interface {
 	io.ByteWriter
 
 	Write() packet.Out
+	Send(packet.Type, []byte) error
 }

@@ -5,7 +5,7 @@ import "pggat2/lib/pnet/packet"
 func ProxyPacket(writer Writer, in packet.In) error {
 	out := writer.Write()
 	packet.Proxy(out, in)
-	return out.Send()
+	return writer.Send(out.Finish())
 }
 
 func Proxy(writer Writer, reader Reader) error {

@@ -9,10 +9,10 @@ import (
 type Creator struct {
 	preparedStatements map[string]PreparedStatement
 	portals            map[string]Portal
-	inner              pnet.ReadWriteSender
+	inner              pnet.ReadWriter
 }
 
-func MakeCreator(inner pnet.ReadWriteSender) Creator {
+func MakeCreator(inner pnet.ReadWriter) Creator {
 	return Creator{
 		preparedStatements: make(map[string]PreparedStatement),
 		portals:            make(map[string]Portal),
@@ -103,4 +103,4 @@ func (T Creator) Send(typ packet.Type, payload []byte) error {
 	return T.inner.Send(typ, payload)
 }
 
-var _ pnet.ReadWriteSender = Creator{}
+var _ pnet.ReadWriter = Creator{}

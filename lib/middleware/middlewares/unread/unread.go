@@ -8,28 +8,28 @@ import (
 type Unread struct {
 	in   packet.In
 	read bool
-	pnet.ReadWriteSender
+	pnet.ReadWriter
 }
 
-func NewUnread(inner pnet.ReadWriteSender) (*Unread, error) {
+func NewUnread(inner pnet.ReadWriter) (*Unread, error) {
 	in, err := inner.Read()
 	if err != nil {
 		return nil, err
 	}
 	return &Unread{
-		in:              in,
-		ReadWriteSender: inner,
+		in:         in,
+		ReadWriter: inner,
 	}, nil
 }
 
-func NewUnreadUntyped(inner pnet.ReadWriteSender) (*Unread, error) {
+func NewUnreadUntyped(inner pnet.ReadWriter) (*Unread, error) {
 	in, err := inner.ReadUntyped()
 	if err != nil {
 		return nil, err
 	}
 	return &Unread{
-		in:              in,
-		ReadWriteSender: inner,
+		in:         in,
+		ReadWriter: inner,
 	}, nil
 }
 
@@ -38,7 +38,7 @@ func (T *Unread) Read() (packet.In, error) {
 		T.read = true
 		return T.in, nil
 	}
-	return T.ReadWriteSender.Read()
+	return T.ReadWriter.Read()
 }
 
 func (T *Unread) ReadUntyped() (packet.In, error) {
@@ -46,7 +46,7 @@ func (T *Unread) ReadUntyped() (packet.In, error) {
 		T.read = true
 		return T.in, nil
 	}
-	return T.ReadWriteSender.ReadUntyped()
+	return T.ReadWriter.ReadUntyped()
 }
 
-var _ pnet.ReadWriteSender = (*Unread)(nil)
+var _ pnet.ReadWriter = (*Unread)(nil)

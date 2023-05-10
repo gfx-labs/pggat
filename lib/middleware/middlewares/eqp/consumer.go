@@ -9,10 +9,10 @@ import (
 type Consumer struct {
 	preparedStatements map[string]PreparedStatement
 	portals            map[string]Portal
-	inner              pnet.ReadWriteSender
+	inner              pnet.ReadWriter
 }
 
-func MakeConsumer(inner pnet.ReadWriteSender) Consumer {
+func MakeConsumer(inner pnet.ReadWriter) Consumer {
 	return Consumer{
 		preparedStatements: make(map[string]PreparedStatement),
 		portals:            make(map[string]Portal),
@@ -29,7 +29,7 @@ func (T Consumer) ReadUntyped() (packet.In, error) {
 }
 
 func (T Consumer) Write() packet.Out {
-	return T.inner.Write().WithSender(T)
+	return T.inner.Write()
 }
 
 func (T Consumer) WriteByte(b byte) error {
@@ -91,4 +91,4 @@ func (T Consumer) Send(typ packet.Type, bytes []byte) error {
 	return T.inner.Send(typ, bytes)
 }
 
-var _ pnet.ReadWriteSender = Consumer{}
+var _ pnet.ReadWriter = Consumer{}

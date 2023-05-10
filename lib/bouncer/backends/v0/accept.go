@@ -23,15 +23,15 @@ var (
 	ErrBadPacket     = errors.New("bad packet")
 )
 
-func fail(server pnet.ReadWriteSender, err error) {
+func fail(server pnet.ReadWriter, err error) {
 	panic(err)
 }
 
-func failpg(server pnet.ReadWriteSender, err perror.Error) {
+func failpg(server pnet.ReadWriter, err perror.Error) {
 	panic(err)
 }
 
-func authenticationSASLChallenge(server pnet.ReadWriteSender, mechanism sasl.Client) (done bool, status Status) {
+func authenticationSASLChallenge(server pnet.ReadWriter, mechanism sasl.Client) (done bool, status Status) {
 	in, err := server.Read()
 	if err != nil {
 		fail(server, err)
@@ -61,7 +61,7 @@ func authenticationSASLChallenge(server pnet.ReadWriteSender, mechanism sasl.Cli
 		out := server.Write()
 		packets.WriteAuthenticationResponse(out, response)
 
-		err = out.Send()
+		err = server.Send(out.Finish())
 		if err != nil {
 			fail(server, err)
 			return false, Fail
@@ -82,7 +82,7 @@ func authenticationSASLChallenge(server pnet.ReadWriteSender, mechanism sasl.Cli
 	}
 }
 
-func authenticationSASL(server pnet.ReadWriteSender, mechanisms []string, username, password string) Status {
+func authenticationSASL(server pnet.ReadWriter, mechanisms []string, username, password string) Status {
 	mechanism, err := sasl.NewClient(mechanisms, username, password)
 	if err != nil {
 		fail(server, err)
@@ -92,7 +92,7 @@ func authenticationSASL(server pnet.ReadWriteSender, mechanisms []string, userna
 
 	out := server.Write()
 	packets.WriteSASLInitialResponse(out, mechanism.Name(), initialResponse)
-	err = out.Send()
+	err = server.Send(out.Finish())
 	if err != nil {
 		fail(server, err)
 		return Fail
@@ -112,10 +112,10 @@ func authenticationSASL(server pnet.ReadWriteSender, mechanisms []string, userna
 	return Ok
 }
 
-func authenticationMD5(server pnet.ReadWriteSender, salt [4]byte, username, password string) Status {
+func authenticationMD5(server pnet.ReadWriter, salt [4]byte, username, password string) Status {
 	out := server.Write()
 	packets.WritePasswordMessage(out, md5.Encode(username, password, salt))
-	err := out.Send()
+	err := server.Send(out.Finish())
 	if err != nil {
 		fail(server, err)
 		return Fail
@@ -123,10 +123,10 @@ func authenticationMD5(server pnet.ReadWriteSender, salt [4]byte, username, pass
 	return Ok
 }
 
-func authenticationCleartext(server pnet.ReadWriteSender, password string) Status {
+func authenticationCleartext(server pnet.ReadWriter, password string) Status {
 	out := server.Write()
 	packets.WritePasswordMessage(out, password)
-	err := out.Send()
+	err := server.Send(out.Finish())
 	if err != nil {
 		fail(server, err)
 		return Fail
@@ -134,7 +134,7 @@ func authenticationCleartext(server pnet.ReadWriteSender, password string) Statu
 	return Ok
 }
 
-func startup0(server pnet.ReadWriteSender, username, password string) (done bool, status Status) {
+func startup0(server pnet.ReadWriter, username, password string) (done bool, status Status) {
 	in, err := server.Read()
 	if err != nil {
 		fail(server, err)
@@ -205,7 +205,7 @@ func startup0(server pnet.ReadWriteSender, username, password string) (done bool
 	}
 }
 
-func startup1(server pnet.ReadWriteSender) (done bool, status Status) {
+func startup1(server pnet.ReadWriter) (done bool, status Status) {
 	in, err := server.Read()
 	if err != nil {
 		fail(server, err)
@@ -243,7 +243,7 @@ func startup1(server pnet.ReadWriteSender) (done bool, status Status) {
 	}
 }
 
-func Accept(server pnet.ReadWriteSender) {
+func Accept(server pnet.ReadWriter) {
 	// we can re-use the memory for this pkt most of the way down because we don't pass this anywhere
 	out := server.Write()
 	out.Int16(3)
@@ -253,7 +253,7 @@ func Accept(server pnet.ReadWriteSender) {
 	out.String("postgres")
 	out.String("")
 
-	err := out.Send()
+	err := server.Send(out.Finish())
 	if err != nil {
 		fail(server, err)
 		return

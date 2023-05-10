@@ -36,7 +36,6 @@ func (T *IOWriter) Write() packet.Out {
 
 	return packet.MakeOut(
 		&T.buf,
-		T,
 	)
 }
 
