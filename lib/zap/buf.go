@@ -86,6 +86,7 @@ func (T *Buf) Write() Out {
 	T.pos = 0
 
 	T.buf = slices.Resize(T.buf, 5)
+	T.buf[0] = 0
 
 	return Out{
 		buf: T,
@@ -97,12 +98,12 @@ func (T *Buf) full() []byte {
 	// put length
 	binary.BigEndian.PutUint32(T.buf[1:], uint32(len(T.buf)-1))
 
-	log.Printf("write packet %c %v\n", T.readType(), T.buf[5:])
-
 	if T.readType() == 0 {
+		log.Println("write untyped packet", T.buf[5:])
 		// untyped
 		return T.buf[1:]
 	} else {
+		log.Printf("write typed packet %c %v\n", T.buf[0], T.buf[5:])
 		// typed
 		return T.buf
 	}
@@ -240,7 +241,7 @@ func (T *Buf) readUnsafeBytes(count int) ([]byte, bool) {
 
 func (T *Buf) resetWrite() {
 	T.buf = slices.Resize(T.buf, 5)
-	slices.Clear(T.buf)
+	T.buf[0] = 0
 }
 
 func (T *Buf) writeType(typ Type) {
