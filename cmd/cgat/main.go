@@ -12,6 +12,7 @@ import (
 	"pggat2/lib/middleware/middlewares/unread"
 	"pggat2/lib/middleware/middlewares/unterminate"
 	"pggat2/lib/pnet"
+	"pggat2/lib/pnet/pio"
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v2"
 )
@@ -26,7 +27,7 @@ func testServer(r rob.Scheduler) {
 	if err != nil {
 		panic(err)
 	}
-	server := pnet.MakeIOReadWriter(conn)
+	server := pio.MakeReadWriter(conn)
 	backends.Accept(&server)
 	consumer := eqp.MakeConsumer(&server)
 	sink := r.NewSink(0)
@@ -59,7 +60,7 @@ func main() {
 		}
 		go func() {
 			source := r.NewSource()
-			client := pnet.MakeIOReadWriter(conn)
+			client := pio.MakeReadWriter(conn)
 			ut := unterminate.MakeUnterminate(&client)
 			frontends.Accept(ut)
 			creator := eqp.MakeCreator(ut)

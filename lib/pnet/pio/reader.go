@@ -1,15 +1,16 @@
-package pnet
+package pio
 
 import (
 	"encoding/binary"
 	"io"
 
+	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
 	"pggat2/lib/util/decorator"
 	"pggat2/lib/util/slices"
 )
 
-type IOReader struct {
+type Reader struct {
 	noCopy decorator.NoCopy
 	reader io.Reader
 	// header buffer for reading packet headers
@@ -20,20 +21,20 @@ type IOReader struct {
 	payload []byte
 }
 
-func MakeIOReader(reader io.Reader) IOReader {
-	return IOReader{
+func MakeReader(reader io.Reader) Reader {
+	return Reader{
 		reader: reader,
 	}
 }
 
-func NewIOReader(reader io.Reader) *IOReader {
-	v := MakeIOReader(reader)
+func NewReader(reader io.Reader) *Reader {
+	v := MakeReader(reader)
 	return &v
 }
 
 // Read fetches the next packet from the underlying io.Reader and gives you a packet.In
-// Calling Read will invalidate all other packet.In's for this IOReader
-func (T *IOReader) Read() (packet.In, error) {
+// Calling Read will invalidate all other packet.In's for this Reader
+func (T *Reader) Read() (packet.In, error) {
 	// read header
 	_, err := io.ReadFull(T.reader, T.header[:])
 	if err != nil {
@@ -58,7 +59,7 @@ func (T *IOReader) Read() (packet.In, error) {
 }
 
 // ReadUntyped is similar to Read, but it doesn't read a packet.Type
-func (T *IOReader) ReadUntyped() (packet.In, error) {
+func (T *Reader) ReadUntyped() (packet.In, error) {
 	// read header
 	_, err := io.ReadFull(T.reader, T.header[1:])
 	if err != nil {
@@ -82,7 +83,7 @@ func (T *IOReader) ReadUntyped() (packet.In, error) {
 	), nil
 }
 
-func (T *IOReader) readPayload() error {
+func (T *Reader) readPayload() error {
 	length := binary.BigEndian.Uint32(T.header[1:]) - 4
 
 	// resize body to length
@@ -96,8 +97,10 @@ func (T *IOReader) readPayload() error {
 	return nil
 }
 
-func (T *IOReader) ReadByte() (byte, error) {
+func (T *Reader) ReadByte() (byte, error) {
 	T.header[0] = 0
 	_, err := io.ReadFull(T.reader, T.header[:1])
 	return T.header[0], err
 }
+
+var _ pnet.Reader = (*Reader)(nil)
