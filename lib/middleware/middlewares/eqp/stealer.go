@@ -10,14 +10,14 @@ import (
 
 // Stealer wraps a Consumer and duplicates the underlying Consumer's portals and prepared statements on use.
 type Stealer struct {
-	creator  Creator
-	consumer Consumer
+	creator  *Creator
+	consumer *Consumer
 
 	// need a second buf because we cannot use the underlying Consumer's buf (or it would overwrite the outgoing packet)
 	buf packet.OutBuf
 }
 
-func NewStealer(consumer Consumer, creator Creator) *Stealer {
+func NewStealer(consumer *Consumer, creator *Creator) *Stealer {
 	return &Stealer{
 		creator:  creator,
 		consumer: consumer,
@@ -25,7 +25,21 @@ func NewStealer(consumer Consumer, creator Creator) *Stealer {
 }
 
 func (T *Stealer) Read() (packet.In, error) {
-	return T.consumer.Read()
+	for {
+		in, err := T.consumer.Read()
+		if err != nil {
+			return packet.In{}, err
+		}
+		switch in.Type() {
+		case packet.ParseComplete:
+			// previous parse was successful
+		case packet.BindComplete:
+			// previous bind was successful
+		default:
+			// forward
+			return in, nil
+		}
+	}
 }
 
 func (T *Stealer) ReadUntyped() (packet.In, error) {
@@ -54,21 +68,63 @@ func (T *Stealer) bindPortal(target string, portal Portal) error {
 	return T.consumer.Send(out.Finish())
 }
 
+func (T *Stealer) closePreparedStatement(target string) error {
+	if _, ok := T.consumer.preparedStatements[target]; !ok {
+		// doesn't exist
+		return nil
+	}
+	T.buf.Reset()
+	out := packet.MakeOut(&T.buf)
+	packets.WriteClose(out, 'S', target)
+	return T.consumer.Send(out.Finish())
+}
+
+func (T *Stealer) closePortal(target string) error {
+	if _, ok := T.consumer.portals[target]; !ok {
+		// doesn't exist
+		return nil
+	}
+	T.buf.Reset()
+	out := packet.MakeOut(&T.buf)
+	packets.WriteClose(out, 'P', target)
+	return T.consumer.Send(out.Finish())
+}
+
 func (T *Stealer) syncPreparedStatement(target string) error {
-	creatorStatement := T.creator.preparedStatements[target]
-	consumerStatement := T.consumer.preparedStatements[target]
+	creatorStatement, ok := T.creator.preparedStatements[target]
+	if !ok {
+		return T.closePreparedStatement(target)
+	}
+	consumerStatement, prev := T.consumer.preparedStatements[target]
 	if creatorStatement.Equals(consumerStatement) {
 		return nil
+	}
+	// clean up prev
+	if prev {
+		err := T.closePreparedStatement(target)
+		if err != nil {
+			return err
+		}
 	}
 	// send prepared statement
 	return T.bindPreparedStatement(target, creatorStatement)
 }
 
 func (T *Stealer) syncPortal(target string) error {
-	creatorPortal := T.creator.portals[target]
-	consumerPortal := T.consumer.portals[target]
+	creatorPortal, ok := T.creator.portals[target]
+	if !ok {
+		return T.closePortal(target)
+	}
+	consumerPortal, prev := T.consumer.portals[target]
 	if creatorPortal.Equals(consumerPortal) {
 		return nil
+	}
+	// clean up prev
+	if prev {
+		err := T.closePortal(target)
+		if err != nil {
+			return err
+		}
 	}
 	// send portal
 	return T.bindPortal(target, creatorPortal)

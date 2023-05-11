@@ -8,6 +8,7 @@ import (
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/bouncers/v0"
 	"pggat2/lib/bouncer/frontends/v0"
+	"pggat2/lib/middleware/middlewares/eqp"
 	"pggat2/lib/middleware/middlewares/unread"
 	"pggat2/lib/middleware/middlewares/unterminate"
 	"pggat2/lib/pnet"
@@ -27,10 +28,11 @@ func testServer(r rob.Scheduler) {
 	}
 	server := pnet.MakeIOReadWriter(conn)
 	backends.Accept(&server)
+	consumer := eqp.MakeConsumer(&server)
 	sink := r.NewSink(0)
 	for {
 		j := sink.Read().(job)
-		bouncers.Bounce(j.client, &server)
+		bouncers.Bounce(j.client, &consumer)
 		select {
 		case j.done <- struct{}{}:
 		default:
@@ -60,10 +62,11 @@ func main() {
 			client := pnet.MakeIOReadWriter(conn)
 			ut := unterminate.MakeUnterminate(&client)
 			frontends.Accept(ut)
+			creator := eqp.MakeCreator(ut)
 			done := make(chan struct{})
 			defer close(done)
 			for {
-				u, err := unread.NewUnread(ut)
+				u, err := unread.NewUnread(&creator)
 				if err != nil {
 					break
 				}

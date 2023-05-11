@@ -251,6 +251,8 @@ func Accept(server pnet.ReadWriter) {
 	// TODO(garet) don't hardcode username and password
 	out.String("user")
 	out.String("postgres")
+	out.String("database")
+	out.String("uniswap")
 	out.String("")
 
 	err := server.Send(out.Finish())

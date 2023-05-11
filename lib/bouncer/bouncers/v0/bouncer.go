@@ -2,10 +2,13 @@ package bouncers
 
 import (
 	"errors"
+	"log"
+	"runtime/debug"
 
 	"pggat2/lib/perror"
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
+	packets "pggat2/lib/pnet/packet/packets/v3.0"
 )
 
 type Status int
@@ -16,7 +19,13 @@ const (
 )
 
 func clientFail(client pnet.ReadWriter, err perror.Error) {
-	panic(err)
+	// DEBUG(garet)
+	log.Println("client fail", err)
+	debug.PrintStack()
+
+	out := client.Write()
+	packets.WriteErrorResponse(out, err)
+	_ = client.Send(out.Finish())
 }
 
 func serverFail(server pnet.ReadWriter, err error) {
@@ -239,6 +248,98 @@ func functionCall(client, server pnet.ReadWriter, in packet.In) (status Status) 
 	return Ok
 }
 
+func sync0(client, server pnet.ReadWriter) (done bool, status Status) {
+	in, err := server.Read()
+	if err != nil {
+		serverFail(server, err)
+		return false, Fail
+	}
+
+	switch in.Type() {
+	case packet.ParseComplete,
+		packet.BindComplete,
+		packet.ErrorResponse,
+		packet.RowDescription,
+		packet.NoData,
+		packet.ParameterDescription,
+
+		packet.CommandComplete,
+		packet.DataRow,
+		packet.EmptyQueryResponse,
+		packet.NoticeResponse,
+		packet.ParameterStatus,
+		packet.PortalSuspended:
+		err = pnet.ProxyPacket(client, in)
+		if err != nil {
+			clientFail(client, perror.Wrap(err))
+			return false, Fail
+		}
+		return false, Ok
+	case packet.ReadyForQuery:
+		err = pnet.ProxyPacket(client, in)
+		if err != nil {
+			clientFail(client, perror.Wrap(err))
+			return false, Fail
+		}
+		return true, Ok
+	default:
+		log.Printf("operation %c", in.Type())
+		serverFail(server, errors.New("protocol error"))
+		return false, Fail
+	}
+}
+
+func sync(client, server pnet.ReadWriter, in packet.In) (status Status) {
+	// send initial (sync) to server
+	err := pnet.ProxyPacket(server, in)
+	if err != nil {
+		serverFail(server, err)
+		return Fail
+	}
+
+	// relay everything until ready for query
+	for {
+		var done bool
+		done, status = sync0(client, server)
+		if status != Ok {
+			return
+		}
+		if done {
+			break
+		}
+	}
+	return Ok
+}
+
+func eqp(client, server pnet.ReadWriter, in packet.In) (status Status) {
+	for {
+		switch in.Type() {
+		case packet.Sync:
+			return sync(client, server, in)
+		case packet.Parse, packet.Bind, packet.Describe, packet.Execute:
+			err := pnet.ProxyPacket(server, in)
+			if err != nil {
+				serverFail(server, err)
+				return Fail
+			}
+		default:
+			log.Printf("operation %c", in.Type())
+			clientFail(client, perror.New(
+				perror.ERROR,
+				perror.FeatureNotSupported,
+				"unsupported operation",
+			))
+			return Fail
+		}
+		var err error
+		in, err = client.Read()
+		if err != nil {
+			clientFail(client, perror.Wrap(err))
+			return Fail
+		}
+	}
+}
+
 func Bounce(client, server pnet.ReadWriter) {
 	in, err := client.Read()
 	if err != nil {
@@ -251,7 +352,10 @@ func Bounce(client, server pnet.ReadWriter) {
 		query(client, server, in)
 	case packet.FunctionCall:
 		functionCall(client, server, in)
+	case packet.Sync, packet.Parse, packet.Bind, packet.Describe, packet.Execute:
+		eqp(client, server, in)
 	default:
+		log.Printf("operation %c", in.Type())
 		clientFail(client, perror.New(
 			perror.ERROR,
 			perror.FeatureNotSupported,

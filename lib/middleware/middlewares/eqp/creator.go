@@ -4,12 +4,18 @@ import (
 	"pggat2/lib/pnet"
 	"pggat2/lib/pnet/packet"
 	packets "pggat2/lib/pnet/packet/packets/v3.0"
+	"pggat2/lib/util/decorator"
+	"pggat2/lib/util/ring"
 )
 
 type Creator struct {
-	preparedStatements map[string]PreparedStatement
-	portals            map[string]Portal
-	inner              pnet.ReadWriter
+	noCopy decorator.NoCopy
+
+	preparedStatements        map[string]PreparedStatement
+	portals                   map[string]Portal
+	pendingPreparedStatements ring.Ring[string]
+	pendingPortals            ring.Ring[string]
+	inner                     pnet.ReadWriter
 }
 
 func MakeCreator(inner pnet.ReadWriter) Creator {
@@ -20,7 +26,12 @@ func MakeCreator(inner pnet.ReadWriter) Creator {
 	}
 }
 
-func (T Creator) Read() (packet.In, error) {
+func NewCreator(inner pnet.ReadWriter) *Creator {
+	c := MakeCreator(inner)
+	return &c
+}
+
+func (T *Creator) Read() (packet.In, error) {
 	for {
 		in, err := T.inner.Read()
 		if err != nil {
@@ -37,10 +48,16 @@ func (T Creator) Read() (packet.In, error) {
 			if !ok {
 				return packet.In{}, ErrBadPacketFormat
 			}
+			if destination != "" {
+				if _, ok = T.preparedStatements[destination]; ok {
+					return packet.In{}, ErrPreparedStatementExists
+				}
+			}
 			T.preparedStatements[destination] = PreparedStatement{
 				Query:              query,
 				ParameterDataTypes: parameterDataTypes,
 			}
+			T.pendingPreparedStatements.PushBack(destination)
 
 			// send parse complete
 			out := T.inner.Write()
@@ -54,12 +71,18 @@ func (T Creator) Read() (packet.In, error) {
 			if !ok {
 				return packet.In{}, ErrBadPacketFormat
 			}
+			if destination != "" {
+				if _, ok = T.portals[destination]; ok {
+					return packet.In{}, ErrPortalExists
+				}
+			}
 			T.portals[destination] = Portal{
 				Source:               source,
 				ParameterFormatCodes: parameterFormatCodes,
 				ParameterValues:      parameterValues,
 				ResultFormatCodes:    resultFormatCodes,
 			}
+			T.pendingPortals.PushBack(destination)
 
 			// send bind complete
 			out := T.inner.Write()
@@ -87,20 +110,34 @@ func (T Creator) Read() (packet.In, error) {
 	}
 }
 
-func (T Creator) ReadUntyped() (packet.In, error) {
+func (T *Creator) ReadUntyped() (packet.In, error) {
 	return T.inner.ReadUntyped()
 }
 
-func (T Creator) Write() packet.Out {
+func (T *Creator) Write() packet.Out {
 	return T.inner.Write()
 }
 
-func (T Creator) WriteByte(b byte) error {
+func (T *Creator) WriteByte(b byte) error {
 	return T.inner.WriteByte(b)
 }
 
-func (T Creator) Send(typ packet.Type, payload []byte) error {
+func (T *Creator) Send(typ packet.Type, payload []byte) error {
+	switch typ {
+	case packet.ParseComplete:
+		T.pendingPreparedStatements.PopFront()
+	case packet.BindComplete:
+		T.pendingPortals.PopFront()
+	case packet.ReadyForQuery:
+		// remove all pending, they were not added.
+		for pending, ok := T.pendingPreparedStatements.PopFront(); ok; pending, ok = T.pendingPreparedStatements.PopFront() {
+			delete(T.preparedStatements, pending)
+		}
+		for pending, ok := T.pendingPortals.PopFront(); ok; pending, ok = T.pendingPortals.PopFront() {
+			delete(T.portals, pending)
+		}
+	}
 	return T.inner.Send(typ, payload)
 }
 
-var _ pnet.ReadWriter = Creator{}
+var _ pnet.ReadWriter = (*Creator)(nil)
