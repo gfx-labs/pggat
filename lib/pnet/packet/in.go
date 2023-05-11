@@ -52,7 +52,7 @@ func (T In) done() bool {
 
 func (T In) Type() Type {
 	if T.done() {
-		panic("Read after Send")
+		panic("Read after Done")
 	}
 	return T.buf.typ
 }
@@ -61,7 +61,7 @@ func (T In) Type() Type {
 // NOTE: Full will be invalid after Done is called
 func (T In) Full() []byte {
 	if T.done() {
-		panic("Read after Send")
+		panic("Read after Done")
 	}
 	return T.buf.buf
 }
@@ -75,7 +75,7 @@ func (T In) Remaining() []byte {
 
 func (T In) Reset() {
 	if T.done() {
-		panic("Read after Send")
+		panic("Read after Done")
 	}
 	T.buf.pos = 0
 }

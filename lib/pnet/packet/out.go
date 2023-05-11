@@ -14,6 +14,12 @@ type OutBuf struct {
 	rev    int
 }
 
+func MakeOutBuf(buf []byte) OutBuf {
+	return OutBuf{
+		buf: buf,
+	}
+}
+
 func (T *OutBuf) Reset() {
 	T.typ = None
 	T.buf = T.buf[:0]
