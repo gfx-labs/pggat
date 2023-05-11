@@ -6,9 +6,8 @@ import (
 	"pggat2/lib/auth/md5"
 	"pggat2/lib/auth/sasl"
 	"pggat2/lib/perror"
-	"pggat2/lib/pnet"
-	"pggat2/lib/pnet/packet"
-	packets "pggat2/lib/pnet/packet/packets/v3.0"
+	"pggat2/lib/zap"
+	packets "pggat2/lib/zap/packets/v3.0"
 )
 
 type Status int
@@ -23,22 +22,22 @@ var (
 	ErrBadPacket     = errors.New("bad packet")
 )
 
-func fail(server pnet.ReadWriter, err error) {
+func fail(server zap.ReadWriter, err error) {
 	panic(err)
 }
 
-func failpg(server pnet.ReadWriter, err perror.Error) {
+func failpg(server zap.ReadWriter, err perror.Error) {
 	panic(err)
 }
 
-func authenticationSASLChallenge(server pnet.ReadWriter, mechanism sasl.Client) (done bool, status Status) {
+func authenticationSASLChallenge(server zap.ReadWriter, mechanism sasl.Client) (done bool, status Status) {
 	in, err := server.Read()
 	if err != nil {
 		fail(server, err)
 		return false, Fail
 	}
 
-	if in.Type() != packet.Authentication {
+	if in.Type() != packets.Authentication {
 		fail(server, ErrProtocolError)
 		return false, Fail
 	}
@@ -61,7 +60,7 @@ func authenticationSASLChallenge(server pnet.ReadWriter, mechanism sasl.Client) 
 		out := server.Write()
 		packets.WriteAuthenticationResponse(out, response)
 
-		err = server.Send(out.Finish())
+		err = server.Send(out)
 		if err != nil {
 			fail(server, err)
 			return false, Fail
@@ -82,7 +81,7 @@ func authenticationSASLChallenge(server pnet.ReadWriter, mechanism sasl.Client) 
 	}
 }
 
-func authenticationSASL(server pnet.ReadWriter, mechanisms []string, username, password string) Status {
+func authenticationSASL(server zap.ReadWriter, mechanisms []string, username, password string) Status {
 	mechanism, err := sasl.NewClient(mechanisms, username, password)
 	if err != nil {
 		fail(server, err)
@@ -92,7 +91,7 @@ func authenticationSASL(server pnet.ReadWriter, mechanisms []string, username, p
 
 	out := server.Write()
 	packets.WriteSASLInitialResponse(out, mechanism.Name(), initialResponse)
-	err = server.Send(out.Finish())
+	err = server.Send(out)
 	if err != nil {
 		fail(server, err)
 		return Fail
@@ -112,10 +111,10 @@ func authenticationSASL(server pnet.ReadWriter, mechanisms []string, username, p
 	return Ok
 }
 
-func authenticationMD5(server pnet.ReadWriter, salt [4]byte, username, password string) Status {
+func authenticationMD5(server zap.ReadWriter, salt [4]byte, username, password string) Status {
 	out := server.Write()
 	packets.WritePasswordMessage(out, md5.Encode(username, password, salt))
-	err := server.Send(out.Finish())
+	err := server.Send(out)
 	if err != nil {
 		fail(server, err)
 		return Fail
@@ -123,10 +122,10 @@ func authenticationMD5(server pnet.ReadWriter, salt [4]byte, username, password 
 	return Ok
 }
 
-func authenticationCleartext(server pnet.ReadWriter, password string) Status {
+func authenticationCleartext(server zap.ReadWriter, password string) Status {
 	out := server.Write()
 	packets.WritePasswordMessage(out, password)
-	err := server.Send(out.Finish())
+	err := server.Send(out)
 	if err != nil {
 		fail(server, err)
 		return Fail
@@ -134,7 +133,7 @@ func authenticationCleartext(server pnet.ReadWriter, password string) Status {
 	return Ok
 }
 
-func startup0(server pnet.ReadWriter, username, password string) (done bool, status Status) {
+func startup0(server zap.ReadWriter, username, password string) (done bool, status Status) {
 	in, err := server.Read()
 	if err != nil {
 		fail(server, err)
@@ -142,7 +141,7 @@ func startup0(server pnet.ReadWriter, username, password string) (done bool, sta
 	}
 
 	switch in.Type() {
-	case packet.ErrorResponse:
+	case packets.ErrorResponse:
 		perr, ok := packets.ReadErrorResponse(in)
 		if !ok {
 			fail(server, ErrBadPacket)
@@ -150,7 +149,7 @@ func startup0(server pnet.ReadWriter, username, password string) (done bool, sta
 		}
 		failpg(server, perr)
 		return false, Fail
-	case packet.Authentication:
+	case packets.Authentication:
 		method, ok := in.Int32()
 		if !ok {
 			fail(server, ErrBadPacket)
@@ -195,7 +194,7 @@ func startup0(server pnet.ReadWriter, username, password string) (done bool, sta
 			fail(server, errors.New("unknown authentication method"))
 			return false, Fail
 		}
-	case packet.NegotiateProtocolVersion:
+	case packets.NegotiateProtocolVersion:
 		// we only support protocol 3.0 for now
 		fail(server, errors.New("server wanted to negotiate protocol version"))
 		return false, Fail
@@ -205,7 +204,7 @@ func startup0(server pnet.ReadWriter, username, password string) (done bool, sta
 	}
 }
 
-func startup1(server pnet.ReadWriter) (done bool, status Status) {
+func startup1(server zap.ReadWriter) (done bool, status Status) {
 	in, err := server.Read()
 	if err != nil {
 		fail(server, err)
@@ -213,7 +212,7 @@ func startup1(server pnet.ReadWriter) (done bool, status Status) {
 	}
 
 	switch in.Type() {
-	case packet.BackendKeyData:
+	case packets.BackendKeyData:
 		var cancellationKey [8]byte
 		ok := in.Bytes(cancellationKey[:])
 		if !ok {
@@ -222,11 +221,11 @@ func startup1(server pnet.ReadWriter) (done bool, status Status) {
 		}
 		// TODO(garet) put cancellation key somewhere
 		return false, Ok
-	case packet.ParameterStatus:
+	case packets.ParameterStatus:
 		return false, Ok
-	case packet.ReadyForQuery:
+	case packets.ReadyForQuery:
 		return true, Ok
-	case packet.ErrorResponse:
+	case packets.ErrorResponse:
 		perr, ok := packets.ReadErrorResponse(in)
 		if !ok {
 			fail(server, ErrBadPacket)
@@ -234,7 +233,7 @@ func startup1(server pnet.ReadWriter) (done bool, status Status) {
 		}
 		failpg(server, perr)
 		return false, Fail
-	case packet.NoticeResponse:
+	case packets.NoticeResponse:
 		// TODO(garet) do something with notice
 		return false, Ok
 	default:
@@ -243,7 +242,7 @@ func startup1(server pnet.ReadWriter) (done bool, status Status) {
 	}
 }
 
-func Accept(server pnet.ReadWriter) {
+func Accept(server zap.ReadWriter) {
 	// we can re-use the memory for this pkt most of the way down because we don't pass this anywhere
 	out := server.Write()
 	out.Int16(3)
@@ -255,7 +254,7 @@ func Accept(server pnet.ReadWriter) {
 	out.String("uniswap")
 	out.String("")
 
-	err := server.Send(out.Finish())
+	err := server.Send(out)
 	if err != nil {
 		fail(server, err)
 		return

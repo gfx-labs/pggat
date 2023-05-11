@@ -6,9 +6,8 @@ import (
 	"runtime/debug"
 
 	"pggat2/lib/perror"
-	"pggat2/lib/pnet"
-	"pggat2/lib/pnet/packet"
-	packets "pggat2/lib/pnet/packet/packets/v3.0"
+	"pggat2/lib/zap"
+	"pggat2/lib/zap/packets/v3.0"
 )
 
 type Status int
@@ -18,21 +17,21 @@ const (
 	Ok
 )
 
-func clientFail(client pnet.ReadWriter, err perror.Error) {
+func clientFail(client zap.ReadWriter, err perror.Error) {
 	// DEBUG(garet)
 	log.Println("client fail", err)
 	debug.PrintStack()
 
 	out := client.Write()
 	packets.WriteErrorResponse(out, err)
-	_ = client.Send(out.Finish())
+	_ = client.Send(out)
 }
 
-func serverFail(server pnet.ReadWriter, err error) {
+func serverFail(server zap.ReadWriter, err error) {
 	panic(err)
 }
 
-func copyIn0(client, server pnet.ReadWriter) (done bool, status Status) {
+func copyIn0(client, server zap.ReadWriter) (done bool, status Status) {
 	in, err := client.Read()
 	if err != nil {
 		clientFail(client, perror.Wrap(err))
@@ -40,29 +39,29 @@ func copyIn0(client, server pnet.ReadWriter) (done bool, status Status) {
 	}
 
 	switch in.Type() {
-	case packet.CopyData:
-		err = pnet.ProxyPacket(server, in)
+	case packets.CopyData:
+		err = server.Send(zap.InToOut(in))
 		if err != nil {
 			serverFail(server, err)
 			return false, Fail
 		}
 		return true, Ok
-	case packet.CopyDone, packet.CopyFail:
-		err = pnet.ProxyPacket(server, in)
+	case packets.CopyDone, packets.CopyFail:
+		err = server.Send(zap.InToOut(in))
 		if err != nil {
 			serverFail(server, err)
 			return false, Fail
 		}
 		return true, Ok
 	default:
-		clientFail(client, pnet.ErrProtocolError)
+		clientFail(client, packets.ErrUnexpectedPacket)
 		return false, Fail
 	}
 }
 
-func copyIn(client, server pnet.ReadWriter, in packet.In) (status Status) {
+func copyIn(client, server zap.ReadWriter, in zap.In) (status Status) {
 	// send in (copyInResponse) to client
-	err := pnet.ProxyPacket(client, in)
+	err := client.Send(zap.InToOut(in))
 	if err != nil {
 		clientFail(client, perror.Wrap(err))
 		return Fail
@@ -82,7 +81,7 @@ func copyIn(client, server pnet.ReadWriter, in packet.In) (status Status) {
 	return Ok
 }
 
-func copyOut0(client, server pnet.ReadWriter) (done bool, status Status) {
+func copyOut0(client, server zap.ReadWriter) (done bool, status Status) {
 	in, err := server.Read()
 	if err != nil {
 		serverFail(server, err)
@@ -90,15 +89,15 @@ func copyOut0(client, server pnet.ReadWriter) (done bool, status Status) {
 	}
 
 	switch in.Type() {
-	case packet.CopyData:
-		err = pnet.ProxyPacket(client, in)
+	case packets.CopyData:
+		err = client.Send(zap.InToOut(in))
 		if err != nil {
 			clientFail(client, perror.Wrap(err))
 			return false, Fail
 		}
 		return false, Ok
-	case packet.CopyDone, packet.ErrorResponse:
-		err = pnet.ProxyPacket(client, in)
+	case packets.CopyDone, packets.ErrorResponse:
+		err = client.Send(zap.InToOut(in))
 		if err != nil {
 			clientFail(client, perror.Wrap(err))
 			return false, Fail
@@ -110,9 +109,9 @@ func copyOut0(client, server pnet.ReadWriter) (done bool, status Status) {
 	}
 }
 
-func copyOut(client, server pnet.ReadWriter, in packet.In) (status Status) {
+func copyOut(client, server zap.ReadWriter, in zap.In) (status Status) {
 	// send in (copyOutResponse) to client
-	err := pnet.ProxyPacket(client, in)
+	err := client.Send(zap.InToOut(in))
 	if err != nil {
 		clientFail(client, perror.Wrap(err))
 		return Fail
@@ -132,7 +131,7 @@ func copyOut(client, server pnet.ReadWriter, in packet.In) (status Status) {
 	return Ok
 }
 
-func query0(client, server pnet.ReadWriter) (done bool, status Status) {
+func query0(client, server zap.ReadWriter) (done bool, status Status) {
 	in, err := server.Read()
 	if err != nil {
 		serverFail(server, err)
@@ -140,33 +139,33 @@ func query0(client, server pnet.ReadWriter) (done bool, status Status) {
 	}
 
 	switch in.Type() {
-	case packet.CommandComplete,
-		packet.RowDescription,
-		packet.DataRow,
-		packet.EmptyQueryResponse,
-		packet.ErrorResponse,
-		packet.NoticeResponse,
-		packet.ParameterStatus:
-		err = pnet.ProxyPacket(client, in)
+	case packets.CommandComplete,
+		packets.RowDescription,
+		packets.DataRow,
+		packets.EmptyQueryResponse,
+		packets.ErrorResponse,
+		packets.NoticeResponse,
+		packets.ParameterStatus:
+		err = client.Send(zap.InToOut(in))
 		if err != nil {
 			clientFail(client, perror.Wrap(err))
 			return false, Fail
 		}
 		return false, Ok
-	case packet.CopyInResponse:
+	case packets.CopyInResponse:
 		status = copyIn(client, server, in)
 		if status != Ok {
 			return false, status
 		}
 		return false, Ok
-	case packet.CopyOutResponse:
+	case packets.CopyOutResponse:
 		status = copyOut(client, server, in)
 		if status != Ok {
 			return false, status
 		}
 		return false, Ok
-	case packet.ReadyForQuery:
-		err = pnet.ProxyPacket(client, in)
+	case packets.ReadyForQuery:
+		err = client.Send(zap.InToOut(in))
 		if err != nil {
 			clientFail(client, perror.Wrap(err))
 			return false, Fail
@@ -178,9 +177,9 @@ func query0(client, server pnet.ReadWriter) (done bool, status Status) {
 	}
 }
 
-func query(client, server pnet.ReadWriter, in packet.In) (status Status) {
+func query(client, server zap.ReadWriter, in zap.In) (status Status) {
 	// send in (initial query) to server
-	err := pnet.ProxyPacket(server, in)
+	err := server.Send(zap.InToOut(in))
 	if err != nil {
 		serverFail(server, err)
 		return Fail
@@ -199,7 +198,7 @@ func query(client, server pnet.ReadWriter, in packet.In) (status Status) {
 	return Ok
 }
 
-func functionCall0(client, server pnet.ReadWriter) (done bool, status Status) {
+func functionCall0(client, server zap.ReadWriter) (done bool, status Status) {
 	in, err := server.Read()
 	if err != nil {
 		serverFail(server, err)
@@ -207,15 +206,15 @@ func functionCall0(client, server pnet.ReadWriter) (done bool, status Status) {
 	}
 
 	switch in.Type() {
-	case packet.ErrorResponse, packet.FunctionCallResponse, packet.NoticeResponse:
-		err = pnet.ProxyPacket(client, in)
+	case packets.ErrorResponse, packets.FunctionCallResponse, packets.NoticeResponse:
+		err = client.Send(zap.InToOut(in))
 		if err != nil {
 			clientFail(client, perror.Wrap(err))
 			return false, Fail
 		}
 		return false, Ok
-	case packet.ReadyForQuery:
-		err = pnet.ProxyPacket(client, in)
+	case packets.ReadyForQuery:
+		err = client.Send(zap.InToOut(in))
 		if err != nil {
 			clientFail(client, perror.Wrap(err))
 			return false, Fail
@@ -227,9 +226,9 @@ func functionCall0(client, server pnet.ReadWriter) (done bool, status Status) {
 	}
 }
 
-func functionCall(client, server pnet.ReadWriter, in packet.In) (status Status) {
+func functionCall(client, server zap.ReadWriter, in zap.In) (status Status) {
 	// send in (FunctionCall) to server
-	err := pnet.ProxyPacket(server, in)
+	err := server.Send(zap.InToOut(in))
 	if err != nil {
 		serverFail(server, err)
 		return Fail
@@ -248,7 +247,7 @@ func functionCall(client, server pnet.ReadWriter, in packet.In) (status Status) 
 	return Ok
 }
 
-func sync0(client, server pnet.ReadWriter) (done bool, status Status) {
+func sync0(client, server zap.ReadWriter) (done bool, status Status) {
 	in, err := server.Read()
 	if err != nil {
 		serverFail(server, err)
@@ -256,27 +255,27 @@ func sync0(client, server pnet.ReadWriter) (done bool, status Status) {
 	}
 
 	switch in.Type() {
-	case packet.ParseComplete,
-		packet.BindComplete,
-		packet.ErrorResponse,
-		packet.RowDescription,
-		packet.NoData,
-		packet.ParameterDescription,
+	case packets.ParseComplete,
+		packets.BindComplete,
+		packets.ErrorResponse,
+		packets.RowDescription,
+		packets.NoData,
+		packets.ParameterDescription,
 
-		packet.CommandComplete,
-		packet.DataRow,
-		packet.EmptyQueryResponse,
-		packet.NoticeResponse,
-		packet.ParameterStatus,
-		packet.PortalSuspended:
-		err = pnet.ProxyPacket(client, in)
+		packets.CommandComplete,
+		packets.DataRow,
+		packets.EmptyQueryResponse,
+		packets.NoticeResponse,
+		packets.ParameterStatus,
+		packets.PortalSuspended:
+		err = client.Send(zap.InToOut(in))
 		if err != nil {
 			clientFail(client, perror.Wrap(err))
 			return false, Fail
 		}
 		return false, Ok
-	case packet.ReadyForQuery:
-		err = pnet.ProxyPacket(client, in)
+	case packets.ReadyForQuery:
+		err = client.Send(zap.InToOut(in))
 		if err != nil {
 			clientFail(client, perror.Wrap(err))
 			return false, Fail
@@ -289,9 +288,9 @@ func sync0(client, server pnet.ReadWriter) (done bool, status Status) {
 	}
 }
 
-func sync(client, server pnet.ReadWriter, in packet.In) (status Status) {
+func sync(client, server zap.ReadWriter, in zap.In) (status Status) {
 	// send initial (sync) to server
-	err := pnet.ProxyPacket(server, in)
+	err := server.Send(zap.InToOut(in))
 	if err != nil {
 		serverFail(server, err)
 		return Fail
@@ -311,13 +310,13 @@ func sync(client, server pnet.ReadWriter, in packet.In) (status Status) {
 	return Ok
 }
 
-func eqp(client, server pnet.ReadWriter, in packet.In) (status Status) {
+func eqp(client, server zap.ReadWriter, in zap.In) (status Status) {
 	for {
 		switch in.Type() {
-		case packet.Sync:
+		case packets.Sync:
 			return sync(client, server, in)
-		case packet.Parse, packet.Bind, packet.Describe, packet.Execute:
-			err := pnet.ProxyPacket(server, in)
+		case packets.Parse, packets.Bind, packets.Describe, packets.Execute:
+			err := server.Send(zap.InToOut(in))
 			if err != nil {
 				serverFail(server, err)
 				return Fail
@@ -340,7 +339,7 @@ func eqp(client, server pnet.ReadWriter, in packet.In) (status Status) {
 	}
 }
 
-func Bounce(client, server pnet.ReadWriter) {
+func Bounce(client, server zap.ReadWriter) {
 	in, err := client.Read()
 	if err != nil {
 		clientFail(client, perror.Wrap(err))
@@ -348,11 +347,11 @@ func Bounce(client, server pnet.ReadWriter) {
 	}
 
 	switch in.Type() {
-	case packet.Query:
+	case packets.Query:
 		query(client, server, in)
-	case packet.FunctionCall:
+	case packets.FunctionCall:
 		functionCall(client, server, in)
-	case packet.Sync, packet.Parse, packet.Bind, packet.Describe, packet.Execute:
+	case packets.Sync, packets.Parse, packets.Bind, packets.Describe, packets.Execute:
 		eqp(client, server, in)
 	default:
 		log.Printf("operation %c", in.Type())

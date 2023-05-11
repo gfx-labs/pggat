@@ -8,8 +8,8 @@ import (
 
 	"pggat2/lib/auth/sasl"
 	"pggat2/lib/perror"
-	"pggat2/lib/pnet"
-	"pggat2/lib/pnet/packet/packets/v3.0"
+	"pggat2/lib/zap"
+	"pggat2/lib/zap/packets/v3.0"
 )
 
 type Status int
@@ -19,17 +19,17 @@ const (
 	Ok
 )
 
-func fail(client pnet.ReadWriter, err perror.Error) {
+func fail(client zap.ReadWriter, err perror.Error) {
 	// DEBUG(garet)
 	log.Println("client fail", err)
 	debug.PrintStack()
 
 	out := client.Write()
 	packets.WriteErrorResponse(out, err)
-	_ = client.Send(out.Finish())
+	_ = client.Send(out)
 }
 
-func startup0(client pnet.ReadWriter) (done bool, status Status) {
+func startup0(client zap.ReadWriter) (done bool, status Status) {
 	in, err := client.ReadUntyped()
 	if err != nil {
 		fail(client, perror.Wrap(err))
@@ -38,12 +38,12 @@ func startup0(client pnet.ReadWriter) (done bool, status Status) {
 
 	majorVersion, ok := in.Uint16()
 	if !ok {
-		fail(client, pnet.ErrBadPacketFormat)
+		fail(client, packets.ErrBadFormat)
 		return false, Fail
 	}
 	minorVersion, ok := in.Uint16()
 	if !ok {
-		fail(client, pnet.ErrBadPacketFormat)
+		fail(client, packets.ErrBadFormat)
 		return false, Fail
 	}
 
@@ -100,7 +100,7 @@ func startup0(client pnet.ReadWriter) (done bool, status Status) {
 	for {
 		key, ok := in.String()
 		if !ok {
-			fail(client, pnet.ErrBadPacketFormat)
+			fail(client, packets.ErrBadFormat)
 			return false, Fail
 		}
 		if key == "" {
@@ -109,7 +109,7 @@ func startup0(client pnet.ReadWriter) (done bool, status Status) {
 
 		value, ok := in.String()
 		if !ok {
-			fail(client, pnet.ErrBadPacketFormat)
+			fail(client, packets.ErrBadFormat)
 			return false, Fail
 		}
 
@@ -147,7 +147,7 @@ func startup0(client pnet.ReadWriter) (done bool, status Status) {
 		out := client.Write()
 		packets.WriteNegotiateProtocolVersion(out, 0, unsupportedOptions)
 
-		err = client.Send(out.Finish())
+		err = client.Send(out)
 		if err != nil {
 			fail(client, perror.Wrap(err))
 			return false, Fail
@@ -169,7 +169,7 @@ func startup0(client pnet.ReadWriter) (done bool, status Status) {
 	return true, Ok
 }
 
-func authenticationSASLInitial(client pnet.ReadWriter, username, password string) (server sasl.Server, resp []byte, done bool, status Status) {
+func authenticationSASLInitial(client zap.ReadWriter, username, password string) (server sasl.Server, resp []byte, done bool, status Status) {
 	// check which authentication method the client wants
 	in, err := client.Read()
 	if err != nil {
@@ -178,7 +178,7 @@ func authenticationSASLInitial(client pnet.ReadWriter, username, password string
 	}
 	mechanism, initialResponse, ok := packets.ReadSASLInitialResponse(in)
 	if !ok {
-		fail(client, pnet.ErrBadPacketFormat)
+		fail(client, packets.ErrBadFormat)
 		return nil, nil, false, Fail
 	}
 
@@ -196,7 +196,7 @@ func authenticationSASLInitial(client pnet.ReadWriter, username, password string
 	return tool, resp, done, Ok
 }
 
-func authenticationSASLContinue(client pnet.ReadWriter, tool sasl.Server) (resp []byte, done bool, status Status) {
+func authenticationSASLContinue(client zap.ReadWriter, tool sasl.Server) (resp []byte, done bool, status Status) {
 	in, err := client.Read()
 	if err != nil {
 		fail(client, perror.Wrap(err))
@@ -204,7 +204,7 @@ func authenticationSASLContinue(client pnet.ReadWriter, tool sasl.Server) (resp 
 	}
 	clientResp, ok := packets.ReadAuthenticationResponse(in)
 	if !ok {
-		fail(client, pnet.ErrProtocolError)
+		fail(client, packets.ErrBadFormat)
 		return nil, false, Fail
 	}
 
@@ -216,10 +216,10 @@ func authenticationSASLContinue(client pnet.ReadWriter, tool sasl.Server) (resp 
 	return resp, done, Ok
 }
 
-func authenticationSASL(client pnet.ReadWriter, username, password string) Status {
+func authenticationSASL(client zap.ReadWriter, username, password string) Status {
 	out := client.Write()
 	packets.WriteAuthenticationSASL(out, sasl.Mechanisms)
-	err := client.Send(out.Finish())
+	err := client.Send(out)
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return Fail
@@ -234,7 +234,7 @@ func authenticationSASL(client pnet.ReadWriter, username, password string) Statu
 		if done {
 			out = client.Write()
 			packets.WriteAuthenticationSASLFinal(out, resp)
-			err = client.Send(out.Finish())
+			err = client.Send(out)
 			if err != nil {
 				fail(client, perror.Wrap(err))
 				return Fail
@@ -243,7 +243,7 @@ func authenticationSASL(client pnet.ReadWriter, username, password string) Statu
 		} else {
 			out = client.Write()
 			packets.WriteAuthenticationSASLContinue(out, resp)
-			err = client.Send(out.Finish())
+			err = client.Send(out)
 			if err != nil {
 				fail(client, perror.Wrap(err))
 				return Fail
@@ -256,10 +256,10 @@ func authenticationSASL(client pnet.ReadWriter, username, password string) Statu
 	return Ok
 }
 
-func updateParameter(client pnet.ReadWriter, name, value string) Status {
+func updateParameter(client zap.ReadWriter, name, value string) Status {
 	out := client.Write()
 	packets.WriteParameterStatus(out, name, value)
-	err := client.Send(out.Finish())
+	err := client.Send(out)
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return Fail
@@ -267,7 +267,7 @@ func updateParameter(client pnet.ReadWriter, name, value string) Status {
 	return Ok
 }
 
-func Accept(client pnet.ReadWriter) {
+func Accept(client zap.ReadWriter) {
 	for {
 		done, status := startup0(client)
 		if status != Ok {
@@ -286,7 +286,7 @@ func Accept(client pnet.ReadWriter) {
 	// send auth Ok
 	out := client.Write()
 	packets.WriteAuthenticationOk(out)
-	err := client.Send(out.Finish())
+	err := client.Send(out)
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return
@@ -354,7 +354,7 @@ func Accept(client pnet.ReadWriter) {
 	}
 	out = client.Write()
 	packets.WriteBackendKeyData(out, cancellationKey)
-	err = client.Send(out.Finish())
+	err = client.Send(out)
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return
@@ -363,7 +363,7 @@ func Accept(client pnet.ReadWriter) {
 	// send ready for query
 	out = client.Write()
 	packets.WriteReadyForQuery(out, 'I')
-	err = client.Send(out.Finish())
+	err = client.Send(out)
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return

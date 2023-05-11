@@ -1,17 +1,16 @@
 package unread
 
 import (
-	"pggat2/lib/pnet"
-	"pggat2/lib/pnet/packet"
+	"pggat2/lib/zap"
 )
 
 type Unread struct {
-	in   packet.In
+	in   zap.In
 	read bool
-	pnet.ReadWriter
+	zap.ReadWriter
 }
 
-func NewUnread(inner pnet.ReadWriter) (*Unread, error) {
+func NewUnread(inner zap.ReadWriter) (*Unread, error) {
 	in, err := inner.Read()
 	if err != nil {
 		return nil, err
@@ -22,7 +21,7 @@ func NewUnread(inner pnet.ReadWriter) (*Unread, error) {
 	}, nil
 }
 
-func NewUnreadUntyped(inner pnet.ReadWriter) (*Unread, error) {
+func NewUnreadUntyped(inner zap.ReadWriter) (*Unread, error) {
 	in, err := inner.ReadUntyped()
 	if err != nil {
 		return nil, err
@@ -33,7 +32,7 @@ func NewUnreadUntyped(inner pnet.ReadWriter) (*Unread, error) {
 	}, nil
 }
 
-func (T *Unread) Read() (packet.In, error) {
+func (T *Unread) Read() (zap.In, error) {
 	if !T.read {
 		T.read = true
 		return T.in, nil
@@ -41,7 +40,7 @@ func (T *Unread) Read() (packet.In, error) {
 	return T.ReadWriter.Read()
 }
 
-func (T *Unread) ReadUntyped() (packet.In, error) {
+func (T *Unread) ReadUntyped() (zap.In, error) {
 	if !T.read {
 		T.read = true
 		return T.in, nil
@@ -49,4 +48,4 @@ func (T *Unread) ReadUntyped() (packet.In, error) {
 	return T.ReadWriter.ReadUntyped()
 }
 
-var _ pnet.ReadWriter = (*Unread)(nil)
+var _ zap.ReadWriter = (*Unread)(nil)

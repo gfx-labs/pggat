@@ -3,29 +3,29 @@ package unterminate
 import (
 	"io"
 
-	"pggat2/lib/pnet"
-	"pggat2/lib/pnet/packet"
+	"pggat2/lib/zap"
+	packets "pggat2/lib/zap/packets/v3.0"
 )
 
 type Unterminate struct {
-	pnet.ReadWriter
+	zap.ReadWriter
 }
 
-func MakeUnterminate(inner pnet.ReadWriter) Unterminate {
+func MakeUnterminate(inner zap.ReadWriter) Unterminate {
 	return Unterminate{
 		ReadWriter: inner,
 	}
 }
 
-func (T Unterminate) Read() (packet.In, error) {
+func (T Unterminate) Read() (zap.In, error) {
 	in, err := T.ReadWriter.Read()
 	if err != nil {
-		return packet.In{}, err
+		return zap.In{}, err
 	}
-	if in.Type() == packet.Terminate {
-		return packet.In{}, io.EOF
+	if in.Type() == packets.Terminate {
+		return zap.In{}, io.EOF
 	}
 	return in, nil
 }
 
-var _ pnet.ReadWriter = Unterminate{}
+var _ zap.ReadWriter = Unterminate{}
