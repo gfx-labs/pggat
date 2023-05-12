@@ -85,10 +85,12 @@ func (T *Server) closePortal(ctx mw2.Context, target string) error {
 }
 
 func (T *Server) bindPreparedStatement(ctx mw2.Context, target string, preparedStatement PreparedStatement) error {
-	if _, ok := T.preparedStatements[target]; ok {
-		err := T.closePreparedStatement(ctx, target)
-		if err != nil {
-			return err
+	if target != "" {
+		if _, ok := T.preparedStatements[target]; ok {
+			err := T.closePreparedStatement(ctx, target)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -105,10 +107,12 @@ func (T *Server) bindPreparedStatement(ctx mw2.Context, target string, preparedS
 }
 
 func (T *Server) bindPortal(ctx mw2.Context, target string, portal Portal) error {
-	if _, ok := T.portals[target]; ok {
-		err := T.closePortal(ctx, target)
-		if err != nil {
-			return err
+	if target != "" {
+		if _, ok := T.portals[target]; ok {
+			err := T.closePortal(ctx, target)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -205,6 +209,9 @@ func (T *Server) Read(ctx mw2.Context, in zap.In) error {
 
 		T.pendingCloses.PopFront()
 	case packets.ReadyForQuery:
+		// clobber unnamed
+		delete(T.preparedStatements, "")
+		delete(T.portals, "")
 		// all pending failed
 		for pending, ok := T.pendingPreparedStatements.PopBack(); ok; pending, ok = T.pendingPreparedStatements.PopBack() {
 			delete(T.preparedStatements, pending)

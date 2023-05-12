@@ -11,6 +11,7 @@ import (
 	"pggat2/lib/middleware/middlewares/onebuffer"
 	"pggat2/lib/mw2"
 	"pggat2/lib/mw2/interceptor"
+	"pggat2/lib/mw2/middlewares/eqp"
 	"pggat2/lib/mw2/middlewares/unterminate"
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v2"
@@ -19,6 +20,7 @@ import (
 )
 
 type job struct {
+	eqpc   *eqp.Client
 	client zap.ReadWriter
 	done   chan<- struct{}
 }
@@ -29,11 +31,19 @@ func testServer(r rob.Scheduler) {
 		panic(err)
 	}
 	server := zio.MakeReadWriter(conn)
-	backends.Accept(&server)
+	eqps := eqp.MakeServer()
+	mw := interceptor.MakeInterceptor(
+		&server,
+		[]mw2.Middleware{
+			&eqps,
+		},
+	)
+	backends.Accept(&mw)
 	sink := r.NewSink(0)
 	for {
 		j := sink.Read().(job)
-		bouncers.Bounce(j.client, &server)
+		eqps.SetClient(j.eqpc)
+		bouncers.Bounce(j.client, &mw)
 		select {
 		case j.done <- struct{}{}:
 		default:
@@ -62,8 +72,10 @@ func main() {
 			source := r.NewSource()
 			client := zio.MakeReadWriter(conn)
 			ob := onebuffer.MakeOnebuffer(&client)
+			eqpc := eqp.MakeClient()
 			mw := interceptor.MakeInterceptor(&ob, []mw2.Middleware{
 				unterminate.Unterminate,
+				&eqpc,
 			})
 			frontends.Accept(&mw)
 			done := make(chan struct{})
@@ -74,6 +86,7 @@ func main() {
 					break
 				}
 				source.Schedule(job{
+					eqpc:   &eqpc,
 					client: &mw,
 					done:   done,
 				}, 0)

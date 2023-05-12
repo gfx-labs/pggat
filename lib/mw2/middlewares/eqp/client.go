@@ -23,6 +23,10 @@ func MakeClient() Client {
 func (T *Client) Send(_ mw2.Context, out zap.Out) error {
 	in := zap.OutToIn(out)
 	switch in.Type() {
+	case packets.ReadyForQuery:
+		// clobber unnamed
+		delete(T.preparedStatements, "")
+		delete(T.portals, "")
 	case packets.ParseComplete, packets.BindComplete, packets.CloseComplete:
 		// should've been caught by eqp.Server
 		panic("unreachable")

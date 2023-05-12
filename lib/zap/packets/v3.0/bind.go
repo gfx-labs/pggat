@@ -17,8 +17,8 @@ func ReadBind(in zap.In) (destination string, source string, parameterFormatCode
 	if !ok {
 		return
 	}
-	var parameterFormatCodesLength int16
-	parameterFormatCodesLength, ok = in.Int16()
+	var parameterFormatCodesLength uint16
+	parameterFormatCodesLength, ok = in.Uint16()
 	if !ok {
 		return
 	}
@@ -31,8 +31,8 @@ func ReadBind(in zap.In) (destination string, source string, parameterFormatCode
 		}
 		parameterFormatCodes = append(parameterFormatCodes, parameterFormatCode)
 	}
-	var parameterValuesLength int16
-	parameterValuesLength, ok = in.Int16()
+	var parameterValuesLength uint16
+	parameterValuesLength, ok = in.Uint16()
 	if !ok {
 		return
 	}
@@ -50,8 +50,8 @@ func ReadBind(in zap.In) (destination string, source string, parameterFormatCode
 		}
 		parameterValues = append(parameterValues, parameterValue)
 	}
-	var resultFormatCodesLength int16
-	resultFormatCodesLength, ok = in.Int16()
+	var resultFormatCodesLength uint16
+	resultFormatCodesLength, ok = in.Uint16()
 	if !ok {
 		return
 	}
@@ -72,11 +72,11 @@ func WriteBind(out zap.Out, destination, source string, parameterFormatCodes []i
 	out.Type(Bind)
 	out.String(destination)
 	out.String(source)
-	out.Int16(int16(len(parameterFormatCodes)))
+	out.Uint16(uint16(len(parameterFormatCodes)))
 	for _, v := range parameterFormatCodes {
 		out.Int16(v)
 	}
-	out.Int16(int16(len(parameterValues)))
+	out.Uint16(uint16(len(parameterValues)))
 	for _, v := range parameterValues {
 		if v == nil {
 			out.Int32(-1)
@@ -85,7 +85,7 @@ func WriteBind(out zap.Out, destination, source string, parameterFormatCodes []i
 		out.Int32(int32(len(v)))
 		out.Bytes(v)
 	}
-	out.Int16(int16(len(resultFormatCodes)))
+	out.Uint16(uint16(len(resultFormatCodes)))
 	for _, v := range resultFormatCodes {
 		out.Int16(v)
 	}
