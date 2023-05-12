@@ -2,10 +2,13 @@ package interceptor
 
 import (
 	"pggat2/lib/mw2"
+	"pggat2/lib/util/decorator"
 	"pggat2/lib/zap"
 )
 
 type Context struct {
+	noCopy decorator.NoCopy
+
 	cancelled bool
 	zap.ReadWriter
 }

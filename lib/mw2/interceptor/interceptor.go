@@ -2,13 +2,10 @@ package interceptor
 
 import (
 	"pggat2/lib/mw2"
-	"pggat2/lib/util/decorator"
 	"pggat2/lib/zap"
 )
 
 type Interceptor struct {
-	noCopy decorator.NoCopy
-
 	middlewares []mw2.Middleware
 	Context
 }

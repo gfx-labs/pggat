@@ -1,25 +1,85 @@
 package bouncers
 
 import (
-	"errors"
-	"log"
-
-	"pggat2/lib/perror"
+	"pggat2/lib/bouncer/bouncers/v1/bctx"
+	"pggat2/lib/bouncer/bouncers/v1/berr"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
-type queryContext struct {
-	*transactionContext
-	done bool
+func readyForQuery(ctx *bctx.Context, in zap.In) berr.Error {
+	state, ok := packets.ReadReadyForQuery(in)
+	if !ok {
+		return berr.ServerBadPacket
+	}
+	if state == 'I' {
+		ctx.EndTransaction()
+	}
+	return nil
 }
 
-func (T *queryContext) queryDone() {
-	T.done = true
+func copyIn0(ctx *bctx.Context) berr.Error {
+	in, err := ctx.ClientRead()
+	if err != nil {
+		return err
+	}
+
+	switch in.Type() {
+	case packets.CopyData:
+		return ctx.ServerProxy(in)
+	case packets.CopyDone, packets.CopyFail:
+		ctx.EndCopyIn()
+		return ctx.ServerProxy(in)
+	default:
+		return berr.ClientProtocolError
+	}
 }
 
-func query0(ctx *queryContext) Error {
-	in, err := ctx.readServer()
+func copyIn(ctx *bctx.Context) berr.Error {
+	ctx.BeginCopyIn()
+
+	for ctx.InCopyIn() {
+		err := copyIn0(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func copyOut0(ctx *bctx.Context) berr.Error {
+	in, err := ctx.ServerRead()
+	if err != nil {
+		return err
+	}
+
+	switch in.Type() {
+	case packets.CopyData:
+		return ctx.ClientProxy(in)
+	case packets.CopyDone, packets.ErrorResponse:
+		ctx.EndCopyOut()
+		return ctx.ClientProxy(in)
+	default:
+		return berr.ServerProtocolError
+	}
+}
+
+func copyOut(ctx *bctx.Context) berr.Error {
+	ctx.BeginCopyOut()
+
+	for ctx.InCopyOut() {
+		err := copyOut0(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func query0(ctx *bctx.Context) berr.Error {
+	in, err := ctx.ServerRead()
 	if err != nil {
 		return err
 	}
@@ -32,141 +92,140 @@ func query0(ctx *queryContext) Error {
 		packets.ErrorResponse,
 		packets.NoticeResponse,
 		packets.ParameterStatus:
-		return ctx.sendClient(zap.InToOut(in))
+		return ctx.ClientProxy(in)
 	case packets.CopyInResponse:
-		// return copyIn(ctx, in)
-		return nil
-	case packets.CopyOutResponse:
-		// return copyOut(ctx, in)
-		return nil
-	case packets.ReadyForQuery:
-		state, ok := packets.ReadReadyForQuery(in)
-		if !ok {
-			return makeClientError(packets.ErrBadFormat)
-		}
-		err = ctx.sendClient(zap.InToOut(in))
+		err = ctx.ClientProxy(in)
 		if err != nil {
 			return err
 		}
-		ctx.queryDone()
-		if state == 'I' {
-			ctx.transactionDone()
+		return copyIn(ctx)
+	case packets.CopyOutResponse:
+		err = ctx.ClientProxy(in)
+		if err != nil {
+			return err
 		}
-		return nil
+		return copyOut(ctx)
+	case packets.ReadyForQuery:
+		err = ctx.ClientProxy(in)
+		if err != nil {
+			return err
+		}
+		ctx.EndQuery()
+		return readyForQuery(ctx, in)
 	default:
-		return makeServerError(errors.New("protocol error"))
+		return berr.ServerProtocolError
 	}
 }
 
-func query(c *transactionContext, in zap.In) Error {
-	// send in (initial query) to server
-	err := c.sendServer(zap.InToOut(in))
+func query(ctx *bctx.Context) berr.Error {
+	ctx.BeginQuery()
+
+	for ctx.InQuery() {
+		err := query0(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func functionCall0(ctx *bctx.Context) berr.Error {
+	in, err := ctx.ServerRead()
 	if err != nil {
 		return err
 	}
 
-	ctx := queryContext{
-		transactionContext: c,
+	switch in.Type() {
+	case packets.ErrorResponse, packets.FunctionCallResponse, packets.NoticeResponse:
+		return ctx.ClientProxy(in)
+	case packets.ReadyForQuery:
+		err = ctx.ClientProxy(in)
+		if err != nil {
+			return err
+		}
+		ctx.EndFunctionCall()
+		return readyForQuery(ctx, in)
+	default:
+		return berr.ServerProtocolError
 	}
-	for !ctx.done {
-		err = query0(&ctx)
+}
+
+func functionCall(ctx *bctx.Context) berr.Error {
+	ctx.BeginFunctionCall()
+
+	for ctx.InFunctionCall() {
+		err := functionCall0(ctx)
 		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
-type transactionContext struct {
-	*context
-	done bool
+func eqp0(ctx *bctx.Context) berr.Error {
+	// TODO(garet)
+	return nil
 }
 
-func (T *transactionContext) transactionDone() {
-	T.done = true
+func eqp(ctx *bctx.Context) berr.Error {
+	ctx.BeginEQP()
+
+	for ctx.InEQP() {
+		err := eqp0(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func transaction0(ctx *transactionContext) Error {
-	in, err := ctx.readClient()
+func transaction0(ctx *bctx.Context) berr.Error {
+	in, err := ctx.ClientRead()
 	if err != nil {
 		return err
 	}
 
 	switch in.Type() {
 	case packets.Query:
-		return query(ctx, in)
+		err = ctx.ServerProxy(in)
+		if err != nil {
+			return err
+		}
+		return query(ctx)
 	case packets.FunctionCall:
-		// return functionCall(ctx, in)
-		return nil
+		err = ctx.ServerProxy(in)
+		if err != nil {
+			return err
+		}
+		return functionCall(ctx)
 	case packets.Sync, packets.Parse, packets.Bind, packets.Describe, packets.Execute:
-		// return eqp(ctx, in)
-		return nil
+		err = ctx.ServerProxy(in)
+		if err != nil {
+			return err
+		}
+		return eqp(ctx)
 	default:
-		return makeClientError(perror.New(
-			perror.ERROR,
-			perror.FeatureNotSupported,
-			"unsupported operation",
-		))
+		return berr.ServerProtocolError
 	}
 }
 
-func transaction(c *context) Error {
-	ctx := transactionContext{
-		context: c,
-	}
-	for !ctx.done {
-		err := transaction0(&ctx)
+func transaction(ctx *bctx.Context) berr.Error {
+	ctx.BeginTransaction()
+
+	for ctx.InTransaction() {
+		err := transaction0(ctx)
 		if err != nil {
 			return err
 		}
 	}
-	return nil
-}
 
-type context struct {
-	client, server zap.ReadWriter
-}
-
-func (T *context) readClient() (zap.In, Error) {
-	in, err := T.client.Read()
-	if err != nil {
-		return zap.In{}, wrapClientError(err)
-	}
-	return in, nil
-}
-
-func (T *context) readServer() (zap.In, Error) {
-	in, err := T.server.Read()
-	if err != nil {
-		return zap.In{}, makeServerError(err)
-	}
-	return in, nil
-}
-
-func (T *context) sendClient(out zap.Out) Error {
-	err := T.client.Send(out)
-	if err != nil {
-		return wrapClientError(err)
-	}
-	return nil
-}
-
-func (T *context) sendServer(out zap.Out) Error {
-	err := T.server.Send(out)
-	if err != nil {
-		return makeServerError(err)
-	}
 	return nil
 }
 
 func Bounce(client, server zap.ReadWriter) {
-	ctx := context{
-		client: client,
-		server: server,
-	}
-	err := transaction(&ctx)
-	if err != nil {
-		// TODO(garet) handle error
-		log.Println(err)
-	}
+	ctx := bctx.MakeContext(client, server)
+	transaction(&ctx)
 }
