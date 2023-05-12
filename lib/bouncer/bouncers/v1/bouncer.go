@@ -1,6 +1,8 @@
 package bouncers
 
 import (
+	"log"
+
 	"pggat2/lib/bouncer/bouncers/v1/bctx"
 	"pggat2/lib/bouncer/bouncers/v1/berr"
 	"pggat2/lib/zap"
@@ -164,16 +166,44 @@ func functionCall(ctx *bctx.Context) berr.Error {
 	return nil
 }
 
-func eqp0(ctx *bctx.Context) berr.Error {
-	// TODO(garet)
-	return nil
+func sync0(ctx *bctx.Context) berr.Error {
+	in, err := ctx.ServerRead()
+	if err != nil {
+		return err
+	}
+
+	switch in.Type() {
+	case packets.ParseComplete,
+		packets.BindComplete,
+		packets.ErrorResponse,
+		packets.RowDescription,
+		packets.NoData,
+		packets.ParameterDescription,
+
+		packets.CommandComplete,
+		packets.DataRow,
+		packets.EmptyQueryResponse,
+		packets.NoticeResponse,
+		packets.ParameterStatus,
+		packets.PortalSuspended:
+		return ctx.ClientProxy(in)
+	case packets.ReadyForQuery:
+		err = ctx.ClientProxy(in)
+		if err != nil {
+			return err
+		}
+		ctx.EndSync()
+		return readyForQuery(ctx, in)
+	default:
+		return berr.ServerProtocolError
+	}
 }
 
-func eqp(ctx *bctx.Context) berr.Error {
-	ctx.BeginEQP()
+func sync(ctx *bctx.Context) berr.Error {
+	ctx.BeginSync()
 
-	for ctx.InEQP() {
-		err := eqp0(ctx)
+	for ctx.InSync() {
+		err := sync0(ctx)
 		if err != nil {
 			return err
 		}
@@ -201,12 +231,14 @@ func transaction0(ctx *bctx.Context) berr.Error {
 			return err
 		}
 		return functionCall(ctx)
-	case packets.Sync, packets.Parse, packets.Bind, packets.Describe, packets.Execute:
+	case packets.Sync:
 		err = ctx.ServerProxy(in)
 		if err != nil {
 			return err
 		}
-		return eqp(ctx)
+		return sync(ctx)
+	case packets.Parse, packets.Bind, packets.Close, packets.Describe, packets.Execute, packets.Flush:
+		return ctx.ServerProxy(in)
 	default:
 		return berr.ServerProtocolError
 	}
@@ -227,5 +259,8 @@ func transaction(ctx *bctx.Context) berr.Error {
 
 func Bounce(client, server zap.ReadWriter) {
 	ctx := bctx.MakeContext(client, server)
-	transaction(&ctx)
+	err := transaction(&ctx)
+	if err != nil {
+		log.Println("error", err)
+	}
 }

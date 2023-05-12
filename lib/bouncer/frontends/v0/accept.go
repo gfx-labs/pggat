@@ -2,8 +2,6 @@ package frontends
 
 import (
 	"crypto/rand"
-	"log"
-	"runtime/debug"
 	"strings"
 
 	"pggat2/lib/auth/sasl"
@@ -20,10 +18,6 @@ const (
 )
 
 func fail(client zap.ReadWriter, err perror.Error) {
-	// DEBUG(garet)
-	log.Println("client fail", err)
-	debug.PrintStack()
-
 	out := client.Write()
 	packets.WriteErrorResponse(out, err)
 	_ = client.Send(out)

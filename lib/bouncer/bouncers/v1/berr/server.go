@@ -1,6 +1,16 @@
 package berr
 
-type Server struct{}
+type Server struct {
+	Error error
+}
+
+func (Server) IsServer() bool {
+	return true
+}
+
+func (Server) IsClient() bool {
+	return false
+}
 
 func (Server) err() {}
 

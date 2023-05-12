@@ -2,6 +2,7 @@ package bctx
 
 import (
 	"pggat2/lib/bouncer/bouncers/v1/berr"
+	"pggat2/lib/perror"
 	"pggat2/lib/util/decorator"
 	"pggat2/lib/zap"
 )
@@ -14,7 +15,7 @@ type Context struct {
 	copyIn       bool
 	copyOut      bool
 	functionCall bool
-	eqp          bool
+	sync         bool
 
 	client, server zap.ReadWriter
 }
@@ -29,19 +30,43 @@ func MakeContext(client, server zap.ReadWriter) Context {
 // io helper funcs
 
 func (T *Context) ClientRead() (zap.In, berr.Error) {
-
+	in, err := T.client.Read()
+	if err != nil {
+		return zap.In{}, berr.Client{
+			Error: perror.Wrap(err),
+		}
+	}
+	return in, nil
 }
 
 func (T *Context) ServerRead() (zap.In, berr.Error) {
-
+	in, err := T.server.Read()
+	if err != nil {
+		return zap.In{}, berr.Server{
+			Error: err,
+		}
+	}
+	return in, nil
 }
 
 func (T *Context) ClientSend(out zap.Out) berr.Error {
-
+	err := T.client.Send(out)
+	if err != nil {
+		return berr.Client{
+			Error: perror.Wrap(err),
+		}
+	}
+	return nil
 }
 
 func (T *Context) ServerSend(out zap.Out) berr.Error {
-
+	err := T.server.Send(out)
+	if err != nil {
+		return berr.Server{
+			Error: err,
+		}
+	}
+	return nil
 }
 
 func (T *Context) ClientProxy(in zap.In) berr.Error {
@@ -129,17 +154,17 @@ func (T *Context) EndFunctionCall() {
 	T.functionCall = false
 }
 
-func (T *Context) BeginEQP() {
-	if T.eqp {
-		panic("already in EQP")
+func (T *Context) BeginSync() {
+	if T.sync {
+		panic("already in sync")
 	}
-	T.eqp = true
+	T.sync = true
 }
 
-func (T *Context) InEQP() bool {
-	return T.eqp
+func (T *Context) InSync() bool {
+	return T.sync
 }
 
-func (T *Context) EndEQP() {
-	T.eqp = false
+func (T *Context) EndSync() {
+	T.sync = false
 }
