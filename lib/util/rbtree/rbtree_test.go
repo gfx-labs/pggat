@@ -101,11 +101,37 @@ func TestRBTree_Stress(t *testing.T) {
 
 	tree := new(RBTree[int, int])
 
+	existing := make(map[int]struct{})
+
 	for i := 0; i < n; i++ {
-		k := rand.Int()
-		v := rand.Int()
-		tree.Set(k, v)
-		tree.Set(rand.Int(), rand.Int())
-		tree.Delete(k)
+		k1 := rand.Int()
+		v1 := rand.Int()
+		k2 := rand.Int()
+		v2 := rand.Int()
+		tree.Set(k1, v1)
+		tree.Set(k2, v2)
+		tree.Delete(k1)
+		delete(existing, k1)
+		existing[k2] = struct{}{}
+	}
+
+	// make sure all values we expect are there
+	for k := range existing {
+		if _, ok := tree.Get(k); !ok {
+			t.Error("expected value to exist")
+		}
+	}
+
+	// iterate through to make sure there aren't any extra values
+	prev := 0
+	for k, v, ok := tree.Min(); ok; k, v, ok = tree.Next(k) {
+		if k < prev {
+			t.Error("expected tree to be correctly ordered")
+		}
+		prev = k
+		if _, ok = existing[k]; !ok {
+			t.Error("unexpected value in tree")
+		}
+		_ = v
 	}
 }

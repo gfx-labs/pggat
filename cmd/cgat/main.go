@@ -8,7 +8,7 @@ import (
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/bouncers/v0"
 	"pggat2/lib/bouncer/frontends/v0"
-	"pggat2/lib/middleware/middlewares/unread"
+	"pggat2/lib/middleware/middlewares/onebuffer"
 	"pggat2/lib/middleware/middlewares/unterminate"
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v2"
@@ -61,15 +61,16 @@ func main() {
 			client := zio.MakeReadWriter(conn)
 			ut := unterminate.MakeUnterminate(&client)
 			frontends.Accept(ut)
+			ob := onebuffer.MakeOnebuffer(&client)
 			done := make(chan struct{})
 			defer close(done)
 			for {
-				u, err := unread.NewUnread(&ut)
+				err = ob.Buffer()
 				if err != nil {
 					break
 				}
 				source.Schedule(job{
-					client: u,
+					client: &ob,
 					done:   done,
 				}, 0)
 				<-done

@@ -9,6 +9,22 @@ type order interface {
 // RBTree is a left-leaning red-black BST
 type RBTree[K order, V any] struct {
 	root *node[K, V]
+	// pool of node to reuse memory
+	pool []*node[K, V]
+}
+
+func (T *RBTree[K, V]) free(n *node[K, V]) {
+	T.pool = append(T.pool, n)
+}
+
+func (T *RBTree[K, V]) alloc() *node[K, V] {
+	if len(T.pool) > 0 {
+		v := T.pool[len(T.pool)-1]
+		T.pool = T.pool[:len(T.pool)-1]
+		*v = node[K, V]{}
+		return v
+	}
+	return new(node[K, V])
 }
 
 func (T *RBTree[K, V]) Get(key K) (V, bool) {
@@ -32,11 +48,11 @@ func (T *RBTree[K, V]) Set(key K, value V) {
 
 func (T *RBTree[K, V]) put(n *node[K, V], key K, value V) *node[K, V] {
 	if n == nil {
-		return &node[K, V]{
-			key:   key,
-			value: value,
-			color: red,
-		}
+		n = T.alloc()
+		n.key = key
+		n.value = value
+		n.color = red
+		return n
 	}
 
 	if key > n.key {
@@ -76,6 +92,7 @@ func (T *RBTree[K, V]) delete(n *node[K, V], key K) *node[K, V] {
 			n = T.rotateRight(n)
 		}
 		if key == n.key && n.right == nil {
+			T.free(n)
 			return nil
 		}
 		if n.right.getColor() == black && n.right.left.getColor() == black {
@@ -95,6 +112,7 @@ func (T *RBTree[K, V]) delete(n *node[K, V], key K) *node[K, V] {
 
 func (T *RBTree[K, V]) deleteMin(n *node[K, V]) *node[K, V] {
 	if n.left == nil {
+		T.free(n)
 		return nil
 	}
 

@@ -6,7 +6,7 @@ In general, the top level folder will hold the interface. A subfolder (generally
 ## auth
 All authentication functions. Protocol unspecific.
 
-## bounce
+## bouncer
 All routing: accepting frontends, backends, and handling transactions.
 
 ## middleware
@@ -15,14 +15,14 @@ Intercept packets and perform operations on them
 ## perror
 Special postgres error types
 
-## pnet
-Zero allocation network handling
-
-### pnet/packet
-Packet reading/writing helpers
-
 ## rob
 A fair-share scheduler
 
 ## util
 Project generic helper structures and functions
+
+## zap
+Zero allocation packet handling
+
+### zap/packets
+Packet reading/writing helpers
