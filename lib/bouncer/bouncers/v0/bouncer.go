@@ -165,10 +165,18 @@ func query0(client, server zap.ReadWriter) (done bool, status Status) {
 		}
 		return false, Ok
 	case packets.ReadyForQuery:
+		state, ok := packets.ReadReadyForQuery(in)
+		if !ok {
+			serverFail(server, errors.New("bad packet"))
+			return false, Fail
+		}
 		err = client.Send(zap.InToOut(in))
 		if err != nil {
 			clientFail(client, perror.Wrap(err))
 			return false, Fail
+		}
+		if state != 'I' {
+			return true, transaction(client, server)
 		}
 		return true, Ok
 	default:
@@ -214,10 +222,18 @@ func functionCall0(client, server zap.ReadWriter) (done bool, status Status) {
 		}
 		return false, Ok
 	case packets.ReadyForQuery:
+		state, ok := packets.ReadReadyForQuery(in)
+		if !ok {
+			serverFail(server, errors.New("bad packet"))
+			return false, Fail
+		}
 		err = client.Send(zap.InToOut(in))
 		if err != nil {
 			clientFail(client, perror.Wrap(err))
 			return false, Fail
+		}
+		if state != 'I' {
+			return true, transaction(client, server)
 		}
 		return true, Ok
 	default:
@@ -275,10 +291,18 @@ func sync0(client, server zap.ReadWriter) (done bool, status Status) {
 		}
 		return false, Ok
 	case packets.ReadyForQuery:
+		state, ok := packets.ReadReadyForQuery(in)
+		if !ok {
+			serverFail(server, errors.New("bad packet"))
+			return false, Fail
+		}
 		err = client.Send(zap.InToOut(in))
 		if err != nil {
 			clientFail(client, perror.Wrap(err))
 			return false, Fail
+		}
+		if state != 'I' {
+			return true, transaction(client, server)
 		}
 		return true, Ok
 	default:
@@ -339,7 +363,7 @@ func eqp(client, server zap.ReadWriter, in zap.In) (status Status) {
 	}
 }
 
-func Bounce(client, server zap.ReadWriter) {
+func transaction(client, server zap.ReadWriter) (status Status) {
 	in, err := client.Read()
 	if err != nil {
 		clientFail(client, perror.Wrap(err))
@@ -348,11 +372,11 @@ func Bounce(client, server zap.ReadWriter) {
 
 	switch in.Type() {
 	case packets.Query:
-		query(client, server, in)
+		return query(client, server, in)
 	case packets.FunctionCall:
-		functionCall(client, server, in)
+		return functionCall(client, server, in)
 	case packets.Sync, packets.Parse, packets.Bind, packets.Describe, packets.Execute:
-		eqp(client, server, in)
+		return eqp(client, server, in)
 	default:
 		log.Printf("operation %c", in.Type())
 		clientFail(client, perror.New(
@@ -360,6 +384,10 @@ func Bounce(client, server zap.ReadWriter) {
 			perror.FeatureNotSupported,
 			"unsupported operation",
 		))
-		return
+		return Fail
 	}
+}
+
+func Bounce(client, server zap.ReadWriter) {
+	transaction(client, server)
 }
