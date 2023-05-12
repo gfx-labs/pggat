@@ -13,6 +13,13 @@ type Client struct {
 	portals            map[string]Portal
 }
 
+func MakeClient() Client {
+	return Client{
+		preparedStatements: make(map[string]PreparedStatement),
+		portals:            make(map[string]Portal),
+	}
+}
+
 func (T *Client) Send(_ mw2.Context, out zap.Out) error {
 	in := zap.OutToIn(out)
 	switch in.Type() {
@@ -105,8 +112,32 @@ func (T *Client) Read(ctx mw2.Context, in zap.In) error {
 		if err != nil {
 			return err
 		}
-
-		// TODO(garet) we should read Describe and Execute to check if target exists
+	case packets.Describe:
+		// ensure target exists
+		which, target, ok := packets.ReadDescribe(in)
+		if !ok {
+			return errors.New("bad packet format")
+		}
+		switch which {
+		case 'S':
+			if _, ok := T.preparedStatements[target]; !ok {
+				return errors.New("prepared statement doesn't exist")
+			}
+		case 'P':
+			if _, ok := T.portals[target]; !ok {
+				return errors.New("portal doesn't exist")
+			}
+		default:
+			return errors.New("unknown describe target")
+		}
+	case packets.Execute:
+		target, _, ok := packets.ReadExecute(in)
+		if !ok {
+			return errors.New("bad packet format")
+		}
+		if _, ok := T.portals[target]; !ok {
+			return errors.New("portal doesn't exist")
+		}
 	}
 	return nil
 }
