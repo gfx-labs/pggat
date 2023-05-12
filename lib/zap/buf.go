@@ -3,7 +3,6 @@ package zap
 import (
 	"encoding/binary"
 	"io"
-	"log"
 	"math"
 
 	"pggat2/lib/util/decorator"
@@ -57,13 +56,11 @@ func (T *Buf) Read(reader io.Reader, typed bool) (In, error) {
 	length := binary.BigEndian.Uint32(T.buf[1:])
 
 	// read payload
-	T.buf = slices.Resize(T.buf, int(length)+5)
+	T.buf = slices.Resize(T.buf, int(length)+1)
 	_, err = io.ReadFull(reader, T.buf[5:])
 	if err != nil {
 		return In{}, err
 	}
-
-	log.Printf("read packet %c %v\n", T.readType(), T.remaining())
 
 	return In{
 		buf: T,
@@ -99,11 +96,9 @@ func (T *Buf) full() []byte {
 	binary.BigEndian.PutUint32(T.buf[1:], uint32(len(T.buf)-1))
 
 	if T.readType() == 0 {
-		log.Println("write untyped packet", T.buf[5:])
 		// untyped
 		return T.buf[1:]
 	} else {
-		log.Printf("write typed packet %c %v\n", T.buf[0], T.buf[5:])
 		// typed
 		return T.buf
 	}
