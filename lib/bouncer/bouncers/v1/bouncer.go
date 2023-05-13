@@ -263,6 +263,17 @@ func Bounce(client, server zap.ReadWriter) {
 	defer ctx.Done()
 	err := transaction(&ctx)
 	if err != nil {
-		log.Println("error", err)
+		switch e := err.(type) {
+		case berr.Client:
+			// send to client
+			out := client.Write()
+			packets.WriteErrorResponse(out, e.Error)
+			_ = client.Send(out)
+		case berr.Server:
+			log.Println("server error", e.Error)
+		default:
+			// unhandled error
+			panic(err)
+		}
 	}
 }

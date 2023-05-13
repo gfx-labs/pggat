@@ -68,6 +68,14 @@ func (T *Context) ServerRead() (zap.In, berr.Error) {
 	return in, nil
 }
 
+func (T *Context) ClientWrite() zap.Out {
+	return T.client.Write()
+}
+
+func (T *Context) ServerWrite() zap.Out {
+	return T.server.Write()
+}
+
 func (T *Context) ClientSend(out zap.Out) berr.Error {
 	err := T.client.Send(out)
 	if err != nil {
