@@ -1,20 +1,33 @@
 package zio
 
 import (
-	"io"
+	"time"
 
+	"pggat2/lib/util/dio"
 	"pggat2/lib/zap"
 )
 
 type ReadWriter struct {
-	rw  io.ReadWriter
+	rw  dio.ReadWriter
 	buf zap.Buf
 }
 
-func MakeReadWriter(rw io.ReadWriter) ReadWriter {
+func MakeReadWriter(rw dio.ReadWriter) ReadWriter {
 	return ReadWriter{
 		rw: rw,
 	}
+}
+
+func (T *ReadWriter) SetDeadline(deadline time.Time) error {
+	return T.rw.SetDeadline(deadline)
+}
+
+func (T *ReadWriter) SetReadDeadline(deadline time.Time) error {
+	return T.rw.SetReadDeadline(deadline)
+}
+
+func (T *ReadWriter) SetWriteDeadline(deadline time.Time) error {
+	return T.rw.SetWriteDeadline(deadline)
 }
 
 func (T *ReadWriter) ReadByte() (byte, error) {

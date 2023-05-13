@@ -1,20 +1,25 @@
 package zio
 
 import (
-	"io"
+	"time"
 
+	"pggat2/lib/util/dio"
 	"pggat2/lib/zap"
 )
 
 type Reader struct {
-	reader io.Reader
+	reader dio.Reader
 	buf    zap.Buf
 }
 
-func MakeReader(reader io.Reader) Reader {
+func MakeReader(reader dio.Reader) Reader {
 	return Reader{
 		reader: reader,
 	}
+}
+
+func (T *Reader) SetReadDeadline(deadline time.Time) error {
+	return T.reader.SetReadDeadline(deadline)
 }
 
 func (T *Reader) ReadByte() (byte, error) {

@@ -1,6 +1,8 @@
 package bctx
 
 import (
+	"time"
+
 	"pggat2/lib/bouncer/bouncers/v1/berr"
 	"pggat2/lib/perror"
 	"pggat2/lib/util/decorator"
@@ -9,6 +11,8 @@ import (
 
 type Context struct {
 	noCopy decorator.NoCopy
+
+	clientIdleTimeout time.Duration
 
 	transaction  bool
 	query        bool
@@ -20,16 +24,31 @@ type Context struct {
 	client, server zap.ReadWriter
 }
 
-func MakeContext(client, server zap.ReadWriter) Context {
+func MakeContext(client, server zap.ReadWriter, clientIdleTimeout time.Duration) Context {
 	return Context{
+		clientIdleTimeout: clientIdleTimeout,
+
 		client: client,
 		server: server,
 	}
 }
 
+func (T *Context) Done() {
+	// if it fails, it's not my problem - Garet, May 12, 2023
+	_ = T.client.SetReadDeadline(time.Time{})
+}
+
 // io helper funcs
 
 func (T *Context) ClientRead() (zap.In, berr.Error) {
+	if T.clientIdleTimeout > 0 {
+		err := T.client.SetReadDeadline(time.Now().Add(T.clientIdleTimeout))
+		if err != nil {
+			return zap.In{}, berr.Client{
+				Error: perror.Wrap(err),
+			}
+		}
+	}
 	in, err := T.client.Read()
 	if err != nil {
 		return zap.In{}, berr.Client{

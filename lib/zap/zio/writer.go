@@ -1,20 +1,25 @@
 package zio
 
 import (
-	"io"
+	"time"
 
+	"pggat2/lib/util/dio"
 	"pggat2/lib/zap"
 )
 
 type Writer struct {
-	writer io.Writer
+	writer dio.Writer
 	buf    zap.Buf
 }
 
-func MakeWriter(writer io.Writer) Writer {
+func MakeWriter(writer dio.Writer) Writer {
 	return Writer{
 		writer: writer,
 	}
+}
+
+func (T *Writer) SetWriteDeadline(deadline time.Time) error {
+	return T.writer.SetWriteDeadline(deadline)
 }
 
 func (T *Writer) WriteByte(b byte) error {

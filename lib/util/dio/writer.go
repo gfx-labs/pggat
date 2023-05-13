@@ -1,4 +1,4 @@
-package zap
+package dio
 
 import (
 	"io"
@@ -6,9 +6,6 @@ import (
 )
 
 type Writer interface {
-	io.ByteWriter
-
 	SetWriteDeadline(deadline time.Time) error
-	Write() Out
-	Send(Out) error
+	io.Writer
 }

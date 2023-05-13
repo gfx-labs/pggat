@@ -2,6 +2,7 @@ package bouncers
 
 import (
 	"log"
+	"time"
 
 	"pggat2/lib/bouncer/bouncers/v1/bctx"
 	"pggat2/lib/bouncer/bouncers/v1/berr"
@@ -258,7 +259,8 @@ func transaction(ctx *bctx.Context) berr.Error {
 }
 
 func Bounce(client, server zap.ReadWriter) {
-	ctx := bctx.MakeContext(client, server)
+	ctx := bctx.MakeContext(client, server, 1*time.Second) // TODO(garet) make this configurable
+	defer ctx.Done()
 	err := transaction(&ctx)
 	if err != nil {
 		log.Println("error", err)
