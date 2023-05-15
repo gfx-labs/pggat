@@ -67,8 +67,6 @@ func main() {
 				unterminate.Unterminate,
 			})
 			frontends.Accept(&mw)
-			done := make(chan struct{})
-			defer close(done)
 			for {
 				err = ob.Buffer()
 				if err != nil {
