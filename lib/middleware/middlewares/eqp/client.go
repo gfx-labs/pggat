@@ -3,7 +3,7 @@ package eqp
 import (
 	"errors"
 
-	"pggat2/lib/mw2"
+	"pggat2/lib/middleware"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
 )
@@ -20,7 +20,7 @@ func MakeClient() Client {
 	}
 }
 
-func (T *Client) Send(_ mw2.Context, out zap.Out) error {
+func (T *Client) Send(_ middleware.Context, out zap.Out) error {
 	in := zap.OutToIn(out)
 	switch in.Type() {
 	case packets.ReadyForQuery:
@@ -34,7 +34,7 @@ func (T *Client) Send(_ mw2.Context, out zap.Out) error {
 	return nil
 }
 
-func (T *Client) Read(ctx mw2.Context, in zap.In) error {
+func (T *Client) Read(ctx middleware.Context, in zap.In) error {
 	switch in.Type() {
 	case packets.Query:
 		// clobber unnamed portal and unnamed prepared statement
@@ -146,4 +146,4 @@ func (T *Client) Read(ctx mw2.Context, in zap.In) error {
 	return nil
 }
 
-var _ mw2.Middleware = (*Client)(nil)
+var _ middleware.Middleware = (*Client)(nil)

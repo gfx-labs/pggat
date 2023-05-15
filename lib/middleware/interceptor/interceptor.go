@@ -1,16 +1,16 @@
 package interceptor
 
 import (
-	"pggat2/lib/mw2"
+	"pggat2/lib/middleware"
 	"pggat2/lib/zap"
 )
 
 type Interceptor struct {
-	middlewares []mw2.Middleware
+	middlewares []middleware.Middleware
 	Context
 }
 
-func MakeInterceptor(rw zap.ReadWriter, middlewares []mw2.Middleware) Interceptor {
+func MakeInterceptor(rw zap.ReadWriter, middlewares []middleware.Middleware) Interceptor {
 	return Interceptor{
 		middlewares: middlewares,
 		Context:     makeContext(rw),

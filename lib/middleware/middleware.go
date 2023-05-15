@@ -1,4 +1,4 @@
-package mw2
+package middleware
 
 import "pggat2/lib/zap"
 

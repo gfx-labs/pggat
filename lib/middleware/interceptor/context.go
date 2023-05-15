@@ -1,7 +1,7 @@
 package interceptor
 
 import (
-	"pggat2/lib/mw2"
+	"pggat2/lib/middleware"
 	"pggat2/lib/util/decorator"
 	"pggat2/lib/zap"
 )
@@ -27,4 +27,4 @@ func (T *Context) Cancel() {
 	T.cancelled = true
 }
 
-var _ mw2.Context = (*Context)(nil)
+var _ middleware.Context = (*Context)(nil)

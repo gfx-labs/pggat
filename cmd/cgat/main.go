@@ -4,16 +4,15 @@ import (
 	"net"
 	"net/http"
 	_ "net/http/pprof"
+	"pggat2/lib/zap/onebuffer"
 
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/bouncers/v1"
 	"pggat2/lib/bouncer/frontends/v0"
-	"pggat2/lib/middleware/middlewares/onebuffer"
-	"pggat2/lib/mw2"
-	"pggat2/lib/mw2/interceptor"
-	"pggat2/lib/mw2/middlewares/unterminate"
+	"pggat2/lib/middleware"
+	"pggat2/lib/middleware/interceptor"
+	"pggat2/lib/middleware/middlewares/unterminate"
 	"pggat2/lib/rob"
-	"pggat2/lib/rob/schedulers/v2"
 	"pggat2/lib/zap"
 	"pggat2/lib/zap/zio"
 )
@@ -62,7 +61,7 @@ func main() {
 			source := r.NewSource()
 			client := zio.MakeReadWriter(conn)
 			ob := onebuffer.MakeOnebuffer(&client)
-			mw := interceptor.MakeInterceptor(&ob, []mw2.Middleware{
+			mw := interceptor.MakeInterceptor(&ob, []middleware.Middleware{
 				unterminate.Unterminate,
 			})
 			frontends.Accept(&mw)

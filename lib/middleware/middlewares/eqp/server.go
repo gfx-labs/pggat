@@ -3,7 +3,7 @@ package eqp
 import (
 	"errors"
 
-	"pggat2/lib/mw2"
+	"pggat2/lib/middleware"
 	"pggat2/lib/util/ring"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
@@ -50,7 +50,7 @@ func (T *Server) SetClient(client *Client) {
 	T.peer = client
 }
 
-func (T *Server) closePreparedStatement(ctx mw2.Context, target string) error {
+func (T *Server) closePreparedStatement(ctx middleware.Context, target string) error {
 	out := T.buf.Write()
 	packets.WriteClose(out, 'S', target)
 	err := ctx.Send(out)
@@ -67,7 +67,7 @@ func (T *Server) closePreparedStatement(ctx mw2.Context, target string) error {
 	return nil
 }
 
-func (T *Server) closePortal(ctx mw2.Context, target string) error {
+func (T *Server) closePortal(ctx middleware.Context, target string) error {
 	out := T.buf.Write()
 	packets.WriteClose(out, 'P', target)
 	err := ctx.Send(out)
@@ -84,7 +84,7 @@ func (T *Server) closePortal(ctx mw2.Context, target string) error {
 	return nil
 }
 
-func (T *Server) bindPreparedStatement(ctx mw2.Context, target string, preparedStatement PreparedStatement) error {
+func (T *Server) bindPreparedStatement(ctx middleware.Context, target string, preparedStatement PreparedStatement) error {
 	if target != "" {
 		if _, ok := T.preparedStatements[target]; ok {
 			err := T.closePreparedStatement(ctx, target)
@@ -106,7 +106,7 @@ func (T *Server) bindPreparedStatement(ctx mw2.Context, target string, preparedS
 	return nil
 }
 
-func (T *Server) bindPortal(ctx mw2.Context, target string, portal Portal) error {
+func (T *Server) bindPortal(ctx middleware.Context, target string, portal Portal) error {
 	if target != "" {
 		if _, ok := T.portals[target]; ok {
 			err := T.closePortal(ctx, target)
@@ -128,7 +128,7 @@ func (T *Server) bindPortal(ctx mw2.Context, target string, portal Portal) error
 	return nil
 }
 
-func (T *Server) syncPreparedStatement(ctx mw2.Context, target string) error {
+func (T *Server) syncPreparedStatement(ctx middleware.Context, target string) error {
 	// we can assume client has the prepared statement because it should be checked by eqp.Client
 	expected := T.peer.preparedStatements[target]
 	actual, ok := T.preparedStatements[target]
@@ -138,7 +138,7 @@ func (T *Server) syncPreparedStatement(ctx mw2.Context, target string) error {
 	return nil
 }
 
-func (T *Server) syncPortal(ctx mw2.Context, target string) error {
+func (T *Server) syncPortal(ctx middleware.Context, target string) error {
 	expected := T.peer.portals[target]
 	actual, ok := T.portals[target]
 	if !ok || !expected.Equals(actual) {
@@ -147,7 +147,7 @@ func (T *Server) syncPortal(ctx mw2.Context, target string) error {
 	return nil
 }
 
-func (T *Server) Send(ctx mw2.Context, out zap.Out) error {
+func (T *Server) Send(ctx middleware.Context, out zap.Out) error {
 	in := zap.OutToIn(out)
 	switch in.Type() {
 	case packets.Query:
@@ -194,7 +194,7 @@ func (T *Server) Send(ctx mw2.Context, out zap.Out) error {
 	return nil
 }
 
-func (T *Server) Read(ctx mw2.Context, in zap.In) error {
+func (T *Server) Read(ctx middleware.Context, in zap.In) error {
 	switch in.Type() {
 	case packets.ParseComplete:
 		ctx.Cancel()
@@ -233,4 +233,4 @@ func (T *Server) Read(ctx mw2.Context, in zap.In) error {
 	return nil
 }
 
-var _ mw2.Middleware = (*Server)(nil)
+var _ middleware.Middleware = (*Server)(nil)
