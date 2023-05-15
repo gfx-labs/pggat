@@ -241,7 +241,7 @@ func transaction0(ctx *bctx.Context) berr.Error {
 	case packets.Parse, packets.Bind, packets.Close, packets.Describe, packets.Execute, packets.Flush:
 		return ctx.ServerProxy(in)
 	default:
-		return berr.ServerProtocolError
+		return berr.ClientProtocolError
 	}
 }
 
