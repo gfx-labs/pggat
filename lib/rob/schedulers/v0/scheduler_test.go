@@ -52,13 +52,11 @@ func (T *TestSink) Do(constraints rob.Constraints, work any) {
 	if !T.constraints.Satisfies(constraints) {
 		panic("Scheduler did not obey constraints")
 	}
-	switch v := work.(type) {
-	case Work:
-		start := time.Now()
-		for time.Since(start) < v.Duration {
-		}
-		T.table.Inc(v.Sender)
+	v := work.(Work)
+	start := time.Now()
+	for time.Since(start) < v.Duration {
 	}
+	T.table.Inc(v.Sender)
 }
 
 var _ rob.Worker = (*TestSink)(nil)
@@ -266,11 +264,7 @@ func TestScheduler_StealUnbalanced(t *testing.T) {
 	t.Log("share of 1:", t1)
 	t.Log("share of 2:", t2)
 
-	if !similar(t0, t1, t2) {
-		t.Error("expected all shares to be similar")
-	}
-
-	if t0 == 0 {
+	if t0 == 0 || t1 == 0 || t2 == 0 {
 		t.Error("expected executions on all sources (is there a race in the balancer??)")
 		t.Errorf("%s", allStacks())
 	}

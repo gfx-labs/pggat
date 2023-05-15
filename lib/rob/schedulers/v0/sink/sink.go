@@ -52,6 +52,17 @@ func (T *Sink) setNext(source uuid.UUID) {
 }
 
 func (T *Sink) addStalled(j job.Stalled) {
+	if T.active != uuid.Nil {
+		// sink is in use, add to queue
+		T.scheduleStalled(j)
+	} else {
+		// sink is open, do now
+		T.setNext(j.Source)
+		j.Out <- T
+	}
+}
+
+func (T *Sink) scheduleStalled(j job.Stalled) {
 	// try to schedule right away
 	if ok := T.tryScheduleStalled(j); ok {
 		return
@@ -134,9 +145,9 @@ func (T *Sink) next() bool {
 	return true
 }
 
-func (T *Sink) DoConcurrent(j job.Concurrent) (done bool) {
+func (T *Sink) DoConcurrent(j job.Concurrent) (done, hasMore bool) {
 	if !T.constraints.Satisfies(j.Constraints) {
-		return false
+		return false, true
 	}
 
 	T.mu.Lock()
@@ -144,14 +155,13 @@ func (T *Sink) DoConcurrent(j job.Concurrent) (done bool) {
 	if T.active != uuid.Nil {
 		T.mu.Unlock()
 		// this Sink is in use
-		return false
+		return false, true
 	}
 
 	T.setNext(j.Source)
 	T.mu.Unlock()
-	T.Do(j.Constraints, j.Work)
 
-	return true
+	return true, T.Do(j.Constraints, j.Work)
 }
 
 func (T *Sink) DoStalled(j job.Stalled) (ok bool) {
@@ -162,26 +172,52 @@ func (T *Sink) DoStalled(j job.Stalled) (ok bool) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	if T.active != uuid.Nil {
-		// sink is in use, add to queue
-		T.addStalled(j)
-	} else {
-		// sink is open, do now
-		T.setNext(j.Source)
-		j.Out <- T
-	}
+	T.addStalled(j)
 
 	return true
 }
 
-func (T *Sink) Do(constraints rob.Constraints, work any) {
+func (T *Sink) Do(constraints rob.Constraints, work any) bool {
 	if !T.constraints.Satisfies(constraints) {
 		panic("Do called on sink with non satisfied constraints")
 	}
 	T.worker.Do(constraints, work)
 	T.mu.Lock()
 	defer T.mu.Unlock()
-	T.next()
+	return T.next()
 }
 
-var _ rob.Worker = (*Sink)(nil)
+func (T *Sink) StealFor(rhs *Sink) (uuid.UUID, bool) {
+	if T == rhs {
+		// cannot steal from ourselves
+		return uuid.Nil, false
+	}
+
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	for stride, work, ok := T.scheduled.Min(); ok; stride, work, ok = T.scheduled.Next(stride) {
+		if rhs.constraints.Satisfies(work.Constraints) {
+			source := work.Source
+
+			rhs.mu.Lock()
+			defer rhs.mu.Unlock()
+
+			// steal it
+			T.scheduled.Delete(stride)
+
+			rhs.addStalled(work)
+
+			// steal pending
+			pending, _ := T.pending[work.Source]
+
+			for work, ok = pending.PopFront(); ok; work, ok = pending.PopFront() {
+				rhs.addStalled(work)
+			}
+
+			return source, true
+		}
+	}
+
+	return uuid.Nil, false
+}

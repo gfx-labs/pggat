@@ -64,6 +64,8 @@ func copyOut0(ctx *bctx.Context) berr.Error {
 		ctx.EndCopyOut()
 		return ctx.ClientProxy(in)
 	default:
+		log.Printf("unexpected packet %c\n", in.Type())
+		panic("unexpected packet from server")
 		return berr.ServerProtocolError
 	}
 }
@@ -116,6 +118,8 @@ func query0(ctx *bctx.Context) berr.Error {
 		ctx.EndQuery()
 		return readyForQuery(ctx, in)
 	default:
+		log.Printf("unexpected packet %c\n", in.Type())
+		panic("unexpected packet from server")
 		return berr.ServerProtocolError
 	}
 }
@@ -150,6 +154,8 @@ func functionCall0(ctx *bctx.Context) berr.Error {
 		ctx.EndFunctionCall()
 		return readyForQuery(ctx, in)
 	default:
+		log.Printf("unexpected packet %c\n", in.Type())
+		panic("unexpected packet from server")
 		return berr.ServerProtocolError
 	}
 }
@@ -196,6 +202,8 @@ func sync0(ctx *bctx.Context) berr.Error {
 		ctx.EndSync()
 		return readyForQuery(ctx, in)
 	default:
+		log.Printf("unexpected packet %c\n", in.Type())
+		panic("unexpected packet from server")
 		return berr.ServerProtocolError
 	}
 }

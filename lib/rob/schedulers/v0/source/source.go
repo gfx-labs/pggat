@@ -6,6 +6,7 @@ import (
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v0/job"
 	"pggat2/lib/rob/schedulers/v0/pool"
+	"pggat2/lib/rob/schedulers/v0/sink"
 	"pggat2/lib/util/pools"
 )
 
@@ -13,7 +14,7 @@ type Source struct {
 	id   uuid.UUID
 	pool *pool.Pool
 
-	stall pools.Locked[chan rob.Worker]
+	stall pools.Locked[chan any]
 }
 
 func NewSource(p *pool.Pool) *Source {
@@ -33,7 +34,7 @@ func (T *Source) Do(constraints rob.Constraints, work any) {
 	}
 	out, ok := T.stall.Get()
 	if !ok {
-		out = make(chan rob.Worker)
+		out = make(chan any)
 	}
 	defer T.stall.Put(out)
 
@@ -42,8 +43,10 @@ func (T *Source) Do(constraints rob.Constraints, work any) {
 		Constraints: constraints,
 		Out:         out,
 	})
-	worker := <-out
-	worker.Do(constraints, work)
+	worker := (<-out).(*sink.Sink)
+	if hasMore := worker.Do(constraints, work); !hasMore {
+		T.pool.StealFor(worker)
+	}
 }
 
 var _ rob.Worker = (*Source)(nil)

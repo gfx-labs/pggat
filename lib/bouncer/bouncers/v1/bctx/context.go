@@ -20,6 +20,7 @@ type Context struct {
 	copyOut      bool
 	functionCall bool
 	sync         bool
+	describe     bool
 
 	client, server zap.ReadWriter
 }
@@ -194,4 +195,19 @@ func (T *Context) InSync() bool {
 
 func (T *Context) EndSync() {
 	T.sync = false
+}
+
+func (T *Context) BeginDescribe() {
+	if T.describe {
+		panic("already in describe")
+	}
+	T.describe = true
+}
+
+func (T *Context) InDescribe() bool {
+	return T.describe
+}
+
+func (T *Context) EndDescribe() {
+	T.describe = false
 }

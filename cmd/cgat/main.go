@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -47,13 +48,19 @@ func main() {
 		panic(http.ListenAndServe(":8080", nil))
 	}()
 
+	log.Println("Starting pggat...")
+
 	r := schedulers.MakeScheduler()
+	go testServer(&r)
 	go testServer(&r)
 
 	listener, err := net.Listen("tcp", "0.0.0.0:6432") // TODO(garet) make this configurable
 	if err != nil {
 		panic(err)
 	}
+
+	log.Println("Listening on 0.0.0.0:6432")
+
 	for {
 		conn, err := listener.Accept()
 		if err != nil {

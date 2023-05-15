@@ -30,7 +30,7 @@ func (T *Pool) DoConcurrent(j job.Concurrent) (done bool) {
 
 	// try affinity first
 	if v, ok := T.sinks.Load(affinity); ok {
-		if done = v.DoConcurrent(j); done {
+		if done, _ = v.DoConcurrent(j); done {
 			return
 		}
 	}
@@ -39,9 +39,15 @@ func (T *Pool) DoConcurrent(j job.Concurrent) (done bool) {
 		if id == affinity {
 			return true
 		}
-		if done = v.DoConcurrent(j); done {
+		var hasMore bool
+		if done, hasMore = v.DoConcurrent(j); done {
 			// set affinity
 			T.affinity.Store(j.Source, id)
+
+			if !hasMore {
+				T.StealFor(v)
+			}
+
 			return false
 		}
 		return true
@@ -99,4 +105,17 @@ func (T *Pool) AddSink(s *sink.Sink) {
 		}
 	}
 	T.backlog = T.backlog[:i]
+}
+
+func (T *Pool) StealFor(q *sink.Sink) {
+	T.sinks.Range(func(_ uuid.UUID, s *sink.Sink) bool {
+		if s == q {
+			return true
+		}
+		if source, ok := s.StealFor(q); ok {
+			T.affinity.Store(source, q.ID())
+			return false
+		}
+		return true
+	})
 }

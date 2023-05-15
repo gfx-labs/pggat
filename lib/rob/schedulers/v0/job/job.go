@@ -15,5 +15,5 @@ type Concurrent struct {
 type Stalled struct {
 	Source      uuid.UUID
 	Constraints rob.Constraints
-	Out         chan<- rob.Worker
+	Out         chan<- any
 }

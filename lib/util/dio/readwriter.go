@@ -1,6 +1,8 @@
 package dio
 
-import "time"
+import (
+	"time"
+)
 
 type ReadWriter interface {
 	SetDeadline(deadline time.Time) error
