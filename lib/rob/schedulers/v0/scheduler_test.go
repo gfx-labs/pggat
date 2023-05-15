@@ -342,3 +342,28 @@ func TestScheduler_IdleWake(t *testing.T) {
 
 	t.Log("share of 0:", t0)
 }
+
+func TestScheduler_LateSink(t *testing.T) {
+	var table ShareTable
+	sched := NewScheduler()
+
+	go testSource(sched, 0, 10*time.Millisecond, 0)
+
+	time.Sleep(10 * time.Second)
+
+	testSink(sched, &table, 0)
+
+	time.Sleep(10 * time.Second)
+	t0 := table.Get(0)
+
+	/*
+		Expectations:
+		- 0 should have some executions
+	*/
+
+	if t0 == 0 {
+		t.Error("expected executions to be greater than 0 (is backlog broken?)")
+	}
+
+	t.Log("share of 0:", t0)
+}
