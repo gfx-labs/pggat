@@ -2,30 +2,48 @@ package source
 
 import (
 	"github.com/google/uuid"
+
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v0/job"
 	"pggat2/lib/rob/schedulers/v0/pool"
+	"pggat2/lib/util/pools"
 )
 
 type Source struct {
-	id    uuid.UUID
-	stall chan rob.Worker
-	pool  *pool.Pool
+	id   uuid.UUID
+	pool *pool.Pool
+
+	stall pools.Locked[chan rob.Worker]
 }
 
-func MakeSource(p *pool.Pool) Source {
-	return Source{
+func NewSource(p *pool.Pool) *Source {
+	return &Source{
 		id:   uuid.New(),
 		pool: p,
 	}
 }
 
-func (T Source) Do(constraints rob.Constraints, work any) {
-	T.pool.Do(job.Job{
+func (T *Source) Do(constraints rob.Constraints, work any) {
+	if T.pool.DoConcurrent(job.Concurrent{
 		Source:      T.id,
 		Constraints: constraints,
 		Work:        work,
+	}) {
+		return
+	}
+	out, ok := T.stall.Get()
+	if !ok {
+		out = make(chan rob.Worker)
+	}
+	defer T.stall.Put(out)
+
+	T.pool.DoStalled(job.Stalled{
+		Source:      T.id,
+		Constraints: constraints,
+		Out:         out,
 	})
+	worker := <-out
+	worker.Do(constraints, work)
 }
 
-var _ rob.Worker = Source{}
+var _ rob.Worker = (*Source)(nil)
