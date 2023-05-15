@@ -4,6 +4,8 @@ import (
 	"net"
 	"net/http"
 	_ "net/http/pprof"
+
+	"pggat2/lib/rob/schedulers/v0"
 	"pggat2/lib/zap/onebuffer"
 
 	"pggat2/lib/bouncer/backends/v0"
@@ -17,27 +19,27 @@ import (
 	"pggat2/lib/zap/zio"
 )
 
-type job struct {
-	client zap.ReadWriter
-	done   chan<- struct{}
+type server struct {
+	rw zap.ReadWriter
 }
+
+func (T server) Do(_ rob.Constraints, work any) {
+	client := work.(zap.ReadWriter)
+	bouncers.Bounce(client, T.rw)
+}
+
+var _ rob.Worker = server{}
 
 func testServer(r rob.Scheduler) {
 	conn, err := net.Dial("tcp", "localhost:5432")
 	if err != nil {
 		panic(err)
 	}
-	server := zio.MakeReadWriter(conn)
-	backends.Accept(&server)
-	sink := r.NewSink(0)
-	for {
-		j := sink.Read().(job)
-		bouncers.Bounce(j.client, &server)
-		select {
-		case j.done <- struct{}{}:
-		default:
-		}
-	}
+	rw := zio.MakeReadWriter(conn)
+	backends.Accept(&rw)
+	r.AddSink(0, server{
+		rw: &rw,
+	})
 }
 
 func main() {
@@ -72,11 +74,7 @@ func main() {
 				if err != nil {
 					break
 				}
-				source.Schedule(job{
-					client: &mw,
-					done:   done,
-				}, 0)
-				<-done
+				source.Do(0, &mw)
 			}
 		}()
 	}

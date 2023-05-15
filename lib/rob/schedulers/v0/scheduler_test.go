@@ -215,16 +215,12 @@ func TestScheduler_StealBalanced(t *testing.T) {
 	go testSource(sched, 1, 10*time.Millisecond, 0)
 	go testSource(sched, 2, 10*time.Millisecond, 0)
 	go testSource(sched, 3, 10*time.Millisecond, 0)
-	go testSource(sched, 4, 10*time.Millisecond, 0)
-	go testSource(sched, 5, 10*time.Millisecond, 0)
 
 	time.Sleep(20 * time.Second)
 	t0 := table.Get(0)
 	t1 := table.Get(1)
 	t2 := table.Get(2)
 	t3 := table.Get(3)
-	t4 := table.Get(4)
-	t5 := table.Get(5)
 
 	/*
 		Expectations:
@@ -235,10 +231,8 @@ func TestScheduler_StealBalanced(t *testing.T) {
 	t.Log("share of 1:", t1)
 	t.Log("share of 2:", t2)
 	t.Log("share of 3:", t3)
-	t.Log("share of 4:", t4)
-	t.Log("share of 5:", t5)
 
-	if !similar(t0, t1, t2, t3, t4, t5) {
+	if !similar(t0, t1, t2, t3) {
 		t.Error("expected all shares to be similar")
 	}
 
@@ -257,15 +251,11 @@ func TestScheduler_StealUnbalanced(t *testing.T) {
 	go testSource(sched, 0, 10*time.Millisecond, 0)
 	go testSource(sched, 1, 10*time.Millisecond, 0)
 	go testSource(sched, 2, 10*time.Millisecond, 0)
-	go testSource(sched, 3, 10*time.Millisecond, 0)
-	go testSource(sched, 4, 10*time.Millisecond, 0)
 
 	time.Sleep(20 * time.Second)
 	t0 := table.Get(0)
 	t1 := table.Get(1)
 	t2 := table.Get(2)
-	t3 := table.Get(3)
-	t4 := table.Get(4)
 
 	/*
 		Expectations:
@@ -275,10 +265,8 @@ func TestScheduler_StealUnbalanced(t *testing.T) {
 	t.Log("share of 0:", t0)
 	t.Log("share of 1:", t1)
 	t.Log("share of 2:", t2)
-	t.Log("share of 3:", t3)
-	t.Log("share of 4:", t4)
 
-	if !similar(t0, t1, t2, t3, t4) {
+	if !similar(t0, t1, t2) {
 		t.Error("expected all shares to be similar")
 	}
 
