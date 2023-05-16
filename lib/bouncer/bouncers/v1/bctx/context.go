@@ -35,6 +35,9 @@ func MakeContext(client, server zap.ReadWriter, clientIdleTimeout time.Duration)
 }
 
 func (T *Context) Done() {
+	if T.clientIdleTimeout == 0 {
+		return
+	}
 	// if it fails, it's not my problem - Garet, May 12, 2023
 	_ = T.client.SetReadDeadline(time.Time{})
 }

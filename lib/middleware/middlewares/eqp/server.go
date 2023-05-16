@@ -133,6 +133,15 @@ func (T *Server) syncPreparedStatement(ctx middleware.Context, target string) er
 	expected := T.peer.preparedStatements[target]
 	actual, ok := T.preparedStatements[target]
 	if !ok || !expected.Equals(actual) {
+		// clear all portals that use this prepared statement
+		for name, portal := range T.portals {
+			if portal.Source == target {
+				err := T.closePortal(ctx, name)
+				if err != nil {
+					return err
+				}
+			}
+		}
 		return T.bindPreparedStatement(ctx, target, expected)
 	}
 	return nil
@@ -140,6 +149,10 @@ func (T *Server) syncPreparedStatement(ctx middleware.Context, target string) er
 
 func (T *Server) syncPortal(ctx middleware.Context, target string) error {
 	expected := T.peer.portals[target]
+	err := T.syncPreparedStatement(ctx, expected.Source)
+	if err != nil {
+		return err
+	}
 	actual, ok := T.portals[target]
 	if !ok || !expected.Equals(actual) {
 		return T.bindPortal(ctx, target, expected)
@@ -209,9 +222,16 @@ func (T *Server) Read(ctx middleware.Context, in zap.In) error {
 
 		T.pendingCloses.PopFront()
 	case packets.ReadyForQuery:
-		// clobber unnamed
-		delete(T.preparedStatements, "")
-		delete(T.portals, "")
+		state, ok := packets.ReadReadyForQuery(in)
+		if !ok {
+			return errors.New("bad packet format")
+		}
+		if state == 'I' {
+			// clobber all portals
+			for name := range T.portals {
+				delete(T.portals, name)
+			}
+		}
 		// all pending failed
 		for pending, ok := T.pendingPreparedStatements.PopBack(); ok; pending, ok = T.pendingPreparedStatements.PopBack() {
 			delete(T.preparedStatements, pending)

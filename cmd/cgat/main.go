@@ -6,6 +6,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
+	"pggat2/lib/middleware/middlewares/eqp"
 	"pggat2/lib/rob/schedulers/v0"
 	"pggat2/lib/zap/onebuffer"
 
@@ -20,13 +21,20 @@ import (
 	"pggat2/lib/zap/zio"
 )
 
-type server struct {
-	rw zap.ReadWriter
+type work struct {
+	rw   zap.ReadWriter
+	eqpc *eqp.Client
 }
 
-func (T server) Do(_ rob.Constraints, work any) {
-	client := work.(zap.ReadWriter)
-	bouncers.Bounce(client, T.rw)
+type server struct {
+	rw   zap.ReadWriter
+	eqps *eqp.Server
+}
+
+func (T server) Do(_ rob.Constraints, w any) {
+	job := w.(work)
+	T.eqps.SetClient(job.eqpc)
+	bouncers.Bounce(job.rw, T.rw)
 }
 
 var _ rob.Worker = server{}
@@ -37,9 +45,14 @@ func testServer(r rob.Scheduler) {
 		panic(err)
 	}
 	rw := zio.MakeReadWriter(conn)
-	backends.Accept(&rw)
+	eqps := eqp.MakeServer()
+	mw := interceptor.MakeInterceptor(&rw, []middleware.Middleware{
+		&eqps,
+	})
+	backends.Accept(&mw)
 	r.AddSink(0, server{
-		rw: &rw,
+		rw:   &mw,
+		eqps: &eqps,
 	})
 }
 
@@ -70,8 +83,10 @@ func main() {
 			source := r.NewSource()
 			client := zio.MakeReadWriter(conn)
 			ob := onebuffer.MakeOnebuffer(&client)
+			eqpc := eqp.MakeClient()
 			mw := interceptor.MakeInterceptor(&ob, []middleware.Middleware{
 				unterminate.Unterminate,
+				&eqpc,
 			})
 			frontends.Accept(&mw)
 			for {
@@ -79,7 +94,10 @@ func main() {
 				if err != nil {
 					break
 				}
-				source.Do(0, &mw)
+				source.Do(0, work{
+					rw:   &mw,
+					eqpc: &eqpc,
+				})
 			}
 		}()
 	}

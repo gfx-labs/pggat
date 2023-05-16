@@ -272,7 +272,7 @@ func Accept(client zap.ReadWriter) {
 		}
 	}
 
-	status := authenticationSASL(client, "test", "password")
+	status := authenticationSASL(client, "test", "pw")
 	if status != Ok {
 		return
 	}

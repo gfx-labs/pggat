@@ -24,9 +24,16 @@ func (T *Client) Send(_ middleware.Context, out zap.Out) error {
 	in := zap.OutToIn(out)
 	switch in.Type() {
 	case packets.ReadyForQuery:
-		// clobber unnamed
-		delete(T.preparedStatements, "")
-		delete(T.portals, "")
+		state, ok := packets.ReadReadyForQuery(in)
+		if !ok {
+			return errors.New("bad packet format")
+		}
+		if state == 'I' {
+			// clobber all portals
+			for name := range T.portals {
+				delete(T.portals, name)
+			}
+		}
 	case packets.ParseComplete, packets.BindComplete, packets.CloseComplete:
 		// should've been caught by eqp.Server
 		panic("unreachable")
@@ -76,6 +83,9 @@ func (T *Client) Read(ctx middleware.Context, in zap.In) error {
 			if _, ok = T.portals[destination]; ok {
 				return errors.New("portal already exists")
 			}
+		}
+		if _, ok = T.preparedStatements[source]; !ok {
+			return errors.New("prepared statement does not exist")
 		}
 		T.portals[destination] = Portal{
 			Source:               source,
