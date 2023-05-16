@@ -4,9 +4,8 @@ import (
 	"github.com/google/uuid"
 
 	"pggat2/lib/rob"
-	"pggat2/lib/rob/schedulers/v0/job"
-	"pggat2/lib/rob/schedulers/v0/pool"
-	"pggat2/lib/rob/schedulers/v0/sink"
+	"pggat2/lib/rob/schedulers/v1/pool"
+	"pggat2/lib/rob/schedulers/v1/pool/job"
 	"pggat2/lib/util/pools"
 )
 
@@ -14,7 +13,7 @@ type Source struct {
 	id   uuid.UUID
 	pool *pool.Pool
 
-	stall pools.Locked[chan any]
+	stall pools.Locked[chan uuid.UUID]
 }
 
 func NewSource(p *pool.Pool) *Source {
@@ -25,28 +24,28 @@ func NewSource(p *pool.Pool) *Source {
 }
 
 func (T *Source) Do(constraints rob.Constraints, work any) {
-	if T.pool.DoConcurrent(job.Concurrent{
+	base := job.Base{
 		Source:      T.id,
 		Constraints: constraints,
-		Work:        work,
+	}
+	if T.pool.DoConcurrent(job.Concurrent{
+		Base: base,
+		Work: work,
 	}) {
 		return
 	}
 	out, ok := T.stall.Get()
 	if !ok {
-		out = make(chan any)
+		out = make(chan uuid.UUID)
 	}
 	defer T.stall.Put(out)
 
 	T.pool.DoStalled(job.Stalled{
-		Source:      T.id,
-		Constraints: constraints,
-		Out:         out,
+		Base:  base,
+		Ready: out,
 	})
-	worker := (<-out).(*sink.Sink)
-	if hasMore := worker.Do(constraints, work); !hasMore {
-		T.pool.StealFor(worker)
-	}
+	worker := <-out
+	T.pool.Do(worker, constraints, work)
 }
 
 var _ rob.Worker = (*Source)(nil)
