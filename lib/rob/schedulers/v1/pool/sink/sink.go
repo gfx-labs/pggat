@@ -49,9 +49,9 @@ func (T *Sink) setActive(source uuid.UUID) {
 	T.start = time.Now()
 }
 
-func (T *Sink) DoConcurrent(j job.Concurrent) bool {
+func (T *Sink) DoConcurrent(j job.Concurrent) (ok, hasMore bool) {
 	if !T.constraints.Satisfies(j.Constraints) {
-		return false
+		return false, false
 	}
 
 	T.mu.Lock()
@@ -59,15 +59,14 @@ func (T *Sink) DoConcurrent(j job.Concurrent) bool {
 	if T.active != uuid.Nil {
 		// this Sink is in use
 		T.mu.Unlock()
-		return false
+		return false, false
 	}
 
 	T.setActive(j.Source)
 
 	T.mu.Unlock()
 
-	T.Do(j.Constraints, j.Work)
-	return true
+	return true, T.Do(j.Constraints, j.Work)
 }
 
 func (T *Sink) trySchedule(j job.Stalled) bool {
@@ -93,10 +92,8 @@ func (T *Sink) trySchedule(j job.Stalled) bool {
 		}
 
 		T.scheduled.Set(stride, j)
-		break
+		return true
 	}
-
-	return true
 }
 
 func (T *Sink) enqueue(j job.Stalled) {
@@ -141,14 +138,14 @@ func (T *Sink) enqueueNextFor(source uuid.UUID) {
 	if !ok {
 		return
 	}
-	j, ok := pending.Get(0)
+	j, ok := pending.PopFront()
 	if !ok {
 		return
 	}
 	if ok = T.trySchedule(j); !ok {
+		pending.PushFront(j)
 		return
 	}
-	pending.PopFront()
 }
 
 func (T *Sink) next() bool {
@@ -194,9 +191,9 @@ func (T *Sink) StealFor(rhs *Sink) uuid.UUID {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	for stride, work, ok := T.scheduled.Min(); ok; stride, work, ok = T.scheduled.Next(stride) {
-		if rhs.constraints.Satisfies(work.Constraints) {
-			source := work.Source
+	for stride, j, ok := T.scheduled.Min(); ok; stride, j, ok = T.scheduled.Next(stride) {
+		if rhs.constraints.Satisfies(j.Constraints) {
+			source := j.Source
 
 			// take jobs from T
 			T.scheduled.Delete(stride)
@@ -206,10 +203,10 @@ func (T *Sink) StealFor(rhs *Sink) uuid.UUID {
 
 			T.mu.Unlock()
 
-			rhs.DoStalled(work)
+			rhs.DoStalled(j)
 
-			for work, ok = pending.PopFront(); ok; work, ok = pending.PopFront() {
-				rhs.DoStalled(work)
+			for j, ok = pending.PopFront(); ok; j, ok = pending.PopFront() {
+				rhs.DoStalled(j)
 			}
 
 			T.mu.Lock()

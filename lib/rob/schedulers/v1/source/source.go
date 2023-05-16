@@ -36,7 +36,7 @@ func (T *Source) Do(constraints rob.Constraints, work any) {
 	}
 	out, ok := T.stall.Get()
 	if !ok {
-		out = make(chan uuid.UUID)
+		out = make(chan uuid.UUID, 1)
 	}
 	defer T.stall.Put(out)
 

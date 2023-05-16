@@ -37,7 +37,10 @@ func (T *Pool) DoConcurrent(j job.Concurrent) bool {
 	// try affinity first
 	if v, ok := T.sinks[affinity]; ok {
 		T.mu.RUnlock()
-		if ok = v.DoConcurrent(j); ok {
+		if done, hasMore := v.DoConcurrent(j); done {
+			if !hasMore {
+				T.stealFor(affinity)
+			}
 			return true
 		}
 		T.mu.RLock()
@@ -48,9 +51,13 @@ func (T *Pool) DoConcurrent(j job.Concurrent) bool {
 			continue
 		}
 		T.mu.RUnlock()
-		if ok := v.DoConcurrent(j); ok {
+		if ok, hasMore := v.DoConcurrent(j); ok {
 			// set affinity
 			T.affinity.Store(j.Source, id)
+
+			if !hasMore {
+				T.stealFor(id)
+			}
 
 			return true
 		}
