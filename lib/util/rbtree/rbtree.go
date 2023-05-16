@@ -132,6 +132,14 @@ func (T *RBTree[K, V]) Min() (K, V, bool) {
 	return m.key, m.value, true
 }
 
+func (T *RBTree[K, V]) Max() (K, V, bool) {
+	m := T.max(T.root)
+	if m == nil {
+		return *new(K), *new(V), false
+	}
+	return m.key, m.value, true
+}
+
 func (T *RBTree[K, V]) rotateRight(n *node[K, V]) *node[K, V] {
 	if n == nil || n.left.getColor() == black {
 		panic("assertion failed")
@@ -236,6 +244,33 @@ func (T *RBTree[K, V]) next(n *node[K, V], key K) *node[K, V] {
 
 func (T *RBTree[K, V]) Next(key K) (K, V, bool) {
 	n := T.next(T.root, key)
+	if n == nil {
+		return *new(K), *new(V), false
+	}
+	return n.key, n.value, true
+}
+
+func (T *RBTree[K, V]) prev(n *node[K, V], key K) *node[K, V] {
+	if n == nil {
+		return nil
+	}
+	if n.key == key {
+		return T.max(n.left)
+	}
+	if n.key > key {
+		return T.prev(n.left, key)
+	}
+
+	// n.key < key
+	prev := T.prev(n.right, key)
+	if prev == nil {
+		return n
+	}
+	return prev
+}
+
+func (T *RBTree[K, V]) Prev(key K) (K, V, bool) {
+	n := T.prev(T.root, key)
 	if n == nil {
 		return *new(K), *new(V), false
 	}

@@ -64,8 +64,9 @@ func main() {
 	log.Println("Starting pggat...")
 
 	r := schedulers.MakeScheduler()
-	go testServer(&r)
-	go testServer(&r)
+	for i := 0; i < 5; i++ {
+		go testServer(&r)
+	}
 
 	listener, err := net.Listen("tcp", "0.0.0.0:6432") // TODO(garet) make this configurable
 	if err != nil {

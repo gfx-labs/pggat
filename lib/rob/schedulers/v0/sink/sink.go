@@ -200,19 +200,34 @@ func (T *Sink) StealFor(rhs *Sink) (uuid.UUID, bool) {
 		if rhs.constraints.Satisfies(work.Constraints) {
 			source := work.Source
 
-			rhs.mu.Lock()
-			defer rhs.mu.Unlock()
-
-			// steal it
+			// take jobs from T
 			T.scheduled.Delete(stride)
+
+			pending, _ := T.pending[work.Source]
+			delete(T.pending, work.Source)
+
+			// we have to unlock to prevent deadlock
+			// if T tries to steal from rhs at the same time rhs tries to steal from T, we could deadlock otherwise
+			// (speaking from experience)
+			T.mu.Unlock()
+
+			// add to rhs
+			rhs.mu.Lock()
 
 			rhs.addStalled(work)
 
-			// steal pending
-			pending, _ := T.pending[work.Source]
-
 			for work, ok = pending.PopFront(); ok; work, ok = pending.PopFront() {
 				rhs.addStalled(work)
+			}
+
+			rhs.mu.Unlock()
+
+			// try to return buffer to T (if fails, it's not a big deal)
+
+			T.mu.Lock()
+
+			if _, ok = T.pending[work.Source]; !ok {
+				T.pending[work.Source] = pending
 			}
 
 			return source, true

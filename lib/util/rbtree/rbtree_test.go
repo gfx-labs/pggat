@@ -35,6 +35,16 @@ func assertMin[K order, V comparable](t *testing.T, tree *RBTree[K, V], key K, v
 	}
 }
 
+func assertMax[K order, V comparable](t *testing.T, tree *RBTree[K, V], key K, value V) {
+	k, v, ok := tree.Max()
+	if !ok {
+		t.Error("expected tree to have values")
+	}
+	if k != key || v != value {
+		t.Error("expected key, value to be", key, value, "but got", k, v)
+	}
+}
+
 func assertNextSome[K order, V comparable](t *testing.T, tree *RBTree[K, V], after K, key K, value V) {
 	k, v, ok := tree.Next(after)
 	if !ok {
@@ -47,6 +57,23 @@ func assertNextSome[K order, V comparable](t *testing.T, tree *RBTree[K, V], aft
 
 func assertNextNone[K order, V comparable](t *testing.T, tree *RBTree[K, V], after K) {
 	k, v, ok := tree.Next(after)
+	if ok {
+		t.Error("expected tree to have no more values but got", k, v)
+	}
+}
+
+func assertPrevSome[K order, V comparable](t *testing.T, tree *RBTree[K, V], before K, key K, value V) {
+	k, v, ok := tree.Prev(before)
+	if !ok {
+		t.Error("expected tree to have another value")
+	}
+	if k != key || v != value {
+		t.Error("expected key, value to be", key, value, "but got", k, v)
+	}
+}
+
+func assertPrevNone[K order, V comparable](t *testing.T, tree *RBTree[K, V], before K) {
+	k, v, ok := tree.Prev(before)
 	if ok {
 		t.Error("expected tree to have no more values but got", k, v)
 	}
@@ -94,6 +121,17 @@ func TestRBTree_Iter(t *testing.T) {
 	assertNextSome(t, tree, 1, 3, 4)
 	assertNextSome(t, tree, 3, 5, 6)
 	assertNextNone(t, tree, 5)
+}
+
+func TestRBTree_IterRev(t *testing.T) {
+	tree := new(RBTree[int, int])
+	tree.Set(1, 2)
+	tree.Set(5, 6)
+	tree.Set(3, 4)
+	assertMax(t, tree, 5, 6)
+	assertPrevSome(t, tree, 5, 3, 4)
+	assertPrevSome(t, tree, 3, 1, 2)
+	assertPrevNone(t, tree, 1)
 }
 
 func TestRBTree_Stress(t *testing.T) {
