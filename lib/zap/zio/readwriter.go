@@ -1,6 +1,7 @@
 package zio
 
 import (
+	"io"
 	"time"
 
 	"pggat2/lib/util/dio"
@@ -9,12 +10,16 @@ import (
 
 type ReadWriter struct {
 	rw  dio.ReadWriter
+	r   io.Reader
+	w   io.Writer
 	buf zap.Buf
 }
 
 func MakeReadWriter(rw dio.ReadWriter) ReadWriter {
 	return ReadWriter{
 		rw: rw,
+		r:  rw,
+		w:  rw,
 	}
 }
 
@@ -31,19 +36,19 @@ func (T *ReadWriter) SetWriteDeadline(deadline time.Time) error {
 }
 
 func (T *ReadWriter) ReadByte() (byte, error) {
-	return T.buf.ReadByte(T.rw)
+	return T.buf.ReadByte(T.r)
 }
 
 func (T *ReadWriter) Read() (zap.In, error) {
-	return T.buf.Read(T.rw, true)
+	return T.buf.Read(T.r, true)
 }
 
 func (T *ReadWriter) ReadUntyped() (zap.In, error) {
-	return T.buf.Read(T.rw, false)
+	return T.buf.Read(T.r, false)
 }
 
 func (T *ReadWriter) WriteByte(b byte) error {
-	return T.buf.WriteByte(T.rw, b)
+	return T.buf.WriteByte(T.w, b)
 }
 
 func (T *ReadWriter) Write() zap.Out {
