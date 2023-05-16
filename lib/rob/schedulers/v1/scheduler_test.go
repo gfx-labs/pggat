@@ -79,6 +79,17 @@ func testSource(sched *Scheduler, id int, dur time.Duration, constraints rob.Con
 	}
 }
 
+func testStarver(sched *Scheduler, id int, dur time.Duration, constraints rob.Constraints) {
+	for {
+		source := sched.NewSource()
+		w := Work{
+			Sender:   id,
+			Duration: dur,
+		}
+		source.Do(constraints, w)
+	}
+}
+
 func similar(v0, v1 int, vn ...int) bool {
 	const margin = 0.05 // 5% margin of error
 
@@ -360,4 +371,33 @@ func TestScheduler_LateSink(t *testing.T) {
 	}
 
 	t.Log("share of 0:", t0)
+}
+
+func TestScheduler_Starve(t *testing.T) {
+	var table ShareTable
+	sched := NewScheduler()
+
+	testSink(sched, &table, 0)
+
+	go testStarver(sched, 1, 10*time.Millisecond, 0)
+	go testStarver(sched, 2, 10*time.Millisecond, 0)
+	go testSource(sched, 0, 10*time.Millisecond, 0)
+
+	time.Sleep(20 * time.Second)
+	t0 := table.Get(0)
+	t1 := table.Get(1)
+	t2 := table.Get(2)
+
+	/*
+		Expectations:
+		- 0 should not be starved
+	*/
+
+	t.Log("share of 0:", t0)
+	t.Log("share of 1:", t1)
+	t.Log("share of 2:", t2)
+
+	if !similar(t0, t1, t2) {
+		t.Error("expected all executions to be similar (is 0 starving?)")
+	}
 }

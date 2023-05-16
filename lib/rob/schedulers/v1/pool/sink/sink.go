@@ -75,8 +75,15 @@ func (T *Sink) trySchedule(j job.Stalled) bool {
 		return false
 	}
 
-	stride := T.stride[j.Source]
-	if stride < T.floor {
+	stride, ok := T.stride[j.Source]
+	if !ok {
+		// set to max
+		stride = T.floor
+		if s, _, ok := T.scheduled.Max(); ok {
+			stride = s + 1
+		}
+		T.stride[j.Source] = stride
+	} else if stride < T.floor {
 		stride = T.floor
 		T.stride[j.Source] = stride
 	}
