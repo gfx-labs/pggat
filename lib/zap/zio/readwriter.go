@@ -9,7 +9,8 @@ import (
 )
 
 type ReadWriter struct {
-	rw  dio.ReadWriter
+	rw dio.ReadWriter
+	// they are seperated out to prevent an expensive runtime.convI2I (which causes runtime.getitab)
 	r   io.Reader
 	w   io.Writer
 	buf zap.Buf

@@ -70,6 +70,11 @@ func (T In) Float64() (float64, bool) {
 	return T.buf.readFloat64()
 }
 
+func (T In) StringBytes(b []byte) ([]byte, bool) {
+	T.buf.assertRev(T.rev)
+	return T.buf.readStringBytes(b)
+}
+
 func (T In) String() (string, bool) {
 	T.buf.assertRev(T.rev)
 	return T.buf.readString()

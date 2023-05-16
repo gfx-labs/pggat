@@ -70,6 +70,11 @@ func (T Out) Float64(v float64) {
 	T.buf.writeFloat64(v)
 }
 
+func (T Out) StringBytes(v []byte) {
+	T.buf.assertRev(T.rev)
+	T.buf.writeStringBytes(v)
+}
+
 func (T Out) String(v string) {
 	T.buf.assertRev(T.rev)
 	T.buf.writeString(v)

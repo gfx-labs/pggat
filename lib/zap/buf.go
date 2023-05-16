@@ -202,15 +202,27 @@ func (T *Buf) readFloat64() (float64, bool) {
 	return math.Float64frombits(v), true
 }
 
-func (T *Buf) readString() (string, bool) {
+func (T *Buf) readUnsafeString() ([]byte, bool) {
 	rem := T.remaining()
 	for i, c := range rem {
 		if c == 0 {
 			T.pos += i + 1
-			return string(rem[:i]), true
+			return rem[:i], true
 		}
 	}
-	return "", false
+	return nil, false
+}
+
+func (T *Buf) readStringBytes(v []byte) ([]byte, bool) {
+	str, ok := T.readUnsafeString()
+	v = slices.Resize(v, len(str))
+	copy(v, str)
+	return v, ok
+}
+
+func (T *Buf) readString() (string, bool) {
+	str, ok := T.readUnsafeString()
+	return string(str), ok
 }
 
 func (T *Buf) readBytes(b []byte) bool {
@@ -281,6 +293,11 @@ func (T *Buf) writeFloat32(v float32) {
 
 func (T *Buf) writeFloat64(v float64) {
 	T.writeUint64(math.Float64bits(v))
+}
+
+func (T *Buf) writeStringBytes(v []byte) {
+	T.buf = append(T.buf, v...)
+	T.buf = append(T.buf, 0)
 }
 
 func (T *Buf) writeString(v string) {
