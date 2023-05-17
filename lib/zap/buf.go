@@ -5,6 +5,7 @@ import (
 	"io"
 	"math"
 
+	"pggat2/lib/global"
 	"pggat2/lib/util/decorator"
 	"pggat2/lib/util/slices"
 )
@@ -24,11 +25,32 @@ func (T *Buf) assertRev(rev int) {
 	}
 }
 
+func (T *Buf) setBufLen(length int) {
+	if cap(T.buf) < length {
+		newBuf := global.GetBytes(int32(length))
+		copy(newBuf, T.buf)
+		global.PutBytes(T.buf)
+		T.buf = newBuf
+		return
+	}
+	T.buf = slices.Resize(T.buf, length)
+}
+
+func (T *Buf) ensureBufExtra(extra int) {
+	if cap(T.buf) < len(T.buf)+extra {
+		newBuf := global.GetBytes(int32(len(T.buf) + extra))
+		copy(newBuf, T.buf)
+		newBuf = newBuf[:len(T.buf)]
+		global.PutBytes(T.buf)
+		T.buf = newBuf
+	}
+}
+
 func (T *Buf) ReadByte(reader io.Reader) (byte, error) {
 	T.rev++
 	T.pos = 0
 
-	T.buf = slices.Resize(T.buf, 1)
+	T.setBufLen(1)
 	_, err := io.ReadFull(reader, T.buf)
 	if err != nil {
 		return 0, err
@@ -41,7 +63,7 @@ func (T *Buf) Read(reader io.Reader, typed bool) (In, error) {
 	T.pos = 0
 
 	// read header
-	T.buf = slices.Resize(T.buf, 5)
+	T.setBufLen(5)
 	var err error
 	if typed {
 		_, err = io.ReadFull(reader, T.buf)
@@ -56,7 +78,7 @@ func (T *Buf) Read(reader io.Reader, typed bool) (In, error) {
 	length := binary.BigEndian.Uint32(T.buf[1:])
 
 	// read payload
-	T.buf = slices.Resize(T.buf, int(length)+1)
+	T.setBufLen(int(length) + 1)
 	_, err = io.ReadFull(reader, T.buf[5:])
 	if err != nil {
 		return In{}, err
@@ -72,7 +94,7 @@ func (T *Buf) WriteByte(writer io.Writer, b byte) error {
 	T.rev++
 	T.pos = 0
 
-	T.buf = slices.Resize(T.buf, 1)
+	T.setBufLen(1)
 	T.buf[0] = b
 	_, err := writer.Write(T.buf)
 	return err
@@ -82,7 +104,7 @@ func (T *Buf) Write() Out {
 	T.rev++
 	T.pos = 0
 
-	T.buf = slices.Resize(T.buf, 5)
+	T.setBufLen(5)
 	T.buf[0] = 0
 
 	return Out{
@@ -247,7 +269,7 @@ func (T *Buf) readUnsafeBytes(count int) ([]byte, bool) {
 // write methods
 
 func (T *Buf) resetWrite() {
-	T.buf = slices.Resize(T.buf, 5)
+	T.setBufLen(5)
 	T.buf[0] = 0
 }
 
@@ -256,18 +278,22 @@ func (T *Buf) writeType(typ Type) {
 }
 
 func (T *Buf) writeUint8(v uint8) {
+	T.ensureBufExtra(1)
 	T.buf = append(T.buf, v)
 }
 
 func (T *Buf) writeUint16(v uint16) {
+	T.ensureBufExtra(2)
 	T.buf = binary.BigEndian.AppendUint16(T.buf, v)
 }
 
 func (T *Buf) writeUint32(v uint32) {
+	T.ensureBufExtra(4)
 	T.buf = binary.BigEndian.AppendUint32(T.buf, v)
 }
 
 func (T *Buf) writeUint64(v uint64) {
+	T.ensureBufExtra(8)
 	T.buf = binary.BigEndian.AppendUint64(T.buf, v)
 }
 
@@ -296,15 +322,18 @@ func (T *Buf) writeFloat64(v float64) {
 }
 
 func (T *Buf) writeStringBytes(v []byte) {
+	T.ensureBufExtra(len(v) + 1)
 	T.buf = append(T.buf, v...)
 	T.buf = append(T.buf, 0)
 }
 
 func (T *Buf) writeString(v string) {
+	T.ensureBufExtra(len(v) + 1)
 	T.buf = append(T.buf, v...)
 	T.buf = append(T.buf, 0)
 }
 
 func (T *Buf) writeBytes(v []byte) {
+	T.ensureBufExtra(len(v))
 	T.buf = append(T.buf, v...)
 }
