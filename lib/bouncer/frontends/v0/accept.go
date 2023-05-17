@@ -261,7 +261,7 @@ func updateParameter(client zap.ReadWriter, name, value string) Status {
 	return Ok
 }
 
-func Accept(client zap.ReadWriter) {
+func Accept(client zap.ReadWriter, initialParameterStatus map[string]string) {
 	for {
 		done, status := startup0(client)
 		if status != Ok {
@@ -286,57 +286,11 @@ func Accept(client zap.ReadWriter) {
 		return
 	}
 
-	status = updateParameter(client, "DateStyle", "ISO, MDY")
-	if status != Ok {
-		return
-	}
-	status = updateParameter(client, "IntervalStyle", "postgres")
-	if status != Ok {
-		return
-	}
-	status = updateParameter(client, "TimeZone", "America/Chicago")
-	if status != Ok {
-		return
-	}
-	status = updateParameter(client, "application_name", "")
-	if status != Ok {
-		return
-	}
-	status = updateParameter(client, "client_encoding", "UTF8")
-	if status != Ok {
-		return
-	}
-	status = updateParameter(client, "default_transaction_read_only", "off")
-	if status != Ok {
-		return
-	}
-	status = updateParameter(client, "in_hot_standby", "off")
-	if status != Ok {
-		return
-	}
-	status = updateParameter(client, "integer_datetimes", "on")
-	if status != Ok {
-		return
-	}
-	status = updateParameter(client, "is_superuser", "on")
-	if status != Ok {
-		return
-	}
-	status = updateParameter(client, "server_encoding", "UTF8")
-	if status != Ok {
-		return
-	}
-	status = updateParameter(client, "server_version", "14.5")
-	if status != Ok {
-		return
-	}
-	status = updateParameter(client, "session_authorization", "postgres")
-	if status != Ok {
-		return
-	}
-	status = updateParameter(client, "standard_conforming_strings", "on")
-	if status != Ok {
-		return
+	for name, value := range initialParameterStatus {
+		status = updateParameter(client, name, value)
+		if status != Ok {
+			return
+		}
 	}
 
 	// send backend key data

@@ -33,6 +33,7 @@ func (T *Interceptor) Read() (zap.In, error) {
 			if T.cancelled {
 				break
 			}
+			in.Reset()
 		}
 
 		if !T.cancelled {
@@ -57,6 +58,7 @@ func (T *Interceptor) ReadUntyped() (zap.In, error) {
 			if T.cancelled {
 				break
 			}
+			in.Reset()
 		}
 
 		if !T.cancelled {

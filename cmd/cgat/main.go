@@ -7,6 +7,7 @@ import (
 	_ "net/http/pprof"
 
 	"pggat2/lib/middleware/middlewares/eqp"
+	"pggat2/lib/middleware/middlewares/ps"
 	"pggat2/lib/rob/schedulers/v1"
 	"pggat2/lib/zap/onebuffer"
 
@@ -24,15 +25,21 @@ import (
 type work struct {
 	rw   zap.ReadWriter
 	eqpc *eqp.Client
+	psc  *ps.Client
 }
 
 type server struct {
 	rw   zap.ReadWriter
 	eqps *eqp.Server
+	pss  *ps.Server
 }
 
 func (T server) Do(_ rob.Constraints, w any) {
 	job := w.(work)
+	err := job.psc.Sync(job.rw, T.pss)
+	if err != nil {
+		return
+	}
 	T.eqps.SetClient(job.eqpc)
 	bouncers.Bounce(job.rw, T.rw)
 }
@@ -46,14 +53,34 @@ func testServer(r rob.Scheduler) {
 	}
 	rw := zio.MakeReadWriter(conn)
 	eqps := eqp.MakeServer()
+	pss := ps.MakeServer()
 	mw := interceptor.MakeInterceptor(&rw, []middleware.Middleware{
 		&eqps,
+		&pss,
 	})
 	backends.Accept(&mw)
 	r.AddSink(0, server{
 		rw:   &mw,
 		eqps: &eqps,
+		pss:  &pss,
 	})
+}
+
+var DefaultParameterStatus = map[string]string{
+	// TODO(garet) we should just get these from the first server connection
+	"DateStyle":                     "ISO, MDY",
+	"IntervalStyle":                 "postgres",
+	"TimeZone":                      "America/Chicago",
+	"application_name":              "",
+	"client_encoding":               "UTF8",
+	"default_transaction_read_only": "off",
+	"in_hot_standby":                "off",
+	"integer_datetimes":             "on",
+	"is_superuser":                  "on",
+	"server_encoding":               "UTF8",
+	"server_version":                "14.5",
+	"session_authorization":         "postgres",
+	"standard_conforming_strings":   "on",
 }
 
 func main() {
@@ -86,11 +113,15 @@ func main() {
 			defer client.Done()
 			ob := onebuffer.MakeOnebuffer(&client)
 			eqpc := eqp.MakeClient()
+			defer eqpc.Done()
+			psc := ps.MakeClient()
+			defer psc.Done()
 			mw := interceptor.MakeInterceptor(&ob, []middleware.Middleware{
 				unterminate.Unterminate,
 				&eqpc,
+				&psc,
 			})
-			frontends.Accept(&mw)
+			frontends.Accept(&mw, DefaultParameterStatus)
 			for {
 				err = ob.Buffer()
 				if err != nil {
@@ -99,6 +130,7 @@ func main() {
 				source.Do(0, work{
 					rw:   &mw,
 					eqpc: &eqpc,
+					psc:  &psc,
 				})
 			}
 		}()
