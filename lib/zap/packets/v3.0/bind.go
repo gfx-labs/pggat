@@ -46,7 +46,10 @@ func ReadBind(in zap.In) (destination string, source string, parameterFormatCode
 		var parameterValue []byte
 		if parameterValueLength >= 0 {
 			parameterValue = make([]byte, int(parameterValueLength))
-			in.Bytes(parameterValue)
+			ok = in.Bytes(parameterValue)
+			if !ok {
+				return
+			}
 		}
 		parameterValues = append(parameterValues, parameterValue)
 	}
