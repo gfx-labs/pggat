@@ -12,6 +12,9 @@ type Client struct {
 	parameters map[string]string
 	buf        zap.Buf
 
+	peer  *Server
+	dirty bool
+
 	middleware.Nil
 }
 
@@ -25,14 +28,19 @@ func (T *Client) Done() {
 	T.buf.Done()
 }
 
-func (T *Client) updateParameter(w zap.Writer, name, value string) error {
+func (T *Client) SetServer(peer *Server) {
+	T.dirty = true
+	T.peer = peer
+}
+
+func (T *Client) updateParameter(ctx middleware.Context, name, value string) error {
 	if T.parameters[name] == value {
 		return nil
 	}
 
 	out := T.buf.Write()
 	packets.WriteParameterStatus(out, name, value)
-	err := w.Send(out)
+	err := ctx.Send(out)
 	if err != nil {
 		return err
 	}
@@ -42,18 +50,22 @@ func (T *Client) updateParameter(w zap.Writer, name, value string) error {
 	return nil
 }
 
-func (T *Client) Sync(w zap.Writer, server *Server) error {
-	// TODO(garet) i don't like this
+func (T *Client) sync(ctx middleware.Context) error {
+	if T.peer == nil || !T.dirty {
+		return nil
+	}
+	T.dirty = false
+
 	for name := range T.parameters {
-		expected := server.parameters[name]
-		err := T.updateParameter(w, name, expected)
+		expected := T.peer.parameters[name]
+		err := T.updateParameter(ctx, name, expected)
 		if err != nil {
 			return err
 		}
 	}
 
-	for name, expected := range server.parameters {
-		err := T.updateParameter(w, name, expected)
+	for name, expected := range T.peer.parameters {
+		err := T.updateParameter(ctx, name, expected)
 		if err != nil {
 			return err
 		}
@@ -77,7 +89,7 @@ func (T *Client) Send(ctx middleware.Context, out zap.Out) error {
 		}
 		T.parameters[key] = value
 	}
-	return nil
+	return T.sync(ctx)
 }
 
 var _ middleware.Middleware = (*Client)(nil)

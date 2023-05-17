@@ -36,10 +36,7 @@ type server struct {
 
 func (T server) Do(_ rob.Constraints, w any) {
 	job := w.(work)
-	err := job.psc.Sync(job.rw, T.pss)
-	if err != nil {
-		return
-	}
+	job.psc.SetServer(T.pss)
 	T.eqps.SetClient(job.eqpc)
 	bouncers.Bounce(job.rw, T.rw)
 }
