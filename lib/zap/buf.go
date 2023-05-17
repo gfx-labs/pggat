@@ -18,12 +18,6 @@ type Buf struct {
 	rev int
 }
 
-func MakeBuf(buf []byte) Buf {
-	return Buf{
-		buf: buf,
-	}
-}
-
 func (T *Buf) assertRev(rev int) {
 	// this check can be turned off when in production mode (for dev, this is helpful though)
 	if T.rev != rev {
@@ -125,6 +119,15 @@ func (T *Buf) Write() Out {
 	T.buf[0] = 0
 
 	return T.Out()
+}
+
+func (T *Buf) Swap(buf []byte) []byte {
+	T.pos = 0
+	T.rev++
+
+	v := T.buf
+	T.buf = buf
+	return v
 }
 
 func (T *Buf) Done() {

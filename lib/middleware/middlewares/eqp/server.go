@@ -119,8 +119,9 @@ func (T *Server) bindPreparedStatement(
 		return err
 	}
 
-	buf := zap.MakeBuf(preparedStatement.raw)
-	err = ctx.Send(buf.Out())
+	old := T.buf.Swap(preparedStatement.raw)
+	err = ctx.Send(T.buf.Out())
+	T.buf.Swap(old)
 	if err != nil {
 		return err
 	}
@@ -148,8 +149,9 @@ func (T *Server) bindPortal(
 		return err
 	}
 
-	buf := zap.MakeBuf(portal.raw)
-	err = ctx.Send(buf.Out())
+	old := T.buf.Swap(portal.raw)
+	err = ctx.Send(T.buf.Out())
+	T.buf.Swap(old)
 	if err != nil {
 		return err
 	}
