@@ -1,18 +1,44 @@
 package eqp
 
-import "pggat2/lib/util/slices"
+import (
+	"pggat2/lib/global"
+	"pggat2/lib/util/slices"
+	"pggat2/lib/zap"
+	packets "pggat2/lib/zap/packets/v3.0"
+)
 
 type PreparedStatement struct {
-	Query              string
-	ParameterDataTypes []int32
+	raw []byte
 }
 
-func (T PreparedStatement) Equals(rhs PreparedStatement) bool {
-	if T.Query != rhs.Query {
-		return false
+func ReadParse(in zap.In) (destination string, preparedStatement PreparedStatement, ok bool) {
+	in.Reset()
+	if in.Type() != packets.Parse {
+		return
 	}
-	if !slices.Equal(T.ParameterDataTypes, rhs.ParameterDataTypes) {
-		return false
+	destination, ok = in.String()
+	if !ok {
+		return
 	}
-	return true
+	full := zap.InToOut(in).Full()
+	preparedStatement.raw = global.GetBytes(int32(len(full)))
+	copy(preparedStatement.raw, full)
+	return
+}
+
+func (T *PreparedStatement) Done() {
+	global.PutBytes(T.raw)
+	T.raw = nil
+}
+
+func (T *PreparedStatement) Equal(rhs *PreparedStatement) bool {
+	return slices.Equal(T.raw, rhs.raw)
+}
+
+func (T *PreparedStatement) Clone() PreparedStatement {
+	raw := global.GetBytes(int32(len(T.raw)))
+	copy(raw, T.raw)
+	return PreparedStatement{
+		raw: raw,
+	}
 }

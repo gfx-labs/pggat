@@ -61,4 +61,8 @@ func (T *ReadWriter) Send(out zap.Out) error {
 	return err
 }
 
+func (T *ReadWriter) Done() {
+	T.buf.Done()
+}
+
 var _ zap.ReadWriter = (*ReadWriter)(nil)

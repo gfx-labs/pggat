@@ -18,6 +18,12 @@ type Buf struct {
 	rev int
 }
 
+func MakeBuf(buf []byte) Buf {
+	return Buf{
+		buf: buf,
+	}
+}
+
 func (T *Buf) assertRev(rev int) {
 	// this check can be turned off when in production mode (for dev, this is helpful though)
 	if T.rev != rev {
@@ -43,6 +49,20 @@ func (T *Buf) ensureBufExtra(extra int) {
 		newBuf = newBuf[:len(T.buf)]
 		global.PutBytes(T.buf)
 		T.buf = newBuf
+	}
+}
+
+func (T *Buf) In() In {
+	return In{
+		buf: T,
+		rev: T.rev,
+	}
+}
+
+func (T *Buf) Out() Out {
+	return Out{
+		buf: T,
+		rev: T.rev,
 	}
 }
 
@@ -84,10 +104,7 @@ func (T *Buf) Read(reader io.Reader, typed bool) (In, error) {
 		return In{}, err
 	}
 
-	return In{
-		buf: T,
-		rev: T.rev,
-	}, nil
+	return T.In(), nil
 }
 
 func (T *Buf) WriteByte(writer io.Writer, b byte) error {
@@ -107,10 +124,14 @@ func (T *Buf) Write() Out {
 	T.setBufLen(5)
 	T.buf[0] = 0
 
-	return Out{
-		buf: T,
-		rev: T.rev,
-	}
+	return T.Out()
+}
+
+func (T *Buf) Done() {
+	T.rev++
+	T.pos = 0
+	global.PutBytes(T.buf)
+	T.buf = nil
 }
 
 func (T *Buf) full() []byte {

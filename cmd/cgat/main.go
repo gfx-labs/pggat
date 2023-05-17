@@ -83,6 +83,7 @@ func main() {
 		go func() {
 			source := r.NewSource()
 			client := zio.MakeReadWriter(conn)
+			defer client.Done()
 			ob := onebuffer.MakeOnebuffer(&client)
 			eqpc := eqp.MakeClient()
 			mw := interceptor.MakeInterceptor(&ob, []middleware.Middleware{

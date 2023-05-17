@@ -37,4 +37,8 @@ func (T *Reader) ReadUntyped() (zap.In, error) {
 	return T.buf.Read(T.r, false)
 }
 
+func (T *Reader) Done() {
+	T.buf.Done()
+}
+
 var _ zap.Reader = (*Reader)(nil)

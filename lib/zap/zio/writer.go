@@ -38,4 +38,8 @@ func (T *Writer) Send(out zap.Out) error {
 	return err
 }
 
+func (T *Writer) Done() {
+	T.buf.Done()
+}
+
 var _ zap.Writer = (*Writer)(nil)
