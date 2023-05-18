@@ -15,6 +15,7 @@ type Context struct {
 	clientIdleTimeout time.Duration
 
 	transaction  bool
+	eqp          bool
 	query        bool
 	copyIn       bool
 	copyOut      bool
@@ -123,6 +124,21 @@ func (T *Context) InTransaction() bool {
 
 func (T *Context) EndTransaction() {
 	T.transaction = false
+}
+
+func (T *Context) BeginEQP() {
+	if T.eqp {
+		panic("already in eqp")
+	}
+	T.eqp = true
+}
+
+func (T *Context) InEQP() bool {
+	return T.eqp
+}
+
+func (T *Context) EndEQP() {
+	T.eqp = false
 }
 
 func (T *Context) BeginQuery() {

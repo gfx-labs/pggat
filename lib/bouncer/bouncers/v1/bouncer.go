@@ -35,6 +35,7 @@ func readyForQuery(ctx *bctx.Context, in zap.In) berr.Error {
 	if !ok {
 		return berr.ServerBadPacket
 	}
+	ctx.EndEQP()
 	if state == 'I' {
 		ctx.EndTransaction()
 	}
@@ -257,12 +258,18 @@ func transaction0(ctx *bctx.Context) berr.Error {
 		}
 		return functionCall(ctx)
 	case packets.Sync:
+		if !ctx.InEQP() {
+			ctx.BeginEQP()
+		}
 		err = ctx.ServerProxy(in)
 		if err != nil {
 			return err
 		}
 		return sync(ctx)
 	case packets.Parse, packets.Bind, packets.Close, packets.Describe, packets.Execute, packets.Flush:
+		if !ctx.InEQP() {
+			ctx.BeginEQP()
+		}
 		return ctx.ServerProxy(in)
 	default:
 		return berr.ClientProtocolError
