@@ -35,6 +35,15 @@ func MakeContext(client, server zap.ReadWriter, clientIdleTimeout time.Duration)
 	}
 }
 
+func (T *Context) AssertDone() {
+	if T.transaction {
+		panic("context is in transaction")
+	}
+	if T.eqp {
+		panic("context is in eqp")
+	}
+}
+
 func (T *Context) Done() {
 	if T.clientIdleTimeout == 0 {
 		return

@@ -1,6 +1,7 @@
 package bouncers
 
 import (
+	"fmt"
 	"log"
 
 	"pggat2/lib/bouncer/bouncers/v1/bctx"
@@ -31,11 +32,11 @@ func serverRead(ctx *bctx.Context) (zap.In, berr.Error) {
 }
 
 func readyForQuery(ctx *bctx.Context, in zap.In) berr.Error {
+	ctx.EndEQP()
 	state, ok := packets.ReadReadyForQuery(in)
 	if !ok {
 		return berr.ServerBadPacket
 	}
-	ctx.EndEQP()
 	if state == 'I' {
 		ctx.EndTransaction()
 	}
@@ -59,17 +60,40 @@ func copyIn0(ctx *bctx.Context) berr.Error {
 	}
 }
 
-func copyIn(ctx *bctx.Context) berr.Error {
+func copyInRecoverServer(ctx *bctx.Context, err berr.Error) {
+	// send copyFail to server, will stop server copy
+	out := ctx.ServerWrite()
+	out.Type(packets.CopyFail)
+	out.String(fmt.Sprintf("client error: %s", err.String()))
+	_ = ctx.ServerSend(out)
+
+	ctx.EndCopyIn()
+}
+
+func copyInRecoverClient(ctx *bctx.Context, err berr.Error) {
+	// send error to client, will stop client copy
+	out := ctx.ClientWrite()
+	packets.WriteErrorResponse(out, err.PError())
+	_ = ctx.ClientSend(out)
+
+	ctx.EndCopyIn()
+}
+
+func copyInRecover(ctx *bctx.Context, err berr.Error) {
+	copyInRecoverServer(ctx, err)
+	copyInRecoverClient(ctx, err)
+}
+
+func copyIn(ctx *bctx.Context) {
 	ctx.BeginCopyIn()
 
 	for ctx.InCopyIn() {
 		err := copyIn0(ctx)
 		if err != nil {
-			return err
+			copyInRecover(ctx, err)
+			return
 		}
 	}
-
-	return nil
 }
 
 func copyOut0(ctx *bctx.Context) berr.Error {
@@ -91,17 +115,54 @@ func copyOut0(ctx *bctx.Context) berr.Error {
 	}
 }
 
-func copyOut(ctx *bctx.Context) berr.Error {
+func copyOutRecoverServer0(ctx *bctx.Context) {
+	in, err2 := serverRead(ctx)
+	if err2 != nil {
+		ctx.EndCopyOut()
+		return
+	}
+	switch in.Type() {
+	case packets.CopyData:
+		// continue
+	case packets.CopyDone, packets.ErrorResponse:
+		ctx.EndCopyOut()
+		return
+	default:
+		panic("unexpected packet from server")
+	}
+}
+
+func copyOutRecoverServer(ctx *bctx.Context, _ berr.Error) {
+	// read until server is done with its copy
+	for ctx.InCopyOut() {
+		copyOutRecoverServer0(ctx)
+	}
+}
+
+func copyOutRecoverClient(ctx *bctx.Context, err berr.Error) {
+	// send error to client, will stop client copy
+	out := ctx.ClientWrite()
+	packets.WriteErrorResponse(out, err.PError())
+	_ = ctx.ClientSend(out)
+
+	ctx.EndCopyOut()
+}
+
+func copyOutRecover(ctx *bctx.Context, err berr.Error) {
+	copyOutRecoverServer(ctx, err)
+	copyOutRecoverClient(ctx, err)
+}
+
+func copyOut(ctx *bctx.Context) {
 	ctx.BeginCopyOut()
 
 	for ctx.InCopyOut() {
 		err := copyOut0(ctx)
 		if err != nil {
-			return err
+			copyOutRecover(ctx, err)
+			return
 		}
 	}
-
-	return nil
 }
 
 func query0(ctx *bctx.Context) berr.Error {
@@ -122,19 +183,21 @@ func query0(ctx *bctx.Context) berr.Error {
 		if err != nil {
 			return err
 		}
-		return copyIn(ctx)
+		copyIn(ctx)
+		return nil
 	case packets.CopyOutResponse:
 		err = ctx.ClientProxy(in)
 		if err != nil {
 			return err
 		}
-		return copyOut(ctx)
+		copyOut(ctx)
+		return nil
 	case packets.ReadyForQuery:
+		ctx.EndQuery()
 		err = ctx.ClientProxy(in)
 		if err != nil {
 			return err
 		}
-		ctx.EndQuery()
 		return readyForQuery(ctx, in)
 	default:
 		log.Printf("unexpected packet %c\n", in.Type())
@@ -143,17 +206,88 @@ func query0(ctx *bctx.Context) berr.Error {
 	}
 }
 
-func query(ctx *bctx.Context) berr.Error {
+func queryRecoverServer0(ctx *bctx.Context, err berr.Error) {
+	in, err2 := serverRead(ctx)
+	if err2 != nil {
+		ctx.EndQuery()
+		return
+	}
+	switch in.Type() {
+	case packets.CommandComplete,
+		packets.RowDescription,
+		packets.DataRow,
+		packets.EmptyQueryResponse,
+		packets.ErrorResponse:
+		// continue
+	case packets.CopyInResponse:
+		ctx.BeginCopyIn()
+		copyInRecoverServer(ctx, err)
+	case packets.CopyOutResponse:
+		ctx.BeginCopyOut()
+		copyOutRecoverServer(ctx, err)
+	case packets.ReadyForQuery:
+		ctx.EndQuery()
+		readyForQuery(ctx, in)
+	default:
+		panic("unexpected packet from server")
+	}
+}
+
+// serverTransactionFail ensures the server is in a failed txn block
+func serverTransactionFail(ctx *bctx.Context, err berr.Error) {
+	// we need to change this to a failed transaction block, write a simple query that will fail
+	out := ctx.ServerWrite()
+	out.Type(packets.Query)
+	out.String("RAISE;")
+	_ = ctx.ServerSend(out)
+	ctx.BeginQuery()
+	for ctx.InQuery() {
+		queryRecoverServer0(ctx, err)
+	}
+}
+
+func queryRecoverServer(ctx *bctx.Context, err berr.Error) {
+	for ctx.InQuery() {
+		queryRecoverServer0(ctx, err)
+	}
+	if ctx.InTransaction() {
+		serverTransactionFail(ctx, err)
+	}
+}
+
+func queryRecoverClient(ctx *bctx.Context, err berr.Error) {
+	// send error to client followed by ready for query
+	out := ctx.ClientWrite()
+	packets.WriteErrorResponse(out, err.PError())
+	_ = ctx.ClientSend(out)
+	out = ctx.ClientWrite()
+	if ctx.InTransaction() {
+		packets.WriteReadyForQuery(out, 'E')
+	} else {
+		packets.WriteReadyForQuery(out, 'I')
+	}
+	_ = ctx.ClientSend(out)
+
+	ctx.EndQuery()
+}
+
+func queryRecover(ctx *bctx.Context, err berr.Error) {
+	queryRecoverServer(ctx, err)
+	queryRecoverClient(ctx, err)
+}
+
+func query(ctx *bctx.Context) {
 	ctx.BeginQuery()
 
 	for ctx.InQuery() {
 		err := query0(ctx)
 		if err != nil {
-			return err
+			queryRecover(ctx, err)
+			return
 		}
 	}
 
-	return nil
+	return
 }
 
 func functionCall0(ctx *bctx.Context) berr.Error {
@@ -166,11 +300,11 @@ func functionCall0(ctx *bctx.Context) berr.Error {
 	case packets.ErrorResponse, packets.FunctionCallResponse:
 		return ctx.ClientProxy(in)
 	case packets.ReadyForQuery:
+		ctx.EndFunctionCall()
 		err = ctx.ClientProxy(in)
 		if err != nil {
 			return err
 		}
-		ctx.EndFunctionCall()
 		return readyForQuery(ctx, in)
 	default:
 		log.Printf("unexpected packet %c\n", in.Type())
@@ -179,17 +313,63 @@ func functionCall0(ctx *bctx.Context) berr.Error {
 	}
 }
 
-func functionCall(ctx *bctx.Context) berr.Error {
+func functionCallRecoverServer0(ctx *bctx.Context) {
+	in, err2 := serverRead(ctx)
+	if err2 != nil {
+		ctx.EndFunctionCall()
+		return
+	}
+	switch in.Type() {
+	case packets.ErrorResponse, packets.FunctionCallResponse:
+		// continue
+	case packets.ReadyForQuery:
+		ctx.EndFunctionCall()
+		readyForQuery(ctx, in)
+	default:
+		panic("unexpected packet from server")
+	}
+}
+
+func functionCallRecoverServer(ctx *bctx.Context, err berr.Error) {
+	for ctx.InFunctionCall() {
+		functionCallRecoverServer0(ctx)
+	}
+	if ctx.InTransaction() {
+		serverTransactionFail(ctx, err)
+	}
+}
+
+func functionCallRecoverClient(ctx *bctx.Context, err berr.Error) {
+	// send error to client followed by ready for query, will stop client function call
+	out := ctx.ClientWrite()
+	packets.WriteErrorResponse(out, err.PError())
+	_ = ctx.ClientSend(out)
+	out = ctx.ClientWrite()
+	if ctx.InTransaction() {
+		packets.WriteReadyForQuery(out, 'E')
+	} else {
+		packets.WriteReadyForQuery(out, 'I')
+	}
+	_ = ctx.ClientSend(out)
+
+	ctx.EndFunctionCall()
+}
+
+func functionCallRecover(ctx *bctx.Context, err berr.Error) {
+	functionCallRecoverServer(ctx, err)
+	functionCallRecoverClient(ctx, err)
+}
+
+func functionCall(ctx *bctx.Context) {
 	ctx.BeginFunctionCall()
 
 	for ctx.InFunctionCall() {
 		err := functionCall0(ctx)
 		if err != nil {
-			return err
+			functionCallRecover(ctx, err)
+			return
 		}
 	}
-
-	return nil
 }
 
 func sync0(ctx *bctx.Context) berr.Error {
@@ -212,11 +392,11 @@ func sync0(ctx *bctx.Context) berr.Error {
 		packets.PortalSuspended:
 		return ctx.ClientProxy(in)
 	case packets.ReadyForQuery:
+		ctx.EndSync()
 		err = ctx.ClientProxy(in)
 		if err != nil {
 			return err
 		}
-		ctx.EndSync()
 		return readyForQuery(ctx, in)
 	default:
 		log.Printf("unexpected packet %c\n", in.Type())
@@ -225,17 +405,74 @@ func sync0(ctx *bctx.Context) berr.Error {
 	}
 }
 
-func sync(ctx *bctx.Context) berr.Error {
+func syncRecoverServer0(ctx *bctx.Context, _ berr.Error) {
+	in, err2 := serverRead(ctx)
+	if err2 != nil {
+		ctx.EndSync()
+		return
+	}
+
+	switch in.Type() {
+	case packets.ParseComplete,
+		packets.BindComplete,
+		packets.ErrorResponse,
+		packets.RowDescription,
+		packets.NoData,
+		packets.ParameterDescription,
+
+		packets.CommandComplete,
+		packets.DataRow,
+		packets.EmptyQueryResponse,
+		packets.PortalSuspended:
+		// continue
+	case packets.ReadyForQuery:
+		ctx.EndSync()
+		readyForQuery(ctx, in)
+	default:
+		panic("unexpected packet from server")
+	}
+}
+
+func syncRecoverServer(ctx *bctx.Context, err berr.Error) {
+	for ctx.InSync() {
+		syncRecoverServer0(ctx, err)
+	}
+	if ctx.InTransaction() {
+		serverTransactionFail(ctx, err)
+	}
+}
+
+func syncRecoverClient(ctx *bctx.Context, err berr.Error) {
+	// send error to client followed by ready for query
+	out := ctx.ClientWrite()
+	packets.WriteErrorResponse(out, err.PError())
+	_ = ctx.ClientSend(out)
+	out = ctx.ClientWrite()
+	if ctx.InTransaction() {
+		packets.WriteReadyForQuery(out, 'E')
+	} else {
+		packets.WriteReadyForQuery(out, 'I')
+	}
+	_ = ctx.ClientSend(out)
+
+	ctx.EndSync()
+}
+
+func syncRecover(ctx *bctx.Context, err berr.Error) {
+	syncRecoverServer(ctx, err)
+	syncRecoverClient(ctx, err)
+}
+
+func sync(ctx *bctx.Context) {
 	ctx.BeginSync()
 
 	for ctx.InSync() {
 		err := sync0(ctx)
 		if err != nil {
-			return err
+			syncRecover(ctx, err)
+			return
 		}
 	}
-
-	return nil
 }
 
 func transaction0(ctx *bctx.Context) berr.Error {
@@ -250,13 +487,15 @@ func transaction0(ctx *bctx.Context) berr.Error {
 		if err != nil {
 			return err
 		}
-		return query(ctx)
+		query(ctx)
+		return nil
 	case packets.FunctionCall:
 		err = ctx.ServerProxy(in)
 		if err != nil {
 			return err
 		}
-		return functionCall(ctx)
+		functionCall(ctx)
+		return nil
 	case packets.Sync:
 		if !ctx.InEQP() {
 			ctx.BeginEQP()
@@ -265,7 +504,8 @@ func transaction0(ctx *bctx.Context) berr.Error {
 		if err != nil {
 			return err
 		}
-		return sync(ctx)
+		sync(ctx)
+		return nil
 	case packets.Parse, packets.Bind, packets.Close, packets.Describe, packets.Execute, packets.Flush:
 		if !ctx.InEQP() {
 			ctx.BeginEQP()
@@ -276,35 +516,64 @@ func transaction0(ctx *bctx.Context) berr.Error {
 	}
 }
 
-func transaction(ctx *bctx.Context) berr.Error {
+func transactionRecoverServer(ctx *bctx.Context, err berr.Error) {
+	if ctx.InEQP() {
+		// send sync and ignore until ready for query
+		out := ctx.ServerWrite()
+		out.Type(packets.Sync)
+		err2 := ctx.ServerSend(out)
+		if err2 != nil {
+			return
+		}
+		ctx.BeginSync()
+		syncRecoverServer(ctx, err)
+	}
+	if ctx.InTransaction() {
+		// send END to break out of transaction and wait for ready for query
+		out := ctx.ServerWrite()
+		out.Type(packets.Query)
+		out.String("END;")
+		err2 := ctx.ServerSend(out)
+		if err2 != nil {
+			return
+		}
+		ctx.BeginQuery()
+		queryRecoverServer(ctx, err)
+	}
+}
+
+func transactionRecoverClient(ctx *bctx.Context, err berr.Error) {
+	out := ctx.ClientWrite()
+	packets.WriteErrorResponse(out, err.PError())
+	_ = ctx.ClientSend(out)
+	out = ctx.ClientWrite()
+	packets.WriteReadyForQuery(out, 'I')
+	_ = ctx.ClientSend(out)
+
+	ctx.EndEQP()
+	ctx.EndTransaction()
+}
+
+func transactionRecover(ctx *bctx.Context, err berr.Error) {
+	transactionRecoverServer(ctx, err)
+	transactionRecoverClient(ctx, err)
+}
+
+func transaction(ctx *bctx.Context) {
 	ctx.BeginTransaction()
 
 	for ctx.InTransaction() {
 		err := transaction0(ctx)
 		if err != nil {
-			return err
+			transactionRecover(ctx, err)
+			return
 		}
 	}
-
-	return nil
 }
 
 func Bounce(client, server zap.ReadWriter) {
 	ctx := bctx.MakeContext(client, server, 0) // TODO(garet) make this configurable
 	defer ctx.Done()
-	err := transaction(&ctx)
-	if err != nil {
-		switch e := err.(type) {
-		case berr.Client:
-			// send to client
-			out := client.Write()
-			packets.WriteErrorResponse(out, e.Error)
-			_ = client.Send(out)
-		case berr.Server:
-			log.Println("server error", e.Error)
-		default:
-			// unhandled error
-			panic(err)
-		}
-	}
+	transaction(&ctx)
+	ctx.AssertDone()
 }
