@@ -1,34 +1,8 @@
 package rclient
 
-import (
-	"pggat2/lib/bouncer/bouncers/v2/bctx"
-	"pggat2/lib/bouncer/bouncers/v2/berr"
-)
+import "pggat2/lib/bouncer/bouncers/v2/bctx"
 
-func CopyIn(ctx *bctx.Context, err berr.Error) {
-
-}
-
-func CopyOut(ctx *bctx.Context, err berr.Error) {
-
-}
-
-func Query(ctx *bctx.Context, err berr.Error) {
-
-}
-
-func FunctionCall(ctx *bctx.Context, err berr.Error) {
-
-}
-
-func Sync(ctx *bctx.Context, err berr.Error) {
-
-}
-
-func EQP(ctx *bctx.Context, err berr.Error) {
-
-}
-
-func Transaction(ctx *bctx.Context, err berr.Error) {
-
+func Recover(ctx *bctx.Context) error {
+	// TODO(garet) actually recover client
+	return nil
 }

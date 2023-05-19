@@ -1,5 +1,6 @@
 package berr
 
 type Error interface {
-	berr()
+	error
+	Source() Source
 }

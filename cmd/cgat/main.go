@@ -6,13 +6,13 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
+	"pggat2/lib/bouncer/bouncers/v2"
 	"pggat2/lib/middleware/middlewares/eqp"
 	"pggat2/lib/middleware/middlewares/ps"
 	"pggat2/lib/rob/schedulers/v1"
 	"pggat2/lib/zap/onebuffer"
 
 	"pggat2/lib/bouncer/backends/v0"
-	"pggat2/lib/bouncer/bouncers/v1"
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/middleware"
 	"pggat2/lib/middleware/interceptor"

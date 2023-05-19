@@ -7,43 +7,47 @@ import (
 
 type Context struct {
 	client, server zap.ReadWriter
-	txn            byte
+	TxState        byte
 }
 
 func MakeContext(client, server zap.ReadWriter) Context {
 	return Context{
-		client: client,
-		server: server,
-		txn:    'I',
+		client:  client,
+		server:  server,
+		TxState: 'I',
 	}
-}
-
-func (T *Context) SetTransactionState(state byte) {
-	T.txn = state
-}
-
-func (T *Context) GetTransactionState() byte {
-	return T.txn
 }
 
 func (T *Context) ClientRead() (zap.In, berr.Error) {
 	in, err := T.client.Read()
 	if err != nil {
-		return zap.In{}, err
+		return zap.In{}, berr.MakeClient(err)
 	}
 	return in, nil
 }
 
 func (T *Context) ServerRead() (zap.In, berr.Error) {
-
+	in, err := T.server.Read()
+	if err != nil {
+		return zap.In{}, berr.MakeServer(err)
+	}
+	return in, nil
 }
 
 func (T *Context) ClientSend(out zap.Out) berr.Error {
-
+	err := T.client.Send(out)
+	if err != nil {
+		return berr.MakeClient(err)
+	}
+	return nil
 }
 
 func (T *Context) ServerSend(out zap.Out) berr.Error {
-
+	err := T.server.Send(out)
+	if err != nil {
+		return berr.MakeServer(err)
+	}
+	return nil
 }
 
 func (T *Context) ClientProxy(in zap.In) berr.Error {
