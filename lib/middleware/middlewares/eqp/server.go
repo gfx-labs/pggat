@@ -163,7 +163,10 @@ func (T *Server) bindPortal(
 }
 
 func (T *Server) syncPreparedStatement(ctx middleware.Context, target string) error {
-	expected := T.peer.preparedStatements[target]
+	expected, some := T.peer.preparedStatements[target]
+	if !some {
+		return T.closePreparedStatement(ctx, target)
+	}
 
 	// check if we already have it bound
 	if old, ok := T.preparedStatements[target]; ok {
@@ -186,7 +189,10 @@ func (T *Server) syncPreparedStatement(ctx middleware.Context, target string) er
 }
 
 func (T *Server) syncPortal(ctx middleware.Context, target string) error {
-	expected := T.peer.portals[target]
+	expected, some := T.peer.portals[target]
+	if !some {
+		return T.closePortal(ctx, target)
+	}
 
 	err := T.syncPreparedStatement(ctx, expected.source)
 	if err != nil {

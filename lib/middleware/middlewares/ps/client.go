@@ -33,11 +33,7 @@ func (T *Client) SetServer(peer *Server) {
 	T.peer = peer
 }
 
-func (T *Client) updateParameter(ctx middleware.Context, name, value string) error {
-	if T.parameters[name] == value {
-		return nil
-	}
-
+func (T *Client) updateParameter0(ctx middleware.Context, name, value string) error {
 	out := T.buf.Write()
 	packets.WriteParameterStatus(out, name, value)
 	err := ctx.Send(out)
@@ -50,15 +46,26 @@ func (T *Client) updateParameter(ctx middleware.Context, name, value string) err
 	return nil
 }
 
+func (T *Client) updateParameter(ctx middleware.Context, name, value string) error {
+	if T.parameters[name] == value {
+		return nil
+	}
+
+	return T.updateParameter0(ctx, name, value)
+}
+
 func (T *Client) sync(ctx middleware.Context) error {
 	if T.peer == nil || !T.dirty {
 		return nil
 	}
 	T.dirty = false
 
-	for name := range T.parameters {
+	for name, value := range T.parameters {
 		expected := T.peer.parameters[name]
-		err := T.updateParameter(ctx, name, expected)
+		if value == expected {
+			continue
+		}
+		err := T.updateParameter0(ctx, name, expected)
 		if err != nil {
 			return err
 		}

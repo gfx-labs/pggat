@@ -136,29 +136,20 @@ func (T *Client) Read(ctx middleware.Context, in zap.In) error {
 		}
 	case packets.Describe:
 		// ensure target exists
-		which, target, ok := packets.ReadDescribe(in)
+		which, _, ok := packets.ReadDescribe(in)
 		if !ok {
 			return errors.New("bad packet format")
 		}
 		switch which {
-		case 'S':
-			if _, ok = T.preparedStatements[target]; !ok {
-				return errors.New("prepared statement doesn't exist")
-			}
-		case 'P':
-			if _, ok = T.portals[target]; !ok {
-				return errors.New("portal doesn't exist")
-			}
+		case 'S', 'P':
+			// ok
 		default:
 			return errors.New("unknown describe target")
 		}
 	case packets.Execute:
-		target, _, ok := packets.ReadExecute(in)
+		_, _, ok := packets.ReadExecute(in)
 		if !ok {
 			return errors.New("bad packet format")
-		}
-		if _, ok = T.portals[target]; !ok {
-			return errors.New("portal doesn't exist")
 		}
 	}
 	return nil
