@@ -5,6 +5,9 @@ import (
 
 	"pggat2/lib/bouncer/bouncers/v2/bctx"
 	"pggat2/lib/bouncer/bouncers/v2/berr"
+	"pggat2/lib/bouncer/bouncers/v2/rclient"
+	"pggat2/lib/bouncer/bouncers/v2/rserver"
+	"pggat2/lib/perror"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
 )
@@ -195,10 +198,6 @@ func eqp(ctx *bctx.Context) berr.Error {
 
 func transaction(ctx *bctx.Context) berr.Error {
 	for {
-		if ctx.TxState == 'I' {
-			return nil
-		}
-
 		in, err := ctx.ClientRead()
 		if err != nil {
 			return err
@@ -220,11 +219,10 @@ func transaction(ctx *bctx.Context) berr.Error {
 				return err
 			}
 		case packets.Sync:
-			// TODO(garet) can this be turned into a phony call, not actually directed to server?
-			if err = ctx.ServerProxy(in); err != nil {
-				return err
-			}
-			if err = sync(ctx); err != nil {
+			// phony sync call, we can just reply with a fake ReadyForQuery(TxState)
+			out := zap.InToOut(in)
+			packets.WriteReadyForQuery(out, ctx.TxState)
+			if err = ctx.ClientSend(out); err != nil {
 				return err
 			}
 		case packets.Parse, packets.Bind, packets.Close, packets.Describe, packets.Execute, packets.Flush:
@@ -237,14 +235,45 @@ func transaction(ctx *bctx.Context) berr.Error {
 		default:
 			return berr.ClientUnexpectedPacket
 		}
+
+		if ctx.TxState == 'I' {
+			return nil
+		}
 	}
+}
+
+func clientError(ctx *bctx.Context, err error) {
+	// send fatal error to client
+	out := ctx.ClientWrite()
+	packets.WriteErrorResponse(out, perror.New(
+		perror.FATAL,
+		perror.ProtocolViolation,
+		err.Error(),
+	))
+	_ = ctx.ClientSend(out)
+}
+
+func serverError(ctx *bctx.Context, err error) {
+	panic("server error: " + err.Error())
 }
 
 func Bounce(client, server zap.ReadWriter) {
 	ctx := bctx.MakeContext(client, server)
-	ctx.TxState = 'T'
 	err := transaction(&ctx)
 	if err != nil {
-		panic(err)
+		switch e := err.(type) {
+		case berr.Client:
+			clientError(&ctx, e)
+			if err2 := rserver.Recover(&ctx); err2 != nil {
+				serverError(&ctx, err2)
+			}
+		case berr.Server:
+			serverError(&ctx, e)
+			if err2 := rclient.Recover(&ctx); err2 != nil {
+				clientError(&ctx, err2)
+			}
+		default:
+			panic("unreachable")
+		}
 	}
 }

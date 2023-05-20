@@ -8,6 +8,4 @@ func MakeServer(err error) Server {
 	return Server{err}
 }
 
-func (Server) Source() Source {
-	return SERVER
-}
+func (Server) err() {}

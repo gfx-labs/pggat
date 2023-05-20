@@ -57,3 +57,11 @@ func (T *Context) ClientProxy(in zap.In) berr.Error {
 func (T *Context) ServerProxy(in zap.In) berr.Error {
 	return T.ServerSend(zap.InToOut(in))
 }
+
+func (T *Context) ClientWrite() zap.Out {
+	return T.client.Write()
+}
+
+func (T *Context) ServerWrite() zap.Out {
+	return T.server.Write()
+}

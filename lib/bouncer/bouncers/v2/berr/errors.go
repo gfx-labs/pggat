@@ -3,8 +3,8 @@ package berr
 import "errors"
 
 var (
-	ServerBadPacket        = MakeServer(errors.New("bad packet format from server"))
-	ServerUnexpectedPacket = MakeServer(errors.New("unexpected packet from server"))
+	ServerBadPacket        = MakeServer(errors.New("bad packet format"))
+	ServerUnexpectedPacket = MakeServer(errors.New("unexpected packet"))
 
-	ClientUnexpectedPacket = MakeClient(errors.New("unexpected packet from client"))
+	ClientUnexpectedPacket = MakeClient(errors.New("unexpected packet"))
 )
