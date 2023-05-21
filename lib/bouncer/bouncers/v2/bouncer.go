@@ -5,7 +5,6 @@ import (
 
 	"pggat2/lib/bouncer/bouncers/v2/bctx"
 	"pggat2/lib/bouncer/bouncers/v2/berr"
-	"pggat2/lib/bouncer/bouncers/v2/rclient"
 	"pggat2/lib/bouncer/bouncers/v2/rserver"
 	"pggat2/lib/perror"
 	"pggat2/lib/zap"
@@ -269,9 +268,7 @@ func Bounce(client, server zap.ReadWriter) {
 			}
 		case berr.Server:
 			serverError(&ctx, e)
-			if err2 := rclient.Recover(&ctx); err2 != nil {
-				clientError(&ctx, err2)
-			}
+			clientError(&ctx, e)
 		default:
 			panic("unreachable")
 		}
