@@ -9,9 +9,14 @@ import (
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
+type HashedPortal struct {
+	source string
+	hash   uint64
+}
+
 type Server struct {
-	preparedStatements map[string]PreparedStatement
-	portals            map[string]Portal
+	preparedStatements map[string]uint64
+	portals            map[string]HashedPortal
 
 	pendingPreparedStatements ring.Ring[string]
 	pendingPortals            ring.Ring[string]
@@ -24,8 +29,8 @@ type Server struct {
 
 func MakeServer() Server {
 	return Server{
-		preparedStatements: make(map[string]PreparedStatement),
-		portals:            make(map[string]Portal),
+		preparedStatements: make(map[string]uint64),
+		portals:            make(map[string]HashedPortal),
 	}
 }
 
@@ -34,20 +39,10 @@ func (T *Server) SetClient(client *Client) {
 }
 
 func (T *Server) deletePreparedStatement(target string) {
-	v, ok := T.preparedStatements[target]
-	if !ok {
-		return
-	}
-	v.Done()
 	delete(T.preparedStatements, target)
 }
 
 func (T *Server) deletePortal(target string) {
-	v, ok := T.portals[target]
-	if !ok {
-		return
-	}
-	v.Done()
 	delete(T.portals, target)
 }
 
@@ -57,7 +52,7 @@ func (T *Server) closePreparedStatement(ctx middleware.Context, target string) e
 		return nil
 	}
 
-	preparedStatement, ok := T.preparedStatements[target]
+	hash, ok := T.preparedStatements[target]
 	if !ok {
 		// already closed
 		return nil
@@ -73,9 +68,10 @@ func (T *Server) closePreparedStatement(ctx middleware.Context, target string) e
 
 	// add it to pending
 	delete(T.preparedStatements, target)
-	T.pendingCloses.PushBack(ClosePreparedStatement{
-		target:            target,
-		preparedStatement: preparedStatement,
+	T.pendingCloses.PushBack(Close{
+		Which:  'S',
+		Target: target,
+		Hash:   hash,
 	})
 	return nil
 }
@@ -86,7 +82,7 @@ func (T *Server) closePortal(ctx middleware.Context, target string) error {
 		return nil
 	}
 
-	portal, ok := T.portals[target]
+	hash, ok := T.portals[target]
 	if !ok {
 		// already closed
 		return nil
@@ -102,9 +98,11 @@ func (T *Server) closePortal(ctx middleware.Context, target string) error {
 
 	// add it to pending
 	delete(T.portals, target)
-	T.pendingCloses.PushBack(ClosePortal{
-		target: target,
-		portal: portal,
+	T.pendingCloses.PushBack(Close{
+		Which:  'P',
+		Target: target,
+		Source: hash.source,
+		Hash:   hash.hash,
 	})
 	return nil
 }
@@ -127,7 +125,7 @@ func (T *Server) bindPreparedStatement(
 	}
 
 	T.deletePreparedStatement(target)
-	T.preparedStatements[target] = preparedStatement.Clone()
+	T.preparedStatements[target] = preparedStatement.hash
 	T.pendingPreparedStatements.PushBack(target)
 	return nil
 }
@@ -139,7 +137,7 @@ func (T *Server) bindPortal(
 ) error {
 	// check if we already have it bound
 	if old, ok := T.portals[target]; ok {
-		if old.Equal(&portal) {
+		if old.hash == portal.hash {
 			return nil
 		}
 	}
@@ -157,7 +155,10 @@ func (T *Server) bindPortal(
 	}
 
 	T.deletePortal(target)
-	T.portals[target] = portal.Clone()
+	T.portals[target] = HashedPortal{
+		source: portal.source,
+		hash:   portal.hash,
+	}
 	T.pendingPortals.PushBack(target)
 	return nil
 }
@@ -170,7 +171,7 @@ func (T *Server) syncPreparedStatement(ctx middleware.Context, target string) er
 
 	// check if we already have it bound
 	if old, ok := T.preparedStatements[target]; ok {
-		if old.Equal(&expected) {
+		if old == expected.hash {
 			return nil
 		}
 	}
@@ -201,7 +202,7 @@ func (T *Server) syncPortal(ctx middleware.Context, target string) error {
 
 	// check if we already have it bound
 	if old, ok := T.portals[target]; ok {
-		if old.Equal(&expected) {
+		if old.hash == expected.hash {
 			return nil
 		}
 	}
@@ -271,9 +272,7 @@ func (T *Server) Read(ctx middleware.Context, in zap.In) error {
 	case packets.CloseComplete:
 		ctx.Cancel()
 
-		if c, ok := T.pendingCloses.PopFront(); ok {
-			c.Done()
-		}
+		T.pendingCloses.PopFront()
 	case packets.ReadyForQuery:
 		state, ok := packets.ReadReadyForQuery(in)
 		if !ok {
@@ -293,13 +292,16 @@ func (T *Server) Read(ctx middleware.Context, in zap.In) error {
 			T.deletePortal(pending)
 		}
 		for pending, ok := T.pendingCloses.PopBack(); ok; pending, ok = T.pendingCloses.PopBack() {
-			switch p := pending.(type) {
-			case ClosePreparedStatement:
-				T.deletePreparedStatement(p.target)
-				T.preparedStatements[p.target] = p.preparedStatement
-			case ClosePortal:
-				T.deletePortal(p.target)
-				T.portals[p.target] = p.portal
+			switch pending.Which {
+			case 'S': // prepared statement
+				T.deletePreparedStatement(pending.Target)
+				T.preparedStatements[pending.Target] = pending.Hash
+			case 'P': // portal
+				T.deletePortal(pending.Target)
+				T.portals[pending.Target] = HashedPortal{
+					hash:   pending.Hash,
+					source: pending.Source,
+				}
 			default:
 				panic("unreachable")
 			}
@@ -316,8 +318,7 @@ func (T *Server) Done() {
 	for name := range T.portals {
 		T.deletePortal(name)
 	}
-	for pending, ok := T.pendingCloses.PopBack(); ok; pending, ok = T.pendingCloses.PopBack() {
-		pending.Done()
+	for _, ok := T.pendingCloses.PopBack(); ok; _, ok = T.pendingCloses.PopBack() {
 	}
 }
 
