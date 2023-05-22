@@ -1,8 +1,6 @@
 package bouncers
 
 import (
-	"log"
-
 	"pggat2/lib/bouncer/bouncers/v2/bctx"
 	"pggat2/lib/bouncer/bouncers/v2/berr"
 	"pggat2/lib/bouncer/bouncers/v2/rserver"
@@ -43,7 +41,11 @@ func copyIn(ctx *bctx.Context) berr.Error {
 				return err
 			}
 		case packets.CopyDone, packets.CopyFail:
-			return ctx.ServerProxy(in)
+			if err = ctx.ServerProxy(in); err != nil {
+				return err
+			}
+			ctx.CopyIn = false
+			return nil
 		default:
 			return berr.ClientUnexpectedPacket
 		}
@@ -63,9 +65,9 @@ func copyOut(ctx *bctx.Context) berr.Error {
 				return err
 			}
 		case packets.CopyDone, packets.ErrorResponse:
+			ctx.CopyOut = false
 			return ctx.ClientProxy(in)
 		default:
-			log.Println("a")
 			return berr.ServerUnexpectedPacket
 		}
 	}
@@ -88,6 +90,7 @@ func query(ctx *bctx.Context) berr.Error {
 				return err
 			}
 		case packets.CopyInResponse:
+			ctx.CopyIn = true
 			if err = ctx.ClientProxy(in); err != nil {
 				return err
 			}
@@ -95,6 +98,7 @@ func query(ctx *bctx.Context) berr.Error {
 				return err
 			}
 		case packets.CopyOutResponse:
+			ctx.CopyOut = true
 			if err = ctx.ClientProxy(in); err != nil {
 				return err
 			}
@@ -102,13 +106,13 @@ func query(ctx *bctx.Context) berr.Error {
 				return err
 			}
 		case packets.ReadyForQuery:
+			ctx.Query = false
 			var ok bool
 			if ctx.TxState, ok = packets.ReadReadyForQuery(in); !ok {
 				return berr.ServerBadPacket
 			}
 			return ctx.ClientProxy(in)
 		default:
-			log.Println("b")
 			return berr.ServerUnexpectedPacket
 		}
 	}
@@ -127,6 +131,7 @@ func functionCall(ctx *bctx.Context) berr.Error {
 				return err
 			}
 		case packets.ReadyForQuery:
+			ctx.FunctionCall = false
 			var ok bool
 			if ctx.TxState, ok = packets.ReadReadyForQuery(in); !ok {
 				return berr.ServerBadPacket
@@ -159,14 +164,31 @@ func sync(ctx *bctx.Context) berr.Error {
 			if err != nil {
 				return err
 			}
+		case packets.CopyInResponse:
+			ctx.CopyIn = true
+			if err = ctx.ClientProxy(in); err != nil {
+				return err
+			}
+			if err = copyIn(ctx); err != nil {
+				return err
+			}
+		case packets.CopyOutResponse:
+			ctx.CopyOut = true
+			if err = ctx.ClientProxy(in); err != nil {
+				return err
+			}
+			if err = copyOut(ctx); err != nil {
+				return err
+			}
 		case packets.ReadyForQuery:
+			ctx.Sync = false
+			ctx.EQP = false
 			var ok bool
 			if ctx.TxState, ok = packets.ReadReadyForQuery(in); !ok {
 				return berr.ServerBadPacket
 			}
 			return ctx.ClientProxy(in)
 		default:
-			log.Println("c", in.Type())
 			return berr.ServerUnexpectedPacket
 		}
 	}
@@ -184,6 +206,7 @@ func eqp(ctx *bctx.Context) berr.Error {
 			if err = ctx.ServerProxy(in); err != nil {
 				return err
 			}
+			ctx.Sync = true
 			return sync(ctx)
 		case packets.Parse, packets.Bind, packets.Close, packets.Describe, packets.Execute, packets.Flush:
 			if err = ctx.ServerProxy(in); err != nil {
@@ -207,6 +230,7 @@ func transaction(ctx *bctx.Context) berr.Error {
 			if err = ctx.ServerProxy(in); err != nil {
 				return err
 			}
+			ctx.Query = true
 			if err = query(ctx); err != nil {
 				return err
 			}
@@ -214,6 +238,7 @@ func transaction(ctx *bctx.Context) berr.Error {
 			if err = ctx.ServerProxy(in); err != nil {
 				return err
 			}
+			ctx.FunctionCall = true
 			if err = functionCall(ctx); err != nil {
 				return err
 			}
@@ -228,6 +253,7 @@ func transaction(ctx *bctx.Context) berr.Error {
 			if err = ctx.ServerProxy(in); err != nil {
 				return err
 			}
+			ctx.EQP = true
 			if err = eqp(ctx); err != nil {
 				return err
 			}

@@ -7,7 +7,15 @@ import (
 
 type Context struct {
 	client, server zap.ReadWriter
-	TxState        byte
+
+	// state (for flow and recovery)
+	CopyOut      bool
+	CopyIn       bool
+	Query        bool
+	FunctionCall bool
+	Sync         bool
+	EQP          bool
+	TxState      byte
 }
 
 func MakeContext(client, server zap.ReadWriter) Context {
