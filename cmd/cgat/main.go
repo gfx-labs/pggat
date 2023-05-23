@@ -55,7 +55,7 @@ func testServer(r rob.Scheduler) {
 		&eqps,
 		&pss,
 	})
-	backends.Accept(&mw)
+	backends.Accept(&mw, "postgres", "password", "uniswap")
 	r.AddSink(0, server{
 		rw:   &mw,
 		eqps: &eqps,

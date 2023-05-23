@@ -131,7 +131,7 @@ func startup0(client zap.ReadWriter) (done bool, status Status) {
 				// we don't support protocol extensions at the moment
 				unsupportedOptions = append(unsupportedOptions, key)
 			} else {
-				// TODO(garet) save parameters somewhere
+				// TODO(garet) do something with this parameter
 			}
 		}
 	}

@@ -242,16 +242,18 @@ func startup1(server zap.ReadWriter) (done bool, status Status) {
 	}
 }
 
-func Accept(server zap.ReadWriter) {
+func Accept(server zap.ReadWriter, username, password, database string) {
+	if database == "" {
+		database = username
+	}
 	// we can re-use the memory for this pkt most of the way down because we don't pass this anywhere
 	out := server.Write()
 	out.Int16(3)
 	out.Int16(0)
-	// TODO(garet) don't hardcode username and password
 	out.String("user")
-	out.String("postgres")
+	out.String(username)
 	out.String("database")
-	out.String("uniswap")
+	out.String(database)
 	out.String("")
 
 	err := server.Send(out)
@@ -261,8 +263,7 @@ func Accept(server zap.ReadWriter) {
 	}
 
 	for {
-		// TODO(garet) don't hardcode username and password
-		done, status := startup0(server, "postgres", "password")
+		done, status := startup0(server, username, password)
 		if status != Ok {
 			return
 		}
