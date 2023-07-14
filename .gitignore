@@ -1,14 +1,1 @@
-.bin
-.log
-.db
-*.exe
-
-
-.tmp
-
-
-target
-
 .idea
-
-config_data.yml
