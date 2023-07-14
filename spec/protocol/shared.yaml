@@ -1,8 +1,0 @@
-CopyData:
-  Identifier: 'd'
-  Fields:
-    - Name: Data
-      Type: byte
-      ArrayLength: payloadLength
-CopyDone:
-  Identifier: 'c'
