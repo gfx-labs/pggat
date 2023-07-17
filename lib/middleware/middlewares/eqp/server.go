@@ -77,10 +77,14 @@ func (T *Server) closePreparedStatement(ctx middleware.Context, target string) e
 }
 
 func (T *Server) closePortal(ctx middleware.Context, target string) error {
-	// no need to close unnamed portal
-	if target == "" {
-		return nil
-	}
+	/*
+		DON'T DO THIS!! Even though the unnamed portal doesn't need to be closed if the portal is ok, binding over an
+		unrunnable portal will keep the portal in an unrunnable state.
+
+		if target == "" {
+			return nil
+		}
+	*/
 
 	hash, ok := T.portals[target]
 	if !ok {
