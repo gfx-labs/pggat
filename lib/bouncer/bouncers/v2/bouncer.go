@@ -247,6 +247,7 @@ func eqp(ctx *bctx.Context) berr.Error {
 				return err
 			}
 			pkts.Clear()
+			ctx.Sync = true
 			return sync(ctx)
 		case packets.Parse, packets.Bind, packets.Close, packets.Describe, packets.Execute, packets.Flush:
 			pkts.Append(packet)
