@@ -108,31 +108,30 @@ func (T *Interceptor) WriteV(packets *zap.Packets) error {
 	defer func() {
 		T.context.packets = nil
 	}()
-	for i := 0; i < packets.Size(); i++ {
-		T.context.packetsIndex = i
-		if packets.IsTyped(i) {
+	for T.context.packetsIndex = 0; T.context.packetsIndex < packets.Size(); T.context.packetsIndex++ {
+		if packets.IsTyped(T.context.packetsIndex) {
 			for _, mw := range T.middlewares {
 				T.context.reset()
-				err := mw.Write(&T.context, packets.Get(i))
+				err := mw.Write(&T.context, packets.Get(T.context.packetsIndex))
 				if err != nil {
 					return err
 				}
 				if T.context.cancelled {
-					packets.Remove(i)
-					i--
+					packets.Remove(T.context.packetsIndex)
+					T.context.packetsIndex--
 					break
 				}
 			}
 		} else {
 			for _, mw := range T.middlewares {
 				T.context.reset()
-				err := mw.WriteUntyped(&T.context, packets.GetUntyped(i))
+				err := mw.WriteUntyped(&T.context, packets.GetUntyped(T.context.packetsIndex))
 				if err != nil {
 					return err
 				}
 				if T.context.cancelled {
-					packets.Remove(i)
-					i--
+					packets.Remove(T.context.packetsIndex)
+					T.context.packetsIndex--
 					break
 				}
 			}

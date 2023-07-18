@@ -39,6 +39,7 @@ func (T *Context) Write(packet *zap.Packet) error {
 		cloned.WriteType(packet.ReadType())
 		cloned.WriteBytes(packet.Payload())
 		T.packets.InsertBefore(T.packetsIndex, cloned)
+		T.packetsIndex++
 		return nil
 	}
 	return T.rw.Write(packet)
@@ -49,6 +50,7 @@ func (T *Context) WriteUntyped(packet *zap.UntypedPacket) error {
 		cloned := zap.NewUntypedPacket()
 		cloned.WriteBytes(packet.Payload())
 		T.packets.InsertUntypedBefore(T.packetsIndex, cloned)
+		T.packetsIndex++
 		return nil
 	}
 	return T.rw.WriteUntyped(packet)
