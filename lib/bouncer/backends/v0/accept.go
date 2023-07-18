@@ -260,6 +260,7 @@ func Accept(server zap.ReadWriter, username, password, database string) {
 	}
 	// we can re-use the memory for this pkt most of the way down because we don't pass this anywhere
 	packet := zap.NewUntypedPacket()
+	defer packet.Done()
 	packet.WriteInt16(3)
 	packet.WriteInt16(0)
 	packet.WriteString("user")

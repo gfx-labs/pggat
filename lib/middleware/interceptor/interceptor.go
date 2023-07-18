@@ -104,8 +104,42 @@ func (T *Interceptor) WriteUntyped(packet *zap.UntypedPacket) error {
 }
 
 func (T *Interceptor) WriteV(packets *zap.Packets) error {
-	panic("implement me")
-	// TODO(garet)
+	T.context.packets = packets
+	defer func() {
+		T.context.packets = nil
+	}()
+	for i := 0; i < packets.Size(); i++ {
+		T.context.packetsIndex = i
+		if packets.IsTyped(i) {
+			for _, mw := range T.middlewares {
+				T.context.reset()
+				err := mw.Write(&T.context, packets.Get(i))
+				if err != nil {
+					return err
+				}
+				if T.context.cancelled {
+					packets.Remove(i)
+					i--
+					break
+				}
+			}
+		} else {
+			for _, mw := range T.middlewares {
+				T.context.reset()
+				err := mw.WriteUntyped(&T.context, packets.GetUntyped(i))
+				if err != nil {
+					return err
+				}
+				if T.context.cancelled {
+					packets.Remove(i)
+					i--
+					break
+				}
+			}
+		}
+	}
+
+	return T.rw.WriteV(packets)
 }
 
 var _ zap.ReadWriter = (*Interceptor)(nil)

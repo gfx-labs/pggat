@@ -260,15 +260,11 @@ func authenticationSASL(client zap.ReadWriter, username, password string) Status
 	return Ok
 }
 
-func updateParameter(client zap.ReadWriter, name, value string) Status {
+func updateParameter(pkts *zap.Packets, name, value string) Status {
 	packet := zap.NewPacket()
 	defer packet.Done()
 	packets.WriteParameterStatus(packet, name, value)
-	err := client.Write(packet)
-	if err != nil {
-		fail(client, perror.Wrap(err))
-		return Fail
-	}
+	pkts.Append(packet)
 	return Ok
 }
 
@@ -288,18 +284,16 @@ func Accept(client zap.ReadWriter, initialParameterStatus map[string]string) {
 		return
 	}
 
+	pkts := zap.NewPackets()
+	defer pkts.Done()
+
 	// send auth Ok
 	packet := zap.NewPacket()
-	defer packet.Done()
 	packets.WriteAuthenticationOk(packet)
-	err := client.Write(packet)
-	if err != nil {
-		fail(client, perror.Wrap(err))
-		return
-	}
+	pkts.Append(packet)
 
 	for name, value := range initialParameterStatus {
-		status = updateParameter(client, name, value)
+		status = updateParameter(pkts, name, value)
 		if status != Ok {
 			return
 		}
@@ -307,21 +301,22 @@ func Accept(client zap.ReadWriter, initialParameterStatus map[string]string) {
 
 	// send backend key data
 	var cancellationKey [8]byte
-	_, err = rand.Read(cancellationKey[:])
-	if err != nil {
-		fail(client, perror.Wrap(err))
-		return
-	}
-	packets.WriteBackendKeyData(packet, cancellationKey)
-	err = client.Write(packet)
+	_, err := rand.Read(cancellationKey[:])
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return
 	}
 
+	packet = zap.NewPacket()
+	packets.WriteBackendKeyData(packet, cancellationKey)
+	pkts.Append(packet)
+
 	// send ready for query
+	packet = zap.NewPacket()
 	packets.WriteReadyForQuery(packet, 'I')
-	err = client.Write(packet)
+	pkts.Append(packet)
+
+	err = client.WriteV(pkts)
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return

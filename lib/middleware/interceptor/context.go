@@ -11,7 +11,12 @@ type Context struct {
 
 	cancelled bool
 
+	// for normal Write / WriteUntyped
 	rw zap.ReadWriter
+
+	// for Write / WriteUntyped into packets
+	packets      *zap.Packets
+	packetsIndex int
 }
 
 func makeContext(rw zap.ReadWriter) Context {
@@ -29,10 +34,23 @@ func (T *Context) Cancel() {
 }
 
 func (T *Context) Write(packet *zap.Packet) error {
+	if T.packets != nil {
+		cloned := zap.NewPacket()
+		cloned.WriteType(packet.ReadType())
+		cloned.WriteBytes(packet.Payload())
+		T.packets.InsertBefore(T.packetsIndex, cloned)
+		return nil
+	}
 	return T.rw.Write(packet)
 }
 
 func (T *Context) WriteUntyped(packet *zap.UntypedPacket) error {
+	if T.packets != nil {
+		cloned := zap.NewUntypedPacket()
+		cloned.WriteBytes(packet.Payload())
+		T.packets.InsertUntypedBefore(T.packetsIndex, cloned)
+		return nil
+	}
 	return T.rw.WriteUntyped(packet)
 }
 

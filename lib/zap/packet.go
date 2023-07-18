@@ -9,20 +9,108 @@ import (
 	"pggat2/lib/util/slices"
 )
 
+type PacketsEntry struct {
+	typed bool
+	index int
+}
+
 type Packets struct {
-	packets net.Buffers
+	packets        []*Packet
+	untypedPackets []*UntypedPacket
+	order          []PacketsEntry
+}
+
+func NewPackets() *Packets {
+	return &Packets{}
 }
 
 func (T *Packets) WriteTo(w io.Writer) (int64, error) {
-	return T.packets.WriteTo(w)
+	buffers := make(net.Buffers, 0, len(T.order))
+
+	for _, order := range T.order {
+		if order.typed {
+			buffers = append(buffers, T.packets[order.index].Full())
+		} else {
+			buffers = append(buffers, T.untypedPackets[order.index].Full())
+		}
+	}
+
+	return buffers.WriteTo(w)
 }
 
-func (T *Packets) Append(packet []byte) {
+func (T *Packets) InsertBefore(i int, packet *Packet) {
+	index := len(T.packets)
 	T.packets = append(T.packets, packet)
+	T.order = append(T.order, PacketsEntry{})
+	copy(T.order[i+1:], T.order[i:])
+	T.order[i] = PacketsEntry{
+		typed: true,
+		index: index,
+	}
 }
 
-func (T *Packets) Clear() {
-	T.packets = T.packets[:0]
+func (T *Packets) InsertUntypedBefore(i int, packet *UntypedPacket) {
+	index := len(T.untypedPackets)
+	T.untypedPackets = append(T.untypedPackets, packet)
+	T.order = append(T.order, PacketsEntry{})
+	copy(T.order[i+1:], T.order[i:])
+	T.order[i] = PacketsEntry{
+		typed: false,
+		index: index,
+	}
+}
+
+func (T *Packets) Append(packet *Packet) {
+	index := len(T.packets)
+	T.packets = append(T.packets, packet)
+	T.order = append(T.order, PacketsEntry{
+		typed: true,
+		index: index,
+	})
+}
+
+func (T *Packets) AppendUntyped(packet *UntypedPacket) {
+	index := len(T.untypedPackets)
+	T.untypedPackets = append(T.untypedPackets, packet)
+	T.order = append(T.order, PacketsEntry{
+		typed: true,
+		index: index,
+	})
+}
+
+func (T *Packets) Size() int {
+	return len(T.order)
+}
+
+func (T *Packets) IsTyped(i int) bool {
+	return T.order[i].typed
+}
+
+func (T *Packets) Get(i int) *Packet {
+	order := T.order[i]
+	if !order.typed {
+		panic("Get() for untyped packet (use GetUntyped() instead)")
+	}
+
+	return T.packets[order.index]
+}
+
+func (T *Packets) GetUntyped(i int) *UntypedPacket {
+	order := T.order[i]
+	if order.typed {
+		panic("GetUntyped() for typed packet (use Get() instead)")
+	}
+
+	return T.untypedPackets[order.index]
+}
+
+func (T *Packets) Remove(i int) {
+	copy(T.order[i:], T.order[i+1:])
+	T.order = T.order[:len(T.order)-1]
+}
+
+func (T *Packets) Done() {
+	// TODO(garet)
 }
 
 type PacketReader []byte
@@ -236,9 +324,13 @@ func (T *Packet) updateLength() {
 	binary.BigEndian.PutUint32(T.PacketWriter[1:], T.Length())
 }
 
-func (T *Packet) WriteTo(w io.Writer) (int64, error) {
+func (T *Packet) Full() []byte {
 	T.updateLength()
-	n, err := w.Write(T.PacketWriter)
+	return T.PacketWriter
+}
+
+func (T *Packet) WriteTo(w io.Writer) (int64, error) {
+	n, err := w.Write(T.Full())
 	return int64(n), err
 }
 
@@ -302,9 +394,13 @@ func (T *UntypedPacket) updateLength() {
 	binary.BigEndian.PutUint32(T.PacketWriter, T.Length())
 }
 
-func (T *UntypedPacket) WriteTo(w io.Writer) (int64, error) {
+func (T *UntypedPacket) Full() []byte {
 	T.updateLength()
-	n, err := w.Write(T.PacketWriter)
+	return T.PacketWriter
+}
+
+func (T *UntypedPacket) WriteTo(w io.Writer) (int64, error) {
+	n, err := w.Write(T.Full())
 	return int64(n), err
 }
 
