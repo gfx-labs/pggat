@@ -9,7 +9,6 @@ import (
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/bouncers/v2"
 	"pggat2/lib/bouncer/frontends/v0"
-	"pggat2/lib/middleware"
 	"pggat2/lib/middleware/interceptor"
 	"pggat2/lib/middleware/middlewares/eqp"
 	"pggat2/lib/middleware/middlewares/ps"
@@ -17,7 +16,6 @@ import (
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v1"
 	"pggat2/lib/zap"
-	"pggat2/lib/zap/onebuffer"
 	"pggat2/lib/zap/zio"
 )
 
@@ -48,17 +46,18 @@ func testServer(r rob.Scheduler) {
 		panic(err)
 	}
 	rw := zio.MakeReadWriter(conn)
-	eqps := eqp.MakeServer()
-	pss := ps.MakeServer()
-	mw := interceptor.MakeInterceptor(&rw, []middleware.Middleware{
-		&eqps,
-		&pss,
-	})
-	backends.Accept(&mw, "postgres", "password", "uniswap")
+	eqps := eqp.NewServer()
+	pss := ps.NewServer()
+	mw := interceptor.NewInterceptor(
+		rw,
+		eqps,
+		pss,
+	)
+	backends.Accept(mw, "postgres", "password", "uniswap")
 	r.AddSink(0, server{
-		rw:   &mw,
-		eqps: &eqps,
-		pss:  &pss,
+		rw:   mw,
+		eqps: eqps,
+		pss:  pss,
 	})
 }
 
@@ -106,27 +105,22 @@ func main() {
 		go func() {
 			source := r.NewSource()
 			client := zio.MakeReadWriter(conn)
-			defer client.Done()
-			ob := onebuffer.MakeOnebuffer(&client)
-			eqpc := eqp.MakeClient()
+			eqpc := eqp.NewClient()
 			defer eqpc.Done()
-			psc := ps.MakeClient()
-			defer psc.Done()
-			mw := interceptor.MakeInterceptor(&ob, []middleware.Middleware{
+			psc := ps.NewClient()
+			mw := interceptor.NewInterceptor(
+				client,
 				unterminate.Unterminate,
-				&eqpc,
-				&psc,
-			})
-			frontends.Accept(&mw, DefaultParameterStatus)
+				eqpc,
+				psc,
+			)
+			frontends.Accept(mw, DefaultParameterStatus)
 			for {
-				err = ob.Buffer()
-				if err != nil {
-					break
-				}
+				// TODO(garet) sleep until more work is available
 				source.Do(0, work{
-					rw:   &mw,
-					eqpc: &eqpc,
-					psc:  &psc,
+					rw:   mw,
+					eqpc: eqpc,
+					psc:  psc,
 				})
 			}
 		}()

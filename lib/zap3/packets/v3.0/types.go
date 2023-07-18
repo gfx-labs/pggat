@@ -1,0 +1,43 @@
+package packets
+
+import "pggat2/lib/zap"
+
+const (
+	None                     zap.Type = 0
+	Authentication           zap.Type = 'R'
+	BackendKeyData           zap.Type = 'K'
+	Bind                     zap.Type = 'B'
+	BindComplete             zap.Type = '2'
+	Close                    zap.Type = 'C'
+	CloseComplete            zap.Type = '3'
+	CommandComplete          zap.Type = 'C'
+	CopyData                 zap.Type = 'd'
+	CopyDone                 zap.Type = 'c'
+	CopyFail                 zap.Type = 'f'
+	CopyInResponse           zap.Type = 'G'
+	CopyOutResponse          zap.Type = 'H'
+	CopyBothResponse         zap.Type = 'W'
+	DataRow                  zap.Type = 'D'
+	Describe                 zap.Type = 'D'
+	EmptyQueryResponse       zap.Type = 'I'
+	ErrorResponse            zap.Type = 'E'
+	Execute                  zap.Type = 'E'
+	Flush                    zap.Type = 'H'
+	FunctionCall             zap.Type = 'F'
+	FunctionCallResponse     zap.Type = 'V'
+	AuthenticationResponse   zap.Type = 'p'
+	NegotiateProtocolVersion zap.Type = 'v'
+	NoData                   zap.Type = 'n'
+	NoticeResponse           zap.Type = 'N'
+	NotificationResponse     zap.Type = 'A'
+	ParameterDescription     zap.Type = 't'
+	ParameterStatus          zap.Type = 'S'
+	Parse                    zap.Type = 'P'
+	ParseComplete            zap.Type = '1'
+	PortalSuspended          zap.Type = 's'
+	Query                    zap.Type = 'Q'
+	ReadyForQuery            zap.Type = 'Z'
+	RowDescription           zap.Type = 'T'
+	Sync                     zap.Type = 'S'
+	Terminate                zap.Type = 'X'
+)

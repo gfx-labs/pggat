@@ -10,7 +10,6 @@ import (
 
 type Client struct {
 	parameters map[string]string
-	buf        zap.Buf
 
 	peer  *Server
 	dirty bool
@@ -18,14 +17,10 @@ type Client struct {
 	middleware.Nil
 }
 
-func MakeClient() Client {
-	return Client{
+func NewClient() *Client {
+	return &Client{
 		parameters: make(map[string]string),
 	}
-}
-
-func (T *Client) Done() {
-	T.buf.Done()
 }
 
 func (T *Client) SetServer(peer *Server) {
@@ -81,8 +76,7 @@ func (T *Client) sync(ctx middleware.Context) error {
 	return nil
 }
 
-func (T *Client) Send(ctx middleware.Context, out zap.Out) error {
-	in := zap.OutToIn(out)
+func (T *Client) Send(ctx middleware.Context, in zap.Inspector) error {
 	switch in.Type() {
 	case packets.ParameterStatus:
 		key, value, ok := packets.ReadParameterStatus(in)

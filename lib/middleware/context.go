@@ -6,6 +6,6 @@ type Context interface {
 	// Cancel the current packet
 	Cancel()
 
-	// Send to underlying writer
-	Send(out zap.Out) error
+	BuildBefore(typed bool) zap.Builder
+	BuildAfter(typed bool) zap.Builder
 }

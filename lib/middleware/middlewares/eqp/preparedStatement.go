@@ -13,7 +13,7 @@ type PreparedStatement struct {
 	hash uint64
 }
 
-func ReadParse(in zap.In) (destination string, preparedStatement PreparedStatement, ok bool) {
+func ReadParse(in zap.Inspector) (destination string, preparedStatement PreparedStatement, ok bool) {
 	in.Reset()
 	if in.Type() != packets.Parse {
 		return
@@ -22,7 +22,7 @@ func ReadParse(in zap.In) (destination string, preparedStatement PreparedStateme
 	if !ok {
 		return
 	}
-	full := zap.InToOut(in).Full()
+	full := in.Payload()
 	preparedStatement.hash = maphash.Bytes(seed, full)
 	preparedStatement.raw = global.GetBytes(int32(len(full)))
 	copy(preparedStatement.raw, full)

@@ -14,7 +14,7 @@ type Portal struct {
 	hash   uint64
 }
 
-func ReadBind(in zap.In) (destination string, portal Portal, ok bool) {
+func ReadBind(in zap.Inspector) (destination string, portal Portal, ok bool) {
 	in.Reset()
 	if in.Type() != packets.Bind {
 		return
@@ -27,7 +27,7 @@ func ReadBind(in zap.In) (destination string, portal Portal, ok bool) {
 	if !ok {
 		return
 	}
-	full := zap.InToOut(in).Full()
+	full := in.Payload()
 	portal.hash = maphash.Bytes(seed, full)
 	portal.raw = global.GetBytes(int32(len(full)))
 	copy(portal.raw, full)

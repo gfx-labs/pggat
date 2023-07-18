@@ -4,7 +4,7 @@ import (
 	"pggat2/lib/zap"
 )
 
-func ReadAuthenticationOk(in zap.In) bool {
+func ReadAuthenticationOk(in zap.Inspector) bool {
 	in.Reset()
 	if in.Type() != Authentication {
 		return false
@@ -19,7 +19,7 @@ func ReadAuthenticationOk(in zap.In) bool {
 	return true
 }
 
-func WriteAuthenticationOk(out zap.Out) {
+func WriteAuthenticationOk(out zap.Builder) {
 	out.Reset()
 	out.Type(Authentication)
 	out.Int32(0)

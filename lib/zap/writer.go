@@ -1,14 +1,9 @@
 package zap
 
-import (
-	"io"
-	"time"
-)
+import "time"
 
 type Writer interface {
-	io.ByteWriter
+	WriteFrom(buffer *Buffer) error
 
-	SetWriteDeadline(deadline time.Time) error
-	Write() Out
-	Send(Out) error
+	SetWriteDeadline(time time.Time) error
 }

@@ -1,14 +1,9 @@
 package zap
 
-import (
-	"io"
-	"time"
-)
+import "time"
 
 type Reader interface {
-	io.ByteReader
+	ReadInto(buffer *Buffer, typed bool) error
 
-	SetReadDeadline(deadline time.Time) error
-	Read() (In, error)
-	ReadUntyped() (In, error)
+	SetReadDeadline(time time.Time) error
 }

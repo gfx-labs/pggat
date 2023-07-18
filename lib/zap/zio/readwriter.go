@@ -9,60 +9,39 @@ import (
 )
 
 type ReadWriter struct {
-	rw dio.ReadWriter
-	// they are seperated out to prevent an expensive runtime.convI2I (which causes runtime.getitab)
-	r   io.Reader
-	w   io.Writer
-	buf zap.Buf
+	io dio.ReadWriter
 }
 
-func MakeReadWriter(rw dio.ReadWriter) ReadWriter {
+func MakeReadWriter(io dio.ReadWriter) ReadWriter {
 	return ReadWriter{
-		rw: rw,
-		r:  rw,
-		w:  rw,
+		io: io,
 	}
 }
 
-func (T *ReadWriter) SetDeadline(deadline time.Time) error {
-	return T.rw.SetDeadline(deadline)
-}
+func (T ReadWriter) ReadInto(buffer *zap.Buffer, typed bool) error {
+	builder := buffer.Build(typed)
+	_, err := io.ReadFull(T.io, builder.Header())
+	if err != nil {
+		return err
+	}
 
-func (T *ReadWriter) SetReadDeadline(deadline time.Time) error {
-	return T.rw.SetReadDeadline(deadline)
-}
+	builder.Length(builder.GetLength())
 
-func (T *ReadWriter) SetWriteDeadline(deadline time.Time) error {
-	return T.rw.SetWriteDeadline(deadline)
-}
-
-func (T *ReadWriter) ReadByte() (byte, error) {
-	return T.buf.ReadByte(T.r)
-}
-
-func (T *ReadWriter) Read() (zap.In, error) {
-	return T.buf.Read(T.r, true)
-}
-
-func (T *ReadWriter) ReadUntyped() (zap.In, error) {
-	return T.buf.Read(T.r, false)
-}
-
-func (T *ReadWriter) WriteByte(b byte) error {
-	return T.buf.WriteByte(T.w, b)
-}
-
-func (T *ReadWriter) Write() zap.Out {
-	return T.buf.Write()
-}
-
-func (T *ReadWriter) Send(out zap.Out) error {
-	_, err := T.rw.Write(out.Full())
+	_, err = io.ReadFull(T.io, builder.Payload())
 	return err
 }
 
-func (T *ReadWriter) Done() {
-	T.buf.Done()
+func (T ReadWriter) WriteFrom(buffer *zap.Buffer) error {
+	_, err := T.io.Write(buffer.Full())
+	return err
 }
 
-var _ zap.ReadWriter = (*ReadWriter)(nil)
+func (T ReadWriter) SetReadDeadline(time time.Time) error {
+	return T.io.SetReadDeadline(time)
+}
+
+func (T ReadWriter) SetWriteDeadline(time time.Time) error {
+	return T.io.SetWriteDeadline(time)
+}
+
+var _ zap.ReadWriter = ReadWriter{}

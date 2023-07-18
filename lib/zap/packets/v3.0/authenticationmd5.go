@@ -1,10 +1,8 @@
 package packets
 
-import (
-	"pggat2/lib/zap"
-)
+import "pggat2/lib/zap"
 
-func ReadAuthenticationMD5(in zap.In) ([4]byte, bool) {
+func ReadAuthenticationMD5(in zap.Inspector) ([4]byte, bool) {
 	in.Reset()
 	if in.Type() != Authentication {
 		return [4]byte{}, false
@@ -24,7 +22,7 @@ func ReadAuthenticationMD5(in zap.In) ([4]byte, bool) {
 	return salt, true
 }
 
-func WriteAuthenticationMD5(out zap.Out, salt [4]byte) {
+func WriteAuthenticationMD5(out zap.Builder, salt [4]byte) {
 	out.Reset()
 	out.Type(Authentication)
 	out.Uint32(5)

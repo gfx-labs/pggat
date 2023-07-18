@@ -14,7 +14,7 @@ type unterm struct {
 	middleware.Nil
 }
 
-func (unterm) Read(_ middleware.Context, in zap.In) error {
+func (unterm) Read(_ middleware.Context, in zap.Inspector) error {
 	if in.Type() == packets.Terminate {
 		return io.EOF
 	}

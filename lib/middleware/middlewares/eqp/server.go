@@ -22,13 +22,11 @@ type Server struct {
 	pendingPortals            ring.Ring[string]
 	pendingCloses             ring.Ring[Close]
 
-	buf zap.Buf
-
 	peer *Client
 }
 
-func MakeServer() Server {
-	return Server{
+func NewServer() *Server {
+	return &Server{
 		preparedStatements: make(map[string]uint64),
 		portals:            make(map[string]HashedPortal),
 	}
@@ -214,8 +212,7 @@ func (T *Server) syncPortal(ctx middleware.Context, target string) error {
 	return T.bindPortal(ctx, target, expected)
 }
 
-func (T *Server) Send(ctx middleware.Context, out zap.Out) error {
-	in := zap.OutToIn(out)
+func (T *Server) Write(ctx middleware.Context, in zap.Inspector) error {
 	switch in.Type() {
 	case packets.Query:
 		// clobber unnamed portal and unnamed prepared statement
@@ -263,7 +260,7 @@ func (T *Server) Send(ctx middleware.Context, out zap.Out) error {
 	return nil
 }
 
-func (T *Server) Read(ctx middleware.Context, in zap.In) error {
+func (T *Server) Read(ctx middleware.Context, in zap.Inspector) error {
 	switch in.Type() {
 	case packets.ParseComplete:
 		ctx.Cancel()
@@ -315,7 +312,6 @@ func (T *Server) Read(ctx middleware.Context, in zap.In) error {
 }
 
 func (T *Server) Done() {
-	T.buf.Done()
 	for name := range T.preparedStatements {
 		T.deletePreparedStatement(name)
 	}

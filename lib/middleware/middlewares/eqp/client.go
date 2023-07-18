@@ -13,8 +13,8 @@ type Client struct {
 	portals            map[string]Portal
 }
 
-func MakeClient() Client {
-	return Client{
+func NewClient() *Client {
+	return &Client{
 		preparedStatements: make(map[string]PreparedStatement),
 		portals:            make(map[string]Portal),
 	}
@@ -47,8 +47,7 @@ func (T *Client) Done() {
 	}
 }
 
-func (T *Client) Send(_ middleware.Context, out zap.Out) error {
-	in := zap.OutToIn(out)
+func (T *Client) Write(_ middleware.Context, in zap.Inspector) error {
 	switch in.Type() {
 	case packets.ReadyForQuery:
 		state, ok := packets.ReadReadyForQuery(in)
@@ -68,7 +67,7 @@ func (T *Client) Send(_ middleware.Context, out zap.Out) error {
 	return nil
 }
 
-func (T *Client) Read(ctx middleware.Context, in zap.In) error {
+func (T *Client) Read(ctx middleware.Context, in zap.Inspector) error {
 	switch in.Type() {
 	case packets.Query:
 		// clobber unnamed portal and unnamed prepared statement

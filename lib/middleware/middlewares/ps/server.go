@@ -14,13 +14,13 @@ type Server struct {
 	middleware.Nil
 }
 
-func MakeServer() Server {
-	return Server{
+func NewServer() *Server {
+	return &Server{
 		parameters: make(map[string]string),
 	}
 }
 
-func (T *Server) Read(_ middleware.Context, in zap.In) error {
+func (T *Server) Read(_ middleware.Context, in zap.Inspector) error {
 	switch in.Type() {
 	case packets.ParameterStatus:
 		key, value, ok := packets.ReadParameterStatus(in)

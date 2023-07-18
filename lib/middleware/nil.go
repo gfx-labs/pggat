@@ -4,11 +4,11 @@ import "pggat2/lib/zap"
 
 type Nil struct{}
 
-func (Nil) Send(_ Context, _ zap.Out) error {
+func (Nil) Write(_ Context, _ zap.Inspector) error {
 	return nil
 }
 
-func (Nil) Read(_ Context, _ zap.In) error {
+func (Nil) Read(_ Context, _ zap.Inspector) error {
 	return nil
 }
 

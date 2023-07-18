@@ -3,6 +3,6 @@ package middleware
 import "pggat2/lib/zap"
 
 type Middleware interface {
-	Send(ctx Context, out zap.Out) error
-	Read(ctx Context, in zap.In) error
+	Write(ctx Context, packet zap.Inspector) error
+	Read(ctx Context, packet zap.Inspector) error
 }
