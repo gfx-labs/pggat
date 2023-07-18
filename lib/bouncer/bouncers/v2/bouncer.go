@@ -31,60 +31,63 @@ func serverRead(ctx *bctx.Context, packet *zap.Packet) berr.Error {
 }
 
 func copyIn(ctx *bctx.Context) berr.Error {
-	packet := zap.NewPacket()
-	defer packet.Done()
+	pkts := zap.NewPackets()
+	defer pkts.Done()
 	for {
+		packet := zap.NewPacket()
 		err := ctx.ClientRead(packet)
 		if err != nil {
+			packet.Done()
 			return err
 		}
 
 		switch packet.ReadType() {
 		case packets.CopyData:
-			if err = ctx.ServerWrite(packet); err != nil {
-				return err
-			}
+			pkts.Append(packet)
 		case packets.CopyDone, packets.CopyFail:
-			if err = ctx.ServerWrite(packet); err != nil {
-				return err
-			}
+			pkts.Append(packet)
 			ctx.CopyIn = false
-			return nil
+			return ctx.ServerWriteV(pkts)
 		default:
+			packet.Done()
 			return berr.ClientUnexpectedPacket
 		}
 	}
 }
 
 func copyOut(ctx *bctx.Context) berr.Error {
-	packet := zap.NewPacket()
-	defer packet.Done()
+	pkts := zap.NewPackets()
+	defer pkts.Done()
 	for {
+		packet := zap.NewPacket()
 		err := serverRead(ctx, packet)
 		if err != nil {
+			packet.Done()
 			return err
 		}
 
 		switch packet.ReadType() {
 		case packets.CopyData:
-			if err = ctx.ClientWrite(packet); err != nil {
-				return err
-			}
+			pkts.Append(packet)
 		case packets.CopyDone, packets.ErrorResponse:
+			pkts.Append(packet)
 			ctx.CopyOut = false
-			return ctx.ClientWrite(packet)
+			return ctx.ClientWriteV(pkts)
 		default:
+			packet.Done()
 			return berr.ServerUnexpectedPacket
 		}
 	}
 }
 
 func query(ctx *bctx.Context) berr.Error {
-	packet := zap.NewPacket()
-	defer packet.Done()
+	pkts := zap.NewPackets()
+	defer pkts.Done()
 	for {
+		packet := zap.NewPacket()
 		err := serverRead(ctx, packet)
 		if err != nil {
+			packet.Done()
 			return err
 		}
 
@@ -96,44 +99,50 @@ func query(ctx *bctx.Context) berr.Error {
 			packets.DataRow,
 			packets.EmptyQueryResponse,
 			packets.ErrorResponse:
-			if err = ctx.ClientWrite(packet); err != nil {
-				return err
-			}
+			pkts.Append(packet)
 		case packets.CopyInResponse:
+			pkts.Append(packet)
 			ctx.CopyIn = true
-			if err = ctx.ClientWrite(packet); err != nil {
+			if err = ctx.ClientWriteV(pkts); err != nil {
 				return err
 			}
+			pkts.Clear()
 			if err = copyIn(ctx); err != nil {
 				return err
 			}
 		case packets.CopyOutResponse:
+			pkts.Append(packet)
 			ctx.CopyOut = true
-			if err = ctx.ClientWrite(packet); err != nil {
+			if err = ctx.ClientWriteV(pkts); err != nil {
 				return err
 			}
+			pkts.Clear()
 			if err = copyOut(ctx); err != nil {
 				return err
 			}
 		case packets.ReadyForQuery:
+			pkts.Append(packet)
 			ctx.Query = false
 			var ok bool
 			if ctx.TxState, ok = packets.ReadReadyForQuery(&read); !ok {
 				return berr.ServerBadPacket
 			}
-			return ctx.ClientWrite(packet)
+			return ctx.ClientWriteV(pkts)
 		default:
+			packet.Done()
 			return berr.ServerUnexpectedPacket
 		}
 	}
 }
 
 func functionCall(ctx *bctx.Context) berr.Error {
-	packet := zap.NewPacket()
-	defer packet.Done()
+	pkts := zap.NewPackets()
+	defer pkts.Done()
 	for {
+		packet := zap.NewPacket()
 		err := serverRead(ctx, packet)
 		if err != nil {
+			packet.Done()
 			return err
 		}
 
@@ -141,26 +150,30 @@ func functionCall(ctx *bctx.Context) berr.Error {
 
 		switch read.ReadType() {
 		case packets.ErrorResponse, packets.FunctionCallResponse:
-			if err = ctx.ClientWrite(packet); err != nil {
-				return err
-			}
+			pkts.Append(packet)
 		case packets.ReadyForQuery:
+			pkts.Append(packet)
 			ctx.FunctionCall = false
 			var ok bool
 			if ctx.TxState, ok = packets.ReadReadyForQuery(&read); !ok {
 				return berr.ServerBadPacket
 			}
-			return ctx.ClientWrite(packet)
+			return ctx.ClientWriteV(pkts)
+		default:
+			packet.Done()
+			return berr.ServerUnexpectedPacket
 		}
 	}
 }
 
 func sync(ctx *bctx.Context) berr.Error {
-	packet := zap.NewPacket()
-	defer packet.Done()
+	pkts := zap.NewPackets()
+	defer pkts.Done()
 	for {
+		packet := zap.NewPacket()
 		err := serverRead(ctx, packet)
 		if err != nil {
+			packet.Done()
 			return err
 		}
 
@@ -178,61 +191,67 @@ func sync(ctx *bctx.Context) berr.Error {
 			packets.DataRow,
 			packets.EmptyQueryResponse,
 			packets.PortalSuspended:
-			err = ctx.ClientWrite(packet)
-			if err != nil {
-				return err
-			}
+			pkts.Append(packet)
 		case packets.CopyInResponse:
 			ctx.CopyIn = true
-			if err = ctx.ClientWrite(packet); err != nil {
+			pkts.Append(packet)
+			if err = ctx.ClientWriteV(pkts); err != nil {
 				return err
 			}
+			pkts.Clear()
 			if err = copyIn(ctx); err != nil {
 				return err
 			}
 		case packets.CopyOutResponse:
 			ctx.CopyOut = true
-			if err = ctx.ClientWrite(packet); err != nil {
+			pkts.Append(packet)
+			if err = ctx.ClientWriteV(pkts); err != nil {
 				return err
 			}
+			pkts.Clear()
 			if err = copyOut(ctx); err != nil {
 				return err
 			}
 		case packets.ReadyForQuery:
+			pkts.Append(packet)
 			ctx.Sync = false
 			ctx.EQP = false
 			var ok bool
 			if ctx.TxState, ok = packets.ReadReadyForQuery(&read); !ok {
 				return berr.ServerBadPacket
 			}
-			return ctx.ClientWrite(packet)
+			return ctx.ClientWriteV(pkts)
 		default:
+			packet.Done()
 			return berr.ServerUnexpectedPacket
 		}
 	}
 }
 
 func eqp(ctx *bctx.Context) berr.Error {
-	packet := zap.NewPacket()
-	defer packet.Done()
+	pkts := zap.NewPackets()
+	defer pkts.Done()
 	for {
+		packet := zap.NewPacket()
 		err := ctx.ClientRead(packet)
 		if err != nil {
+			packet.Done()
 			return err
 		}
 
 		switch packet.ReadType() {
 		case packets.Sync:
-			if err = ctx.ServerWrite(packet); err != nil {
+			pkts.Append(packet)
+			ctx.Sync = true
+			if err = ctx.ServerWriteV(pkts); err != nil {
 				return err
 			}
-			ctx.Sync = true
+			pkts.Clear()
 			return sync(ctx)
 		case packets.Parse, packets.Bind, packets.Close, packets.Describe, packets.Execute, packets.Flush:
-			if err = ctx.ServerWrite(packet); err != nil {
-				return err
-			}
+			pkts.Append(packet)
 		default:
+			packet.Done()
 			return berr.ClientUnexpectedPacket
 		}
 	}

@@ -57,3 +57,19 @@ func (T *Context) ServerWrite(packet *zap.Packet) berr.Error {
 	}
 	return nil
 }
+
+func (T *Context) ClientWriteV(packets *zap.Packets) berr.Error {
+	err := T.client.WriteV(packets)
+	if err != nil {
+		return berr.MakeClient(err)
+	}
+	return nil
+}
+
+func (T *Context) ServerWriteV(packets *zap.Packets) berr.Error {
+	err := T.server.WriteV(packets)
+	if err != nil {
+		return berr.MakeServer(err)
+	}
+	return nil
+}

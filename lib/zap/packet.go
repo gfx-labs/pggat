@@ -109,6 +109,12 @@ func (T *Packets) Remove(i int) {
 	T.order = T.order[:len(T.order)-1]
 }
 
+func (T *Packets) Clear() {
+	T.order = T.order[:0]
+	T.packets = T.packets[:0]
+	T.untypedPackets = T.untypedPackets[:0]
+}
+
 func (T *Packets) Done() {
 	// TODO(garet)
 }
