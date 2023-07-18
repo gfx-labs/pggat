@@ -2,16 +2,14 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadAuthenticationResponse(in zap.Inspector) ([]byte, bool) {
-	in.Reset()
-	if in.Type() != AuthenticationResponse {
+func ReadAuthenticationResponse(in *zap.ReadablePacket) ([]byte, bool) {
+	if in.ReadType() != AuthenticationResponse {
 		return nil, false
 	}
-	return in.Remaining(), true
+	return in.ReadUnsafeRemaining(), true
 }
 
-func WriteAuthenticationResponse(out zap.Builder, resp []byte) {
-	out.Reset()
-	out.Type(AuthenticationResponse)
-	out.Bytes(resp)
+func WriteAuthenticationResponse(out *zap.Packet, resp []byte) {
+	out.WriteType(AuthenticationResponse)
+	out.WriteBytes(resp)
 }

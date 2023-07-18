@@ -1,28 +1,24 @@
 package packets
 
-import (
-	"pggat2/lib/zap"
-)
+import "pggat2/lib/zap"
 
-func ReadExecute(in zap.Inspector) (target string, maxRows int32, ok bool) {
-	in.Reset()
-	if in.Type() != Execute {
+func ReadExecute(in *zap.ReadablePacket) (target string, maxRows int32, ok bool) {
+	if in.ReadType() != Execute {
 		return
 	}
-	target, ok = in.String()
+	target, ok = in.ReadString()
 	if !ok {
 		return
 	}
-	maxRows, ok = in.Int32()
+	maxRows, ok = in.ReadInt32()
 	if !ok {
 		return
 	}
 	return
 }
 
-func WriteExecute(out zap.Builder, target string, maxRows int32) {
-	out.Reset()
-	out.Type(Execute)
-	out.String(target)
-	out.Int32(maxRows)
+func WriteExecute(out *zap.Packet, target string, maxRows int32) {
+	out.WriteType(Execute)
+	out.WriteString(target)
+	out.WriteInt32(maxRows)
 }

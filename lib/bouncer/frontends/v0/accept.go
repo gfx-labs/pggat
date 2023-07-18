@@ -18,24 +18,28 @@ const (
 )
 
 func fail(client zap.ReadWriter, err perror.Error) {
-	out := client.Write()
-	packets.WriteErrorResponse(out, err)
-	_ = client.Send(out)
+	packet := zap.NewPacket()
+	defer packet.Done()
+	packets.WriteErrorResponse(packet, err)
+	_ = client.Write(packet)
 }
 
 func startup0(client zap.ReadWriter) (done bool, status Status) {
-	in, err := client.ReadUntyped()
+	packet := zap.NewUntypedPacket()
+	defer packet.Done()
+	err := client.ReadUntyped(packet)
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return false, Fail
 	}
+	read := packet.Read()
 
-	majorVersion, ok := in.Uint16()
+	majorVersion, ok := read.ReadUint16()
 	if !ok {
 		fail(client, packets.ErrBadFormat)
 		return false, Fail
 	}
-	minorVersion, ok := in.Uint16()
+	minorVersion, ok := read.ReadUint16()
 	if !ok {
 		fail(client, packets.ErrBadFormat)
 		return false, Fail
@@ -92,7 +96,7 @@ func startup0(client zap.ReadWriter) (done bool, status Status) {
 	var database string
 
 	for {
-		key, ok := in.String()
+		key, ok := read.ReadString()
 		if !ok {
 			fail(client, packets.ErrBadFormat)
 			return false, Fail
@@ -101,7 +105,7 @@ func startup0(client zap.ReadWriter) (done bool, status Status) {
 			break
 		}
 
-		value, ok := in.String()
+		value, ok := read.ReadString()
 		if !ok {
 			fail(client, packets.ErrBadFormat)
 			return false, Fail
@@ -138,10 +142,11 @@ func startup0(client zap.ReadWriter) (done bool, status Status) {
 
 	if minorVersion != 0 || len(unsupportedOptions) > 0 {
 		// negotiate protocol
-		out := client.Write()
-		packets.WriteNegotiateProtocolVersion(out, 0, unsupportedOptions)
+		packet := zap.NewPacket()
+		defer packet.Done()
+		packets.WriteNegotiateProtocolVersion(packet, 0, unsupportedOptions)
 
-		err = client.Send(out)
+		err = client.Write(packet)
 		if err != nil {
 			fail(client, perror.Wrap(err))
 			return false, Fail
@@ -165,12 +170,15 @@ func startup0(client zap.ReadWriter) (done bool, status Status) {
 
 func authenticationSASLInitial(client zap.ReadWriter, username, password string) (server sasl.Server, resp []byte, done bool, status Status) {
 	// check which authentication method the client wants
-	in, err := client.Read()
+	packet := zap.NewPacket()
+	defer packet.Done()
+	err := client.Read(packet)
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return nil, nil, false, Fail
 	}
-	mechanism, initialResponse, ok := packets.ReadSASLInitialResponse(in)
+	read := packet.Read()
+	mechanism, initialResponse, ok := packets.ReadSASLInitialResponse(&read)
 	if !ok {
 		fail(client, packets.ErrBadFormat)
 		return nil, nil, false, Fail
@@ -191,12 +199,15 @@ func authenticationSASLInitial(client zap.ReadWriter, username, password string)
 }
 
 func authenticationSASLContinue(client zap.ReadWriter, tool sasl.Server) (resp []byte, done bool, status Status) {
-	in, err := client.Read()
+	packet := zap.NewPacket()
+	defer packet.Done()
+	err := client.Read(packet)
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return nil, false, Fail
 	}
-	clientResp, ok := packets.ReadAuthenticationResponse(in)
+	read := packet.Read()
+	clientResp, ok := packets.ReadAuthenticationResponse(&read)
 	if !ok {
 		fail(client, packets.ErrBadFormat)
 		return nil, false, Fail
@@ -211,9 +222,10 @@ func authenticationSASLContinue(client zap.ReadWriter, tool sasl.Server) (resp [
 }
 
 func authenticationSASL(client zap.ReadWriter, username, password string) Status {
-	out := client.Write()
-	packets.WriteAuthenticationSASL(out, sasl.Mechanisms)
-	err := client.Send(out)
+	packet := zap.NewPacket()
+	defer packet.Done()
+	packets.WriteAuthenticationSASL(packet, sasl.Mechanisms)
+	err := client.Write(packet)
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return Fail
@@ -226,18 +238,16 @@ func authenticationSASL(client zap.ReadWriter, username, password string) Status
 			return status
 		}
 		if done {
-			out = client.Write()
-			packets.WriteAuthenticationSASLFinal(out, resp)
-			err = client.Send(out)
+			packets.WriteAuthenticationSASLFinal(packet, resp)
+			err = client.Write(packet)
 			if err != nil {
 				fail(client, perror.Wrap(err))
 				return Fail
 			}
 			break
 		} else {
-			out = client.Write()
-			packets.WriteAuthenticationSASLContinue(out, resp)
-			err = client.Send(out)
+			packets.WriteAuthenticationSASLContinue(packet, resp)
+			err = client.Write(packet)
 			if err != nil {
 				fail(client, perror.Wrap(err))
 				return Fail
@@ -251,9 +261,10 @@ func authenticationSASL(client zap.ReadWriter, username, password string) Status
 }
 
 func updateParameter(client zap.ReadWriter, name, value string) Status {
-	out := client.Write()
-	packets.WriteParameterStatus(out, name, value)
-	err := client.Send(out)
+	packet := zap.NewPacket()
+	defer packet.Done()
+	packets.WriteParameterStatus(packet, name, value)
+	err := client.Write(packet)
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return Fail
@@ -278,9 +289,10 @@ func Accept(client zap.ReadWriter, initialParameterStatus map[string]string) {
 	}
 
 	// send auth Ok
-	out := client.Write()
-	packets.WriteAuthenticationOk(out)
-	err := client.Send(out)
+	packet := zap.NewPacket()
+	defer packet.Done()
+	packets.WriteAuthenticationOk(packet)
+	err := client.Write(packet)
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return
@@ -300,18 +312,16 @@ func Accept(client zap.ReadWriter, initialParameterStatus map[string]string) {
 		fail(client, perror.Wrap(err))
 		return
 	}
-	out = client.Write()
-	packets.WriteBackendKeyData(out, cancellationKey)
-	err = client.Send(out)
+	packets.WriteBackendKeyData(packet, cancellationKey)
+	err = client.Write(packet)
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return
 	}
 
 	// send ready for query
-	out = client.Write()
-	packets.WriteReadyForQuery(out, 'I')
-	err = client.Send(out)
+	packets.WriteReadyForQuery(packet, 'I')
+	err = client.Write(packet)
 	if err != nil {
 		fail(client, perror.Wrap(err))
 		return

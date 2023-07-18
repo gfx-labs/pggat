@@ -11,6 +11,8 @@ import (
 type Client struct {
 	preparedStatements map[string]PreparedStatement
 	portals            map[string]Portal
+
+	middleware.Nil
 }
 
 func NewClient() *Client {
@@ -47,10 +49,11 @@ func (T *Client) Done() {
 	}
 }
 
-func (T *Client) Write(_ middleware.Context, in zap.Inspector) error {
-	switch in.Type() {
+func (T *Client) Write(_ middleware.Context, packet *zap.Packet) error {
+	read := packet.Read()
+	switch read.ReadType() {
 	case packets.ReadyForQuery:
-		state, ok := packets.ReadReadyForQuery(in)
+		state, ok := packets.ReadReadyForQuery(&read)
 		if !ok {
 			return errors.New("bad packet format")
 		}
@@ -67,8 +70,9 @@ func (T *Client) Write(_ middleware.Context, in zap.Inspector) error {
 	return nil
 }
 
-func (T *Client) Read(ctx middleware.Context, in zap.Inspector) error {
-	switch in.Type() {
+func (T *Client) Read(ctx middleware.Context, packet *zap.Packet) error {
+	read := packet.Read()
+	switch read.ReadType() {
 	case packets.Query:
 		// clobber unnamed portal and unnamed prepared statement
 		T.deletePreparedStatement("")
@@ -76,7 +80,7 @@ func (T *Client) Read(ctx middleware.Context, in zap.Inspector) error {
 	case packets.Parse:
 		ctx.Cancel()
 
-		destination, preparedStatement, ok := ReadParse(in)
+		destination, preparedStatement, ok := ReadParse(&read)
 		if !ok {
 			return errors.New("bad packet format")
 		}
@@ -84,17 +88,15 @@ func (T *Client) Read(ctx middleware.Context, in zap.Inspector) error {
 		T.preparedStatements[destination] = preparedStatement
 
 		// send parse complete
-		out := zap.InToOut(in)
-		out.Reset()
-		out.Type(packets.ParseComplete)
-		err := ctx.Send(out)
+		packet.WriteType(packets.ParseComplete)
+		err := ctx.Write(packet)
 		if err != nil {
 			return err
 		}
 	case packets.Bind:
 		ctx.Cancel()
 
-		destination, portal, ok := ReadBind(in)
+		destination, portal, ok := ReadBind(&read)
 		if !ok {
 			return errors.New("bad packet format")
 		}
@@ -102,17 +104,15 @@ func (T *Client) Read(ctx middleware.Context, in zap.Inspector) error {
 		T.portals[destination] = portal
 
 		// send bind complete
-		out := zap.InToOut(in)
-		out.Reset()
-		out.Type(packets.BindComplete)
-		err := ctx.Send(out)
+		packet.WriteType(packets.BindComplete)
+		err := ctx.Write(packet)
 		if err != nil {
 			return err
 		}
 	case packets.Close:
 		ctx.Cancel()
 
-		which, target, ok := packets.ReadClose(in)
+		which, target, ok := packets.ReadClose(&read)
 		if !ok {
 			return errors.New("bad packet format")
 		}
@@ -126,16 +126,14 @@ func (T *Client) Read(ctx middleware.Context, in zap.Inspector) error {
 		}
 
 		// send close complete
-		out := zap.InToOut(in)
-		out.Reset()
-		out.Type(packets.CloseComplete)
-		err := ctx.Send(out)
+		packet.WriteType(packets.CloseComplete)
+		err := ctx.Write(packet)
 		if err != nil {
 			return err
 		}
 	case packets.Describe:
 		// ensure target exists
-		which, _, ok := packets.ReadDescribe(in)
+		which, _, ok := packets.ReadDescribe(&read)
 		if !ok {
 			return errors.New("bad packet format")
 		}
@@ -146,7 +144,7 @@ func (T *Client) Read(ctx middleware.Context, in zap.Inspector) error {
 			return errors.New("unknown describe target")
 		}
 	case packets.Execute:
-		_, _, ok := packets.ReadExecute(in)
+		_, _, ok := packets.ReadExecute(&read)
 		if !ok {
 			return errors.New("bad packet format")
 		}

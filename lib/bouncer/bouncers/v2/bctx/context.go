@@ -26,50 +26,34 @@ func MakeContext(client, server zap.ReadWriter) Context {
 	}
 }
 
-func (T *Context) ClientRead() (zap.In, berr.Error) {
-	in, err := T.client.Read()
-	if err != nil {
-		return zap.In{}, berr.MakeClient(err)
-	}
-	return in, nil
-}
-
-func (T *Context) ServerRead() (zap.In, berr.Error) {
-	in, err := T.server.Read()
-	if err != nil {
-		return zap.In{}, berr.MakeServer(err)
-	}
-	return in, nil
-}
-
-func (T *Context) ClientSend(out zap.Out) berr.Error {
-	err := T.client.Send(out)
+func (T *Context) ClientRead(packet *zap.Packet) berr.Error {
+	err := T.client.Read(packet)
 	if err != nil {
 		return berr.MakeClient(err)
 	}
 	return nil
 }
 
-func (T *Context) ServerSend(out zap.Out) berr.Error {
-	err := T.server.Send(out)
+func (T *Context) ServerRead(packet *zap.Packet) berr.Error {
+	err := T.server.Read(packet)
 	if err != nil {
 		return berr.MakeServer(err)
 	}
 	return nil
 }
 
-func (T *Context) ClientProxy(in zap.In) berr.Error {
-	return T.ClientSend(zap.InToOut(in))
+func (T *Context) ClientWrite(packet *zap.Packet) berr.Error {
+	err := T.client.Write(packet)
+	if err != nil {
+		return berr.MakeClient(err)
+	}
+	return nil
 }
 
-func (T *Context) ServerProxy(in zap.In) berr.Error {
-	return T.ServerSend(zap.InToOut(in))
-}
-
-func (T *Context) ClientWrite() zap.Out {
-	return T.client.Write()
-}
-
-func (T *Context) ServerWrite() zap.Out {
-	return T.server.Write()
+func (T *Context) ServerWrite(packet *zap.Packet) berr.Error {
+	err := T.server.Write(packet)
+	if err != nil {
+		return berr.MakeServer(err)
+	}
+	return nil
 }

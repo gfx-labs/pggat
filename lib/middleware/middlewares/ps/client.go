@@ -29,9 +29,10 @@ func (T *Client) SetServer(peer *Server) {
 }
 
 func (T *Client) updateParameter0(ctx middleware.Context, name, value string) error {
-	out := T.buf.Write()
-	packets.WriteParameterStatus(out, name, value)
-	err := ctx.Send(out)
+	packet := zap.NewPacket()
+	defer packet.Done()
+	packets.WriteParameterStatus(packet, name, value)
+	err := ctx.Write(packet)
 	if err != nil {
 		return err
 	}
@@ -76,10 +77,11 @@ func (T *Client) sync(ctx middleware.Context) error {
 	return nil
 }
 
-func (T *Client) Send(ctx middleware.Context, in zap.Inspector) error {
-	switch in.Type() {
+func (T *Client) Send(ctx middleware.Context, packet *zap.Packet) error {
+	read := packet.Read()
+	switch read.ReadType() {
 	case packets.ParameterStatus:
-		key, value, ok := packets.ReadParameterStatus(in)
+		key, value, ok := packets.ReadParameterStatus(&read)
 		if !ok {
 			return errors.New("bad packet format")
 		}

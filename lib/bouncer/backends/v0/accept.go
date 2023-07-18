@@ -31,18 +31,21 @@ func failpg(server zap.ReadWriter, err perror.Error) {
 }
 
 func authenticationSASLChallenge(server zap.ReadWriter, mechanism sasl.Client) (done bool, status Status) {
-	in, err := server.Read()
+	packet := zap.NewPacket()
+	defer packet.Done()
+	err := server.Read(packet)
 	if err != nil {
 		fail(server, err)
 		return false, Fail
 	}
+	read := packet.Read()
 
-	if in.Type() != packets.Authentication {
+	if read.ReadType() != packets.Authentication {
 		fail(server, ErrProtocolError)
 		return false, Fail
 	}
 
-	method, ok := in.Int32()
+	method, ok := read.ReadInt32()
 	if !ok {
 		fail(server, ErrBadPacket)
 		return false, Fail
@@ -51,16 +54,15 @@ func authenticationSASLChallenge(server zap.ReadWriter, mechanism sasl.Client) (
 	switch method {
 	case 11:
 		// challenge
-		response, err := mechanism.Continue(in.Remaining())
+		response, err := mechanism.Continue(read.ReadUnsafeRemaining())
 		if err != nil {
 			fail(server, err)
 			return false, Fail
 		}
 
-		out := server.Write()
-		packets.WriteAuthenticationResponse(out, response)
+		packets.WriteAuthenticationResponse(packet, response)
 
-		err = server.Send(out)
+		err = server.Write(packet)
 		if err != nil {
 			fail(server, err)
 			return false, Fail
@@ -68,7 +70,7 @@ func authenticationSASLChallenge(server zap.ReadWriter, mechanism sasl.Client) (
 		return false, Ok
 	case 12:
 		// finish
-		err = mechanism.Final(in.Remaining())
+		err = mechanism.Final(read.ReadUnsafeRemaining())
 		if err != nil {
 			fail(server, err)
 			return false, Fail
@@ -89,9 +91,10 @@ func authenticationSASL(server zap.ReadWriter, mechanisms []string, username, pa
 	}
 	initialResponse := mechanism.InitialResponse()
 
-	out := server.Write()
-	packets.WriteSASLInitialResponse(out, mechanism.Name(), initialResponse)
-	err = server.Send(out)
+	packet := zap.NewPacket()
+	defer packet.Done()
+	packets.WriteSASLInitialResponse(packet, mechanism.Name(), initialResponse)
+	err = server.Write(packet)
 	if err != nil {
 		fail(server, err)
 		return Fail
@@ -112,9 +115,10 @@ func authenticationSASL(server zap.ReadWriter, mechanisms []string, username, pa
 }
 
 func authenticationMD5(server zap.ReadWriter, salt [4]byte, username, password string) Status {
-	out := server.Write()
-	packets.WritePasswordMessage(out, md5.Encode(username, password, salt))
-	err := server.Send(out)
+	packet := zap.NewPacket()
+	defer packet.Done()
+	packets.WritePasswordMessage(packet, md5.Encode(username, password, salt))
+	err := server.Write(packet)
 	if err != nil {
 		fail(server, err)
 		return Fail
@@ -123,9 +127,10 @@ func authenticationMD5(server zap.ReadWriter, salt [4]byte, username, password s
 }
 
 func authenticationCleartext(server zap.ReadWriter, password string) Status {
-	out := server.Write()
-	packets.WritePasswordMessage(out, password)
-	err := server.Send(out)
+	packet := zap.NewPacket()
+	defer packet.Done()
+	packets.WritePasswordMessage(packet, password)
+	err := server.Write(packet)
 	if err != nil {
 		fail(server, err)
 		return Fail
@@ -134,15 +139,18 @@ func authenticationCleartext(server zap.ReadWriter, password string) Status {
 }
 
 func startup0(server zap.ReadWriter, username, password string) (done bool, status Status) {
-	in, err := server.Read()
+	packet := zap.NewPacket()
+	defer packet.Done()
+	err := server.Read(packet)
 	if err != nil {
 		fail(server, err)
 		return false, Fail
 	}
+	read := packet.Read()
 
-	switch in.Type() {
+	switch read.ReadType() {
 	case packets.ErrorResponse:
-		perr, ok := packets.ReadErrorResponse(in)
+		perr, ok := packets.ReadErrorResponse(&read)
 		if !ok {
 			fail(server, ErrBadPacket)
 			return false, Fail
@@ -150,7 +158,8 @@ func startup0(server zap.ReadWriter, username, password string) (done bool, stat
 		failpg(server, perr)
 		return false, Fail
 	case packets.Authentication:
-		method, ok := in.Int32()
+		read2 := read
+		method, ok := read2.ReadInt32()
 		if !ok {
 			fail(server, ErrBadPacket)
 			return false, Fail
@@ -166,7 +175,7 @@ func startup0(server zap.ReadWriter, username, password string) (done bool, stat
 		case 3:
 			return false, authenticationCleartext(server, password)
 		case 5:
-			salt, ok := packets.ReadAuthenticationMD5(in)
+			salt, ok := packets.ReadAuthenticationMD5(&read)
 			if !ok {
 				fail(server, ErrBadPacket)
 				return false, Fail
@@ -183,7 +192,7 @@ func startup0(server zap.ReadWriter, username, password string) (done bool, stat
 			return false, Fail
 		case 10:
 			// read list of mechanisms
-			mechanisms, ok := packets.ReadAuthenticationSASL(in)
+			mechanisms, ok := packets.ReadAuthenticationSASL(&read)
 			if !ok {
 				fail(server, ErrBadPacket)
 				return false, Fail
@@ -205,16 +214,19 @@ func startup0(server zap.ReadWriter, username, password string) (done bool, stat
 }
 
 func startup1(server zap.ReadWriter) (done bool, status Status) {
-	in, err := server.Read()
+	packet := zap.NewPacket()
+	defer packet.Done()
+	err := server.Read(packet)
 	if err != nil {
 		fail(server, err)
 		return false, Fail
 	}
+	read := packet.Read()
 
-	switch in.Type() {
+	switch read.ReadType() {
 	case packets.BackendKeyData:
 		var cancellationKey [8]byte
-		ok := in.Bytes(cancellationKey[:])
+		ok := read.ReadBytes(cancellationKey[:])
 		if !ok {
 			fail(server, ErrBadPacket)
 			return false, Fail
@@ -226,7 +238,7 @@ func startup1(server zap.ReadWriter) (done bool, status Status) {
 	case packets.ReadyForQuery:
 		return true, Ok
 	case packets.ErrorResponse:
-		perr, ok := packets.ReadErrorResponse(in)
+		perr, ok := packets.ReadErrorResponse(&read)
 		if !ok {
 			fail(server, ErrBadPacket)
 			return false, Fail
@@ -247,16 +259,16 @@ func Accept(server zap.ReadWriter, username, password, database string) {
 		database = username
 	}
 	// we can re-use the memory for this pkt most of the way down because we don't pass this anywhere
-	out := server.Write()
-	out.Int16(3)
-	out.Int16(0)
-	out.String("user")
-	out.String(username)
-	out.String("database")
-	out.String(database)
-	out.String("")
+	packet := zap.NewUntypedPacket()
+	packet.WriteInt16(3)
+	packet.WriteInt16(0)
+	packet.WriteString("user")
+	packet.WriteString(username)
+	packet.WriteString("database")
+	packet.WriteString(database)
+	packet.WriteString("")
 
-	err := server.Send(out)
+	err := server.WriteUntyped(packet)
 	if err != nil {
 		fail(server, err)
 		return

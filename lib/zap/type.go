@@ -1,3 +1,3 @@
 package zap
 
-type Type byte
+type Type int

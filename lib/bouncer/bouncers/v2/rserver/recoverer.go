@@ -7,29 +7,31 @@ import (
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
-func serverRead(ctx *bctx.Context) (zap.In, error) {
+func serverRead(ctx *bctx.Context, packet *zap.Packet) error {
 	for {
-		in, err := ctx.ServerRead()
+		err := ctx.ServerRead(packet)
 		if err != nil {
-			return zap.In{}, err
+			return err
 		}
-		switch in.Type() {
+
+		switch packet.ReadType() {
 		case packets.NoticeResponse,
 			packets.ParameterStatus,
 			packets.NotificationResponse:
 			continue
 		default:
-			return in, nil
+			return nil
 		}
 	}
 }
 
 func copyIn(ctx *bctx.Context) error {
 	// send copy fail
-	out := ctx.ServerWrite()
-	out.Type(packets.CopyFail)
-	out.String("client failed")
-	if err := ctx.ServerSend(out); err != nil {
+	packet := zap.NewPacket()
+	defer packet.Done()
+	packet.WriteType(packets.CopyFail)
+	packet.WriteString("client failed")
+	if err := ctx.ServerWrite(packet); err != nil {
 		return err
 	}
 	ctx.CopyIn = false
@@ -37,13 +39,15 @@ func copyIn(ctx *bctx.Context) error {
 }
 
 func copyOut(ctx *bctx.Context) error {
+	packet := zap.NewPacket()
+	defer packet.Done()
 	for {
-		in, err := serverRead(ctx)
+		err := serverRead(ctx, packet)
 		if err != nil {
 			return err
 		}
 
-		switch in.Type() {
+		switch packet.ReadType() {
 		case packets.CopyData:
 			continue
 		case packets.CopyDone, packets.ErrorResponse:
@@ -56,13 +60,17 @@ func copyOut(ctx *bctx.Context) error {
 }
 
 func query(ctx *bctx.Context) error {
+	packet := zap.NewPacket()
+	defer packet.Done()
 	for {
-		in, err := serverRead(ctx)
+		err := serverRead(ctx, packet)
 		if err != nil {
 			return err
 		}
 
-		switch in.Type() {
+		read := packet.Read()
+
+		switch read.ReadType() {
 		case packets.CommandComplete,
 			packets.RowDescription,
 			packets.DataRow,
@@ -82,7 +90,7 @@ func query(ctx *bctx.Context) error {
 		case packets.ReadyForQuery:
 			ctx.Query = false
 			var ok bool
-			if ctx.TxState, ok = packets.ReadReadyForQuery(in); !ok {
+			if ctx.TxState, ok = packets.ReadReadyForQuery(&read); !ok {
 				return berr.ServerBadPacket
 			}
 			return nil
@@ -93,19 +101,23 @@ func query(ctx *bctx.Context) error {
 }
 
 func functionCall(ctx *bctx.Context) error {
+	packet := zap.NewPacket()
+	defer packet.Done()
 	for {
-		in, err := serverRead(ctx)
+		err := serverRead(ctx, packet)
 		if err != nil {
 			return err
 		}
 
-		switch in.Type() {
+		read := packet.Read()
+
+		switch read.ReadType() {
 		case packets.ErrorResponse, packets.FunctionCallResponse:
 			continue
 		case packets.ReadyForQuery:
 			ctx.FunctionCall = false
 			var ok bool
-			if ctx.TxState, ok = packets.ReadReadyForQuery(in); !ok {
+			if ctx.TxState, ok = packets.ReadReadyForQuery(&read); !ok {
 				return berr.ServerBadPacket
 			}
 			return nil
@@ -116,13 +128,17 @@ func functionCall(ctx *bctx.Context) error {
 }
 
 func sync(ctx *bctx.Context) error {
+	packet := zap.NewPacket()
+	defer packet.Done()
 	for {
-		in, err := serverRead(ctx)
+		err := serverRead(ctx, packet)
 		if err != nil {
 			return err
 		}
 
-		switch in.Type() {
+		read := packet.Read()
+
+		switch read.ReadType() {
 		case packets.ParseComplete,
 			packets.BindComplete,
 			packets.ErrorResponse,
@@ -149,7 +165,7 @@ func sync(ctx *bctx.Context) error {
 			ctx.Sync = false
 			ctx.EQP = false
 			var ok bool
-			if ctx.TxState, ok = packets.ReadReadyForQuery(in); !ok {
+			if ctx.TxState, ok = packets.ReadReadyForQuery(&read); !ok {
 				return berr.ServerBadPacket
 			}
 			return nil
@@ -161,9 +177,10 @@ func sync(ctx *bctx.Context) error {
 
 func eqp(ctx *bctx.Context) error {
 	// send sync
-	out := ctx.ServerWrite()
-	out.Type(packets.Sync)
-	if err := ctx.ServerSend(out); err != nil {
+	packet := zap.NewPacket()
+	defer packet.Done()
+	packet.WriteType(packets.Sync)
+	if err := ctx.ServerWrite(packet); err != nil {
 		return err
 	}
 	ctx.Sync = true
@@ -174,10 +191,11 @@ func eqp(ctx *bctx.Context) error {
 
 func transaction(ctx *bctx.Context) error {
 	// write Query('ABORT;')
-	out := ctx.ServerWrite()
-	out.Type(packets.Query)
-	out.String("ABORT;")
-	if err := ctx.ServerSend(out); err != nil {
+	packet := zap.NewPacket()
+	defer packet.Done()
+	packet.WriteType(packets.Query)
+	packet.WriteString("ABORT;")
+	if err := ctx.ServerWrite(packet); err != nil {
 		return err
 	}
 	ctx.Query = true

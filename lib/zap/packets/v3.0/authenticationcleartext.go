@@ -2,12 +2,11 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadAuthenticationCleartext(in zap.Inspector) bool {
-	in.Reset()
-	if in.Type() != Authentication {
+func ReadAuthenticationCleartext(in *zap.ReadablePacket) bool {
+	if in.ReadType() != Authentication {
 		return false
 	}
-	method, ok := in.Int32()
+	method, ok := in.ReadInt32()
 	if !ok {
 		return false
 	}
@@ -17,8 +16,7 @@ func ReadAuthenticationCleartext(in zap.Inspector) bool {
 	return true
 }
 
-func WriteAuthenticationCleartext(out zap.Builder) {
-	out.Reset()
-	out.Type(Authentication)
-	out.Int32(3)
+func WriteAuthenticationCleartext(out *zap.Packet) {
+	out.WriteType(Authentication)
+	out.WriteInt32(3)
 }

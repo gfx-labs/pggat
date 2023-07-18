@@ -23,6 +23,8 @@ type Server struct {
 	pendingCloses             ring.Ring[Close]
 
 	peer *Client
+
+	middleware.Nil
 }
 
 func NewServer() *Server {
@@ -57,9 +59,10 @@ func (T *Server) closePreparedStatement(ctx middleware.Context, target string) e
 	}
 
 	// send close packet
-	out := T.buf.Write()
-	packets.WriteClose(out, 'S', target)
-	err := ctx.Send(out)
+	packet := zap.NewPacket()
+	defer packet.Done()
+	packets.WriteClose(packet, 'S', target)
+	err := ctx.Write(packet)
 	if err != nil {
 		return err
 	}
@@ -91,9 +94,10 @@ func (T *Server) closePortal(ctx middleware.Context, target string) error {
 	}
 
 	// send close packet
-	out := T.buf.Write()
-	packets.WriteClose(out, 'P', target)
-	err := ctx.Send(out)
+	packet := zap.NewPacket()
+	defer packet.Done()
+	packets.WriteClose(packet, 'P', target)
+	err := ctx.Write(packet)
 	if err != nil {
 		return err
 	}
@@ -119,9 +123,7 @@ func (T *Server) bindPreparedStatement(
 		return err
 	}
 
-	old := T.buf.Swap(preparedStatement.raw)
-	err = ctx.Send(T.buf.Out())
-	T.buf.Swap(old)
+	err = ctx.Write(preparedStatement.packet)
 	if err != nil {
 		return err
 	}
@@ -149,9 +151,7 @@ func (T *Server) bindPortal(
 		return err
 	}
 
-	old := T.buf.Swap(portal.raw)
-	err = ctx.Send(T.buf.Out())
-	T.buf.Swap(old)
+	err = ctx.Write(portal.packet)
 	if err != nil {
 		return err
 	}
@@ -212,8 +212,9 @@ func (T *Server) syncPortal(ctx middleware.Context, target string) error {
 	return T.bindPortal(ctx, target, expected)
 }
 
-func (T *Server) Write(ctx middleware.Context, in zap.Inspector) error {
-	switch in.Type() {
+func (T *Server) Write(ctx middleware.Context, packet *zap.Packet) error {
+	read := packet.Read()
+	switch read.ReadType() {
 	case packets.Query:
 		// clobber unnamed portal and unnamed prepared statement
 		T.deletePreparedStatement("")
@@ -223,7 +224,7 @@ func (T *Server) Write(ctx middleware.Context, in zap.Inspector) error {
 		panic("unreachable")
 	case packets.Describe:
 		// ensure target exists
-		which, target, ok := packets.ReadDescribe(in)
+		which, target, ok := packets.ReadDescribe(&read)
 		if !ok {
 			// should've been caught by eqp.Client
 			panic("unreachable")
@@ -245,7 +246,7 @@ func (T *Server) Write(ctx middleware.Context, in zap.Inspector) error {
 			panic("unknown describe target")
 		}
 	case packets.Execute:
-		target, _, ok := packets.ReadExecute(in)
+		target, _, ok := packets.ReadExecute(&read)
 		if !ok {
 			// should've been caught by eqp.Client
 			panic("unreachable")
@@ -260,8 +261,9 @@ func (T *Server) Write(ctx middleware.Context, in zap.Inspector) error {
 	return nil
 }
 
-func (T *Server) Read(ctx middleware.Context, in zap.Inspector) error {
-	switch in.Type() {
+func (T *Server) Read(ctx middleware.Context, packet *zap.Packet) error {
+	read := packet.Read()
+	switch read.ReadType() {
 	case packets.ParseComplete:
 		ctx.Cancel()
 
@@ -275,7 +277,7 @@ func (T *Server) Read(ctx middleware.Context, in zap.Inspector) error {
 
 		T.pendingCloses.PopFront()
 	case packets.ReadyForQuery:
-		state, ok := packets.ReadReadyForQuery(in)
+		state, ok := packets.ReadReadyForQuery(&read)
 		if !ok {
 			return errors.New("bad packet format")
 		}

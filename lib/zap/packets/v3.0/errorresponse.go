@@ -5,9 +5,8 @@ import (
 	"pggat2/lib/zap"
 )
 
-func ReadErrorResponse(in zap.Inspector) (perror.Error, bool) {
-	in.Reset()
-	if in.Type() != ErrorResponse {
+func ReadErrorResponse(in *zap.ReadablePacket) (perror.Error, bool) {
+	if in.ReadType() != ErrorResponse {
 		return nil, false
 	}
 
@@ -17,7 +16,7 @@ func ReadErrorResponse(in zap.Inspector) (perror.Error, bool) {
 	var extra []perror.ExtraField
 
 	for {
-		typ, ok := in.Uint8()
+		typ, ok := in.ReadUint8()
 		if !ok {
 			return nil, false
 		}
@@ -26,7 +25,7 @@ func ReadErrorResponse(in zap.Inspector) (perror.Error, bool) {
 			break
 		}
 
-		value, ok := in.String()
+		value, ok := in.ReadString()
 		if !ok {
 			return nil, false
 		}
@@ -54,23 +53,22 @@ func ReadErrorResponse(in zap.Inspector) (perror.Error, bool) {
 	), true
 }
 
-func WriteErrorResponse(out zap.Builder, err perror.Error) {
-	out.Reset()
-	out.Type(ErrorResponse)
+func WriteErrorResponse(out *zap.Packet, err perror.Error) {
+	out.WriteType(ErrorResponse)
 
-	out.Uint8('S')
-	out.String(string(err.Severity()))
+	out.WriteUint8('S')
+	out.WriteString(string(err.Severity()))
 
-	out.Uint8('C')
-	out.String(string(err.Code()))
+	out.WriteUint8('C')
+	out.WriteString(string(err.Code()))
 
-	out.Uint8('M')
-	out.String(err.Message())
+	out.WriteUint8('M')
+	out.WriteString(err.Message())
 
 	for _, field := range err.Extra() {
-		out.Uint8(uint8(field.Type))
-		out.String(field.Value)
+		out.WriteUint8(uint8(field.Type))
+		out.WriteString(field.Value)
 	}
 
-	out.Uint8(0)
+	out.WriteUint8(0)
 }

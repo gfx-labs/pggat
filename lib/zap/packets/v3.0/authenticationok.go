@@ -1,15 +1,12 @@
 package packets
 
-import (
-	"pggat2/lib/zap"
-)
+import "pggat2/lib/zap"
 
-func ReadAuthenticationOk(in zap.Inspector) bool {
-	in.Reset()
-	if in.Type() != Authentication {
+func ReadAuthenticationOk(in *zap.ReadablePacket) bool {
+	if in.ReadType() != Authentication {
 		return false
 	}
-	method, ok := in.Int32()
+	method, ok := in.ReadInt32()
 	if !ok {
 		return false
 	}
@@ -19,8 +16,7 @@ func ReadAuthenticationOk(in zap.Inspector) bool {
 	return true
 }
 
-func WriteAuthenticationOk(out zap.Builder) {
-	out.Reset()
-	out.Type(Authentication)
-	out.Int32(0)
+func WriteAuthenticationOk(out *zap.Packet) {
+	out.WriteType(Authentication)
+	out.WriteInt32(0)
 }

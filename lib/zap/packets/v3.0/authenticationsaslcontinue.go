@@ -1,27 +1,23 @@
 package packets
 
-import (
-	"pggat2/lib/zap"
-)
+import "pggat2/lib/zap"
 
-func ReadAuthenticationSASLContinue(in zap.Inspector) ([]byte, bool) {
-	in.Reset()
-	if in.Type() != Authentication {
+func ReadAuthenticationSASLContinue(in *zap.ReadablePacket) ([]byte, bool) {
+	if in.ReadType() != Authentication {
 		return nil, false
 	}
-	method, ok := in.Int32()
+	method, ok := in.ReadInt32()
 	if !ok {
 		return nil, false
 	}
 	if method != 11 {
 		return nil, false
 	}
-	return in.Remaining(), true
+	return in.ReadUnsafeRemaining(), true
 }
 
-func WriteAuthenticationSASLContinue(out zap.Builder, resp []byte) {
-	out.Reset()
-	out.Type(Authentication)
-	out.Int32(11)
-	out.Bytes(resp)
+func WriteAuthenticationSASLContinue(out *zap.Packet, resp []byte) {
+	out.WriteType(Authentication)
+	out.WriteInt32(11)
+	out.WriteBytes(resp)
 }

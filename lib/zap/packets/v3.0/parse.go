@@ -4,28 +4,27 @@ import (
 	"pggat2/lib/zap"
 )
 
-func ReadParse(in zap.Inspector) (destination string, query string, parameterDataTypes []int32, ok bool) {
-	in.Reset()
-	if in.Type() != Parse {
+func ReadParse(in *zap.ReadablePacket) (destination string, query string, parameterDataTypes []int32, ok bool) {
+	if in.ReadType() != Parse {
 		return
 	}
-	destination, ok = in.String()
+	destination, ok = in.ReadString()
 	if !ok {
 		return
 	}
-	query, ok = in.String()
+	query, ok = in.ReadString()
 	if !ok {
 		return
 	}
 	var parameterDataTypesCount int16
-	parameterDataTypesCount, ok = in.Int16()
+	parameterDataTypesCount, ok = in.ReadInt16()
 	if !ok {
 		return
 	}
 	parameterDataTypes = make([]int32, 0, int(parameterDataTypesCount))
 	for i := 0; i < int(parameterDataTypesCount); i++ {
 		var parameterDataType int32
-		parameterDataType, ok = in.Int32()
+		parameterDataType, ok = in.ReadInt32()
 		if !ok {
 			return
 		}
@@ -34,13 +33,12 @@ func ReadParse(in zap.Inspector) (destination string, query string, parameterDat
 	return
 }
 
-func WriteParse(out zap.Builder, destination string, query string, parameterDataTypes []int32) {
-	out.Reset()
-	out.Type(Parse)
-	out.String(destination)
-	out.String(query)
-	out.Int16(int16(len(parameterDataTypes)))
+func WriteParse(out *zap.Packet, destination string, query string, parameterDataTypes []int32) {
+	out.WriteType(Parse)
+	out.WriteString(destination)
+	out.WriteString(query)
+	out.WriteInt16(int16(len(parameterDataTypes)))
 	for _, v := range parameterDataTypes {
-		out.Int32(v)
+		out.WriteInt32(v)
 	}
 }

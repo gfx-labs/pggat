@@ -16,7 +16,6 @@ import (
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v1"
 	"pggat2/lib/zap"
-	"pggat2/lib/zap/zio"
 )
 
 type work struct {
@@ -45,7 +44,10 @@ func testServer(r rob.Scheduler) {
 	if err != nil {
 		panic(err)
 	}
-	rw := zio.MakeReadWriter(conn)
+	rw := zap.CombinedReadWriter{
+		Reader: zap.IOReader{Reader: conn},
+		Writer: zap.IOWriter{Writer: conn},
+	}
 	eqps := eqp.NewServer()
 	pss := ps.NewServer()
 	mw := interceptor.NewInterceptor(
@@ -104,7 +106,10 @@ func main() {
 		}
 		go func() {
 			source := r.NewSource()
-			client := zio.MakeReadWriter(conn)
+			client := zap.CombinedReadWriter{
+				Reader: zap.IOReader{Reader: conn},
+				Writer: zap.IOWriter{Writer: conn},
+			}
 			eqpc := eqp.NewClient()
 			defer eqpc.Done()
 			psc := ps.NewClient()
@@ -116,7 +121,10 @@ func main() {
 			)
 			frontends.Accept(mw, DefaultParameterStatus)
 			for {
-				// TODO(garet) sleep until more work is available
+				_, err := conn.Read([]byte{})
+				if err != nil {
+					break
+				}
 				source.Do(0, work{
 					rw:   mw,
 					eqpc: eqpc,

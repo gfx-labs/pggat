@@ -1,22 +1,19 @@
 package packets
 
-import (
-	"pggat2/lib/zap"
-)
+import "pggat2/lib/zap"
 
-func ReadSASLInitialResponse(in zap.Inspector) (mechanism string, initialResponse []byte, ok bool) {
-	in.Reset()
-	if in.Type() != AuthenticationResponse {
+func ReadSASLInitialResponse(in *zap.ReadablePacket) (mechanism string, initialResponse []byte, ok bool) {
+	if in.ReadType() != AuthenticationResponse {
 		return
 	}
 
-	mechanism, ok = in.String()
+	mechanism, ok = in.ReadString()
 	if !ok {
 		return
 	}
 
 	var initialResponseSize int32
-	initialResponseSize, ok = in.Int32()
+	initialResponseSize, ok = in.ReadInt32()
 	if !ok {
 		return
 	}
@@ -24,18 +21,17 @@ func ReadSASLInitialResponse(in zap.Inspector) (mechanism string, initialRespons
 		return
 	}
 
-	initialResponse, ok = in.UnsafeBytes(int(initialResponseSize))
+	initialResponse, ok = in.ReadUnsafeBytes(int(initialResponseSize))
 	return
 }
 
-func WriteSASLInitialResponse(out zap.Builder, mechanism string, initialResponse []byte) {
-	out.Reset()
-	out.Type(AuthenticationResponse)
-	out.String(mechanism)
+func WriteSASLInitialResponse(out *zap.Packet, mechanism string, initialResponse []byte) {
+	out.WriteType(AuthenticationResponse)
+	out.WriteString(mechanism)
 	if initialResponse == nil {
-		out.Int32(-1)
+		out.WriteInt32(-1)
 	} else {
-		out.Int32(int32(len(initialResponse)))
-		out.Bytes(initialResponse)
+		out.WriteInt32(int32(len(initialResponse)))
+		out.WriteBytes(initialResponse)
 	}
 }

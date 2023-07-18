@@ -6,6 +6,8 @@ type Context interface {
 	// Cancel the current packet
 	Cancel()
 
-	BuildBefore(typed bool) zap.Builder
-	BuildAfter(typed bool) zap.Builder
+	// Write packet to underlying connection
+	Write(packet *zap.Packet) error
+	// WriteUntyped is the same as Write but with an UntypedPacket
+	WriteUntyped(packet *zap.UntypedPacket) error
 }

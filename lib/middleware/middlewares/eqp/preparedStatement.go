@@ -3,33 +3,33 @@ package eqp
 import (
 	"hash/maphash"
 
-	"pggat2/lib/global"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
 type PreparedStatement struct {
-	raw  []byte
-	hash uint64
+	packet *zap.Packet
+	hash   uint64
 }
 
-func ReadParse(in zap.Inspector) (destination string, preparedStatement PreparedStatement, ok bool) {
-	in.Reset()
-	if in.Type() != packets.Parse {
+func ReadParse(in *zap.ReadablePacket) (destination string, preparedStatement PreparedStatement, ok bool) {
+	if in.ReadType() != packets.Parse {
 		return
 	}
-	destination, ok = in.String()
+	in2 := *in
+	destination, ok = in2.ReadString()
 	if !ok {
 		return
 	}
-	full := in.Payload()
-	preparedStatement.hash = maphash.Bytes(seed, full)
-	preparedStatement.raw = global.GetBytes(int32(len(full)))
-	copy(preparedStatement.raw, full)
+
+	preparedStatement.packet = zap.NewPacket()
+	preparedStatement.packet.WriteType(packets.Parse)
+	preparedStatement.packet.WriteBytes(in.ReadUnsafeRemaining())
+	preparedStatement.hash = maphash.Bytes(seed, preparedStatement.packet.Payload())
 	return
 }
 
 func (T *PreparedStatement) Done() {
-	global.PutBytes(T.raw)
-	T.raw = nil
+	T.packet.Done()
+	T.packet = nil
 }

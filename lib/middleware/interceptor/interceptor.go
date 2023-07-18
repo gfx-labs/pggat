@@ -1,8 +1,6 @@
 package interceptor
 
 import (
-	"time"
-
 	"pggat2/lib/middleware"
 	"pggat2/lib/zap"
 )
@@ -16,60 +14,98 @@ type Interceptor struct {
 func NewInterceptor(rw zap.ReadWriter, middlewares ...middleware.Middleware) *Interceptor {
 	return &Interceptor{
 		middlewares: middlewares,
-		context:     makeContext(),
+		context:     makeContext(rw),
+		rw:          rw,
 	}
 }
 
-func (T *Interceptor) ReadInto(buffer *zap.Buffer, typed bool) error {
-	pre := buffer.Count()
+func (T *Interceptor) ReadByte() (byte, error) {
+	return T.rw.ReadByte()
+}
 
-	if err := T.rw.ReadInto(buffer, typed); err != nil {
-		return err
-	}
+func (T *Interceptor) Read(packet *zap.Packet) error {
+outer:
+	for {
+		err := T.rw.Read(packet)
+		if err != nil {
+			return err
+		}
 
-	post := buffer.Count()
-
-	for i := pre; i < post; i++ {
 		for _, mw := range T.middlewares {
 			T.context.reset()
-			if err := mw.Read(&T.context, buffer.Inspect(i)); err != nil {
+			err := mw.Read(&T.context, packet)
+			if err != nil {
 				return err
 			}
-
 			if T.context.cancelled {
-				// TODO(garet) cancel packet
-				panic("TODO")
+				continue outer
 			}
+		}
+
+		return nil
+	}
+}
+
+func (T *Interceptor) ReadUntyped(packet *zap.UntypedPacket) error {
+outer:
+	for {
+		err := T.rw.ReadUntyped(packet)
+		if err != nil {
+			return err
+		}
+
+		for _, mw := range T.middlewares {
+			T.context.reset()
+			err := mw.ReadUntyped(&T.context, packet)
+			if err != nil {
+				return err
+			}
+			if T.context.cancelled {
+				continue outer
+			}
+		}
+
+		return nil
+	}
+}
+
+func (T *Interceptor) WriteByte(b byte) error {
+	return T.rw.WriteByte(b)
+}
+
+func (T *Interceptor) Write(packet *zap.Packet) error {
+	for _, mw := range T.middlewares {
+		T.context.reset()
+		err := mw.Write(&T.context, packet)
+		if err != nil {
+			return err
+		}
+		if T.context.cancelled {
+			return nil
 		}
 	}
 
-	return nil
+	return T.rw.Write(packet)
 }
 
-func (T *Interceptor) SetReadDeadline(time time.Time) error {
-	return T.rw.SetReadDeadline(time)
-}
-
-func (T *Interceptor) WriteFrom(buffer *zap.Buffer) error {
-	for i := 0; i < buffer.Count(); i++ {
-		for _, mw := range T.middlewares {
-			T.context.reset()
-			if err := mw.Write(&T.context, buffer.Inspect(i)); err != nil {
-				return err
-			}
-
-			if T.context.cancelled {
-				// TODO(garet) cancel packet
-				panic("TODO")
-			}
+func (T *Interceptor) WriteUntyped(packet *zap.UntypedPacket) error {
+	for _, mw := range T.middlewares {
+		T.context.reset()
+		err := mw.WriteUntyped(&T.context, packet)
+		if err != nil {
+			return err
+		}
+		if T.context.cancelled {
+			return nil
 		}
 	}
 
-	return T.rw.WriteFrom(buffer)
+	return T.rw.WriteUntyped(packet)
 }
 
-func (T *Interceptor) SetWriteDeadline(time time.Time) error {
-	return T.rw.SetWriteDeadline(time)
+func (T *Interceptor) WriteV(packets *zap.Packets) error {
+	panic("implement me")
+	// TODO(garet)
 }
 
 var _ zap.ReadWriter = (*Interceptor)(nil)

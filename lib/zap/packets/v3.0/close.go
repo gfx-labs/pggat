@@ -2,25 +2,23 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadClose(in zap.Inspector) (which uint8, target string, ok bool) {
-	in.Reset()
-	if in.Type() != Close {
+func ReadClose(in *zap.ReadablePacket) (which uint8, target string, ok bool) {
+	if in.ReadType() != Close {
 		return
 	}
-	which, ok = in.Uint8()
+	which, ok = in.ReadUint8()
 	if !ok {
 		return
 	}
-	target, ok = in.String()
+	target, ok = in.ReadString()
 	if !ok {
 		return
 	}
 	return
 }
 
-func WriteClose(out zap.Builder, which uint8, target string) {
-	out.Reset()
-	out.Type(Close)
-	out.Uint8(which)
-	out.String(target)
+func WriteClose(out *zap.Packet, which uint8, target string) {
+	out.WriteType(Close)
+	out.WriteUint8(which)
+	out.WriteString(target)
 }

@@ -20,10 +20,11 @@ func NewServer() *Server {
 	}
 }
 
-func (T *Server) Read(_ middleware.Context, in zap.Inspector) error {
-	switch in.Type() {
+func (T *Server) Read(_ middleware.Context, in *zap.Packet) error {
+	read := in.Read()
+	switch read.ReadType() {
 	case packets.ParameterStatus:
-		key, value, ok := packets.ReadParameterStatus(in)
+		key, value, ok := packets.ReadParameterStatus(&read)
 		if !ok {
 			return errors.New("bad packet format")
 		}

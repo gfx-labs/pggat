@@ -9,39 +9,43 @@ import (
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
-func serverRead(ctx *bctx.Context) (zap.In, berr.Error) {
+func serverRead(ctx *bctx.Context, packet *zap.Packet) berr.Error {
 	for {
-		in, err := ctx.ServerRead()
+		err := ctx.ServerRead(packet)
 		if err != nil {
-			return zap.In{}, err
+			packet.Done()
+			return err
 		}
-		switch in.Type() {
+
+		switch packet.ReadType() {
 		case packets.NoticeResponse,
 			packets.ParameterStatus,
 			packets.NotificationResponse:
-			if err = ctx.ClientProxy(in); err != nil {
-				return zap.In{}, err
+			if err = ctx.ClientWrite(packet); err != nil {
+				return err
 			}
 		default:
-			return in, nil
+			return nil
 		}
 	}
 }
 
 func copyIn(ctx *bctx.Context) berr.Error {
+	packet := zap.NewPacket()
+	defer packet.Done()
 	for {
-		in, err := ctx.ClientRead()
+		err := ctx.ClientRead(packet)
 		if err != nil {
 			return err
 		}
 
-		switch in.Type() {
+		switch packet.ReadType() {
 		case packets.CopyData:
-			if err = ctx.ServerProxy(in); err != nil {
+			if err = ctx.ServerWrite(packet); err != nil {
 				return err
 			}
 		case packets.CopyDone, packets.CopyFail:
-			if err = ctx.ServerProxy(in); err != nil {
+			if err = ctx.ServerWrite(packet); err != nil {
 				return err
 			}
 			ctx.CopyIn = false
@@ -53,20 +57,22 @@ func copyIn(ctx *bctx.Context) berr.Error {
 }
 
 func copyOut(ctx *bctx.Context) berr.Error {
+	packet := zap.NewPacket()
+	defer packet.Done()
 	for {
-		in, err := serverRead(ctx)
+		err := serverRead(ctx, packet)
 		if err != nil {
 			return err
 		}
 
-		switch in.Type() {
+		switch packet.ReadType() {
 		case packets.CopyData:
-			if err = ctx.ClientProxy(in); err != nil {
+			if err = ctx.ClientWrite(packet); err != nil {
 				return err
 			}
 		case packets.CopyDone, packets.ErrorResponse:
 			ctx.CopyOut = false
-			return ctx.ClientProxy(in)
+			return ctx.ClientWrite(packet)
 		default:
 			return berr.ServerUnexpectedPacket
 		}
@@ -74,24 +80,28 @@ func copyOut(ctx *bctx.Context) berr.Error {
 }
 
 func query(ctx *bctx.Context) berr.Error {
+	packet := zap.NewPacket()
+	defer packet.Done()
 	for {
-		in, err := serverRead(ctx)
+		err := serverRead(ctx, packet)
 		if err != nil {
 			return err
 		}
 
-		switch in.Type() {
+		read := packet.Read()
+
+		switch read.ReadType() {
 		case packets.CommandComplete,
 			packets.RowDescription,
 			packets.DataRow,
 			packets.EmptyQueryResponse,
 			packets.ErrorResponse:
-			if err = ctx.ClientProxy(in); err != nil {
+			if err = ctx.ClientWrite(packet); err != nil {
 				return err
 			}
 		case packets.CopyInResponse:
 			ctx.CopyIn = true
-			if err = ctx.ClientProxy(in); err != nil {
+			if err = ctx.ClientWrite(packet); err != nil {
 				return err
 			}
 			if err = copyIn(ctx); err != nil {
@@ -99,7 +109,7 @@ func query(ctx *bctx.Context) berr.Error {
 			}
 		case packets.CopyOutResponse:
 			ctx.CopyOut = true
-			if err = ctx.ClientProxy(in); err != nil {
+			if err = ctx.ClientWrite(packet); err != nil {
 				return err
 			}
 			if err = copyOut(ctx); err != nil {
@@ -108,10 +118,10 @@ func query(ctx *bctx.Context) berr.Error {
 		case packets.ReadyForQuery:
 			ctx.Query = false
 			var ok bool
-			if ctx.TxState, ok = packets.ReadReadyForQuery(in); !ok {
+			if ctx.TxState, ok = packets.ReadReadyForQuery(&read); !ok {
 				return berr.ServerBadPacket
 			}
-			return ctx.ClientProxy(in)
+			return ctx.ClientWrite(packet)
 		default:
 			return berr.ServerUnexpectedPacket
 		}
@@ -119,36 +129,44 @@ func query(ctx *bctx.Context) berr.Error {
 }
 
 func functionCall(ctx *bctx.Context) berr.Error {
+	packet := zap.NewPacket()
+	defer packet.Done()
 	for {
-		in, err := serverRead(ctx)
+		err := serverRead(ctx, packet)
 		if err != nil {
 			return err
 		}
 
-		switch in.Type() {
+		read := packet.Read()
+
+		switch read.ReadType() {
 		case packets.ErrorResponse, packets.FunctionCallResponse:
-			if err = ctx.ClientProxy(in); err != nil {
+			if err = ctx.ClientWrite(packet); err != nil {
 				return err
 			}
 		case packets.ReadyForQuery:
 			ctx.FunctionCall = false
 			var ok bool
-			if ctx.TxState, ok = packets.ReadReadyForQuery(in); !ok {
+			if ctx.TxState, ok = packets.ReadReadyForQuery(&read); !ok {
 				return berr.ServerBadPacket
 			}
-			return ctx.ClientProxy(in)
+			return ctx.ClientWrite(packet)
 		}
 	}
 }
 
 func sync(ctx *bctx.Context) berr.Error {
+	packet := zap.NewPacket()
+	defer packet.Done()
 	for {
-		in, err := serverRead(ctx)
+		err := serverRead(ctx, packet)
 		if err != nil {
 			return err
 		}
 
-		switch in.Type() {
+		read := packet.Read()
+
+		switch read.ReadType() {
 		case packets.ParseComplete,
 			packets.BindComplete,
 			packets.ErrorResponse,
@@ -160,13 +178,13 @@ func sync(ctx *bctx.Context) berr.Error {
 			packets.DataRow,
 			packets.EmptyQueryResponse,
 			packets.PortalSuspended:
-			err = ctx.ClientProxy(in)
+			err = ctx.ClientWrite(packet)
 			if err != nil {
 				return err
 			}
 		case packets.CopyInResponse:
 			ctx.CopyIn = true
-			if err = ctx.ClientProxy(in); err != nil {
+			if err = ctx.ClientWrite(packet); err != nil {
 				return err
 			}
 			if err = copyIn(ctx); err != nil {
@@ -174,7 +192,7 @@ func sync(ctx *bctx.Context) berr.Error {
 			}
 		case packets.CopyOutResponse:
 			ctx.CopyOut = true
-			if err = ctx.ClientProxy(in); err != nil {
+			if err = ctx.ClientWrite(packet); err != nil {
 				return err
 			}
 			if err = copyOut(ctx); err != nil {
@@ -184,10 +202,10 @@ func sync(ctx *bctx.Context) berr.Error {
 			ctx.Sync = false
 			ctx.EQP = false
 			var ok bool
-			if ctx.TxState, ok = packets.ReadReadyForQuery(in); !ok {
+			if ctx.TxState, ok = packets.ReadReadyForQuery(&read); !ok {
 				return berr.ServerBadPacket
 			}
-			return ctx.ClientProxy(in)
+			return ctx.ClientWrite(packet)
 		default:
 			return berr.ServerUnexpectedPacket
 		}
@@ -195,21 +213,23 @@ func sync(ctx *bctx.Context) berr.Error {
 }
 
 func eqp(ctx *bctx.Context) berr.Error {
+	packet := zap.NewPacket()
+	defer packet.Done()
 	for {
-		in, err := ctx.ClientRead()
+		err := ctx.ClientRead(packet)
 		if err != nil {
 			return err
 		}
 
-		switch in.Type() {
+		switch packet.ReadType() {
 		case packets.Sync:
-			if err = ctx.ServerProxy(in); err != nil {
+			if err = ctx.ServerWrite(packet); err != nil {
 				return err
 			}
 			ctx.Sync = true
 			return sync(ctx)
 		case packets.Parse, packets.Bind, packets.Close, packets.Describe, packets.Execute, packets.Flush:
-			if err = ctx.ServerProxy(in); err != nil {
+			if err = ctx.ServerWrite(packet); err != nil {
 				return err
 			}
 		default:
@@ -219,15 +239,17 @@ func eqp(ctx *bctx.Context) berr.Error {
 }
 
 func transaction(ctx *bctx.Context) berr.Error {
+	packet := zap.NewPacket()
+	defer packet.Done()
 	for {
-		in, err := ctx.ClientRead()
+		err := ctx.ClientRead(packet)
 		if err != nil {
 			return err
 		}
 
-		switch in.Type() {
+		switch packet.ReadType() {
 		case packets.Query:
-			if err = ctx.ServerProxy(in); err != nil {
+			if err = ctx.ServerWrite(packet); err != nil {
 				return err
 			}
 			ctx.Query = true
@@ -235,7 +257,7 @@ func transaction(ctx *bctx.Context) berr.Error {
 				return err
 			}
 		case packets.FunctionCall:
-			if err = ctx.ServerProxy(in); err != nil {
+			if err = ctx.ServerWrite(packet); err != nil {
 				return err
 			}
 			ctx.FunctionCall = true
@@ -244,13 +266,12 @@ func transaction(ctx *bctx.Context) berr.Error {
 			}
 		case packets.Sync:
 			// phony sync call, we can just reply with a fake ReadyForQuery(TxState)
-			out := zap.InToOut(in)
-			packets.WriteReadyForQuery(out, ctx.TxState)
-			if err = ctx.ClientSend(out); err != nil {
+			packets.WriteReadyForQuery(packet, ctx.TxState)
+			if err = ctx.ClientWrite(packet); err != nil {
 				return err
 			}
 		case packets.Parse, packets.Bind, packets.Close, packets.Describe, packets.Execute, packets.Flush:
-			if err = ctx.ServerProxy(in); err != nil {
+			if err = ctx.ServerWrite(packet); err != nil {
 				return err
 			}
 			ctx.EQP = true
@@ -269,13 +290,13 @@ func transaction(ctx *bctx.Context) berr.Error {
 
 func clientError(ctx *bctx.Context, err error) {
 	// send fatal error to client
-	out := ctx.ClientWrite()
-	packets.WriteErrorResponse(out, perror.New(
+	packet := zap.NewPacket()
+	packets.WriteErrorResponse(packet, perror.New(
 		perror.FATAL,
 		perror.ProtocolViolation,
 		err.Error(),
 	))
-	_ = ctx.ClientSend(out)
+	_ = ctx.ClientWrite(packet)
 }
 
 func serverError(ctx *bctx.Context, err error) {

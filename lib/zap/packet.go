@@ -1,4 +1,4 @@
-package zap3
+package zap
 
 import (
 	"encoding/binary"
@@ -133,6 +133,21 @@ func (T *PacketReader) ReadBytes(b []byte) bool {
 	return true
 }
 
+func (T *PacketReader) ReadUnsafeBytes(n int) ([]byte, bool) {
+	if len(*T) < n {
+		return nil, false
+	}
+	v := (*T)[:n]
+	*T = (*T)[n:]
+	return v, true
+}
+
+func (T *PacketReader) ReadUnsafeRemaining() []byte {
+	v := *T
+	*T = nil
+	return v
+}
+
 type PacketWriter []byte
 
 func (T *PacketWriter) WriteInt8(v int8) {
@@ -197,25 +212,38 @@ type Packet struct {
 	PacketWriter
 }
 
+func NewPacket() *Packet {
+	return &Packet{
+		PacketWriter{
+			0, 0, 0, 0, 4,
+		},
+	}
+}
+
 func (T *Packet) ReadFrom(r io.Reader) (int64, error) {
 	T.PacketWriter = slices.Resize(T.PacketWriter, 5)
 	n, err := io.ReadFull(r, T.PacketWriter)
 	if err != nil {
 		return int64(n), err
 	}
-	length := T.Length()
+	length := binary.BigEndian.Uint32(T.PacketWriter[1:])
 	T.PacketWriter = slices.Resize(T.PacketWriter, int(length)+1)
 	m, err := io.ReadFull(r, T.Payload())
 	return int64(n + m), err
 }
 
+func (T *Packet) updateLength() {
+	binary.BigEndian.PutUint32(T.PacketWriter[1:], T.Length())
+}
+
 func (T *Packet) WriteTo(w io.Writer) (int64, error) {
+	T.updateLength()
 	n, err := w.Write(T.PacketWriter)
 	return int64(n), err
 }
 
 func (T *Packet) Length() uint32 {
-	return binary.BigEndian.Uint32(T.PacketWriter[1:])
+	return uint32(len(T.PacketWriter)) - 1
 }
 
 func (T *Packet) Payload() []byte {
@@ -223,14 +251,23 @@ func (T *Packet) Payload() []byte {
 }
 
 func (T *Packet) WriteType(v Type) {
-	T.PacketWriter[0] = v
+	T.PacketWriter[0] = byte(v)
+	T.PacketWriter = T.PacketWriter[:5]
+}
+
+func (T *Packet) ReadType() Type {
+	return Type(T.PacketWriter[0])
 }
 
 func (T *Packet) Read() ReadablePacket {
 	return ReadablePacket{
-		typ:          T.PacketWriter[0],
+		typ:          T.ReadType(),
 		PacketReader: T.Payload(),
 	}
+}
+
+func (T *Packet) Done() {
+	// TODO(garet)
 }
 
 type UntypedReadablePacket struct {
@@ -241,25 +278,38 @@ type UntypedPacket struct {
 	PacketWriter
 }
 
+func NewUntypedPacket() *UntypedPacket {
+	return &UntypedPacket{
+		PacketWriter{
+			0, 0, 0, 4,
+		},
+	}
+}
+
 func (T *UntypedPacket) ReadFrom(r io.Reader) (int64, error) {
 	T.PacketWriter = slices.Resize(T.PacketWriter, 4)
 	n, err := io.ReadFull(r, T.PacketWriter)
 	if err != nil {
 		return int64(n), err
 	}
-	length := T.Length()
+	length := binary.BigEndian.Uint32(T.PacketWriter)
 	T.PacketWriter = slices.Resize(T.PacketWriter, int(length))
 	m, err := io.ReadFull(r, T.Payload())
 	return int64(n + m), err
 }
 
+func (T *UntypedPacket) updateLength() {
+	binary.BigEndian.PutUint32(T.PacketWriter, T.Length())
+}
+
 func (T *UntypedPacket) WriteTo(w io.Writer) (int64, error) {
+	T.updateLength()
 	n, err := w.Write(T.PacketWriter)
 	return int64(n), err
 }
 
 func (T *UntypedPacket) Length() uint32 {
-	return binary.BigEndian.Uint32(T.PacketWriter)
+	return uint32(len(T.PacketWriter))
 }
 
 func (T *UntypedPacket) Payload() []byte {
@@ -270,4 +320,8 @@ func (T *UntypedPacket) Read() UntypedReadablePacket {
 	return UntypedReadablePacket{
 		PacketReader: PacketReader(T.Payload()),
 	}
+}
+
+func (T *UntypedPacket) Done() {
+	// TODO(garet)
 }
