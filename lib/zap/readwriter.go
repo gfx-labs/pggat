@@ -12,6 +12,10 @@ type CombinedReadWriter struct {
 	Writer
 }
 
+func (T CombinedReadWriter) Close() error {
+	return T.Reader.Close()
+}
+
 func WrapIOReadWriter(readWriteCloser io.ReadWriteCloser) ReadWriter {
 	return CombinedReadWriter{
 		Reader: WrapIOReader(readWriteCloser),
