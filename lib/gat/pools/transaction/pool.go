@@ -28,7 +28,8 @@ func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
 	for i := 0; i < recipe.MinConnections; i++ {
 		conn, err := net.Dial("tcp", recipe.Address)
 		if err != nil {
-			panic(err)
+			// TODO(garet) do something here
+			continue
 		}
 		rw := zap.CombinedReadWriter{
 			Reader: zap.IOReader{Reader: conn},
@@ -66,8 +67,7 @@ func (T *Pool) Serve(client zap.ReadWriter) {
 		psc,
 	)
 	for {
-		err := client.Poll()
-		if err != nil {
+		if err := client.Poll(); err != nil {
 			break
 		}
 		source.Do(0, Work{
