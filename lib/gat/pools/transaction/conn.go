@@ -18,10 +18,14 @@ func (T Conn) Do(_ rob.Constraints, work any) {
 	job := work.(Work)
 	job.ps.SetServer(T.ps)
 	T.eqp.SetClient(job.eqp)
-	_, backendError := bouncers.Bounce(job.rw, T.rw)
-	if backendError != nil {
-		// TODO(garet) remove from pool
-		panic(backendError)
+	clientErr, serverErr := bouncers.Bounce(job.rw, T.rw)
+	if clientErr != nil || serverErr != nil {
+		_ = job.rw.Close()
+		if serverErr != nil {
+			_ = T.rw.Close()
+			// TODO(garet) drop conn from pool
+			panic(serverErr)
+		}
 	}
 	return
 }

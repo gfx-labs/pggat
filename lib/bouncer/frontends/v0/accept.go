@@ -259,7 +259,7 @@ func accept(client zap.ReadWriter, getPassword func(user, database string) (stri
 		err = perror.New(
 			perror.FATAL,
 			perror.InvalidPassword,
-			"User not found",
+			"User or database not found",
 		)
 		return
 	}

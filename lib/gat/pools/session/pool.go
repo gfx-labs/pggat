@@ -58,6 +58,8 @@ func (T *Pool) Serve(client zap.ReadWriter) {
 			_ = client.Close()
 			if serverErr == nil {
 				T.release(server)
+			} else {
+				_ = server.Close()
 			}
 			break
 		}
@@ -86,7 +88,7 @@ func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
 }
 
 func (T *Pool) RemoveRecipe(name string) {
-	// TODO implement me
+	// TODO(garet) implement me
 	panic("implement me")
 }
 
