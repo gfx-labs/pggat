@@ -2,11 +2,11 @@ package gat
 
 import (
 	"net"
-	"sync"
 
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/middleware/interceptor"
 	"pggat2/lib/middleware/middlewares/unterminate"
+	"pggat2/lib/util/maps"
 	"pggat2/lib/zap"
 )
 
@@ -28,32 +28,24 @@ var DefaultParameterStatus = map[string]string{
 }
 
 type Pooler struct {
-	pools map[string]Pool
-	mu    sync.RWMutex
+	users maps.RWLocked[string, *User]
 }
 
 func NewPooler() *Pooler {
-	return &Pooler{
-		pools: make(map[string]Pool),
-	}
+	return &Pooler{}
 }
 
-func (T *Pooler) Mount(name string, pool Pool) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-	T.pools[name] = pool
+func (T *Pooler) AddUser(name string, user *User) {
+	T.users.Store(name, user)
 }
 
-func (T *Pooler) Unmount(name string) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-	delete(T.pools, name)
+func (T *Pooler) RemoveUser(name string) {
+	T.users.Delete(name)
 }
 
-func (T *Pooler) getPool(name string) Pool {
-	T.mu.RLock()
-	defer T.mu.RUnlock()
-	return T.pools[name]
+func (T *Pooler) GetUser(name string) *User {
+	user, _ := T.users.Load(name)
+	return user
 }
 
 func (T *Pooler) Serve(client zap.ReadWriter) {
@@ -62,14 +54,23 @@ func (T *Pooler) Serve(client zap.ReadWriter) {
 		unterminate.Unterminate,
 	)
 
-	_, database, ok := frontends.Accept(client, func(user string, database string) string {
-		return "pw"
+	username, database, ok := frontends.Accept(client, func(username string) string {
+		user := T.GetUser(username)
+		if user == nil {
+			return ""
+		}
+		return user.GetPassword()
 	}, DefaultParameterStatus)
 	if !ok {
 		return
 	}
 
-	pool := T.getPool(database)
+	user := T.GetUser(username)
+	if user == nil {
+		return
+	}
+
+	pool := user.GetPool(database)
 	if pool == nil {
 		return
 	}

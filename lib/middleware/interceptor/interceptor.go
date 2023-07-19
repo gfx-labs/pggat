@@ -12,6 +12,10 @@ type Interceptor struct {
 }
 
 func NewInterceptor(rw zap.ReadWriter, middlewares ...middleware.Middleware) *Interceptor {
+	if v, ok := rw.(*Interceptor); ok {
+		v.middlewares = append(v.middlewares, middlewares...)
+		return v
+	}
 	return &Interceptor{
 		middlewares: middlewares,
 		context:     makeContext(rw),

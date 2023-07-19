@@ -21,8 +21,12 @@ func NewPool() *Pool {
 		s: schedulers.MakeScheduler(),
 	}
 
-	for i := 0; i < 5; i++ {
-		conn, err := net.Dial("tcp", "localhost:5432")
+	return pool
+}
+
+func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
+	for i := 0; i < recipe.MinConnections; i++ {
+		conn, err := net.Dial("tcp", recipe.Address)
 		if err != nil {
 			panic(err)
 		}
@@ -37,15 +41,18 @@ func NewPool() *Pool {
 			eqps,
 			pss,
 		)
-		backends.Accept(mw, "postgres", "password", "uniswap")
-		pool.s.AddSink(0, Conn{
+		backends.Accept(mw, recipe.User, recipe.Password, recipe.Database)
+		T.s.AddSink(0, Conn{
 			rw:  mw,
 			eqp: eqps,
 			ps:  pss,
 		})
 	}
+}
 
-	return pool
+func (T *Pool) RemoveRecipe(name string) {
+	// TODO(garet) implement
+	panic("not implemented")
 }
 
 func (T *Pool) Serve(client zap.ReadWriter) {

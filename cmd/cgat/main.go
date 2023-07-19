@@ -17,7 +17,22 @@ func main() {
 	log.Println("Starting pggat...")
 
 	pooler := gat.NewPooler()
-	pooler.Mount("uniswap", transaction.NewPool())
+
+	// create user
+	postgres := gat.NewUser("pw")
+	pooler.AddUser("postgres", postgres)
+
+	// create pool
+	pool := transaction.NewPool()
+	postgres.AddPool("uniswap", pool)
+	pool.AddRecipe("localhost", gat.Recipe{
+		Database:       "uniswap",
+		Address:        "localhost:5432",
+		User:           "postgres",
+		Password:       "password",
+		MinConnections: 5,
+		MaxConnections: 5,
+	})
 
 	log.Println("Listening on :6432")
 

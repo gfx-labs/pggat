@@ -269,7 +269,7 @@ func updateParameter(pkts *zap.Packets, name, value string) Status {
 	return Ok
 }
 
-func Accept(client zap.ReadWriter, getPassword func(user string, database string) string, initialParameterStatus map[string]string) (user string, database string, ok bool) {
+func Accept(client zap.ReadWriter, getPassword func(user string) string, initialParameterStatus map[string]string) (user string, database string, ok bool) {
 	for {
 		var done bool
 		var status Status
@@ -282,7 +282,7 @@ func Accept(client zap.ReadWriter, getPassword func(user string, database string
 		}
 	}
 
-	status := authenticationSASL(client, user, getPassword(user, database))
+	status := authenticationSASL(client, user, getPassword(user))
 	if status != Ok {
 		return
 	}
