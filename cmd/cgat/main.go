@@ -35,6 +35,7 @@ func (T server) Do(_ rob.Constraints, w any) {
 	job.psc.SetServer(T.pss)
 	T.eqps.SetClient(job.eqpc)
 	bouncers.Bounce(job.rw, T.rw)
+	return
 }
 
 var _ rob.Worker = server{}

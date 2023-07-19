@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"pggat2/lib/rob"
 )
 
@@ -61,8 +63,8 @@ func (T *TestSink) Do(constraints rob.Constraints, work any) {
 
 var _ rob.Worker = (*TestSink)(nil)
 
-func testSink(sched *Scheduler, table *ShareTable, constraints rob.Constraints) {
-	sched.AddSink(constraints, &TestSink{
+func testSink(sched *Scheduler, table *ShareTable, constraints rob.Constraints) uuid.UUID {
+	return sched.AddSink(constraints, &TestSink{
 		table:       table,
 		constraints: constraints,
 	})
@@ -399,5 +401,47 @@ func TestScheduler_Starve(t *testing.T) {
 
 	if !similar(t0, t1, t2) {
 		t.Error("expected all executions to be similar (is 0 starving?)")
+	}
+}
+
+func TestScheduler_RemoveSink(t *testing.T) {
+	var table ShareTable
+	sched := NewScheduler()
+	testSink(sched, &table, 0)
+	toRemove := testSink(sched, &table, 0)
+
+	go testSource(sched, 0, 10*time.Millisecond, 0)
+	go testSource(sched, 1, 10*time.Millisecond, 0)
+	go testSource(sched, 2, 10*time.Millisecond, 0)
+	go testSource(sched, 3, 10*time.Millisecond, 0)
+
+	time.Sleep(10 * time.Second)
+
+	sched.RemoveSink(toRemove)
+
+	time.Sleep(10 * time.Second)
+
+	t0 := table.Get(0)
+	t1 := table.Get(1)
+	t2 := table.Get(2)
+	t3 := table.Get(3)
+
+	/*
+		Expectations:
+		- all users should get similar # of executions
+	*/
+
+	t.Log("share of 0:", t0)
+	t.Log("share of 1:", t1)
+	t.Log("share of 2:", t2)
+	t.Log("share of 3:", t3)
+
+	if !similar(t0, t1, t2, t3) {
+		t.Error("expected all shares to be similar")
+	}
+
+	if t0 == 0 {
+		t.Error("expected executions on all sources (is there a race in the balancer??)")
+		t.Errorf("%s", allStacks())
 	}
 }

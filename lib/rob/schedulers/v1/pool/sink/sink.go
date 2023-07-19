@@ -49,7 +49,7 @@ func (T *Sink) setActive(source uuid.UUID) {
 	T.start = time.Now()
 }
 
-func (T *Sink) DoConcurrent(j job.Concurrent) (ok, hasMore bool) {
+func (T *Sink) ExecuteConcurrent(j job.Concurrent) (ok, hasMore bool) {
 	if !T.constraints.Satisfies(j.Constraints) {
 		return false, false
 	}
@@ -66,7 +66,7 @@ func (T *Sink) DoConcurrent(j job.Concurrent) (ok, hasMore bool) {
 
 	T.mu.Unlock()
 
-	return true, T.Do(j.Constraints, j.Work)
+	return true, T.Execute(j.Constraints, j.Work)
 }
 
 func (T *Sink) trySchedule(j job.Stalled) bool {
@@ -119,7 +119,7 @@ func (T *Sink) enqueue(j job.Stalled) {
 	p.PushBack(j)
 }
 
-func (T *Sink) DoStalled(j job.Stalled) bool {
+func (T *Sink) ExecuteStalled(j job.Stalled) bool {
 	if !T.constraints.Satisfies(j.Constraints) {
 		return false
 	}
@@ -180,7 +180,7 @@ func (T *Sink) next() bool {
 	return true
 }
 
-func (T *Sink) Do(constraints rob.Constraints, work any) (hasMore bool) {
+func (T *Sink) Execute(constraints rob.Constraints, work any) (hasMore bool) {
 	T.worker.Do(constraints, work)
 
 	// queue next
@@ -210,10 +210,10 @@ func (T *Sink) StealFor(rhs *Sink) uuid.UUID {
 
 			T.mu.Unlock()
 
-			rhs.DoStalled(j)
+			rhs.ExecuteStalled(j)
 
 			for j, ok = pending.PopFront(); ok; j, ok = pending.PopFront() {
-				rhs.DoStalled(j)
+				rhs.ExecuteStalled(j)
 			}
 
 			T.mu.Lock()
@@ -229,4 +229,32 @@ func (T *Sink) StealFor(rhs *Sink) uuid.UUID {
 	}
 
 	return uuid.Nil
+}
+
+func (T *Sink) StealAll() []job.Stalled {
+	var all []job.Stalled
+
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	for {
+		if k, j, ok := T.scheduled.Min(); ok {
+			T.scheduled.Delete(k)
+			all = append(all, j)
+		} else {
+			break
+		}
+	}
+
+	for _, value := range T.pending {
+		for {
+			if j, ok := value.PopFront(); ok {
+				all = append(all, j)
+			} else {
+				break
+			}
+		}
+	}
+
+	return all
 }

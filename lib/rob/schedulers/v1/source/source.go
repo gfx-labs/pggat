@@ -28,7 +28,7 @@ func (T *Source) Do(constraints rob.Constraints, work any) {
 		Source:      T.id,
 		Constraints: constraints,
 	}
-	if T.pool.DoConcurrent(job.Concurrent{
+	if T.pool.ExecuteConcurrent(job.Concurrent{
 		Base: base,
 		Work: work,
 	}) {
@@ -40,12 +40,13 @@ func (T *Source) Do(constraints rob.Constraints, work any) {
 	}
 	defer T.stall.Put(out)
 
-	T.pool.DoStalled(job.Stalled{
+	T.pool.ExecuteStalled(job.Stalled{
 		Base:  base,
 		Ready: out,
 	})
 	worker := <-out
-	T.pool.Do(worker, constraints, work)
+	T.pool.Execute(worker, constraints, work)
+	return
 }
 
 var _ rob.Worker = (*Source)(nil)

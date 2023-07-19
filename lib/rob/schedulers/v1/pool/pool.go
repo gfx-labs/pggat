@@ -27,17 +27,17 @@ func MakePool() Pool {
 	}
 }
 
-func (T *Pool) DoConcurrent(j job.Concurrent) bool {
+func (T *Pool) ExecuteConcurrent(j job.Concurrent) bool {
 	affinity, _ := T.affinity.Load(j.Source)
 
-	// these can be unlocked and locked a bunch here because it is less bad if DoConcurrent misses a sink
+	// these can be unlocked and locked a bunch here because it is less bad if ExecuteConcurrent misses a sink
 	// (it will just stall the job and try again)
 	T.mu.RLock()
 
 	// try affinity first
 	if v, ok := T.sinks[affinity]; ok {
 		T.mu.RUnlock()
-		if done, hasMore := v.DoConcurrent(j); done {
+		if done, hasMore := v.ExecuteConcurrent(j); done {
 			if !hasMore {
 				T.stealFor(affinity)
 			}
@@ -51,7 +51,7 @@ func (T *Pool) DoConcurrent(j job.Concurrent) bool {
 			continue
 		}
 		T.mu.RUnlock()
-		if ok, hasMore := v.DoConcurrent(j); ok {
+		if ok, hasMore := v.ExecuteConcurrent(j); ok {
 			// set affinity
 			T.affinity.Store(j.Source, id)
 
@@ -68,7 +68,7 @@ func (T *Pool) DoConcurrent(j job.Concurrent) bool {
 	return false
 }
 
-func (T *Pool) DoStalled(j job.Stalled) {
+func (T *Pool) ExecuteStalled(j job.Stalled) {
 	affinity, _ := T.affinity.Load(j.Source)
 
 	T.mu.RLock()
@@ -76,7 +76,7 @@ func (T *Pool) DoStalled(j job.Stalled) {
 
 	// try affinity first
 	if v, ok := T.sinks[affinity]; ok {
-		if ok = v.DoStalled(j); ok {
+		if ok = v.ExecuteStalled(j); ok {
 			return
 		}
 	}
@@ -86,7 +86,7 @@ func (T *Pool) DoStalled(j job.Stalled) {
 			continue
 		}
 
-		if ok := v.DoStalled(j); ok {
+		if ok := v.ExecuteStalled(j); ok {
 			T.affinity.Store(j.Source, id)
 			return
 		}
@@ -98,7 +98,7 @@ func (T *Pool) DoStalled(j job.Stalled) {
 	T.backlog = append(T.backlog, j)
 }
 
-func (T *Pool) AddWorker(constraints rob.Constraints, worker rob.Worker) {
+func (T *Pool) AddWorker(constraints rob.Constraints, worker rob.Worker) uuid.UUID {
 	id := uuid.New()
 	s := sink.NewSink(id, constraints, worker)
 
@@ -108,18 +108,42 @@ func (T *Pool) AddWorker(constraints rob.Constraints, worker rob.Worker) {
 	T.sinks[id] = s
 	i := 0
 	for _, v := range T.backlog {
-		if ok := s.DoStalled(v); !ok {
+		if ok := s.ExecuteStalled(v); !ok {
 			T.backlog[i] = v
 			i++
 		}
 	}
 	T.backlog = T.backlog[:i]
+
+	return id
+}
+
+func (T *Pool) RemoveWorker(id uuid.UUID) {
+	T.mu.Lock()
+	s, ok := T.sinks[id]
+	if !ok {
+		T.mu.Unlock()
+		return
+	}
+	delete(T.sinks, id)
+	T.mu.Unlock()
+
+	// now we need to reschedule all the work that was scheduled to s (stalled only).
+	jobs := s.StealAll()
+
+	for _, j := range jobs {
+		T.ExecuteStalled(j)
+	}
 }
 
 func (T *Pool) stealFor(id uuid.UUID) {
 	T.mu.RLock()
 
-	s := T.sinks[id]
+	s, ok := T.sinks[id]
+	if !ok {
+		T.mu.RUnlock()
+		return
+	}
 
 	for _, v := range T.sinks {
 		if v == s {
@@ -137,12 +161,12 @@ func (T *Pool) stealFor(id uuid.UUID) {
 	T.mu.RUnlock()
 }
 
-func (T *Pool) Do(id uuid.UUID, constraints rob.Constraints, work any) {
+func (T *Pool) Execute(id uuid.UUID, constraints rob.Constraints, work any) {
 	T.mu.RLock()
 	s := T.sinks[id]
 	T.mu.RUnlock()
 
-	if !s.Do(constraints, work) {
+	if !s.Execute(constraints, work) {
 		// try to steal
 		T.stealFor(id)
 	}
