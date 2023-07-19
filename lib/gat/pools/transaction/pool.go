@@ -10,6 +10,7 @@ import (
 	"pggat2/lib/middleware/middlewares/ps"
 	"pggat2/lib/rob/schedulers/v1"
 	"pggat2/lib/zap"
+	"pggat2/lib/zap/zapbuf"
 )
 
 type Pool struct {
@@ -66,12 +67,14 @@ func (T *Pool) Serve(client zap.ReadWriter) {
 		eqpc,
 		psc,
 	)
+	buffer := zapbuf.NewBuffer(client)
+	defer buffer.Done()
 	for {
-		if err := client.Poll(); err != nil {
+		if err := buffer.Buffer(); err != nil {
 			break
 		}
 		source.Do(0, Work{
-			rw:  client,
+			rw:  buffer,
 			eqp: eqpc,
 			ps:  psc,
 		})

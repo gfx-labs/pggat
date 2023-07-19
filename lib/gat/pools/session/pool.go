@@ -53,9 +53,7 @@ func (T *Pool) Serve(client zap.ReadWriter) {
 	server := T.acquire()
 	defer T.release(server)
 	for {
-		if err := client.Poll(); err != nil {
-			break
-		}
+		// TODO(garet) test if client has disconnected
 		bouncers.Bounce(client, server)
 	}
 }

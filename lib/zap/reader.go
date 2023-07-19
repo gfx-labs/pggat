@@ -3,7 +3,6 @@ package zap
 import "io"
 
 type Reader interface {
-	Poll() error
 	ReadByte() (byte, error)
 	Read(*Packet) error
 	ReadUntyped(*UntypedPacket) error
@@ -11,11 +10,6 @@ type Reader interface {
 
 type IOReader struct {
 	Reader io.Reader
-}
-
-func (T IOReader) Poll() error {
-	_, err := T.Reader.Read([]byte{})
-	return err
 }
 
 func (T IOReader) ReadByte() (byte, error) {
