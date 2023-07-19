@@ -308,36 +308,29 @@ func transaction(ctx *bctx.Context) berr.Error {
 	}
 }
 
-func clientError(ctx *bctx.Context, err error) {
+func clientFail(ctx *bctx.Context, err perror.Error) {
 	// send fatal error to client
 	packet := zap.NewPacket()
-	packets.WriteErrorResponse(packet, perror.New(
-		perror.FATAL,
-		perror.ProtocolViolation,
-		err.Error(),
-	))
+	packets.WriteErrorResponse(packet, err)
 	_ = ctx.ClientWrite(packet)
 }
 
-func serverError(ctx *bctx.Context, err error) {
-	panic("server error: " + err.Error())
-}
-
-func Bounce(client, server zap.ReadWriter) {
+func Bounce(client, server zap.ReadWriter) (clientError error, serverError error) {
 	ctx := bctx.MakeContext(client, server)
 	err := transaction(&ctx)
 	if err != nil {
 		switch e := err.(type) {
 		case berr.Client:
-			clientError(&ctx, e)
-			if err2 := rserver.Recover(&ctx); err2 != nil {
-				serverError(&ctx, err2)
-			}
+			clientError = e
+			serverError = rserver.Recover(&ctx)
+			clientFail(&ctx, perror.Wrap(clientError))
 		case berr.Server:
-			serverError(&ctx, e)
-			clientError(&ctx, e)
+			serverError = e
+			clientFail(&ctx, perror.Wrap(serverError))
 		default:
 			panic("unreachable")
 		}
 	}
+
+	return
 }

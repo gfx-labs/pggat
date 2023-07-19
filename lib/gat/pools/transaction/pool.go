@@ -32,10 +32,7 @@ func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
 			// TODO(garet) do something here
 			continue
 		}
-		rw := zap.CombinedReadWriter{
-			Reader: zap.IOReader{Reader: conn},
-			Writer: zap.IOWriter{Writer: conn},
-		}
+		rw := zap.WrapIOReadWriter(conn)
 		eqps := eqp.NewServer()
 		pss := ps.NewServer()
 		mw := interceptor.NewInterceptor(
@@ -43,7 +40,11 @@ func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
 			eqps,
 			pss,
 		)
-		backends.Accept(mw, recipe.User, recipe.Password, recipe.Database)
+		err2 := backends.Accept(mw, recipe.User, recipe.Password, recipe.Database)
+		if err2 != nil {
+			// TODO(garet) do something here
+			continue
+		}
 		T.s.AddSink(0, Conn{
 			rw:  mw,
 			eqp: eqps,

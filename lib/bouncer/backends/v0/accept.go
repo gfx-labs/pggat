@@ -1,8 +1,6 @@
 package backends
 
 import (
-	"errors"
-
 	"pggat2/lib/auth/md5"
 	"pggat2/lib/auth/sasl"
 	"pggat2/lib/perror"
@@ -10,84 +8,57 @@ import (
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
-type Status int
-
-const (
-	Fail Status = iota
-	Ok
-)
-
-var (
-	ErrProtocolError = errors.New("protocol error")
-	ErrBadPacket     = errors.New("bad packet")
-)
-
-func fail(server zap.ReadWriter, err error) {
-	panic(err)
-}
-
-func failpg(server zap.ReadWriter, err perror.Error) {
-	panic(err)
-}
-
-func authenticationSASLChallenge(server zap.ReadWriter, mechanism sasl.Client) (done bool, status Status) {
+func authenticationSASLChallenge(server zap.ReadWriter, mechanism sasl.Client) (done bool, err perror.Error) {
 	packet := zap.NewPacket()
 	defer packet.Done()
-	err := server.Read(packet)
+	err = perror.Wrap(server.Read(packet))
 	if err != nil {
-		fail(server, err)
-		return false, Fail
+		return
 	}
 	read := packet.Read()
 
 	if read.ReadType() != packets.Authentication {
-		fail(server, ErrProtocolError)
-		return false, Fail
+		err = packets.ErrUnexpectedPacket
+		return
 	}
 
 	method, ok := read.ReadInt32()
 	if !ok {
-		fail(server, ErrBadPacket)
-		return false, Fail
+		err = packets.ErrBadFormat
+		return
 	}
 
 	switch method {
 	case 11:
 		// challenge
-		response, err := mechanism.Continue(read.ReadUnsafeRemaining())
-		if err != nil {
-			fail(server, err)
-			return false, Fail
+		response, err2 := mechanism.Continue(read.ReadUnsafeRemaining())
+		if err2 != nil {
+			err = perror.Wrap(err2)
+			return
 		}
 
 		packets.WriteAuthenticationResponse(packet, response)
 
-		err = server.Write(packet)
-		if err != nil {
-			fail(server, err)
-			return false, Fail
-		}
-		return false, Ok
+		err = perror.Wrap(server.Write(packet))
+		return
 	case 12:
 		// finish
-		err = mechanism.Final(read.ReadUnsafeRemaining())
+		err = perror.Wrap(mechanism.Final(read.ReadUnsafeRemaining()))
 		if err != nil {
-			fail(server, err)
-			return false, Fail
+			return
 		}
 
-		return true, Ok
+		return true, nil
 	default:
-		fail(server, ErrProtocolError)
-		return false, Fail
+		err = packets.ErrUnexpectedPacket
+		return
 	}
 }
 
-func authenticationSASL(server zap.ReadWriter, mechanisms []string, username, password string) Status {
+func authenticationSASL(server zap.ReadWriter, mechanisms []string, username, password string) perror.Error {
 	mechanism, err := sasl.NewClient(mechanisms, username, password)
 	if err != nil {
-		fail(server, err)
-		return Fail
+		return perror.Wrap(err)
 	}
 	initialResponse := mechanism.InitialResponse()
 
@@ -96,130 +67,148 @@ func authenticationSASL(server zap.ReadWriter, mechanisms []string, username, pa
 	packets.WriteSASLInitialResponse(packet, mechanism.Name(), initialResponse)
 	err = server.Write(packet)
 	if err != nil {
-		fail(server, err)
-		return Fail
+		return perror.Wrap(err)
 	}
 
 	// challenge loop
 	for {
-		done, status := authenticationSASLChallenge(server, mechanism)
-		if status != Ok {
-			return status
+		done, err := authenticationSASLChallenge(server, mechanism)
+		if err != nil {
+			return err
 		}
 		if done {
 			break
 		}
 	}
 
-	return Ok
+	return nil
 }
 
-func authenticationMD5(server zap.ReadWriter, salt [4]byte, username, password string) Status {
+func authenticationMD5(server zap.ReadWriter, salt [4]byte, username, password string) perror.Error {
 	packet := zap.NewPacket()
 	defer packet.Done()
 	packets.WritePasswordMessage(packet, md5.Encode(username, password, salt))
 	err := server.Write(packet)
 	if err != nil {
-		fail(server, err)
-		return Fail
+		return perror.Wrap(err)
 	}
-	return Ok
+	return nil
 }
 
-func authenticationCleartext(server zap.ReadWriter, password string) Status {
+func authenticationCleartext(server zap.ReadWriter, password string) perror.Error {
 	packet := zap.NewPacket()
 	defer packet.Done()
 	packets.WritePasswordMessage(packet, password)
 	err := server.Write(packet)
 	if err != nil {
-		fail(server, err)
-		return Fail
+		return perror.Wrap(err)
 	}
-	return Ok
+	return nil
 }
 
-func startup0(server zap.ReadWriter, username, password string) (done bool, status Status) {
+func startup0(server zap.ReadWriter, username, password string) (done bool, err perror.Error) {
 	packet := zap.NewPacket()
 	defer packet.Done()
-	err := server.Read(packet)
+	err = perror.Wrap(server.Read(packet))
 	if err != nil {
-		fail(server, err)
-		return false, Fail
+		return
 	}
 	read := packet.Read()
 
 	switch read.ReadType() {
 	case packets.ErrorResponse:
-		perr, ok := packets.ReadErrorResponse(&read)
+		var ok bool
+		err, ok = packets.ReadErrorResponse(&read)
 		if !ok {
-			fail(server, ErrBadPacket)
-			return false, Fail
+			err = packets.ErrBadFormat
 		}
-		failpg(server, perr)
-		return false, Fail
+		return
 	case packets.Authentication:
 		read2 := read
 		method, ok := read2.ReadInt32()
 		if !ok {
-			fail(server, ErrBadPacket)
-			return false, Fail
+			err = packets.ErrBadFormat
+			return
 		}
 		// they have more authentication methods than there are pokemon
 		switch method {
 		case 0:
 			// we're good to go, that was easy
-			return true, Ok
+			return true, nil
 		case 2:
-			fail(server, errors.New("kerberos v5 is not supported"))
-			return false, Fail
+			err = perror.New(
+				perror.FATAL,
+				perror.FeatureNotSupported,
+				"kerberos v5 is not supported",
+			)
+			return
 		case 3:
 			return false, authenticationCleartext(server, password)
 		case 5:
 			salt, ok := packets.ReadAuthenticationMD5(&read)
 			if !ok {
-				fail(server, ErrBadPacket)
-				return false, Fail
+				err = packets.ErrBadFormat
+				return
 			}
 			return false, authenticationMD5(server, salt, username, password)
 		case 6:
-			fail(server, errors.New("scm credential is not supported"))
-			return false, Fail
+			err = perror.New(
+				perror.FATAL,
+				perror.FeatureNotSupported,
+				"scm credential is not supported",
+			)
+			return
 		case 7:
-			fail(server, errors.New("gss is not supported"))
-			return false, Fail
+			err = perror.New(
+				perror.FATAL,
+				perror.FeatureNotSupported,
+				"gss is not supported",
+			)
+			return
 		case 9:
-			fail(server, errors.New("sspi is not supported"))
-			return false, Fail
+			err = perror.New(
+				perror.FATAL,
+				perror.FeatureNotSupported,
+				"sspi is not supported",
+			)
+			return
 		case 10:
 			// read list of mechanisms
 			mechanisms, ok := packets.ReadAuthenticationSASL(&read)
 			if !ok {
-				fail(server, ErrBadPacket)
-				return false, Fail
+				err = packets.ErrBadFormat
+				return
 			}
 
 			return false, authenticationSASL(server, mechanisms, username, password)
 		default:
-			fail(server, errors.New("unknown authentication method"))
-			return false, Fail
+			err = perror.New(
+				perror.FATAL,
+				perror.FeatureNotSupported,
+				"unknown authentication method",
+			)
+			return
 		}
 	case packets.NegotiateProtocolVersion:
 		// we only support protocol 3.0 for now
-		fail(server, errors.New("server wanted to negotiate protocol version"))
-		return false, Fail
+		err = perror.New(
+			perror.FATAL,
+			perror.FeatureNotSupported,
+			"server wanted to negotiate protocol version",
+		)
+		return
 	default:
-		fail(server, ErrProtocolError)
-		return false, Fail
+		err = packets.ErrUnexpectedPacket
+		return
 	}
 }
 
-func startup1(server zap.ReadWriter) (done bool, status Status) {
+func startup1(server zap.ReadWriter) (done bool, err perror.Error) {
 	packet := zap.NewPacket()
 	defer packet.Done()
-	err := server.Read(packet)
+	err = perror.Wrap(server.Read(packet))
 	if err != nil {
-		fail(server, err)
-		return false, Fail
+		return
 	}
 	read := packet.Read()
 
@@ -228,33 +217,32 @@ func startup1(server zap.ReadWriter) (done bool, status Status) {
 		var cancellationKey [8]byte
 		ok := read.ReadBytes(cancellationKey[:])
 		if !ok {
-			fail(server, ErrBadPacket)
-			return false, Fail
+			err = packets.ErrBadFormat
+			return
 		}
 		// TODO(garet) put cancellation key somewhere
-		return false, Ok
+		return false, nil
 	case packets.ParameterStatus:
-		return false, Ok
+		return false, nil
 	case packets.ReadyForQuery:
-		return true, Ok
+		return true, nil
 	case packets.ErrorResponse:
-		perr, ok := packets.ReadErrorResponse(&read)
+		var ok bool
+		err, ok = packets.ReadErrorResponse(&read)
 		if !ok {
-			fail(server, ErrBadPacket)
-			return false, Fail
+			err = packets.ErrBadFormat
 		}
-		failpg(server, perr)
-		return false, Fail
+		return
 	case packets.NoticeResponse:
 		// TODO(garet) do something with notice
-		return false, Ok
+		return false, nil
 	default:
-		fail(server, ErrProtocolError)
-		return false, Fail
+		err = packets.ErrUnexpectedPacket
+		return false, err
 	}
 }
 
-func Accept(server zap.ReadWriter, username, password, database string) {
+func Accept(server zap.ReadWriter, username, password, database string) perror.Error {
 	if database == "" {
 		database = username
 	}
@@ -269,16 +257,15 @@ func Accept(server zap.ReadWriter, username, password, database string) {
 	packet.WriteString(database)
 	packet.WriteString("")
 
-	err := server.WriteUntyped(packet)
+	err := perror.Wrap(server.WriteUntyped(packet))
 	if err != nil {
-		fail(server, err)
-		return
+		return err
 	}
 
 	for {
-		done, status := startup0(server, username, password)
-		if status != Ok {
-			return
+		done, err := startup0(server, username, password)
+		if err != nil {
+			return err
 		}
 		if done {
 			break
@@ -286,9 +273,9 @@ func Accept(server zap.ReadWriter, username, password, database string) {
 	}
 
 	for {
-		done, status := startup1(server)
-		if status != Ok {
-			return
+		done, err := startup1(server)
+		if err != nil {
+			return err
 		}
 		if done {
 			break
@@ -296,4 +283,5 @@ func Accept(server zap.ReadWriter, username, password, database string) {
 	}
 
 	// startup complete, connection is ready for queries
+	return nil
 }

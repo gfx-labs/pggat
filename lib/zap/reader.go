@@ -8,27 +8,35 @@ type Reader interface {
 	ReadUntyped(*UntypedPacket) error
 }
 
-type IOReader struct {
-	Reader io.Reader
+func WrapIOReader(readCloser io.ReadCloser) Reader {
+	return ioReader{
+		reader: readCloser,
+		closer: readCloser,
+	}
 }
 
-func (T IOReader) ReadByte() (byte, error) {
+type ioReader struct {
+	reader io.Reader
+	closer io.Closer
+}
+
+func (T ioReader) ReadByte() (byte, error) {
 	var res = []byte{0}
-	_, err := io.ReadFull(T.Reader, res)
+	_, err := io.ReadFull(T.reader, res)
 	if err != nil {
 		return 0, err
 	}
 	return res[0], err
 }
 
-func (T IOReader) Read(packet *Packet) error {
-	_, err := packet.ReadFrom(T.Reader)
+func (T ioReader) Read(packet *Packet) error {
+	_, err := packet.ReadFrom(T.reader)
 	return err
 }
 
-func (T IOReader) ReadUntyped(packet *UntypedPacket) error {
-	_, err := packet.ReadFrom(T.Reader)
+func (T ioReader) ReadUntyped(packet *UntypedPacket) error {
+	_, err := packet.ReadFrom(T.reader)
 	return err
 }
 
-var _ Reader = IOReader{}
+var _ Reader = ioReader{}

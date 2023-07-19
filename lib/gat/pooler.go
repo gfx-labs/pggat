@@ -54,14 +54,14 @@ func (T *Pooler) Serve(client zap.ReadWriter) {
 		unterminate.Unterminate,
 	)
 
-	username, database, ok := frontends.Accept(client, func(username string) string {
+	username, database, err := frontends.Accept(client, func(username string) (string, bool) {
 		user := T.GetUser(username)
 		if user == nil {
-			return ""
+			return "", false
 		}
-		return user.GetPassword()
+		return user.GetPassword(), true
 	}, DefaultParameterStatus)
-	if !ok {
+	if err != nil {
 		return
 	}
 
@@ -89,9 +89,6 @@ func (T *Pooler) ListenAndServe(address string) error {
 		if err != nil {
 			return err
 		}
-		go T.Serve(zap.CombinedReadWriter{
-			Reader: zap.IOReader{Reader: conn},
-			Writer: zap.IOWriter{Writer: conn},
-		})
+		go T.Serve(zap.WrapIOReadWriter(conn))
 	}
 }

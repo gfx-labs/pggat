@@ -51,10 +51,14 @@ func (T *Pool) release(server zap.ReadWriter) {
 
 func (T *Pool) Serve(client zap.ReadWriter) {
 	server := T.acquire()
-	defer T.release(server)
 	for {
-		// TODO(garet) test if client has disconnected
-		bouncers.Bounce(client, server)
+		clientErr, serverErr := bouncers.Bounce(client, server)
+		if clientErr != nil || serverErr != nil {
+			if serverErr == nil {
+				T.release(server)
+			}
+			break
+		}
 	}
 }
 
@@ -65,11 +69,12 @@ func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
 			// TODO(garet) do something here
 			continue
 		}
-		rw := zap.CombinedReadWriter{
-			Reader: zap.IOReader{Reader: conn},
-			Writer: zap.IOWriter{Writer: conn},
+		rw := zap.WrapIOReadWriter(conn)
+		err2 := backends.Accept(rw, recipe.User, recipe.Password, recipe.Database)
+		if err2 != nil {
+			// TODO(garet) do something here
+			continue
 		}
-		backends.Accept(rw, recipe.User, recipe.Password, recipe.Database)
 		T.release(rw)
 	}
 }
