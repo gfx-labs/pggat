@@ -1,0 +1,96 @@
+package gat
+
+import (
+	"net"
+	"sync"
+
+	"pggat2/lib/bouncer/frontends/v0"
+	"pggat2/lib/middleware/interceptor"
+	"pggat2/lib/middleware/middlewares/unterminate"
+	"pggat2/lib/zap"
+)
+
+var DefaultParameterStatus = map[string]string{
+	// TODO(garet) we should just get these from the first server connection
+	"DateStyle":                     "ISO, MDY",
+	"IntervalStyle":                 "postgres",
+	"TimeZone":                      "America/Chicago",
+	"application_name":              "",
+	"client_encoding":               "UTF8",
+	"default_transaction_read_only": "off",
+	"in_hot_standby":                "off",
+	"integer_datetimes":             "on",
+	"is_superuser":                  "on",
+	"server_encoding":               "UTF8",
+	"server_version":                "14.5",
+	"session_authorization":         "postgres",
+	"standard_conforming_strings":   "on",
+}
+
+type Pooler struct {
+	pools map[string]Pool
+	mu    sync.RWMutex
+}
+
+func NewPooler() *Pooler {
+	return &Pooler{
+		pools: make(map[string]Pool),
+	}
+}
+
+func (T *Pooler) Mount(name string, pool Pool) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+	T.pools[name] = pool
+}
+
+func (T *Pooler) Unmount(name string) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+	delete(T.pools, name)
+}
+
+func (T *Pooler) getPool(name string) Pool {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+	return T.pools[name]
+}
+
+func (T *Pooler) Serve(client zap.ReadWriter) {
+	client = interceptor.NewInterceptor(
+		client,
+		unterminate.Unterminate,
+	)
+
+	_, database, ok := frontends.Accept(client, func(user string, database string) string {
+		return "pw"
+	}, DefaultParameterStatus)
+	if !ok {
+		return
+	}
+
+	pool := T.getPool(database)
+	if pool == nil {
+		return
+	}
+
+	pool.Serve(client)
+}
+
+func (T *Pooler) ListenAndServe(address string) error {
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		return err
+	}
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			return err
+		}
+		go T.Serve(zap.CombinedReadWriter{
+			Reader: zap.IOReader{Reader: conn},
+			Writer: zap.IOWriter{Writer: conn},
+		})
+	}
+}

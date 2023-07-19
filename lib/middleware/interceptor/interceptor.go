@@ -19,6 +19,10 @@ func NewInterceptor(rw zap.ReadWriter, middlewares ...middleware.Middleware) *In
 	}
 }
 
+func (T *Interceptor) Poll() error {
+	return T.rw.Poll()
+}
+
 func (T *Interceptor) ReadByte() (byte, error) {
 	return T.rw.ReadByte()
 }

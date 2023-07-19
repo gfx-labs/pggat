@@ -24,25 +24,25 @@ func fail(client zap.ReadWriter, err perror.Error) {
 	_ = client.Write(packet)
 }
 
-func startup0(client zap.ReadWriter) (done bool, status Status) {
+func startup0(client zap.ReadWriter) (user, database string, done bool, status Status) {
 	packet := zap.NewUntypedPacket()
 	defer packet.Done()
 	err := client.ReadUntyped(packet)
 	if err != nil {
 		fail(client, perror.Wrap(err))
-		return false, Fail
+		return
 	}
 	read := packet.Read()
 
 	majorVersion, ok := read.ReadUint16()
 	if !ok {
 		fail(client, packets.ErrBadFormat)
-		return false, Fail
+		return
 	}
 	minorVersion, ok := read.ReadUint16()
 	if !ok {
 		fail(client, packets.ErrBadFormat)
-		return false, Fail
+		return
 	}
 
 	if majorVersion == 1234 {
@@ -55,30 +55,32 @@ func startup0(client zap.ReadWriter) (done bool, status Status) {
 				perror.FeatureNotSupported,
 				"Cancel is not supported yet",
 			))
-			return false, Fail
+			return
 		case 5679:
 			// SSL is not supported yet
 			err = client.WriteByte('N')
 			if err != nil {
 				fail(client, perror.Wrap(err))
-				return false, Fail
+				return
 			}
-			return false, Ok
+			status = Ok
+			return
 		case 5680:
 			// GSSAPI is not supported yet
 			err = client.WriteByte('N')
 			if err != nil {
 				fail(client, perror.Wrap(err))
-				return false, Fail
+				return
 			}
-			return false, Ok
+			status = Ok
+			return
 		default:
 			fail(client, perror.New(
 				perror.FATAL,
 				perror.ProtocolViolation,
 				"Unknown request code",
 			))
-			return false, Fail
+			return
 		}
 	}
 
@@ -92,14 +94,11 @@ func startup0(client zap.ReadWriter) (done bool, status Status) {
 
 	var unsupportedOptions []string
 
-	var user string
-	var database string
-
 	for {
 		key, ok := read.ReadString()
 		if !ok {
 			fail(client, packets.ErrBadFormat)
-			return false, Fail
+			return
 		}
 		if key == "" {
 			break
@@ -108,7 +107,7 @@ func startup0(client zap.ReadWriter) (done bool, status Status) {
 		value, ok := read.ReadString()
 		if !ok {
 			fail(client, packets.ErrBadFormat)
-			return false, Fail
+			return
 		}
 
 		switch key {
@@ -122,14 +121,14 @@ func startup0(client zap.ReadWriter) (done bool, status Status) {
 				perror.FeatureNotSupported,
 				"Startup options are not supported yet",
 			))
-			return false, Fail
+			return
 		case "replication":
 			fail(client, perror.New(
 				perror.FATAL,
 				perror.FeatureNotSupported,
 				"Replication mode is not supported yet",
 			))
-			return false, Fail
+			return
 		default:
 			if strings.HasPrefix(key, "_pq_.") {
 				// we don't support protocol extensions at the moment
@@ -149,7 +148,7 @@ func startup0(client zap.ReadWriter) (done bool, status Status) {
 		err = client.Write(packet)
 		if err != nil {
 			fail(client, perror.Wrap(err))
-			return false, Fail
+			return
 		}
 	}
 
@@ -159,13 +158,15 @@ func startup0(client zap.ReadWriter) (done bool, status Status) {
 			perror.InvalidAuthorizationSpecification,
 			"User is required",
 		))
-		return false, Fail
+		return
 	}
 	if database == "" {
 		database = user
 	}
 
-	return true, Ok
+	status = Ok
+	done = true
+	return
 }
 
 func authenticationSASLInitial(client zap.ReadWriter, username, password string) (server sasl.Server, resp []byte, done bool, status Status) {
@@ -268,9 +269,11 @@ func updateParameter(pkts *zap.Packets, name, value string) Status {
 	return Ok
 }
 
-func Accept(client zap.ReadWriter, initialParameterStatus map[string]string) {
+func Accept(client zap.ReadWriter, getPassword func(user string, database string) string, initialParameterStatus map[string]string) (user string, database string, ok bool) {
 	for {
-		done, status := startup0(client)
+		var done bool
+		var status Status
+		user, database, done, status = startup0(client)
 		if status != Ok {
 			return
 		}
@@ -279,7 +282,7 @@ func Accept(client zap.ReadWriter, initialParameterStatus map[string]string) {
 		}
 	}
 
-	status := authenticationSASL(client, "test", "pw")
+	status := authenticationSASL(client, user, getPassword(user, database))
 	if status != Ok {
 		return
 	}
@@ -321,4 +324,7 @@ func Accept(client zap.ReadWriter, initialParameterStatus map[string]string) {
 		fail(client, perror.Wrap(err))
 		return
 	}
+
+	ok = true
+	return
 }
