@@ -145,4 +145,8 @@ func (T *Interceptor) WriteV(packets *zap.Packets) error {
 	return T.rw.WriteV(packets)
 }
 
+func (T *Interceptor) Close() error {
+	return T.rw.Close()
+}
+
 var _ zap.ReadWriter = (*Interceptor)(nil)

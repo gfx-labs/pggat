@@ -242,7 +242,7 @@ func updateParameter(pkts *zap.Packets, name, value string) {
 	pkts.Append(packet)
 }
 
-func accept(client zap.ReadWriter, getPassword func(user string) (string, bool), initialParameterStatus map[string]string) (user string, database string, err perror.Error) {
+func accept(client zap.ReadWriter, getPassword func(user, database string) (string, bool), initialParameterStatus map[string]string) (user string, database string, err perror.Error) {
 	for {
 		var done bool
 		user, database, done, err = startup0(client)
@@ -254,7 +254,7 @@ func accept(client zap.ReadWriter, getPassword func(user string) (string, bool),
 		}
 	}
 
-	password, ok := getPassword(user)
+	password, ok := getPassword(user, database)
 	if !ok {
 		err = perror.New(
 			perror.FATAL,
@@ -313,7 +313,7 @@ func fail(client zap.ReadWriter, err perror.Error) {
 	_ = client.Write(packet)
 }
 
-func Accept(client zap.ReadWriter, getPassword func(user string) (string, bool), initialParameterStatus map[string]string) (user, database string, err perror.Error) {
+func Accept(client zap.ReadWriter, getPassword func(user, database string) (string, bool), initialParameterStatus map[string]string) (user, database string, err perror.Error) {
 	user, database, err = accept(client, getPassword, initialParameterStatus)
 	if err != nil {
 		fail(client, err)

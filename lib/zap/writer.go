@@ -9,6 +9,8 @@ type Writer interface {
 	Write(*Packet) error
 	WriteUntyped(*UntypedPacket) error
 	WriteV(*Packets) error
+
+	Close() error
 }
 
 func WrapIOWriter(writeCloser io.WriteCloser) Writer {
@@ -41,6 +43,10 @@ func (T ioWriter) WriteUntyped(packet *UntypedPacket) error {
 func (T ioWriter) WriteV(packets *Packets) error {
 	_, err := packets.WriteTo(T.writer)
 	return err
+}
+
+func (T ioWriter) Close() error {
+	return T.closer.Close()
 }
 
 var _ Writer = ioWriter{}

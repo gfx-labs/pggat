@@ -6,6 +6,8 @@ type Reader interface {
 	ReadByte() (byte, error)
 	Read(*Packet) error
 	ReadUntyped(*UntypedPacket) error
+
+	Close() error
 }
 
 func WrapIOReader(readCloser io.ReadCloser) Reader {
@@ -37,6 +39,10 @@ func (T ioReader) Read(packet *Packet) error {
 func (T ioReader) ReadUntyped(packet *UntypedPacket) error {
 	_, err := packet.ReadFrom(T.reader)
 	return err
+}
+
+func (T ioReader) Close() error {
+	return T.closer.Close()
 }
 
 var _ Reader = ioReader{}

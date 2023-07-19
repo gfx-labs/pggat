@@ -21,6 +21,7 @@ func (T Conn) Do(_ rob.Constraints, work any) {
 	_, backendError := bouncers.Bounce(job.rw, T.rw)
 	if backendError != nil {
 		// TODO(garet) remove from pool
+		panic(backendError)
 	}
 	return
 }

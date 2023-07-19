@@ -54,24 +54,31 @@ func (T *Pooler) Serve(client zap.ReadWriter) {
 		unterminate.Unterminate,
 	)
 
-	username, database, err := frontends.Accept(client, func(username string) (string, bool) {
+	username, database, err := frontends.Accept(client, func(username, database string) (string, bool) {
 		user := T.GetUser(username)
 		if user == nil {
+			return "", false
+		}
+		pool := user.GetPool(database)
+		if pool == nil {
 			return "", false
 		}
 		return user.GetPassword(), true
 	}, DefaultParameterStatus)
 	if err != nil {
+		_ = client.Close()
 		return
 	}
 
 	user := T.GetUser(username)
 	if user == nil {
+		_ = client.Close()
 		return
 	}
 
 	pool := user.GetPool(database)
 	if pool == nil {
+		_ = client.Close()
 		return
 	}
 

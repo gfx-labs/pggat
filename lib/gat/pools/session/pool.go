@@ -1,6 +1,7 @@
 package session
 
 import (
+	"log"
 	"net"
 	"sync"
 
@@ -54,6 +55,7 @@ func (T *Pool) Serve(client zap.ReadWriter) {
 	for {
 		clientErr, serverErr := bouncers.Bounce(client, server)
 		if clientErr != nil || serverErr != nil {
+			_ = client.Close()
 			if serverErr == nil {
 				T.release(server)
 			}
@@ -66,13 +68,17 @@ func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
 	for i := 0; i < recipe.MinConnections; i++ {
 		conn, err := net.Dial("tcp", recipe.Address)
 		if err != nil {
+			_ = conn.Close()
 			// TODO(garet) do something here
+			log.Printf("Failed to connect to %s: %v", recipe.Address, err)
 			continue
 		}
 		rw := zap.WrapIOReadWriter(conn)
 		err2 := backends.Accept(rw, recipe.User, recipe.Password, recipe.Database)
 		if err2 != nil {
+			_ = conn.Close()
 			// TODO(garet) do something here
+			log.Printf("Failed to connect to %s: %v", recipe.Address, err2)
 			continue
 		}
 		T.release(rw)
