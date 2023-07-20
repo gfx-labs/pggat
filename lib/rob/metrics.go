@@ -67,6 +67,14 @@ func (T *Metrics) MaxJobAge() time.Duration {
 }
 
 func (T *Metrics) AverageWorkerUtilization() float64 {
+	if len(T.Workers) == 0 {
+		if T.BackloggedJobCount() > 0 {
+			return 1
+		} else {
+			return 0
+		}
+	}
+
 	idle := time.Duration(0)
 	active := time.Duration(0)
 
