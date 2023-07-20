@@ -1,6 +1,8 @@
 package source
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 
 	"pggat2/lib/rob"
@@ -25,6 +27,8 @@ func NewSource(p *pool.Pool) *Source {
 
 func (T *Source) Do(constraints rob.Constraints, work any) {
 	base := job.Base{
+		Created:     time.Now(),
+		ID:          uuid.New(),
 		Source:      T.id,
 		Constraints: constraints,
 	}

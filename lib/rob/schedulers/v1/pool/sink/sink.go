@@ -19,6 +19,10 @@ type Sink struct {
 
 	// non final
 
+	// metrics
+	lastMetricsRead time.Time
+	idle            time.Duration
+
 	active uuid.UUID
 	start  time.Time
 
@@ -31,10 +35,15 @@ type Sink struct {
 }
 
 func NewSink(id uuid.UUID, constraints rob.Constraints, worker rob.Worker) *Sink {
+	now := time.Now()
+
 	return &Sink{
 		id:          id,
 		constraints: constraints,
 		worker:      worker,
+
+		lastMetricsRead: now,
+		start:           now,
 
 		stride:  make(map[uuid.UUID]time.Duration),
 		pending: make(map[uuid.UUID]*ring.Ring[job.Stalled]),
@@ -45,8 +54,10 @@ func (T *Sink) setActive(source uuid.UUID) {
 	if T.active != uuid.Nil {
 		panic("set active called when another was active")
 	}
+	now := time.Now()
+	T.idle += now.Sub(T.start)
 	T.active = source
-	T.start = time.Now()
+	T.start = now
 }
 
 func (T *Sink) ExecuteConcurrent(j job.Concurrent) (ok, hasMore bool) {
@@ -156,10 +167,12 @@ func (T *Sink) enqueueNextFor(source uuid.UUID) {
 }
 
 func (T *Sink) next() bool {
+	now := time.Now()
 	if T.active != uuid.Nil {
 		source := T.active
-		dur := time.Since(T.start)
+		dur := now.Sub(T.start)
 		T.active = uuid.Nil
+		T.start = now
 
 		T.stride[source] += dur
 
@@ -259,9 +272,39 @@ func (T *Sink) StealAll() []job.Stalled {
 	return all
 }
 
-func (T *Sink) IsActive() bool {
+func (T *Sink) ReadMetrics(metrics *rob.Metrics) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	return T.active != uuid.Nil
+	now := time.Now()
+
+	if T.active == uuid.Nil {
+		T.idle += now.Sub(T.start)
+		T.start = now
+	}
+
+	dur := now.Sub(T.lastMetricsRead)
+
+	metrics.Workers[T.id] = rob.WorkerMetrics{
+		Idle:   T.idle,
+		Active: dur - T.idle,
+	}
+
+	T.lastMetricsRead = now
+	T.idle = 0
+
+	for _, pending := range T.pending {
+		for i := 0; i < pending.Length(); i++ {
+			j, _ := pending.Get(i)
+			metrics.Jobs[j.ID] = rob.JobMetrics{
+				Created: j.Created,
+			}
+		}
+	}
+
+	for k, v, ok := T.scheduled.Min(); ok; k, v, ok = T.scheduled.Next(k) {
+		metrics.Jobs[v.ID] = rob.JobMetrics{
+			Created: v.Created,
+		}
+	}
 }

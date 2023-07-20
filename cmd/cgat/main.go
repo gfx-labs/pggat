@@ -4,9 +4,11 @@ import (
 	"log"
 	"net/http"
 	_ "net/http/pprof"
+	"time"
 
 	"pggat2/lib/gat"
 	"pggat2/lib/gat/pools/transaction"
+	"pggat2/lib/rob"
 )
 
 func main() {
@@ -30,9 +32,19 @@ func main() {
 		Address:        "localhost:5432",
 		User:           "postgres",
 		Password:       "password",
-		MinConnections: 0,
+		MinConnections: 5,
 		MaxConnections: 5,
 	})
+
+	go func() {
+		var metrics rob.Metrics
+
+		for {
+			time.Sleep(1 * time.Second)
+			pool.ReadSchedulerMetrics(&metrics)
+			log.Println(metrics.String())
+		}
+	}()
 
 	log.Println("Listening on :6432")
 

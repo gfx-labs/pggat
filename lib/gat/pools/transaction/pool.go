@@ -11,6 +11,7 @@ import (
 	"pggat2/lib/middleware/interceptor"
 	"pggat2/lib/middleware/middlewares/eqp"
 	"pggat2/lib/middleware/middlewares/ps"
+	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v1"
 	"pggat2/lib/zap"
 	"pggat2/lib/zap/zapbuf"
@@ -95,6 +96,10 @@ func (T *Pool) Serve(client zap.ReadWriter) {
 			ps:  psc,
 		})
 	}
+}
+
+func (T *Pool) ReadSchedulerMetrics(metrics *rob.Metrics) {
+	T.s.ReadMetrics(metrics)
 }
 
 var _ gat.Pool = (*Pool)(nil)

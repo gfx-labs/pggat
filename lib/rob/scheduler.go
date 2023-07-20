@@ -8,5 +8,5 @@ type Scheduler interface {
 
 	NewSource() Worker
 
-	ReadMetrics() Metrics
+	ReadMetrics(metrics *Metrics)
 }

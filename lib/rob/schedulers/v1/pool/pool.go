@@ -2,7 +2,6 @@ package pool
 
 import (
 	"sync"
-	"sync/atomic"
 
 	"github.com/google/uuid"
 
@@ -20,9 +19,6 @@ type Pool struct {
 	bmu     sync.Mutex
 	sinks   map[uuid.UUID]*sink.Sink
 	mu      sync.RWMutex
-
-	jobsRunning atomic.Int64
-	jobsWaiting atomic.Int64
 }
 
 func MakePool() Pool {
@@ -32,9 +28,6 @@ func MakePool() Pool {
 }
 
 func (T *Pool) ExecuteConcurrent(j job.Concurrent) bool {
-	T.jobsRunning.Add(1)
-	defer T.jobsRunning.Add(-1)
-
 	affinity, _ := T.affinity.Load(j.Source)
 
 	// these can be unlocked and locked a bunch here because it is less bad if ExecuteConcurrent misses a sink
@@ -76,8 +69,6 @@ func (T *Pool) ExecuteConcurrent(j job.Concurrent) bool {
 }
 
 func (T *Pool) ExecuteStalled(j job.Stalled) {
-	T.jobsWaiting.Add(1)
-
 	affinity, _ := T.affinity.Load(j.Source)
 
 	T.mu.RLock()
@@ -171,10 +162,6 @@ func (T *Pool) stealFor(id uuid.UUID) {
 }
 
 func (T *Pool) Execute(id uuid.UUID, constraints rob.Constraints, work any) {
-	T.jobsWaiting.Add(-1)
-	T.jobsRunning.Add(1)
-	defer T.jobsRunning.Add(-1)
-
 	T.mu.RLock()
 	s := T.sinks[id]
 	T.mu.RUnlock()
@@ -185,29 +172,29 @@ func (T *Pool) Execute(id uuid.UUID, constraints rob.Constraints, work any) {
 	}
 }
 
-func (T *Pool) ReadMetrics() rob.Metrics {
-	jobsWaiting := T.jobsWaiting.Load()
-	jobsRunning := T.jobsRunning.Load()
+func (T *Pool) ReadMetrics(metrics *rob.Metrics) {
+	maps.Clear(metrics.Jobs)
+	if metrics.Jobs == nil {
+		metrics.Jobs = make(map[uuid.UUID]rob.JobMetrics)
+	}
+	maps.Clear(metrics.Workers)
+	if metrics.Workers == nil {
+		metrics.Workers = make(map[uuid.UUID]rob.WorkerMetrics)
+	}
 
 	T.mu.RLock()
 	defer T.mu.RUnlock()
-	totalWorkers := len(T.sinks)
-	var workersActive int
-	var workersIdle int
-	for _, worker := range T.sinks {
-		if worker.IsActive() {
-			workersActive++
-		} else {
-			workersIdle++
+
+	T.bmu.Lock()
+	for _, j := range T.backlog {
+		metrics.Jobs[j.ID] = rob.JobMetrics{
+			Created:    j.Created,
+			Backlogged: true,
 		}
 	}
+	T.bmu.Unlock()
 
-	return rob.Metrics{
-		JobsWaiting: int(jobsWaiting),
-		JobsRunning: int(jobsRunning),
-
-		TotalWorkers:  totalWorkers,
-		WorkersActive: workersActive,
-		WorkersIdle:   workersIdle,
+	for _, worker := range T.sinks {
+		worker.ReadMetrics(metrics)
 	}
 }
