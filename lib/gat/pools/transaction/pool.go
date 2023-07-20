@@ -4,6 +4,8 @@ import (
 	"log"
 	"net"
 
+	"github.com/google/uuid"
+
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/gat"
 	"pggat2/lib/middleware/interceptor"
@@ -50,12 +52,19 @@ func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
 			log.Printf("Failed to connect to %s: %v", recipe.Address, err2)
 			continue
 		}
-		T.s.AddSink(0, Conn{
-			rw:  mw,
-			eqp: eqps,
-			ps:  pss,
-		})
+		sink := &Conn{
+			pool: T,
+			rw:   mw,
+			eqp:  eqps,
+			ps:   pss,
+		}
+		id := T.s.AddSink(0, sink)
+		sink.id = id
 	}
+}
+
+func (T *Pool) remove(id uuid.UUID) {
+	T.s.RemoveSink(id)
 }
 
 func (T *Pool) RemoveRecipe(name string) {

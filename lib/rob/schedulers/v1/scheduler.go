@@ -35,4 +35,8 @@ func (T *Scheduler) NewSource() rob.Worker {
 	return source.NewSource(&T.pool)
 }
 
+func (T *Scheduler) ReadMetrics() rob.Metrics {
+	return T.pool.ReadMetrics()
+}
+
 var _ rob.Scheduler = (*Scheduler)(nil)

@@ -7,4 +7,6 @@ type Scheduler interface {
 	RemoveSink(id uuid.UUID)
 
 	NewSource() Worker
+
+	ReadMetrics() Metrics
 }

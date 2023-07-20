@@ -258,3 +258,10 @@ func (T *Sink) StealAll() []job.Stalled {
 
 	return all
 }
+
+func (T *Sink) IsActive() bool {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	return T.active != uuid.Nil
+}
