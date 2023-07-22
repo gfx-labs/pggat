@@ -1,5 +1,7 @@
 package gat
 
+import "reflect"
+
 type Recipe struct {
 	// Connection Parameters
 	Database string
@@ -10,4 +12,8 @@ type Recipe struct {
 	// Config
 	MinConnections int
 	MaxConnections int
+}
+
+func RecipesEqual(a, b Recipe) bool {
+	return reflect.DeepEqual(a, b)
 }

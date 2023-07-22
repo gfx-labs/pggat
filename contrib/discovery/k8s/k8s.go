@@ -11,6 +11,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
 type PodWatcher struct {
@@ -78,7 +79,7 @@ func (p *PodWatcher) startWatching(
 
 		// Log raw event stream to debug log
 		switch event.Type {
-		case "ADDED":
+		case watch.Added:
 			log.Printf("ADDED pod %s with ip %s. Ready = %v", podName, podIp, podReady)
 			if podReady {
 				shouldCreate = true
@@ -86,16 +87,19 @@ func (p *PodWatcher) startWatching(
 				shouldDelete = true
 			}
 
-		case "MODIFIED":
+		case watch.Modified:
 			log.Printf("MODIFIED pod %s with ip %s. Ready = %v", podName, podIp, podReady)
 			if podReady {
 				shouldCreate = true
 			} else {
 				shouldDelete = true
 			}
-		case "DELETED":
+		case watch.Deleted:
 			log.Printf("DELETED pod %s with ip %s. Ready = %v", podName, podIp, podReady)
 			shouldDelete = true
+		default:
+			// ignore this event
+			continue
 		}
 
 		if shouldDelete {

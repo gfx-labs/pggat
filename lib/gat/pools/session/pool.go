@@ -8,6 +8,7 @@ import (
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/bouncers/v2"
 	"pggat2/lib/gat"
+	"pggat2/lib/gat/recipebook"
 	"pggat2/lib/zap"
 )
 
@@ -16,12 +17,15 @@ type Pool struct {
 	queue []zap.ReadWriter
 	mu    sync.RWMutex
 
+	book *recipebook.Book
+
 	signal chan struct{}
 }
 
 func NewPool() *Pool {
 	return &Pool{
 		signal: make(chan struct{}),
+		book:   recipebook.NewBook(),
 	}
 }
 
@@ -67,6 +71,9 @@ func (T *Pool) Serve(client zap.ReadWriter) {
 }
 
 func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
+	if !T.book.AddIfNew(name, recipe) {
+		return
+	}
 	for i := 0; i < recipe.MinConnections; i++ {
 		conn, err := net.Dial("tcp", recipe.Address)
 		if err != nil {
@@ -88,6 +95,9 @@ func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
 }
 
 func (T *Pool) RemoveRecipe(name string) {
+	if !T.book.Remove(name) {
+		return
+	}
 	// TODO(garet) implement me
 	panic("implement me")
 }
