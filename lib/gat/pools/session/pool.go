@@ -71,9 +71,16 @@ func (T *Pool) Serve(client zap.ReadWriter) {
 }
 
 func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
-	if !T.book.AddIfNew(name, recipe) {
+	funcCh := make(chan func())
+	if !T.book.AddIfNew(name, recipe, func() {
+		fn := <-funcCh
+		if fn != nil {
+			fn()
+		}
+	}) {
 		return
 	}
+	conns := []zap.ReadWriter{}
 	for i := 0; i < recipe.MinConnections; i++ {
 		conn, err := net.Dial("tcp", recipe.Address)
 		if err != nil {
@@ -90,16 +97,21 @@ func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
 			log.Printf("Failed to connect to %s: %v", recipe.Address, err2)
 			continue
 		}
+		conns = append(conns, rw)
 		T.release(rw)
 	}
+	fn := func() {
+		for _, v := range conns {
+			v.Close()
+		}
+	}
+	funcCh <- fn
 }
 
 func (T *Pool) RemoveRecipe(name string) {
 	if !T.book.Remove(name) {
 		return
 	}
-	// TODO(garet) implement me
-	panic("implement me")
 }
 
 var _ gat.Pool = (*Pool)(nil)
