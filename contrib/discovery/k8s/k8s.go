@@ -7,7 +7,6 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
-	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -24,21 +23,16 @@ type PodWatcher struct {
 }
 
 func (p *PodWatcher) Start(
-	pctx context.Context,
+	ctx context.Context,
 	c *kubernetes.Clientset,
 	pool gat.Pool,
 ) error {
 	p.pods = make(map[string]*v1.Pod)
-	egg, ctx := errgroup.WithContext(pctx)
-	egg.Go(func() error {
-		return p.startWatching(ctx, c, pool)
-	})
 	err := p.getInitialPods(ctx, c, pool)
 	if err != nil {
 		return err
 	}
-
-	return egg.Wait()
+	return p.startWatching(ctx, c, pool)
 }
 
 func (p *PodWatcher) getInitialPods(
