@@ -26,6 +26,8 @@ func NewSource(p *pool.Pool) *Source {
 }
 
 func (T *Source) Do(ctx *rob.Context, work any) {
+	ctx.Reset()
+
 	base := job.Base{
 		Created: time.Now(),
 		ID:      uuid.New(),

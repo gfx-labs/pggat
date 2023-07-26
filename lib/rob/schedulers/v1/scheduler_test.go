@@ -66,7 +66,7 @@ func (T *TestSink) Do(ctx *rob.Context, work any) {
 		if removed {
 			panic("Scheduler did not remove when requested")
 		}
-		ctx.Removed = true
+		ctx.Remove()
 	}
 }
 

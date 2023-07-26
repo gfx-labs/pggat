@@ -137,12 +137,12 @@ func (T *Pool) GetWorker(id uuid.UUID) rob.Worker {
 	return s.GetWorker()
 }
 
-func (T *Pool) RemoveWorker(id uuid.UUID) {
+func (T *Pool) RemoveWorker(id uuid.UUID) rob.Worker {
 	T.mu.Lock()
 	s, ok := T.sinks[id]
 	if !ok {
 		T.mu.Unlock()
-		return
+		return nil
 	}
 	delete(T.sinks, id)
 	T.mu.Unlock()
@@ -153,6 +153,8 @@ func (T *Pool) RemoveWorker(id uuid.UUID) {
 	for _, j := range jobs {
 		T.ExecuteStalled(j)
 	}
+
+	return s.GetWorker()
 }
 
 func (T *Pool) stealFor(id uuid.UUID) {

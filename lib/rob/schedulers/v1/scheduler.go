@@ -31,8 +31,8 @@ func (T *Scheduler) GetSink(id uuid.UUID) rob.Worker {
 	return T.pool.GetWorker(id)
 }
 
-func (T *Scheduler) RemoveSink(id uuid.UUID) {
-	T.pool.RemoveWorker(id)
+func (T *Scheduler) RemoveSink(id uuid.UUID) rob.Worker {
+	return T.pool.RemoveWorker(id)
 }
 
 func (T *Scheduler) NewSource() rob.Worker {

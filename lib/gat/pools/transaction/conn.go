@@ -23,7 +23,7 @@ func (T *Conn) Do(ctx *rob.Context, work any) {
 		_ = job.rw.Close()
 		if serverErr != nil {
 			_ = T.rw.Close()
-			ctx.Removed = true
+			ctx.Remove()
 		}
 	}
 	return
