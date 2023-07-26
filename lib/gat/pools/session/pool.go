@@ -1,10 +1,10 @@
 package session
 
 import (
-	"log"
 	"sync"
 
-	"pggat2/lib/bouncer/backends/v0"
+	"github.com/google/uuid"
+
 	"pggat2/lib/bouncer/bouncers/v2"
 	"pggat2/lib/gat"
 	"pggat2/lib/zap"
@@ -12,8 +12,9 @@ import (
 
 type Pool struct {
 	// use slice lifo for better perf
-	queue []zap.ReadWriter
-	mu    sync.RWMutex
+	queue []uuid.UUID
+	conns map[uuid.UUID]zap.ReadWriter
+	mu    sync.Mutex
 
 	signal chan struct{}
 }
@@ -24,24 +25,28 @@ func NewPool() *Pool {
 	}
 }
 
-func (T *Pool) acquire() zap.ReadWriter {
+func (T *Pool) acquire() (uuid.UUID, zap.ReadWriter) {
 	for {
 		T.mu.Lock()
 		if len(T.queue) > 0 {
-			server := T.queue[len(T.queue)-1]
+			id := T.queue[len(T.queue)-1]
 			T.queue = T.queue[:len(T.queue)-1]
+			conn, ok := T.conns[id]
 			T.mu.Unlock()
-			return server
+			if !ok {
+				continue
+			}
+			return id, conn
 		}
 		T.mu.Unlock()
 		<-T.signal
 	}
 }
 
-func (T *Pool) release(server zap.ReadWriter) {
+func (T *Pool) release(id uuid.UUID) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
-	T.queue = append(T.queue, server)
+	T.queue = append(T.queue, id)
 
 	select {
 	case T.signal <- struct{}{}:
@@ -50,43 +55,54 @@ func (T *Pool) release(server zap.ReadWriter) {
 }
 
 func (T *Pool) Serve(client zap.ReadWriter) {
-	server := T.acquire()
+	id, server := T.acquire()
 	for {
 		clientErr, serverErr := bouncers.Bounce(client, server)
 		if clientErr != nil || serverErr != nil {
 			_ = client.Close()
 			if serverErr == nil {
-				T.release(server)
+				T.release(id)
 			} else {
 				_ = server.Close()
+				T.mu.Lock()
+				delete(T.conns, id)
+				T.mu.Unlock()
 			}
 			break
 		}
 	}
 }
 
-func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
-	for i := 0; i < recipe.GetMinConnections(); i++ {
-		rw, err := recipe.Connect()
-		if err != nil {
-			// TODO(garet) do something here
-			log.Printf("Failed to connect: %v", err)
-			continue
-		}
-		err2 := backends.Accept(rw, recipe.GetUser(), recipe.GetPassword(), recipe.GetDatabase())
-		if err2 != nil {
-			_ = rw.Close()
-			// TODO(garet) do something here
-			log.Printf("Failed to connect: %v", err2)
-			continue
-		}
-		T.release(rw)
+func (T *Pool) AddServer(server zap.ReadWriter) uuid.UUID {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	id := uuid.New()
+	if T.conns == nil {
+		T.conns = make(map[uuid.UUID]zap.ReadWriter)
 	}
+	T.conns[id] = server
+	T.queue = append(T.queue, id)
+	return id
 }
 
-func (T *Pool) RemoveRecipe(name string) {
-	panic("TODO")
-	// TODO(garet)
+func (T *Pool) GetServer(id uuid.UUID) zap.ReadWriter {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	return T.conns[id]
 }
 
-var _ gat.Pool = (*Pool)(nil)
+func (T *Pool) RemoveServer(id uuid.UUID) zap.ReadWriter {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	conn, ok := T.conns[id]
+	if !ok {
+		return nil
+	}
+	delete(T.conns, id)
+	return conn
+}
+
+var _ gat.RawPool = (*Pool)(nil)

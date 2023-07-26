@@ -5,7 +5,7 @@ import "pggat2/lib/util/maps"
 type User struct {
 	password string
 
-	pools maps.RWLocked[string, Pool]
+	pools maps.RWLocked[string, *Pool]
 }
 
 func NewUser(password string) *User {
@@ -18,7 +18,7 @@ func (T *User) GetPassword() string {
 	return T.password
 }
 
-func (T *User) AddPool(name string, pool Pool) {
+func (T *User) AddPool(name string, pool *Pool) {
 	T.pools.Store(name, pool)
 }
 
@@ -26,7 +26,7 @@ func (T *User) RemovePool(name string) {
 	T.pools.Delete(name)
 }
 
-func (T *User) GetPool(name string) Pool {
+func (T *User) GetPool(name string) *Pool {
 	pool, _ := T.pools.Load(name)
 	return pool
 }

@@ -27,7 +27,7 @@ type PodWatcher struct {
 func (p *PodWatcher) Start(
 	ctx context.Context,
 	c *kubernetes.Clientset,
-	pool gat.Pool,
+	pool *gat.Pool,
 ) error {
 	p.pods = make(map[string]*v1.Pod)
 	err := p.getInitialPods(ctx, c, pool)
@@ -40,7 +40,7 @@ func (p *PodWatcher) Start(
 func (p *PodWatcher) getInitialPods(
 	ctx context.Context,
 	c *kubernetes.Clientset,
-	pool gat.Pool,
+	pool *gat.Pool,
 ) error {
 	pods, err := c.CoreV1().Pods(p.Namespace).List(ctx, p.ListOptions)
 	if err != nil {
@@ -57,7 +57,7 @@ func (p *PodWatcher) getInitialPods(
 func (p *PodWatcher) startWatching(
 	ctx context.Context,
 	c *kubernetes.Clientset,
-	pool gat.Pool,
+	pool *gat.Pool,
 ) error {
 	watcher, err := c.CoreV1().Pods(p.Namespace).Watch(ctx, p.ListOptions)
 	if err != nil {

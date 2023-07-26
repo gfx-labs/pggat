@@ -25,7 +25,8 @@ func main() {
 	pooler.AddUser("postgres", postgres)
 
 	// create pool
-	pool := transaction.NewPool()
+	rawPool := transaction.NewPool()
+	pool := gat.NewPool(rawPool)
 	postgres.AddPool("uniswap", pool)
 	pool.AddRecipe("localhost", gat.TCPRecipe{
 		Database:       "uniswap",
@@ -35,13 +36,14 @@ func main() {
 		MinConnections: 0,
 		MaxConnections: 5,
 	})
+	pool.Scale(1)
 
 	go func() {
 		var metrics rob.Metrics
 
 		for {
 			time.Sleep(1 * time.Second)
-			pool.ReadSchedulerMetrics(&metrics)
+			rawPool.ReadSchedulerMetrics(&metrics)
 			log.Println(metrics.String())
 		}
 	}()
