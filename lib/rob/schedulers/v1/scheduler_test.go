@@ -73,7 +73,7 @@ func (T *TestSink) Do(ctx *rob.Context, work any) {
 var _ rob.Worker = (*TestSink)(nil)
 
 func testSink(sched *Scheduler, table *ShareTable, constraints rob.Constraints) uuid.UUID {
-	return sched.AddSink(constraints, &TestSink{
+	return sched.AddWorker(constraints, &TestSink{
 		table:       table,
 		constraints: constraints,
 	})
@@ -88,7 +88,7 @@ func testSinkRemoveAfter(sched *Scheduler, table *ShareTable, constraints rob.Co
 		time.Sleep(removeAfter)
 		sink.remove.Store(true)
 	}()
-	return sched.AddSink(constraints, sink)
+	return sched.AddWorker(constraints, sink)
 }
 
 func testSource(sched *Scheduler, id int, dur time.Duration, constraints rob.Constraints) {
@@ -442,7 +442,7 @@ func TestScheduler_RemoveSinkOuter(t *testing.T) {
 
 	time.Sleep(10 * time.Second)
 
-	sched.RemoveSink(toRemove)
+	sched.RemoveWorker(toRemove)
 
 	time.Sleep(10 * time.Second)
 

@@ -3,9 +3,10 @@ package rob
 import "github.com/google/uuid"
 
 type Scheduler interface {
-	AddSink(constraints Constraints, worker Worker) uuid.UUID
-	GetSink(id uuid.UUID) Worker
-	RemoveSink(id uuid.UUID) Worker
+	AddWorker(constraints Constraints, worker Worker) uuid.UUID
+	GetWorker(id uuid.UUID) Worker
+	RemoveWorker(id uuid.UUID) Worker
+	WorkerCount() int
 
 	NewSource() Worker
 

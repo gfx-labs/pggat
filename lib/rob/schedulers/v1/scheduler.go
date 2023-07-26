@@ -23,16 +23,20 @@ func NewScheduler() *Scheduler {
 	return &s
 }
 
-func (T *Scheduler) AddSink(constraints rob.Constraints, worker rob.Worker) uuid.UUID {
+func (T *Scheduler) AddWorker(constraints rob.Constraints, worker rob.Worker) uuid.UUID {
 	return T.pool.AddWorker(constraints, worker)
 }
 
-func (T *Scheduler) GetSink(id uuid.UUID) rob.Worker {
+func (T *Scheduler) GetWorker(id uuid.UUID) rob.Worker {
 	return T.pool.GetWorker(id)
 }
 
-func (T *Scheduler) RemoveSink(id uuid.UUID) rob.Worker {
+func (T *Scheduler) RemoveWorker(id uuid.UUID) rob.Worker {
 	return T.pool.RemoveWorker(id)
+}
+
+func (T *Scheduler) WorkerCount() int {
+	return T.pool.WorkerCount()
 }
 
 func (T *Scheduler) NewSource() rob.Worker {

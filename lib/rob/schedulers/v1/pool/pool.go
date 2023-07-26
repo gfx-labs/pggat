@@ -157,6 +157,12 @@ func (T *Pool) RemoveWorker(id uuid.UUID) rob.Worker {
 	return s.GetWorker()
 }
 
+func (T *Pool) WorkerCount() int {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+	return len(T.sinks)
+}
+
 func (T *Pool) stealFor(id uuid.UUID) {
 	T.mu.RLock()
 

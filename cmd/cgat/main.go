@@ -32,7 +32,7 @@ func main() {
 		Address:        "localhost:5432",
 		User:           "postgres",
 		Password:       "password",
-		MinConnections: 5,
+		MinConnections: 0,
 		MaxConnections: 5,
 	})
 
