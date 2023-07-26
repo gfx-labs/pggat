@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"fmt"
+
 	"pggat2/lib/gat"
 
 	"tuxpa.in/a/zlog/log"
@@ -15,7 +16,7 @@ import (
 )
 
 type PodWatcher struct {
-	BaseRecipe gat.Recipe
+	BaseRecipe gat.TCPRecipe
 
 	Namespace   string
 	ListOptions metav1.ListOptions

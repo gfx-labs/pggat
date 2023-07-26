@@ -44,14 +44,16 @@ type TestSink struct {
 	table       *ShareTable
 	constraints rob.Constraints
 	inuse       atomic.Bool
+	remove      atomic.Bool
+	removed     atomic.Bool
 }
 
-func (T *TestSink) Do(constraints rob.Constraints, work any) {
+func (T *TestSink) Do(ctx *rob.Context, work any) {
 	if T.inuse.Swap(true) {
 		panic("Sink was already inuse")
 	}
 	defer T.inuse.Store(false)
-	if !T.constraints.Satisfies(constraints) {
+	if !T.constraints.Satisfies(ctx.Constraints) {
 		panic("Scheduler did not obey constraints")
 	}
 	v := work.(Work)
@@ -59,6 +61,13 @@ func (T *TestSink) Do(constraints rob.Constraints, work any) {
 	for time.Since(start) < v.Duration {
 	}
 	T.table.Inc(v.Sender)
+	if T.remove.Load() {
+		removed := T.removed.Swap(true)
+		if removed {
+			panic("Scheduler did not remove when requested")
+		}
+		ctx.Removed = true
+	}
 }
 
 var _ rob.Worker = (*TestSink)(nil)
@@ -70,6 +79,18 @@ func testSink(sched *Scheduler, table *ShareTable, constraints rob.Constraints) 
 	})
 }
 
+func testSinkRemoveAfter(sched *Scheduler, table *ShareTable, constraints rob.Constraints, removeAfter time.Duration) uuid.UUID {
+	sink := &TestSink{
+		table:       table,
+		constraints: constraints,
+	}
+	go func() {
+		time.Sleep(removeAfter)
+		sink.remove.Store(true)
+	}()
+	return sched.AddSink(constraints, sink)
+}
+
 func testSource(sched *Scheduler, id int, dur time.Duration, constraints rob.Constraints) {
 	source := sched.NewSource()
 	for {
@@ -77,7 +98,9 @@ func testSource(sched *Scheduler, id int, dur time.Duration, constraints rob.Con
 			Sender:   id,
 			Duration: dur,
 		}
-		source.Do(constraints, w)
+		source.Do(&rob.Context{
+			Constraints: constraints,
+		}, w)
 	}
 }
 
@@ -88,7 +111,9 @@ func testStarver(sched *Scheduler, id int, dur time.Duration, constraints rob.Co
 			Sender:   id,
 			Duration: dur,
 		}
-		source.Do(constraints, w)
+		source.Do(&rob.Context{
+			Constraints: constraints,
+		}, w)
 	}
 }
 
@@ -404,7 +429,7 @@ func TestScheduler_Starve(t *testing.T) {
 	}
 }
 
-func TestScheduler_RemoveSink(t *testing.T) {
+func TestScheduler_RemoveSinkOuter(t *testing.T) {
 	var table ShareTable
 	sched := NewScheduler()
 	testSink(sched, &table, 0)
@@ -420,6 +445,44 @@ func TestScheduler_RemoveSink(t *testing.T) {
 	sched.RemoveSink(toRemove)
 
 	time.Sleep(10 * time.Second)
+
+	t0 := table.Get(0)
+	t1 := table.Get(1)
+	t2 := table.Get(2)
+	t3 := table.Get(3)
+
+	/*
+		Expectations:
+		- all users should get similar # of executions
+	*/
+
+	t.Log("share of 0:", t0)
+	t.Log("share of 1:", t1)
+	t.Log("share of 2:", t2)
+	t.Log("share of 3:", t3)
+
+	if !similar(t0, t1, t2, t3) {
+		t.Error("expected all shares to be similar")
+	}
+
+	if t0 == 0 {
+		t.Error("expected executions on all sources (is there a race in the balancer??)")
+		t.Errorf("%s", allStacks())
+	}
+}
+
+func TestScheduler_RemoveSinkInner(t *testing.T) {
+	var table ShareTable
+	sched := NewScheduler()
+	testSink(sched, &table, 0)
+	testSinkRemoveAfter(sched, &table, 0, 10*time.Second)
+
+	go testSource(sched, 0, 10*time.Millisecond, 0)
+	go testSource(sched, 1, 10*time.Millisecond, 0)
+	go testSource(sched, 2, 10*time.Millisecond, 0)
+	go testSource(sched, 3, 10*time.Millisecond, 0)
+
+	time.Sleep(20 * time.Second)
 
 	t0 := table.Get(0)
 	t1 := table.Get(1)

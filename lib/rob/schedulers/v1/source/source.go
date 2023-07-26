@@ -25,12 +25,12 @@ func NewSource(p *pool.Pool) *Source {
 	}
 }
 
-func (T *Source) Do(constraints rob.Constraints, work any) {
+func (T *Source) Do(ctx *rob.Context, work any) {
 	base := job.Base{
-		Created:     time.Now(),
-		ID:          uuid.New(),
-		Source:      T.id,
-		Constraints: constraints,
+		Created: time.Now(),
+		ID:      uuid.New(),
+		Source:  T.id,
+		Context: ctx,
 	}
 	if T.pool.ExecuteConcurrent(job.Concurrent{
 		Base: base,
@@ -49,7 +49,7 @@ func (T *Source) Do(constraints rob.Constraints, work any) {
 		Ready: out,
 	})
 	worker := <-out
-	T.pool.Execute(worker, constraints, work)
+	T.pool.Execute(worker, ctx, work)
 	return
 }
 

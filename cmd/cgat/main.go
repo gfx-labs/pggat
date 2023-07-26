@@ -27,7 +27,7 @@ func main() {
 	// create pool
 	pool := transaction.NewPool()
 	postgres.AddPool("uniswap", pool)
-	pool.AddRecipe("localhost", gat.Recipe{
+	pool.AddRecipe("localhost", gat.TCPRecipe{
 		Database:       "uniswap",
 		Address:        "localhost:5432",
 		User:           "postgres",

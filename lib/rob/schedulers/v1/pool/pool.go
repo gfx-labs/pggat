@@ -38,6 +38,10 @@ func (T *Pool) ExecuteConcurrent(j job.Concurrent) bool {
 	if v, ok := T.sinks[affinity]; ok {
 		T.mu.RUnlock()
 		if done, hasMore := v.ExecuteConcurrent(j); done {
+			if j.Context.Removed {
+				T.RemoveWorker(affinity)
+				return true
+			}
 			if !hasMore {
 				T.stealFor(affinity)
 			}
@@ -52,6 +56,11 @@ func (T *Pool) ExecuteConcurrent(j job.Concurrent) bool {
 		}
 		T.mu.RUnlock()
 		if ok, hasMore := v.ExecuteConcurrent(j); ok {
+			if j.Context.Removed {
+				T.RemoveWorker(id)
+				return true
+			}
+
 			// set affinity
 			T.affinity.Store(j.Source, id)
 
@@ -118,6 +127,16 @@ func (T *Pool) AddWorker(constraints rob.Constraints, worker rob.Worker) uuid.UU
 	return id
 }
 
+func (T *Pool) GetWorker(id uuid.UUID) rob.Worker {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+	s, ok := T.sinks[id]
+	if !ok {
+		return nil
+	}
+	return s.GetWorker()
+}
+
 func (T *Pool) RemoveWorker(id uuid.UUID) {
 	T.mu.Lock()
 	s, ok := T.sinks[id]
@@ -161,12 +180,18 @@ func (T *Pool) stealFor(id uuid.UUID) {
 	T.mu.RUnlock()
 }
 
-func (T *Pool) Execute(id uuid.UUID, constraints rob.Constraints, work any) {
+func (T *Pool) Execute(id uuid.UUID, ctx *rob.Context, work any) {
 	T.mu.RLock()
 	s := T.sinks[id]
 	T.mu.RUnlock()
 
-	if !s.Execute(constraints, work) {
+	hasMore := s.Execute(ctx, work)
+	if ctx.Removed {
+		// remove
+		T.RemoveWorker(id)
+		return
+	}
+	if !hasMore {
 		// try to steal
 		T.stealFor(id)
 	}

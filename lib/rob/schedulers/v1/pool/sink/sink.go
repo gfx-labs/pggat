@@ -50,6 +50,10 @@ func NewSink(id uuid.UUID, constraints rob.Constraints, worker rob.Worker) *Sink
 	}
 }
 
+func (T *Sink) GetWorker() rob.Worker {
+	return T.worker
+}
+
 func (T *Sink) setActive(source uuid.UUID) {
 	if T.active != uuid.Nil {
 		panic("set active called when another was active")
@@ -61,7 +65,7 @@ func (T *Sink) setActive(source uuid.UUID) {
 }
 
 func (T *Sink) ExecuteConcurrent(j job.Concurrent) (ok, hasMore bool) {
-	if !T.constraints.Satisfies(j.Constraints) {
+	if !T.constraints.Satisfies(j.Context.Constraints) {
 		return false, false
 	}
 
@@ -77,7 +81,7 @@ func (T *Sink) ExecuteConcurrent(j job.Concurrent) (ok, hasMore bool) {
 
 	T.mu.Unlock()
 
-	return true, T.Execute(j.Constraints, j.Work)
+	return true, T.Execute(j.Context, j.Work)
 }
 
 func (T *Sink) trySchedule(j job.Stalled) bool {
@@ -131,7 +135,7 @@ func (T *Sink) enqueue(j job.Stalled) {
 }
 
 func (T *Sink) ExecuteStalled(j job.Stalled) bool {
-	if !T.constraints.Satisfies(j.Constraints) {
+	if !T.constraints.Satisfies(j.Context.Constraints) {
 		return false
 	}
 
@@ -193,8 +197,11 @@ func (T *Sink) next() bool {
 	return true
 }
 
-func (T *Sink) Execute(constraints rob.Constraints, work any) (hasMore bool) {
-	T.worker.Do(constraints, work)
+func (T *Sink) Execute(ctx *rob.Context, work any) (hasMore bool) {
+	T.worker.Do(ctx, work)
+	if ctx.Removed {
+		return false
+	}
 
 	// queue next
 	T.mu.Lock()
@@ -212,7 +219,7 @@ func (T *Sink) StealFor(rhs *Sink) uuid.UUID {
 	defer T.mu.Unlock()
 
 	for stride, j, ok := T.scheduled.Min(); ok; stride, j, ok = T.scheduled.Next(stride) {
-		if rhs.constraints.Satisfies(j.Constraints) {
+		if rhs.constraints.Satisfies(j.Context.Constraints) {
 			source := j.Source
 
 			// take jobs from T

@@ -9,8 +9,8 @@ import (
 )
 
 type Base struct {
-	Created     time.Time
-	ID          uuid.UUID
-	Source      uuid.UUID
-	Constraints rob.Constraints
+	Created time.Time
+	ID      uuid.UUID
+	Source  uuid.UUID
+	Context *rob.Context
 }

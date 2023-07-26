@@ -2,7 +2,6 @@ package transaction
 
 import (
 	"log"
-	"net"
 
 	"github.com/google/uuid"
 
@@ -30,15 +29,13 @@ func NewPool() *Pool {
 }
 
 func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
-	for i := 0; i < recipe.MinConnections; i++ {
-		conn, err := net.Dial("tcp", recipe.Address)
+	for i := 0; i < recipe.GetMinConnections(); i++ {
+		rw, err := recipe.Connect()
 		if err != nil {
-			_ = conn.Close()
 			// TODO(garet) do something here
-			log.Printf("Failed to connect to %s: %v", recipe.Address, err)
+			log.Printf("Failed to connect: %v", err)
 			continue
 		}
-		rw := zap.WrapIOReadWriter(conn)
 		eqps := eqp.NewServer()
 		pss := ps.NewServer()
 		mw := interceptor.NewInterceptor(
@@ -46,21 +43,19 @@ func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
 			eqps,
 			pss,
 		)
-		err2 := backends.Accept(mw, recipe.User, recipe.Password, recipe.Database)
+		err2 := backends.Accept(mw, recipe.GetUser(), recipe.GetPassword(), recipe.GetDatabase())
 		if err2 != nil {
-			_ = conn.Close()
+			_ = rw.Close()
 			// TODO(garet) do something here
-			log.Printf("Failed to connect to %s: %v", recipe.Address, err2)
+			log.Printf("Failed to connect: %v", err2)
 			continue
 		}
 		sink := &Conn{
-			pool: T,
-			rw:   mw,
-			eqp:  eqps,
-			ps:   pss,
+			rw:  mw,
+			eqp: eqps,
+			ps:  pss,
 		}
-		id := T.s.AddSink(0, sink)
-		sink.id = id
+		T.s.AddSink(0, sink)
 	}
 }
 
@@ -85,12 +80,13 @@ func (T *Pool) Serve(client zap.ReadWriter) {
 	)
 	buffer := zapbuf.NewBuffer(client)
 	defer buffer.Done()
+	var ctx rob.Context
 	for {
 		if err := buffer.Buffer(); err != nil {
 			_ = client.Close()
 			break
 		}
-		source.Do(0, Work{
+		source.Do(&ctx, Work{
 			rw:  buffer,
 			eqp: eqpc,
 			ps:  psc,

@@ -2,13 +2,11 @@ package session
 
 import (
 	"log"
-	"net"
 	"sync"
 
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/bouncers/v2"
 	"pggat2/lib/gat"
-	"pggat2/lib/gat/recipebook"
 	"pggat2/lib/zap"
 )
 
@@ -17,15 +15,12 @@ type Pool struct {
 	queue []zap.ReadWriter
 	mu    sync.RWMutex
 
-	book *recipebook.Book
-
 	signal chan struct{}
 }
 
 func NewPool() *Pool {
 	return &Pool{
 		signal: make(chan struct{}),
-		book:   recipebook.NewBook(),
 	}
 }
 
@@ -71,47 +66,27 @@ func (T *Pool) Serve(client zap.ReadWriter) {
 }
 
 func (T *Pool) AddRecipe(name string, recipe gat.Recipe) {
-	funcCh := make(chan func())
-	if !T.book.AddIfNew(name, recipe, func() {
-		fn := <-funcCh
-		if fn != nil {
-			fn()
-		}
-	}) {
-		return
-	}
-	conns := []zap.ReadWriter{}
-	for i := 0; i < recipe.MinConnections; i++ {
-		conn, err := net.Dial("tcp", recipe.Address)
+	for i := 0; i < recipe.GetMinConnections(); i++ {
+		rw, err := recipe.Connect()
 		if err != nil {
-			_ = conn.Close()
 			// TODO(garet) do something here
-			log.Printf("Failed to connect to %s: %v", recipe.Address, err)
+			log.Printf("Failed to connect: %v", err)
 			continue
 		}
-		rw := zap.WrapIOReadWriter(conn)
-		err2 := backends.Accept(rw, recipe.User, recipe.Password, recipe.Database)
+		err2 := backends.Accept(rw, recipe.GetUser(), recipe.GetPassword(), recipe.GetDatabase())
 		if err2 != nil {
-			_ = conn.Close()
+			_ = rw.Close()
 			// TODO(garet) do something here
-			log.Printf("Failed to connect to %s: %v", recipe.Address, err2)
+			log.Printf("Failed to connect: %v", err2)
 			continue
 		}
-		conns = append(conns, rw)
 		T.release(rw)
 	}
-	fn := func() {
-		for _, v := range conns {
-			v.Close()
-		}
-	}
-	funcCh <- fn
 }
 
 func (T *Pool) RemoveRecipe(name string) {
-	if !T.book.Remove(name) {
-		return
-	}
+	panic("TODO")
+	// TODO(garet)
 }
 
 var _ gat.Pool = (*Pool)(nil)

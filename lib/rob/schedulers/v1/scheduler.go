@@ -27,6 +27,10 @@ func (T *Scheduler) AddSink(constraints rob.Constraints, worker rob.Worker) uuid
 	return T.pool.AddWorker(constraints, worker)
 }
 
+func (T *Scheduler) GetSink(id uuid.UUID) rob.Worker {
+	return T.pool.GetWorker(id)
+}
+
 func (T *Scheduler) RemoveSink(id uuid.UUID) {
 	T.pool.RemoveWorker(id)
 }

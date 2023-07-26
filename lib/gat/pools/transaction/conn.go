@@ -1,8 +1,6 @@
 package transaction
 
 import (
-	"github.com/google/uuid"
-
 	"pggat2/lib/bouncer/bouncers/v2"
 	"pggat2/lib/middleware/middlewares/eqp"
 	"pggat2/lib/middleware/middlewares/ps"
@@ -11,14 +9,12 @@ import (
 )
 
 type Conn struct {
-	pool *Pool
-	id   uuid.UUID
-	rw   zap.ReadWriter
-	eqp  *eqp.Server
-	ps   *ps.Server
+	rw  zap.ReadWriter
+	eqp *eqp.Server
+	ps  *ps.Server
 }
 
-func (T *Conn) Do(_ rob.Constraints, work any) {
+func (T *Conn) Do(ctx *rob.Context, work any) {
 	job := work.(Work)
 	job.ps.SetServer(T.ps)
 	T.eqp.SetClient(job.eqp)
@@ -27,8 +23,7 @@ func (T *Conn) Do(_ rob.Constraints, work any) {
 		_ = job.rw.Close()
 		if serverErr != nil {
 			_ = T.rw.Close()
-			T.pool.remove(T.id)
-			panic(serverErr)
+			ctx.Removed = true
 		}
 	}
 	return
