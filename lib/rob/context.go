@@ -1,6 +1,7 @@
 package rob
 
 type Context struct {
+	OnWait      chan<- struct{}
 	Constraints Constraints
 	Removed     bool
 }

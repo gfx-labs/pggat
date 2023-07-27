@@ -36,7 +36,6 @@ func main() {
 		MinConnections: 0,
 		MaxConnections: 5,
 	})
-	pool.Scale(1)
 
 	go func() {
 		var metrics rob.Metrics

@@ -11,8 +11,12 @@ import (
 	"pggat2/lib/zap"
 )
 
+type Context struct {
+	OnWait chan<- struct{}
+}
+
 type RawPool interface {
-	Serve(client zap.ReadWriter)
+	Serve(ctx *Context, client zap.ReadWriter)
 
 	AddServer(server zap.ReadWriter) uuid.UUID
 	GetServer(id uuid.UUID) zap.ReadWriter
@@ -152,17 +156,37 @@ type Pool struct {
 	recipes map[string]*recipeWithConns
 	mu      sync.Mutex
 
+	ctx Context
+
 	raw RawPool
 }
 
 func NewPool(rawPool RawPool) *Pool {
-	return &Pool{
+	onWait := make(chan struct{})
+
+	p := &Pool{
+		ctx: Context{
+			OnWait: onWait,
+		},
 		raw: rawPool,
 	}
+
+	go func() {
+		for {
+			_, ok := <-onWait
+			if !ok {
+				break
+			}
+
+			p.Scale(1)
+		}
+	}()
+
+	return p
 }
 
 func (T *Pool) Serve(client zap.ReadWriter) {
-	T.raw.Serve(client)
+	T.raw.Serve(&T.ctx, client)
 }
 
 func (T *Pool) CurrentScale() int {

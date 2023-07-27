@@ -8,6 +8,7 @@ import (
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v1/pool"
 	"pggat2/lib/rob/schedulers/v1/pool/job"
+	"pggat2/lib/util/chans"
 	"pggat2/lib/util/pools"
 )
 
@@ -40,6 +41,11 @@ func (T *Source) Do(ctx *rob.Context, work any) {
 	}) {
 		return
 	}
+
+	if ctx.OnWait != nil {
+		chans.TrySend(ctx.OnWait, struct{}{})
+	}
+
 	out, ok := T.stall.Get()
 	if !ok {
 		out = make(chan uuid.UUID, 1)

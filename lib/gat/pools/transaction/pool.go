@@ -57,7 +57,7 @@ func (T *Pool) RemoveServer(id uuid.UUID) zap.ReadWriter {
 	return conn.(*Conn).rw
 }
 
-func (T *Pool) Serve(client zap.ReadWriter) {
+func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter) {
 	source := T.s.NewSource()
 	eqpc := eqp.NewClient()
 	defer eqpc.Done()
@@ -69,12 +69,14 @@ func (T *Pool) Serve(client zap.ReadWriter) {
 	)
 	buffer := zapbuf.NewBuffer(client)
 	defer buffer.Done()
-	var ctx rob.Context
+	robCtx := rob.Context{
+		OnWait: ctx.OnWait,
+	}
 	for {
 		if err := buffer.Buffer(); err != nil {
 			break
 		}
-		source.Do(&ctx, Work{
+		source.Do(&robCtx, Work{
 			rw:  buffer,
 			eqp: eqpc,
 			ps:  psc,
