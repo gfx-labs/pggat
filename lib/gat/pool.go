@@ -188,11 +188,28 @@ func (T *Pool) Scale(amount int) {
 	}
 	T.mu.Unlock()
 
-	for _, recipe := range recipes {
-		amount = T.recipes[recipe].Scale(T, amount)
-		if amount == 0 {
-			break
+outer:
+	for len(recipes) > 0 {
+		j := 0
+		for i := 0; i < len(recipes); i++ {
+			recipe := recipes[i]
+			if amount > 0 {
+				if T.recipes[recipe].Scale(T, 1) == 0 {
+					amount--
+					recipes[j] = recipes[i]
+					j++
+				}
+			} else if amount < 0 {
+				if T.recipes[recipe].Scale(T, -1) == 0 {
+					amount++
+					recipes[j] = recipes[i]
+					j++
+				}
+			} else {
+				break outer
+			}
 		}
+		recipes = recipes[:j]
 	}
 }
 
