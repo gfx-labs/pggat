@@ -172,12 +172,7 @@ func NewPool(rawPool RawPool) *Pool {
 	}
 
 	go func() {
-		for {
-			_, ok := <-onWait
-			if !ok {
-				break
-			}
-
+		for range onWait {
 			p.Scale(1)
 		}
 	}()
