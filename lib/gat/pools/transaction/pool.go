@@ -91,8 +91,8 @@ func (T *Pool) ScaleDown(amount int) (remaining int) {
 	remaining = amount
 
 	for i := 0; i < amount; i++ {
-		id, _ := T.s.GetIdleWorker()
-		if id == uuid.Nil {
+		id, idle := T.s.GetIdleWorker()
+		if id == uuid.Nil || idle == (time.Time{}) {
 			break
 		}
 		worker := T.s.RemoveWorker(id)

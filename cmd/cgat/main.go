@@ -26,7 +26,7 @@ func main() {
 
 	// create pool
 	rawPool := transaction.NewPool()
-	pool := gat.NewPool(rawPool)
+	pool := gat.NewPool(rawPool, 15*time.Second)
 	postgres.AddPool("uniswap", pool)
 	pool.AddRecipe("localhost", gat.TCPRecipe{
 		Database:       "uniswap",

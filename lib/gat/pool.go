@@ -58,7 +58,7 @@ type Pool struct {
 	raw RawPool
 }
 
-func NewPool(raw RawPool) *Pool {
+func NewPool(raw RawPool, idleTimeout time.Duration) *Pool {
 	onWait := make(chan struct{})
 	pool := &Pool{
 		ctx: Context{
@@ -79,7 +79,7 @@ func NewPool(raw RawPool) *Pool {
 
 			now := time.Now()
 			idle := pool.IdleSince()
-			for now.Sub(idle) > 15*time.Second {
+			for now.Sub(idle) > idleTimeout {
 				if idle == (time.Time{}) {
 					break
 				}
@@ -88,9 +88,9 @@ func NewPool(raw RawPool) *Pool {
 			}
 
 			if idle == (time.Time{}) {
-				wait = 15 * time.Second
+				wait = idleTimeout
 			} else {
-				wait = now.Sub(idle.Add(15 * time.Second))
+				wait = now.Sub(idle.Add(idleTimeout))
 			}
 
 			time.Sleep(wait)
