@@ -50,6 +50,16 @@ func NewSink(id uuid.UUID, constraints rob.Constraints, worker rob.Worker) *Sink
 	}
 }
 
+func (T *Sink) IdleStart() time.Time {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+	if T.active != uuid.Nil {
+		return time.Time{}
+	}
+
+	return T.start
+}
+
 func (T *Sink) GetWorker() rob.Worker {
 	return T.worker
 }

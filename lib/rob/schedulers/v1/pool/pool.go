@@ -2,6 +2,7 @@ package pool
 
 import (
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -135,6 +136,21 @@ func (T *Pool) GetWorker(id uuid.UUID) rob.Worker {
 		return nil
 	}
 	return s.GetWorker()
+}
+
+func (T *Pool) GetIdleWorker() (id uuid.UUID, idleStart time.Time) {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+
+	for i, s := range T.sinks {
+		start := s.IdleStart()
+		if idleStart == (time.Time{}) || start.Before(idleStart) {
+			idleStart = start
+			id = i
+		}
+	}
+
+	return
 }
 
 func (T *Pool) RemoveWorker(id uuid.UUID) rob.Worker {

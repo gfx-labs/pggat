@@ -89,12 +89,28 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter) {
 
 func (T *Pool) ScaleDown(amount int) (remaining int) {
 	remaining = amount
-	// TODO(garet)
+
+	for i := 0; i < amount; i++ {
+		id, _ := T.s.GetIdleWorker()
+		if id == uuid.Nil {
+			break
+		}
+		worker := T.s.RemoveWorker(id)
+		if worker == nil {
+			i--
+			continue
+		}
+		conn := worker.(*Conn)
+		_ = conn.rw.Close()
+		remaining--
+	}
+
 	return
 }
 
 func (T *Pool) IdleSince() time.Time {
-	return time.Time{}
+	_, idle := T.s.GetIdleWorker()
+	return idle
 }
 
 func (T *Pool) ReadSchedulerMetrics(metrics *rob.Metrics) {

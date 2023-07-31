@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"pggat2/lib/gat"
-	"pggat2/lib/gat/pools/session"
+	"pggat2/lib/gat/pools/transaction"
+	"pggat2/lib/rob"
 )
 
 func main() {
@@ -24,7 +25,7 @@ func main() {
 	pooler.AddUser("postgres", postgres)
 
 	// create pool
-	rawPool := session.NewPool()
+	rawPool := transaction.NewPool()
 	pool := gat.NewPool(rawPool)
 	postgres.AddPool("uniswap", pool)
 	pool.AddRecipe("localhost", gat.TCPRecipe{
@@ -36,26 +37,26 @@ func main() {
 		MaxConnections: 5,
 	})
 
+	go func() {
+		var metrics rob.Metrics
+
+		for {
+			time.Sleep(1 * time.Second)
+			rawPool.ReadSchedulerMetrics(&metrics)
+			log.Println(metrics.String())
+		}
+	}()
 	/*
 		go func() {
-			var metrics rob.Metrics
+			var metrics session.Metrics
 
 			for {
 				time.Sleep(1 * time.Second)
-				rawPool.ReadSchedulerMetrics(&metrics)
+				rawPool.ReadMetrics(&metrics)
 				log.Println(metrics.String())
 			}
 		}()
 	*/
-	go func() {
-		var metrics session.Metrics
-
-		for {
-			time.Sleep(1 * time.Second)
-			rawPool.ReadMetrics(&metrics)
-			log.Println(metrics.String())
-		}
-	}()
 
 	log.Println("Listening on :6432")
 

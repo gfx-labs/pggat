@@ -1,6 +1,8 @@
 package schedulers
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 
 	"pggat2/lib/rob"
@@ -29,6 +31,10 @@ func (T *Scheduler) AddWorker(constraints rob.Constraints, worker rob.Worker) uu
 
 func (T *Scheduler) GetWorker(id uuid.UUID) rob.Worker {
 	return T.pool.GetWorker(id)
+}
+
+func (T *Scheduler) GetIdleWorker() (uuid.UUID, time.Time) {
+	return T.pool.GetIdleWorker()
 }
 
 func (T *Scheduler) RemoveWorker(id uuid.UUID) rob.Worker {
