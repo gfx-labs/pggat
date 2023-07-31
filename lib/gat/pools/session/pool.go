@@ -10,6 +10,7 @@ import (
 	"pggat2/lib/gat"
 	"pggat2/lib/util/chans"
 	"pggat2/lib/util/maps"
+	"pggat2/lib/util/ring"
 	"pggat2/lib/zap"
 )
 
@@ -20,7 +21,7 @@ type queueItem struct {
 
 type Pool struct {
 	// use slice lifo for better perf
-	queue []queueItem
+	queue ring.Ring[queueItem]
 	conns map[uuid.UUID]zap.ReadWriter
 	ready sync.Cond
 	qmu   sync.Mutex
@@ -35,25 +36,17 @@ func NewPool() *Pool {
 func (T *Pool) acquire(ctx *gat.Context) (uuid.UUID, zap.ReadWriter) {
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
-	for {
-		if len(T.queue) > 0 {
-			item := T.queue[len(T.queue)-1]
-			T.queue = T.queue[:len(T.queue)-1]
-			conn, ok := T.conns[item.id]
-			if !ok {
-				continue
-			}
-			return item.id, conn
-		}
-		if ctx.OnWait != nil {
-			chans.TrySend(ctx.OnWait, struct{}{})
-		}
+	for T.queue.Length() == 0 {
+		chans.TrySend(ctx.OnWait, struct{}{})
 		T.ready.Wait()
 	}
+
+	entry, _ := T.queue.PopBack()
+	return entry.id, T.conns[entry.id]
 }
 
 func (T *Pool) _release(id uuid.UUID) {
-	T.queue = append(T.queue, queueItem{
+	T.queue.PushBack(queueItem{
 		added: time.Now(),
 		id:    id,
 	})
@@ -118,6 +111,39 @@ func (T *Pool) RemoveServer(id uuid.UUID) zap.ReadWriter {
 	return conn
 }
 
+func (T *Pool) ScaleDown(amount int) (remaining int) {
+	remaining = amount
+
+	T.qmu.Lock()
+	defer T.qmu.Unlock()
+
+	for i := 0; i < amount; i++ {
+		v, ok := T.queue.PopFront()
+		if !ok {
+			break
+		}
+
+		conn, ok := T.conns[v.id]
+		if !ok {
+			continue
+		}
+		delete(T.conns, v.id)
+
+		_ = conn.Close()
+		remaining--
+	}
+
+	return
+}
+
+func (T *Pool) IdleSince() time.Time {
+	T.qmu.Lock()
+	defer T.qmu.Unlock()
+
+	v, _ := T.queue.Get(0)
+	return v.added
+}
+
 func (T *Pool) ReadMetrics(metrics *Metrics) {
 	maps.Clear(metrics.Workers)
 
@@ -128,7 +154,8 @@ func (T *Pool) ReadMetrics(metrics *Metrics) {
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
 
-	for _, item := range T.queue {
+	for i := 0; i < T.queue.Length(); i++ {
+		item, _ := T.queue.Get(i)
 		metrics.Workers[item.id] = WorkerMetrics{
 			LastActive: item.added,
 		}

@@ -1,6 +1,8 @@
 package transaction
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 
 	"pggat2/lib/gat"
@@ -83,6 +85,16 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter) {
 		})
 	}
 	_ = client.Close()
+}
+
+func (T *Pool) ScaleDown(amount int) (remaining int) {
+	remaining = amount
+	// TODO(garet)
+	return
+}
+
+func (T *Pool) IdleSince() time.Time {
+	return time.Time{}
 }
 
 func (T *Pool) ReadSchedulerMetrics(metrics *rob.Metrics) {

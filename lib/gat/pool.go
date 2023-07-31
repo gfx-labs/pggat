@@ -1,12 +1,15 @@
 package gat
 
 import (
+	"errors"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
 	"pggat2/lib/bouncer/backends/v0"
+	"pggat2/lib/util/maps"
 	"pggat2/lib/util/maths"
 	"pggat2/lib/zap"
 )
@@ -21,268 +24,180 @@ type RawPool interface {
 	AddServer(server zap.ReadWriter) uuid.UUID
 	GetServer(id uuid.UUID) zap.ReadWriter
 	RemoveServer(id uuid.UUID) zap.ReadWriter
+
+	ScaleDown(amount int) (remaining int)
+	IdleSince() time.Time
 }
 
-type recipeWithConns struct {
-	recipe Recipe
-
+type PoolRecipe struct {
 	removed bool
-	conns   []uuid.UUID
+	servers []uuid.UUID
 	mu      sync.Mutex
+
+	r Recipe
 }
 
-func (T *recipeWithConns) scaleUp(pool *Pool, currentScale int) bool {
-	if currentScale >= T.recipe.GetMaxConnections() || T.removed {
-		return false
-	}
-
-	T.mu.Unlock()
-	conn, err := T.recipe.Connect()
+func (T *PoolRecipe) connect() (zap.ReadWriter, error) {
+	rw, err := T.r.Connect()
 	if err != nil {
-		log.Printf("Failed to connect: %v", err)
-		T.mu.Lock()
-		return false
+		return nil, err
 	}
-	err2 := backends.Accept(conn, T.recipe.GetUser(), T.recipe.GetPassword(), T.recipe.GetDatabase())
+
+	err2 := backends.Accept(rw, T.r.GetUser(), T.r.GetPassword(), T.r.GetDatabase())
 	if err2 != nil {
-		_ = conn.Close()
-		log.Printf("Failed to connect: %v", err2)
-		T.mu.Lock()
-		return false
+		return nil, errors.New(err2.Message())
 	}
 
-	id := pool.raw.AddServer(conn)
-	T.mu.Lock()
-	T.conns = append(T.conns, id)
-	return true
-}
-
-func (T *recipeWithConns) scaleDown(pool *Pool, currentScale int) bool {
-	if currentScale <= T.recipe.GetMinConnections() || T.removed {
-		return false
-	}
-
-	if len(T.conns) == 0 {
-		// none to close
-		return false
-	}
-
-	id := T.conns[len(T.conns)-1]
-	conn := pool.raw.RemoveServer(id)
-	if conn != nil {
-		_ = conn.Close()
-	}
-	T.conns = T.conns[:len(T.conns)-1]
-	return true
-}
-
-func (T *recipeWithConns) scale(pool *Pool, currentScale int, amount int) int {
-	if T.removed {
-		return amount
-	}
-
-	if amount > 0 {
-		for amount > 0 {
-			if T.scaleUp(pool, currentScale) {
-				amount--
-				currentScale++
-			} else {
-				break
-			}
-		}
-	} else {
-		for amount < 0 {
-			if T.scaleDown(pool, currentScale) {
-				amount++
-				currentScale--
-			} else {
-				break
-			}
-		}
-	}
-	return amount
-}
-
-func (T *recipeWithConns) currentScale(pool *Pool) int {
-	if T.removed {
-		return 0
-	}
-
-	i := 0
-	for j := 0; j < len(T.conns); j++ {
-		if pool.raw.GetServer(T.conns[j]) != nil {
-			T.conns[i] = T.conns[j]
-			i++
-		}
-	}
-
-	T.conns = T.conns[:i]
-	return i
-}
-
-func (T *recipeWithConns) CurrentScale(pool *Pool) int {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	return T.currentScale(pool)
-}
-
-func (T *recipeWithConns) Scale(pool *Pool, amount int) int {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	if T.removed {
-		return amount
-	}
-	currentScale := T.currentScale(pool)
-	return T.scale(pool, currentScale, amount)
-}
-
-func (T *recipeWithConns) setScale(pool *Pool, scale int) {
-	if T.removed {
-		return
-	}
-	target := maths.Clamp(scale, T.recipe.GetMinConnections(), T.recipe.GetMaxConnections())
-	currentScale := T.currentScale(pool)
-	target -= currentScale
-
-	T.scale(pool, currentScale, target)
-}
-
-func (T *recipeWithConns) SetScale(pool *Pool, scale int) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	T.setScale(pool, scale)
-}
-
-func (T *recipeWithConns) Added(pool *Pool) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	T.removed = false
-	T.setScale(pool, 0)
-}
-
-func (T *recipeWithConns) Removed(pool *Pool) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	T.removed = true
-
-	for _, conn := range T.conns {
-		pool.raw.RemoveServer(conn)
-	}
-
-	T.conns = T.conns[:0]
+	return rw, nil
 }
 
 type Pool struct {
-	recipes map[string]*recipeWithConns
-	mu      sync.Mutex
+	recipes maps.RWLocked[string, *PoolRecipe]
 
 	ctx Context
-
 	raw RawPool
 }
 
-func NewPool(rawPool RawPool) *Pool {
+func NewPool(raw RawPool) *Pool {
 	onWait := make(chan struct{})
-
-	p := &Pool{
+	pool := &Pool{
 		ctx: Context{
 			OnWait: onWait,
 		},
-		raw: rawPool,
+		raw: raw,
 	}
 
 	go func() {
 		for range onWait {
-			p.Scale(1)
+			pool.ScaleUp(1)
 		}
 	}()
 
-	return p
-}
+	go func() {
+		for {
+			var wait time.Duration
 
-func (T *Pool) Serve(client zap.ReadWriter) {
-	T.raw.Serve(&T.ctx, client)
-}
-
-func (T *Pool) CurrentScale() int {
-	T.mu.Lock()
-	recipes := make([]*recipeWithConns, 0, len(T.recipes))
-	for _, recipe := range T.recipes {
-		recipes = append(recipes, recipe)
-	}
-	T.mu.Unlock()
-
-	scale := 0
-	for _, recipe := range recipes {
-		scale += recipe.CurrentScale(T)
-	}
-	return scale
-}
-
-func (T *Pool) Scale(amount int) {
-	T.mu.Lock()
-	recipes := make([]*recipeWithConns, 0, len(T.recipes))
-	for _, recipe := range T.recipes {
-		recipes = append(recipes, recipe)
-	}
-	T.mu.Unlock()
-
-outer:
-	for len(recipes) > 0 {
-		j := 0
-		for i := 0; i < len(recipes); i++ {
-			recipe := recipes[i]
-			if amount > 0 {
-				if recipe.Scale(T, 1) == 0 {
-					amount--
-					recipes[j] = recipes[i]
-					j++
+			now := time.Now()
+			idle := pool.IdleSince()
+			for now.Sub(idle) > 15*time.Second {
+				if idle == (time.Time{}) {
+					break
 				}
-			} else if amount < 0 {
-				if recipe.Scale(T, -1) == 0 {
-					amount++
-					recipes[j] = recipes[i]
-					j++
-				}
-			} else {
-				break outer
+				pool.ScaleDown(1)
+				idle = pool.IdleSince()
 			}
+
+			if idle == (time.Time{}) {
+				wait = 15 * time.Second
+			} else {
+				wait = now.Sub(idle.Add(15 * time.Second))
+			}
+
+			time.Sleep(wait)
 		}
-		recipes = recipes[:j]
+	}()
+
+	return pool
+}
+
+func (T *Pool) tryAddServers(recipe *PoolRecipe, amount int) (remaining int) {
+	recipe.mu.Lock()
+	defer recipe.mu.Unlock()
+
+	remaining = amount
+
+	if recipe.removed {
+		return
 	}
+
+	j := 0
+	for i := 0; i < len(recipe.servers); i++ {
+		if T.raw.GetServer(recipe.servers[i]) != nil {
+			recipe.servers[j] = recipe.servers[i]
+			j++
+		}
+	}
+	recipe.servers = recipe.servers[:j]
+
+	max := maths.Min(recipe.r.GetMaxConnections()-j, amount)
+	for i := 0; i < max; i++ {
+		conn, err := recipe.connect()
+		if err != nil {
+			log.Printf("error connecting to server: %v", err)
+			continue
+		}
+
+		id := T.raw.AddServer(conn)
+		recipe.servers = append(recipe.servers, id)
+		remaining--
+	}
+
+	return
+}
+
+func (T *Pool) addRecipe(recipe *PoolRecipe) {
+	recipe.mu.Lock()
+	defer recipe.mu.Unlock()
+
+	recipe.removed = false
+	min := recipe.r.GetMinConnections() - len(recipe.servers)
+	for i := 0; i < min; i++ {
+		conn, err := recipe.connect()
+		if err != nil {
+			log.Printf("error connecting to server: %v", err)
+			continue
+		}
+
+		id := T.raw.AddServer(conn)
+		recipe.servers = append(recipe.servers, id)
+	}
+}
+
+func (T *Pool) removeRecipe(recipe *PoolRecipe) {
+	recipe.mu.Lock()
+	defer recipe.mu.Unlock()
+
+	recipe.removed = true
+	for _, id := range recipe.servers {
+		T.raw.RemoveServer(id)
+	}
+
+	recipe.servers = recipe.servers[:0]
+}
+
+func (T *Pool) ScaleUp(amount int) (remaining int) {
+	remaining = amount
+	T.recipes.Range(func(_ string, r *PoolRecipe) bool {
+		remaining = T.tryAddServers(r, remaining)
+		return remaining != 0
+	})
+	return remaining
+}
+
+func (T *Pool) ScaleDown(amount int) (remaining int) {
+	return T.raw.ScaleDown(amount)
+}
+
+func (T *Pool) IdleSince() time.Time {
+	return T.raw.IdleSince()
 }
 
 func (T *Pool) AddRecipe(name string, recipe Recipe) {
-	r := &recipeWithConns{
-		recipe: recipe,
+	r := &PoolRecipe{
+		r: recipe,
 	}
-	r.Added(T)
-
-	T.mu.Lock()
-	old, ok := T.recipes[name]
-	if T.recipes == nil {
-		T.recipes = make(map[string]*recipeWithConns)
-	}
-	T.recipes[name] = r
-	T.mu.Unlock()
-
-	if ok {
-		old.Removed(T)
+	T.addRecipe(r)
+	if old, ok := T.recipes.Swap(name, r); ok {
+		T.removeRecipe(old)
 	}
 }
 
 func (T *Pool) RemoveRecipe(name string) {
-	T.mu.Lock()
-	r, ok := T.recipes[name]
-	delete(T.recipes, name)
-	T.mu.Unlock()
-
-	if ok {
-		r.Removed(T)
+	if r, ok := T.recipes.LoadAndDelete(name); ok {
+		T.removeRecipe(r)
 	}
+}
+
+func (T *Pool) Serve(client zap.ReadWriter) {
+	T.raw.Serve(&T.ctx, client)
 }

@@ -61,3 +61,16 @@ func (T *RWLocked[K, V]) Swap(key K, value V) (previous V, loaded bool) {
 	T.inner[key] = value
 	return
 }
+
+func (T *RWLocked[K, V]) Range(fn func(key K, value V) bool) bool {
+	T.mu.RLock()
+	for k, v := range T.inner {
+		T.mu.RUnlock()
+		if !fn(k, v) {
+			return false
+		}
+		T.mu.RLock()
+	}
+	T.mu.RUnlock()
+	return true
+}
