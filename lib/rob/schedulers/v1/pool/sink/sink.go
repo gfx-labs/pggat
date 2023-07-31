@@ -59,7 +59,11 @@ func (T *Sink) setActive(source uuid.UUID) {
 		panic("set active called when another was active")
 	}
 	now := time.Now()
-	T.idle += now.Sub(T.start)
+	start := T.start
+	if start.Before(T.lastMetricsRead) {
+		start = T.lastMetricsRead
+	}
+	T.idle += now.Sub(start)
 	T.active = source
 	T.start = now
 }
@@ -285,14 +289,23 @@ func (T *Sink) ReadMetrics(metrics *rob.Metrics) {
 
 	now := time.Now()
 
-	if T.active == uuid.Nil {
-		T.idle += now.Sub(T.start)
-		T.start = now
-	}
+	var lastActive time.Time
 
 	dur := now.Sub(T.lastMetricsRead)
 
+	if T.active == uuid.Nil {
+		lastActive = T.start
+
+		start := T.start
+		if start.Before(T.lastMetricsRead) {
+			start = T.lastMetricsRead
+		}
+		T.idle += now.Sub(start)
+	}
+
 	metrics.Workers[T.id] = rob.WorkerMetrics{
+		LastActive: lastActive,
+
 		Idle:   T.idle,
 		Active: dur - T.idle,
 	}

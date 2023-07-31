@@ -8,6 +8,8 @@ import (
 )
 
 type WorkerMetrics struct {
+	LastActive time.Time
+
 	Idle   time.Duration
 	Active time.Duration
 }

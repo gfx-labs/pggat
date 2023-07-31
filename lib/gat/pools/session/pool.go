@@ -2,57 +2,69 @@ package session
 
 import (
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
 	"pggat2/lib/bouncer/bouncers/v2"
 	"pggat2/lib/gat"
 	"pggat2/lib/util/chans"
+	"pggat2/lib/util/maps"
 	"pggat2/lib/zap"
 )
 
+type queueItem struct {
+	added time.Time
+	id    uuid.UUID
+}
+
 type Pool struct {
 	// use slice lifo for better perf
-	queue []uuid.UUID
+	queue []queueItem
 	conns map[uuid.UUID]zap.ReadWriter
-	qmu   sync.RWMutex
-
-	signal chan struct{}
+	ready sync.Cond
+	qmu   sync.Mutex
 }
 
 func NewPool() *Pool {
-	return &Pool{
-		signal: make(chan struct{}),
-	}
+	p := &Pool{}
+	p.ready.L = &p.qmu
+	return p
 }
 
 func (T *Pool) acquire(ctx *gat.Context) (uuid.UUID, zap.ReadWriter) {
+	T.qmu.Lock()
+	defer T.qmu.Unlock()
 	for {
-		T.qmu.Lock()
 		if len(T.queue) > 0 {
-			id := T.queue[len(T.queue)-1]
+			item := T.queue[len(T.queue)-1]
 			T.queue = T.queue[:len(T.queue)-1]
-			conn, ok := T.conns[id]
-			T.qmu.Unlock()
+			conn, ok := T.conns[item.id]
 			if !ok {
 				continue
 			}
-			return id, conn
+			return item.id, conn
 		}
-		T.qmu.Unlock()
 		if ctx.OnWait != nil {
 			chans.TrySend(ctx.OnWait, struct{}{})
 		}
-		<-T.signal
+		T.ready.Wait()
 	}
+}
+
+func (T *Pool) _release(id uuid.UUID) {
+	T.queue = append(T.queue, queueItem{
+		added: time.Now(),
+		id:    id,
+	})
+
+	T.ready.Signal()
 }
 
 func (T *Pool) release(id uuid.UUID) {
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
-	T.queue = append(T.queue, id)
-
-	chans.TrySend(T.signal, struct{}{})
+	T._release(id)
 }
 
 func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter) {
@@ -83,7 +95,7 @@ func (T *Pool) AddServer(server zap.ReadWriter) uuid.UUID {
 		T.conns = make(map[uuid.UUID]zap.ReadWriter)
 	}
 	T.conns[id] = server
-	T.queue = append(T.queue, id)
+	T._release(id)
 	return id
 }
 
@@ -107,7 +119,26 @@ func (T *Pool) RemoveServer(id uuid.UUID) zap.ReadWriter {
 }
 
 func (T *Pool) ReadMetrics(metrics *Metrics) {
-	// TODO(garet) metrics
+	maps.Clear(metrics.Workers)
+
+	if metrics.Workers == nil {
+		metrics.Workers = make(map[uuid.UUID]WorkerMetrics)
+	}
+
+	T.qmu.Lock()
+	defer T.qmu.Unlock()
+
+	for _, item := range T.queue {
+		metrics.Workers[item.id] = WorkerMetrics{
+			LastActive: item.added,
+		}
+	}
+
+	for id := range T.conns {
+		if _, ok := metrics.Workers[id]; !ok {
+			metrics.Workers[id] = WorkerMetrics{}
+		}
+	}
 }
 
 var _ gat.RawPool = (*Pool)(nil)
