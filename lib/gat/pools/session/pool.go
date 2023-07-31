@@ -20,6 +20,8 @@ type queueItem struct {
 }
 
 type Pool struct {
+	roundRobin bool
+
 	// use slice lifo for better perf
 	queue ring.Ring[queueItem]
 	conns map[uuid.UUID]zap.ReadWriter
@@ -27,8 +29,13 @@ type Pool struct {
 	qmu   sync.Mutex
 }
 
-func NewPool() *Pool {
-	p := &Pool{}
+// NewPool creates a new session pool.
+// roundRobin determines which order connections will be chosen. If roundRobin = false, connections are handled lifo,
+// otherwise they are chosen fifo
+func NewPool(roundRobin bool) *Pool {
+	p := &Pool{
+		roundRobin: roundRobin,
+	}
 	p.ready.L = &p.qmu
 	return p
 }
@@ -41,7 +48,12 @@ func (T *Pool) acquire(ctx *gat.Context) (uuid.UUID, zap.ReadWriter) {
 		T.ready.Wait()
 	}
 
-	entry, _ := T.queue.PopBack()
+	var entry queueItem
+	if T.roundRobin {
+		entry, _ = T.queue.PopFront()
+	} else {
+		entry, _ = T.queue.PopBack()
+	}
 	return entry.id, T.conns[entry.id]
 }
 
