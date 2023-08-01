@@ -159,7 +159,9 @@ func (T *Pool) removeRecipe(recipe *PoolRecipe) {
 
 	recipe.removed = true
 	for _, id := range recipe.servers {
-		T.raw.RemoveServer(id)
+		if conn := T.raw.RemoveServer(id); conn != nil {
+			_ = conn.Close()
+		}
 	}
 
 	recipe.servers = recipe.servers[:0]
