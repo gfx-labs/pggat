@@ -59,7 +59,7 @@ func (T *Pool) RemoveServer(id uuid.UUID) zap.ReadWriter {
 	return conn.(*Conn).rw
 }
 
-func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter) {
+func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, _ map[string]string) {
 	source := T.s.NewSource()
 	eqpc := eqp.NewClient()
 	defer eqpc.Done()

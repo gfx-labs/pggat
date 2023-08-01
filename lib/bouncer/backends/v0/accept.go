@@ -1,64 +1,65 @@
 package backends
 
 import (
+	"errors"
+
 	"pggat2/lib/auth/md5"
 	"pggat2/lib/auth/sasl"
-	"pggat2/lib/perror"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
-func authenticationSASLChallenge(server zap.ReadWriter, mechanism sasl.Client) (done bool, err perror.Error) {
+func authenticationSASLChallenge(server zap.ReadWriter, mechanism sasl.Client) (done bool, err error) {
 	packet := zap.NewPacket()
 	defer packet.Done()
-	err = perror.Wrap(server.Read(packet))
+	err = server.Read(packet)
 	if err != nil {
 		return
 	}
 	read := packet.Read()
 
 	if read.ReadType() != packets.Authentication {
-		err = packets.ErrUnexpectedPacket
+		err = ErrUnexpectedPacket
 		return
 	}
 
 	method, ok := read.ReadInt32()
 	if !ok {
-		err = packets.ErrBadFormat
+		err = ErrBadFormat
 		return
 	}
 
 	switch method {
 	case 11:
 		// challenge
-		response, err2 := mechanism.Continue(read.ReadUnsafeRemaining())
-		if err2 != nil {
-			err = perror.Wrap(err2)
+		var response []byte
+		response, err = mechanism.Continue(read.ReadUnsafeRemaining())
+		if err != nil {
 			return
 		}
 
 		packets.WriteAuthenticationResponse(packet, response)
 
-		err = perror.Wrap(server.Write(packet))
+		err = server.Write(packet)
 		return
 	case 12:
 		// finish
-		err = perror.Wrap(mechanism.Final(read.ReadUnsafeRemaining()))
+		err = mechanism.Final(read.ReadUnsafeRemaining())
 		if err != nil {
 			return
 		}
 
 		return true, nil
 	default:
-		err = packets.ErrUnexpectedPacket
+		err = ErrUnexpectedPacket
 		return
 	}
 }
 
-func authenticationSASL(server zap.ReadWriter, mechanisms []string, username, password string) perror.Error {
+func authenticationSASL(server zap.ReadWriter, mechanisms []string, username, password string) error {
 	mechanism, err := sasl.NewClient(mechanisms, username, password)
 	if err != nil {
-		return perror.Wrap(err)
+		return err
 	}
 	initialResponse := mechanism.InitialResponse()
 
@@ -67,12 +68,13 @@ func authenticationSASL(server zap.ReadWriter, mechanisms []string, username, pa
 	packets.WriteSASLInitialResponse(packet, mechanism.Name(), initialResponse)
 	err = server.Write(packet)
 	if err != nil {
-		return perror.Wrap(err)
+		return err
 	}
 
 	// challenge loop
 	for {
-		done, err := authenticationSASLChallenge(server, mechanism)
+		var done bool
+		done, err = authenticationSASLChallenge(server, mechanism)
 		if err != nil {
 			return err
 		}
@@ -84,32 +86,32 @@ func authenticationSASL(server zap.ReadWriter, mechanisms []string, username, pa
 	return nil
 }
 
-func authenticationMD5(server zap.ReadWriter, salt [4]byte, username, password string) perror.Error {
+func authenticationMD5(server zap.ReadWriter, salt [4]byte, username, password string) error {
 	packet := zap.NewPacket()
 	defer packet.Done()
 	packets.WritePasswordMessage(packet, md5.Encode(username, password, salt))
 	err := server.Write(packet)
 	if err != nil {
-		return perror.Wrap(err)
+		return err
 	}
 	return nil
 }
 
-func authenticationCleartext(server zap.ReadWriter, password string) perror.Error {
+func authenticationCleartext(server zap.ReadWriter, password string) error {
 	packet := zap.NewPacket()
 	defer packet.Done()
 	packets.WritePasswordMessage(packet, password)
 	err := server.Write(packet)
 	if err != nil {
-		return perror.Wrap(err)
+		return err
 	}
 	return nil
 }
 
-func startup0(server zap.ReadWriter, username, password string) (done bool, err perror.Error) {
+func startup0(server zap.ReadWriter, username, password string) (done bool, err error) {
 	packet := zap.NewPacket()
 	defer packet.Done()
-	err = perror.Wrap(server.Read(packet))
+	err = server.Read(packet)
 	if err != nil {
 		return
 	}
@@ -117,17 +119,18 @@ func startup0(server zap.ReadWriter, username, password string) (done bool, err 
 
 	switch read.ReadType() {
 	case packets.ErrorResponse:
-		var ok bool
-		err, ok = packets.ReadErrorResponse(&read)
+		err2, ok := packets.ReadErrorResponse(&read)
 		if !ok {
-			err = packets.ErrBadFormat
+			err = ErrBadFormat
+		} else {
+			err = errors.New(err2.String())
 		}
 		return
 	case packets.Authentication:
 		read2 := read
 		method, ok := read2.ReadInt32()
 		if !ok {
-			err = packets.ErrBadFormat
+			err = ErrBadFormat
 			return
 		}
 		// they have more authentication methods than there are pokemon
@@ -136,77 +139,53 @@ func startup0(server zap.ReadWriter, username, password string) (done bool, err 
 			// we're good to go, that was easy
 			return true, nil
 		case 2:
-			err = perror.New(
-				perror.FATAL,
-				perror.FeatureNotSupported,
-				"kerberos v5 is not supported",
-			)
+			err = errors.New("kerberos v5 is not supported")
 			return
 		case 3:
 			return false, authenticationCleartext(server, password)
 		case 5:
 			salt, ok := packets.ReadAuthenticationMD5(&read)
 			if !ok {
-				err = packets.ErrBadFormat
+				err = ErrBadFormat
 				return
 			}
 			return false, authenticationMD5(server, salt, username, password)
 		case 6:
-			err = perror.New(
-				perror.FATAL,
-				perror.FeatureNotSupported,
-				"scm credential is not supported",
-			)
+			err = errors.New("scm credential is not supported")
 			return
 		case 7:
-			err = perror.New(
-				perror.FATAL,
-				perror.FeatureNotSupported,
-				"gss is not supported",
-			)
+			err = errors.New("gss is not supported")
 			return
 		case 9:
-			err = perror.New(
-				perror.FATAL,
-				perror.FeatureNotSupported,
-				"sspi is not supported",
-			)
+			err = errors.New("sspi is not supported")
 			return
 		case 10:
 			// read list of mechanisms
 			mechanisms, ok := packets.ReadAuthenticationSASL(&read)
 			if !ok {
-				err = packets.ErrBadFormat
+				err = ErrBadFormat
 				return
 			}
 
 			return false, authenticationSASL(server, mechanisms, username, password)
 		default:
-			err = perror.New(
-				perror.FATAL,
-				perror.FeatureNotSupported,
-				"unknown authentication method",
-			)
+			err = errors.New("unknown authentication method")
 			return
 		}
 	case packets.NegotiateProtocolVersion:
 		// we only support protocol 3.0 for now
-		err = perror.New(
-			perror.FATAL,
-			perror.FeatureNotSupported,
-			"server wanted to negotiate protocol version",
-		)
+		err = errors.New("server wanted to negotiate protocol version")
 		return
 	default:
-		err = packets.ErrUnexpectedPacket
+		err = ErrUnexpectedPacket
 		return
 	}
 }
 
-func startup1(server zap.ReadWriter) (done bool, err perror.Error) {
+func startup1(server zap.ReadWriter) (done bool, err error) {
 	packet := zap.NewPacket()
 	defer packet.Done()
-	err = perror.Wrap(server.Read(packet))
+	err = server.Read(packet)
 	if err != nil {
 		return
 	}
@@ -217,7 +196,7 @@ func startup1(server zap.ReadWriter) (done bool, err perror.Error) {
 		var cancellationKey [8]byte
 		ok := read.ReadBytes(cancellationKey[:])
 		if !ok {
-			err = packets.ErrBadFormat
+			err = ErrBadFormat
 			return
 		}
 		// TODO(garet) put cancellation key somewhere
@@ -227,22 +206,23 @@ func startup1(server zap.ReadWriter) (done bool, err perror.Error) {
 	case packets.ReadyForQuery:
 		return true, nil
 	case packets.ErrorResponse:
-		var ok bool
-		err, ok = packets.ReadErrorResponse(&read)
+		err2, ok := packets.ReadErrorResponse(&read)
 		if !ok {
-			err = packets.ErrBadFormat
+			err = ErrBadFormat
+		} else {
+			err = errors.New(err2.String())
 		}
 		return
 	case packets.NoticeResponse:
 		// TODO(garet) do something with notice
 		return false, nil
 	default:
-		err = packets.ErrUnexpectedPacket
+		err = ErrUnexpectedPacket
 		return false, err
 	}
 }
 
-func Accept(server zap.ReadWriter, username, password, database string) perror.Error {
+func Accept(server zap.ReadWriter, username, password, database string) error {
 	if database == "" {
 		database = username
 	}
@@ -257,13 +237,14 @@ func Accept(server zap.ReadWriter, username, password, database string) perror.E
 	packet.WriteString(database)
 	packet.WriteString("")
 
-	err := perror.Wrap(server.WriteUntyped(packet))
+	err := server.WriteUntyped(packet)
 	if err != nil {
 		return err
 	}
 
 	for {
-		done, err := startup0(server, username, password)
+		var done bool
+		done, err = startup0(server, username, password)
 		if err != nil {
 			return err
 		}
@@ -273,7 +254,8 @@ func Accept(server zap.ReadWriter, username, password, database string) perror.E
 	}
 
 	for {
-		done, err := startup1(server)
+		var done bool
+		done, err = startup1(server)
 		if err != nil {
 			return err
 		}

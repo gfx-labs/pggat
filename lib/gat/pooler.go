@@ -10,23 +10,6 @@ import (
 	"pggat2/lib/zap"
 )
 
-var DefaultParameterStatus = map[string]string{
-	// TODO(garet) we should just get these from the first server connection
-	"DateStyle":                     "ISO, MDY",
-	"IntervalStyle":                 "postgres",
-	"TimeZone":                      "America/Chicago",
-	"application_name":              "",
-	"client_encoding":               "UTF8",
-	"default_transaction_read_only": "off",
-	"in_hot_standby":                "off",
-	"integer_datetimes":             "on",
-	"is_superuser":                  "on",
-	"server_encoding":               "UTF8",
-	"server_version":                "14.5",
-	"session_authorization":         "postgres",
-	"standard_conforming_strings":   "on",
-}
-
 type Pooler struct {
 	users maps.RWLocked[string, *User]
 }
@@ -54,7 +37,7 @@ func (T *Pooler) Serve(client zap.ReadWriter) {
 		unterminate.Unterminate,
 	)
 
-	username, database, err := frontends.Accept(client, func(username, database string) (string, bool) {
+	username, database, startupParameters, err := frontends.Accept(client, func(username, database string) (string, bool) {
 		user := T.GetUser(username)
 		if user == nil {
 			return "", false
@@ -64,7 +47,7 @@ func (T *Pooler) Serve(client zap.ReadWriter) {
 			return "", false
 		}
 		return user.GetPassword(), true
-	}, DefaultParameterStatus)
+	})
 	if err != nil {
 		_ = client.Close()
 		return
@@ -82,7 +65,7 @@ func (T *Pooler) Serve(client zap.ReadWriter) {
 		return
 	}
 
-	pool.Serve(client)
+	pool.Serve(client, startupParameters)
 }
 
 func (T *Pooler) ListenAndServe(address string) error {

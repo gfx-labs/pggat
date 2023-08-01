@@ -10,7 +10,7 @@ import (
 	"pggat2/lib/zap/packets/v3.0"
 )
 
-func startup0(client zap.ReadWriter) (user, database string, done bool, err perror.Error) {
+func startup0(client zap.ReadWriter, startupParameters map[string]string) (user, database string, done bool, err perror.Error) {
 	packet := zap.NewUntypedPacket()
 	defer packet.Done()
 	err = perror.Wrap(client.ReadUntyped(packet))
@@ -92,12 +92,32 @@ func startup0(client zap.ReadWriter) (user, database string, done bool, err perr
 		case "database":
 			database = value
 		case "options":
-			err = perror.New(
-				perror.FATAL,
-				perror.FeatureNotSupported,
-				"Startup options are not supported yet",
-			)
-			return
+			fields := strings.Fields(value)
+			for i := 0; i < len(fields); i++ {
+				switch fields[i] {
+				case "-c":
+					i++
+					set := fields[i]
+					key, value, ok = strings.Cut(set, "=")
+					if !ok {
+						err = perror.New(
+							perror.FATAL,
+							perror.ProtocolViolation,
+							"Expected key=value",
+						)
+						return
+					}
+
+					startupParameters[key] = value
+				default:
+					err = perror.New(
+						perror.FATAL,
+						perror.FeatureNotSupported,
+						"Flag not supported, sorry",
+					)
+					return
+				}
+			}
 		case "replication":
 			err = perror.New(
 				perror.FATAL,
@@ -242,10 +262,12 @@ func updateParameter(pkts *zap.Packets, name, value string) {
 	pkts.Append(packet)
 }
 
-func accept(client zap.ReadWriter, getPassword func(user, database string) (string, bool), initialParameterStatus map[string]string) (user string, database string, err perror.Error) {
+func accept(client zap.ReadWriter, getPassword func(user, database string) (string, bool)) (user string, database string, startupParameters map[string]string, err perror.Error) {
+	startupParameters = make(map[string]string)
+
 	for {
 		var done bool
-		user, database, done, err = startup0(client)
+		user, database, done, err = startup0(client, startupParameters)
 		if err != nil {
 			return
 		}
@@ -277,10 +299,6 @@ func accept(client zap.ReadWriter, getPassword func(user, database string) (stri
 	packets.WriteAuthenticationOk(packet)
 	pkts.Append(packet)
 
-	for name, value := range initialParameterStatus {
-		updateParameter(pkts, name, value)
-	}
-
 	// send backend key data
 	var cancellationKey [8]byte
 	_, err2 := rand.Read(cancellationKey[:])
@@ -291,11 +309,6 @@ func accept(client zap.ReadWriter, getPassword func(user, database string) (stri
 
 	packet = zap.NewPacket()
 	packets.WriteBackendKeyData(packet, cancellationKey)
-	pkts.Append(packet)
-
-	// send ready for query
-	packet = zap.NewPacket()
-	packets.WriteReadyForQuery(packet, 'I')
 	pkts.Append(packet)
 
 	err = perror.Wrap(client.WriteV(pkts))
@@ -313,8 +326,8 @@ func fail(client zap.ReadWriter, err perror.Error) {
 	_ = client.Write(packet)
 }
 
-func Accept(client zap.ReadWriter, getPassword func(user, database string) (string, bool), initialParameterStatus map[string]string) (user, database string, err perror.Error) {
-	user, database, err = accept(client, getPassword, initialParameterStatus)
+func Accept(client zap.ReadWriter, getPassword func(user, database string) (string, bool)) (user, database string, startupParameters map[string]string, err perror.Error) {
+	user, database, startupParameters, err = accept(client, getPassword)
 	if err != nil {
 		fail(client, err)
 	}

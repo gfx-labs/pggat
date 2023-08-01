@@ -1,7 +1,6 @@
 package gat
 
 import (
-	"errors"
 	"log"
 	"sync"
 	"time"
@@ -19,7 +18,7 @@ type Context struct {
 }
 
 type RawPool interface {
-	Serve(ctx *Context, client zap.ReadWriter)
+	Serve(ctx *Context, client zap.ReadWriter, startupParameters map[string]string)
 
 	AddServer(server zap.ReadWriter) uuid.UUID
 	GetServer(id uuid.UUID) zap.ReadWriter
@@ -43,9 +42,9 @@ func (T *PoolRecipe) connect() (zap.ReadWriter, error) {
 		return nil, err
 	}
 
-	err2 := backends.Accept(rw, T.r.GetUser(), T.r.GetPassword(), T.r.GetDatabase())
-	if err2 != nil {
-		return nil, errors.New(err2.Message())
+	err = backends.Accept(rw, T.r.GetUser(), T.r.GetPassword(), T.r.GetDatabase())
+	if err != nil {
+		return nil, err
 	}
 
 	return rw, nil
@@ -200,6 +199,6 @@ func (T *Pool) RemoveRecipe(name string) {
 	}
 }
 
-func (T *Pool) Serve(client zap.ReadWriter) {
-	T.raw.Serve(&T.ctx, client)
+func (T *Pool) Serve(client zap.ReadWriter, startupParameters map[string]string) {
+	T.raw.Serve(&T.ctx, client, startupParameters)
 }

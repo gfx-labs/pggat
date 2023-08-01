@@ -5,4 +5,5 @@ type Error interface {
 	Code() Code
 	Message() string
 	Extra() []ExtraField
+	String() string
 }

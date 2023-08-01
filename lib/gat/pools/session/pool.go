@@ -1,11 +1,13 @@
 package session
 
 import (
+	"log"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
+	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/bouncers/v2"
 	"pggat2/lib/gat"
 	"pggat2/lib/util/chans"
@@ -66,20 +68,31 @@ func (T *Pool) _release(id uuid.UUID) {
 	T.ready.Signal()
 }
 
-func (T *Pool) release(id uuid.UUID) {
+func (T *Pool) release(id uuid.UUID, server zap.ReadWriter) {
+	// reset session state
+	err := backends.Query(server, "DISCARD ALL")
+	if err != nil {
+		_ = server.Close()
+		return
+	}
+
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
 	T._release(id)
 }
 
-func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter) {
+func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, startupParameters map[string]string) {
 	id, server := T.acquire(ctx)
+
+	// TODO(garet) set startup parameters
+	log.Println(startupParameters)
+
 	for {
 		clientErr, serverErr := bouncers.Bounce(client, server)
 		if clientErr != nil || serverErr != nil {
 			_ = client.Close()
 			if serverErr == nil {
-				T.release(id)
+				T.release(id, server)
 			} else {
 				_ = server.Close()
 				T.qmu.Lock()
