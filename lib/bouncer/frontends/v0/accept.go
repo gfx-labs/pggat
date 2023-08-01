@@ -311,6 +311,11 @@ func accept(client zap.ReadWriter, getPassword func(user, database string) (stri
 	packets.WriteBackendKeyData(packet, cancellationKey)
 	pkts.Append(packet)
 
+	// send ready for query
+	packet = zap.NewPacket()
+	packets.WriteReadyForQuery(packet, 'I')
+	pkts.Append(packet)
+
 	err = perror.Wrap(client.WriteV(pkts))
 	if err != nil {
 		return
