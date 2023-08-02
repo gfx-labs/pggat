@@ -7,8 +7,7 @@ import (
 	"time"
 
 	"pggat2/lib/gat"
-	"pggat2/lib/gat/pools/transaction"
-	"pggat2/lib/rob"
+	"pggat2/lib/gat/pools/session"
 )
 
 func main() {
@@ -25,11 +24,24 @@ func main() {
 	pooler.AddUser("postgres", postgres)
 
 	// create pool
-	rawPool := transaction.NewPool()
+	{
+		rawPool := session.NewPool(false)
+		pool := gat.NewPool(rawPool, 15*time.Second)
+		postgres.AddPool("postgres", pool)
+		pool.AddRecipe("localhost", gat.TCPRecipe{
+			Database:       "postgres",
+			Address:        "localhost:5432",
+			User:           "postgres",
+			Password:       "password",
+			MinConnections: 0,
+			MaxConnections: 5,
+		})
+	}
+	rawPool := session.NewPool(false)
 	pool := gat.NewPool(rawPool, 15*time.Second)
-	postgres.AddPool("uniswap", pool)
+	postgres.AddPool("regression", pool)
 	pool.AddRecipe("localhost", gat.TCPRecipe{
-		Database:       "uniswap",
+		Database:       "regression",
 		Address:        "localhost:5432",
 		User:           "postgres",
 		Password:       "password",
@@ -37,26 +49,26 @@ func main() {
 		MaxConnections: 5,
 	})
 
-	go func() {
-		var metrics rob.Metrics
-
-		for {
-			time.Sleep(1 * time.Second)
-			rawPool.ReadSchedulerMetrics(&metrics)
-			log.Println(metrics.String())
-		}
-	}()
 	/*
 		go func() {
-			var metrics session.Metrics
+			var metrics rob.Metrics
 
 			for {
 				time.Sleep(1 * time.Second)
-				rawPool.ReadMetrics(&metrics)
+				rawPool.ReadSchedulerMetrics(&metrics)
 				log.Println(metrics.String())
 			}
 		}()
 	*/
+	go func() {
+		var metrics session.Metrics
+
+		for {
+			time.Sleep(1 * time.Second)
+			rawPool.ReadMetrics(&metrics)
+			log.Println(metrics.String())
+		}
+	}()
 
 	log.Println("Listening on :6432")
 

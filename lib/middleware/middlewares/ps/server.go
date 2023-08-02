@@ -14,10 +14,42 @@ type Server struct {
 	middleware.Nil
 }
 
-func NewServer() *Server {
+func NewServer(parameters map[string]string) *Server {
 	return &Server{
-		parameters: make(map[string]string),
+		parameters: parameters,
 	}
+}
+
+func (T *Server) syncParameter(pkts *zap.Packets, ps *Client, name, expected string) {
+	packet := zap.NewPacket()
+	packets.WriteParameterStatus(packet, name, expected)
+	pkts.Append(packet)
+
+	ps.parameters[name] = expected
+}
+
+func (T *Server) Sync(client zap.ReadWriter, ps *Client) error {
+	pkts := zap.NewPackets()
+	defer pkts.Done()
+
+	for name, value := range ps.parameters {
+		expected := T.parameters[name]
+		if value == expected {
+			continue
+		}
+
+		T.syncParameter(pkts, ps, name, expected)
+	}
+
+	for name, expected := range T.parameters {
+		if T.parameters[name] == expected {
+			continue
+		}
+
+		T.syncParameter(pkts, ps, name, expected)
+	}
+
+	return client.WriteV(pkts)
 }
 
 func (T *Server) Read(_ middleware.Context, in *zap.Packet) error {

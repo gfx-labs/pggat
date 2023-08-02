@@ -16,7 +16,14 @@ type Conn struct {
 
 func (T *Conn) Do(ctx *rob.Context, work any) {
 	job := work.(Work)
-	job.ps.SetServer(T.ps)
+
+	// sync parameters
+	err := T.ps.Sync(job.rw, job.ps)
+	if err != nil {
+		_ = job.rw.Close()
+		return
+	}
+
 	T.eqp.SetClient(job.eqp)
 	clientErr, serverErr := bouncers.Bounce(job.rw, T.rw)
 	if clientErr != nil || serverErr != nil {

@@ -130,7 +130,7 @@ func startup0(client zap.ReadWriter, startupParameters map[string]string) (user,
 				// we don't support protocol extensions at the moment
 				unsupportedOptions = append(unsupportedOptions, key)
 			} else {
-				// TODO(garet) do something with this parameter
+				startupParameters[key] = value
 			}
 		}
 	}
@@ -310,6 +310,10 @@ func accept(client zap.ReadWriter, getPassword func(user, database string) (stri
 	packet = zap.NewPacket()
 	packets.WriteBackendKeyData(packet, cancellationKey)
 	pkts.Append(packet)
+
+	updateParameter(pkts, "client_encoding", "UTF8")
+	updateParameter(pkts, "server_encoding", "UTF8")
+	updateParameter(pkts, "server_version", "14.5")
 
 	// send ready for query
 	packet = zap.NewPacket()

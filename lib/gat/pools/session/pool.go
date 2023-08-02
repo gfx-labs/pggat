@@ -1,7 +1,6 @@
 package session
 
 import (
-	"log"
 	"sync"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"pggat2/lib/util/maps"
 	"pggat2/lib/util/ring"
 	"pggat2/lib/zap"
+	packets "pggat2/lib/zap/packets/v3.0"
 )
 
 type queueItem struct {
@@ -26,7 +26,7 @@ type Pool struct {
 
 	// use slice lifo for better perf
 	queue ring.Ring[queueItem]
-	conns map[uuid.UUID]zap.ReadWriter
+	conns map[uuid.UUID]Conn
 	ready sync.Cond
 	qmu   sync.Mutex
 }
@@ -42,7 +42,7 @@ func NewPool(roundRobin bool) *Pool {
 	return p
 }
 
-func (T *Pool) acquire(ctx *gat.Context) (uuid.UUID, zap.ReadWriter) {
+func (T *Pool) acquire(ctx *gat.Context) Conn {
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
 	for T.queue.Length() == 0 {
@@ -56,7 +56,7 @@ func (T *Pool) acquire(ctx *gat.Context) (uuid.UUID, zap.ReadWriter) {
 	} else {
 		entry, _ = T.queue.PopBack()
 	}
-	return entry.id, T.conns[entry.id]
+	return T.conns[entry.id]
 }
 
 func (T *Pool) _release(id uuid.UUID) {
@@ -68,35 +68,59 @@ func (T *Pool) _release(id uuid.UUID) {
 	T.ready.Signal()
 }
 
-func (T *Pool) release(id uuid.UUID, server zap.ReadWriter) {
+func (T *Pool) release(conn Conn) {
 	// reset session state
-	err := backends.Query(server, "DISCARD ALL")
+	err := backends.Query(conn.rw, "DISCARD ALL")
 	if err != nil {
-		_ = server.Close()
+		_ = conn.rw.Close()
 		return
 	}
 
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
-	T._release(id)
+	T._release(conn.id)
 }
 
 func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, startupParameters map[string]string) {
-	id, server := T.acquire(ctx)
+	conn := T.acquire(ctx)
 
-	// TODO(garet) set startup parameters
-	log.Println(startupParameters)
+	pkts := zap.NewPackets()
+	for key, value := range conn.initialParameters {
+		if _, ok := startupParameters[key]; ok {
+			continue
+		}
+		packet := zap.NewPacket()
+		packets.WriteParameterStatus(packet, key, value)
+		pkts.Append(packet)
+	}
+	err := client.WriteV(pkts)
+	if err != nil {
+		pkts.Done()
+		_ = client.Close()
+		T.release(conn)
+		return
+	}
+	pkts.Done()
+
+	for key, value := range startupParameters {
+		err = backends.Query(conn.rw, "SET "+key+" = '"+value+"'")
+		if err != nil {
+			_ = client.Close()
+			_ = conn.rw.Close()
+			return
+		}
+	}
 
 	for {
-		clientErr, serverErr := bouncers.Bounce(client, server)
+		clientErr, serverErr := bouncers.Bounce(client, conn.rw)
 		if clientErr != nil || serverErr != nil {
 			_ = client.Close()
 			if serverErr == nil {
-				T.release(id, server)
+				T.release(conn)
 			} else {
-				_ = server.Close()
+				_ = conn.rw.Close()
 				T.qmu.Lock()
-				delete(T.conns, id)
+				delete(T.conns, conn.id)
 				T.qmu.Unlock()
 			}
 			break
@@ -104,15 +128,19 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, startupParameters 
 	}
 }
 
-func (T *Pool) AddServer(server zap.ReadWriter) uuid.UUID {
+func (T *Pool) AddServer(server zap.ReadWriter, parameters map[string]string) uuid.UUID {
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
 
 	id := uuid.New()
 	if T.conns == nil {
-		T.conns = make(map[uuid.UUID]zap.ReadWriter)
+		T.conns = make(map[uuid.UUID]Conn)
 	}
-	T.conns[id] = server
+	T.conns[id] = Conn{
+		id:                id,
+		rw:                server,
+		initialParameters: parameters,
+	}
 	T._release(id)
 	return id
 }
@@ -121,7 +149,7 @@ func (T *Pool) GetServer(id uuid.UUID) zap.ReadWriter {
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
 
-	return T.conns[id]
+	return T.conns[id].rw
 }
 
 func (T *Pool) RemoveServer(id uuid.UUID) zap.ReadWriter {
@@ -133,7 +161,7 @@ func (T *Pool) RemoveServer(id uuid.UUID) zap.ReadWriter {
 		return nil
 	}
 	delete(T.conns, id)
-	return conn
+	return conn.rw
 }
 
 func (T *Pool) ScaleDown(amount int) (remaining int) {
@@ -154,7 +182,7 @@ func (T *Pool) ScaleDown(amount int) (remaining int) {
 		}
 		delete(T.conns, v.id)
 
-		_ = conn.Close()
+		_ = conn.rw.Close()
 		remaining--
 	}
 

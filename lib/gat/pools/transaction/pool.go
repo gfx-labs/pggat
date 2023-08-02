@@ -27,9 +27,9 @@ func NewPool() *Pool {
 	return pool
 }
 
-func (T *Pool) AddServer(server zap.ReadWriter) uuid.UUID {
+func (T *Pool) AddServer(server zap.ReadWriter, parameters map[string]string) uuid.UUID {
 	eqps := eqp.NewServer()
-	pss := ps.NewServer()
+	pss := ps.NewServer(parameters)
 	mw := interceptor.NewInterceptor(
 		server,
 		eqps,

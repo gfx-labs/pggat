@@ -20,7 +20,7 @@ type Context struct {
 type RawPool interface {
 	Serve(ctx *Context, client zap.ReadWriter, startupParameters map[string]string)
 
-	AddServer(server zap.ReadWriter) uuid.UUID
+	AddServer(server zap.ReadWriter, startupParameters map[string]string) uuid.UUID
 	GetServer(id uuid.UUID) zap.ReadWriter
 	RemoveServer(id uuid.UUID) zap.ReadWriter
 
@@ -36,18 +36,18 @@ type PoolRecipe struct {
 	r Recipe
 }
 
-func (T *PoolRecipe) connect() (zap.ReadWriter, error) {
+func (T *PoolRecipe) connect() (zap.ReadWriter, map[string]string, error) {
 	rw, err := T.r.Connect()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	err = backends.Accept(rw, T.r.GetUser(), T.r.GetPassword(), T.r.GetDatabase())
+	parameterStatus, err := backends.Accept(rw, T.r.GetUser(), T.r.GetPassword(), T.r.GetDatabase())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return rw, nil
+	return rw, parameterStatus, nil
 }
 
 type Pool struct {
@@ -120,13 +120,13 @@ func (T *Pool) tryAddServers(recipe *PoolRecipe, amount int) (remaining int) {
 
 	max := maths.Min(recipe.r.GetMaxConnections()-j, amount)
 	for i := 0; i < max; i++ {
-		conn, err := recipe.connect()
+		conn, ps, err := recipe.connect()
 		if err != nil {
 			log.Printf("error connecting to server: %v", err)
 			continue
 		}
 
-		id := T.raw.AddServer(conn)
+		id := T.raw.AddServer(conn, ps)
 		recipe.servers = append(recipe.servers, id)
 		remaining--
 	}
@@ -141,13 +141,13 @@ func (T *Pool) addRecipe(recipe *PoolRecipe) {
 	recipe.removed = false
 	min := recipe.r.GetMinConnections() - len(recipe.servers)
 	for i := 0; i < min; i++ {
-		conn, err := recipe.connect()
+		conn, ps, err := recipe.connect()
 		if err != nil {
 			log.Printf("error connecting to server: %v", err)
 			continue
 		}
 
-		id := T.raw.AddServer(conn)
+		id := T.raw.AddServer(conn, ps)
 		recipe.servers = append(recipe.servers, id)
 	}
 }

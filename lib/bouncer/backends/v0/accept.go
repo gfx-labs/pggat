@@ -182,7 +182,7 @@ func startup0(server zap.ReadWriter, username, password string) (done bool, err 
 	}
 }
 
-func startup1(server zap.ReadWriter) (done bool, err error) {
+func startup1(server zap.ReadWriter, parameterStatus map[string]string) (done bool, err error) {
 	packet := zap.NewPacket()
 	defer packet.Done()
 	err = server.Read(packet)
@@ -202,6 +202,12 @@ func startup1(server zap.ReadWriter) (done bool, err error) {
 		// TODO(garet) put cancellation key somewhere
 		return false, nil
 	case packets.ParameterStatus:
+		key, value, ok := packets.ReadParameterStatus(&read)
+		if !ok {
+			err = ErrBadFormat
+			return
+		}
+		parameterStatus[key] = value
 		return false, nil
 	case packets.ReadyForQuery:
 		return true, nil
@@ -222,7 +228,9 @@ func startup1(server zap.ReadWriter) (done bool, err error) {
 	}
 }
 
-func Accept(server zap.ReadWriter, username, password, database string) error {
+func Accept(server zap.ReadWriter, username, password, database string) (map[string]string, error) {
+	parameterStatus := make(map[string]string)
+
 	if database == "" {
 		database = username
 	}
@@ -239,14 +247,14 @@ func Accept(server zap.ReadWriter, username, password, database string) error {
 
 	err := server.WriteUntyped(packet)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for {
 		var done bool
 		done, err = startup0(server, username, password)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if done {
 			break
@@ -255,9 +263,9 @@ func Accept(server zap.ReadWriter, username, password, database string) error {
 
 	for {
 		var done bool
-		done, err = startup1(server)
+		done, err = startup1(server, parameterStatus)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if done {
 			break
@@ -265,5 +273,5 @@ func Accept(server zap.ReadWriter, username, password, database string) error {
 	}
 
 	// startup complete, connection is ready for queries
-	return nil
+	return parameterStatus, nil
 }

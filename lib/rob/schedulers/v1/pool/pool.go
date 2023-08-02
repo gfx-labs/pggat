@@ -113,7 +113,6 @@ func (T *Pool) AddWorker(constraints rob.Constraints, worker rob.Worker) uuid.UU
 	s := sink.NewSink(id, constraints, worker)
 
 	T.mu.Lock()
-	defer T.mu.Unlock()
 	// if mu is locked, we don't need to lock bmu, because we are the only accessor
 	T.sinks[id] = s
 	i := 0
@@ -124,6 +123,9 @@ func (T *Pool) AddWorker(constraints rob.Constraints, worker rob.Worker) uuid.UU
 		}
 	}
 	T.backlog = T.backlog[:i]
+	T.mu.Unlock()
+
+	T.stealFor(id)
 
 	return id
 }
