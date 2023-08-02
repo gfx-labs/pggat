@@ -12,6 +12,7 @@ import (
 	"pggat2/lib/util/chans"
 	"pggat2/lib/util/maps"
 	"pggat2/lib/util/ring"
+	"pggat2/lib/util/strings"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
 )
@@ -68,11 +69,19 @@ func (T *Pool) _release(id uuid.UUID) {
 	T.ready.Signal()
 }
 
+func (T *Pool) close(conn Conn) {
+	_ = conn.rw.Close()
+	T.qmu.Lock()
+	defer T.qmu.Unlock()
+
+	delete(T.conns, conn.id)
+}
+
 func (T *Pool) release(conn Conn) {
 	// reset session state
 	err := backends.Query(conn.rw, "DISCARD ALL")
 	if err != nil {
-		_ = conn.rw.Close()
+		T.close(conn)
 		return
 	}
 
@@ -82,47 +91,57 @@ func (T *Pool) release(conn Conn) {
 }
 
 func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, startupParameters map[string]string) {
-	conn := T.acquire(ctx)
-
-	pkts := zap.NewPackets()
-	for key, value := range conn.initialParameters {
-		if _, ok := startupParameters[key]; ok {
-			continue
-		}
-		packet := zap.NewPacket()
-		packets.WriteParameterStatus(packet, key, value)
-		pkts.Append(packet)
-	}
-	err := client.WriteV(pkts)
-	if err != nil {
-		pkts.Done()
+	defer func() {
 		_ = client.Close()
-		T.release(conn)
-		return
-	}
-	pkts.Done()
 
-	for key, value := range startupParameters {
-		err = backends.Query(conn.rw, "SET "+key+" = '"+value+"'")
-		if err != nil {
-			_ = client.Close()
-			_ = conn.rw.Close()
-			return
+	}()
+
+	connOk := true
+	conn := T.acquire(ctx)
+	defer func() {
+		if connOk {
+			T.release(conn)
+		} else {
+			T.close(conn)
 		}
+	}()
+
+	if func() bool {
+		pkts := zap.NewPackets()
+		defer pkts.Done()
+		for key, value := range conn.initialParameters {
+			if _, ok := startupParameters[key]; ok {
+				continue
+			}
+			packet := zap.NewPacket()
+			packets.WriteParameterStatus(packet, key, value)
+			pkts.Append(packet)
+		}
+
+		for key, value := range startupParameters {
+			err := backends.Query(conn.rw, "SET "+key+" = '"+strings.Escape(value, "'")+"'")
+			if err != nil {
+				connOk = false
+				return true
+			}
+			packet := zap.NewPacket()
+			packets.WriteParameterStatus(packet, key, value)
+			pkts.Append(packet)
+		}
+
+		err := client.WriteV(pkts)
+		if err != nil {
+			return true
+		}
+		return false
+	}() {
+		return
 	}
 
 	for {
 		clientErr, serverErr := bouncers.Bounce(client, conn.rw)
 		if clientErr != nil || serverErr != nil {
-			_ = client.Close()
-			if serverErr == nil {
-				T.release(conn)
-			} else {
-				_ = conn.rw.Close()
-				T.qmu.Lock()
-				delete(T.conns, conn.id)
-				T.qmu.Unlock()
-			}
+			connOk = serverErr == nil
 			break
 		}
 	}

@@ -7,6 +7,7 @@ import (
 
 func Query(server zap.ReadWriter, query string) error {
 	packet := zap.NewPacket()
+	defer packet.Done()
 	packet.WriteType(packets.Query)
 	packet.WriteString(query)
 	err := server.Write(packet)
