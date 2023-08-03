@@ -12,11 +12,11 @@ type PreparedStatement struct {
 	hash   uint64
 }
 
-func ReadParse(in *zap.ReadablePacket) (destination string, preparedStatement PreparedStatement, ok bool) {
+func ReadParse(in zap.ReadablePacket) (destination string, preparedStatement PreparedStatement, ok bool) {
 	if in.ReadType() != packets.Parse {
 		return
 	}
-	in2 := *in
+	in2 := in
 	destination, ok = in2.ReadString()
 	if !ok {
 		return

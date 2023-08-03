@@ -21,10 +21,9 @@ func NewClient() *Client {
 }
 
 func (T *Client) Send(ctx middleware.Context, packet *zap.Packet) error {
-	read := packet.Read()
-	switch read.ReadType() {
+	switch packet.ReadType() {
 	case packets.ParameterStatus:
-		key, value, ok := packets.ReadParameterStatus(&read)
+		key, value, ok := packets.ReadParameterStatus(packet.Read())
 		if !ok {
 			return errors.New("bad packet format")
 		}

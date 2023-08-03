@@ -213,8 +213,7 @@ func (T *Server) syncPortal(ctx middleware.Context, target string) error {
 }
 
 func (T *Server) Write(ctx middleware.Context, packet *zap.Packet) error {
-	read := packet.Read()
-	switch read.ReadType() {
+	switch packet.ReadType() {
 	case packets.Query:
 		// clobber unnamed portal and unnamed prepared statement
 		T.deletePreparedStatement("")
@@ -224,7 +223,7 @@ func (T *Server) Write(ctx middleware.Context, packet *zap.Packet) error {
 		panic("unreachable")
 	case packets.Describe:
 		// ensure target exists
-		which, target, ok := packets.ReadDescribe(&read)
+		which, target, ok := packets.ReadDescribe(packet.Read())
 		if !ok {
 			// should've been caught by eqp.Client
 			panic("unreachable")
@@ -246,7 +245,7 @@ func (T *Server) Write(ctx middleware.Context, packet *zap.Packet) error {
 			panic("unknown describe target")
 		}
 	case packets.Execute:
-		target, _, ok := packets.ReadExecute(&read)
+		target, _, ok := packets.ReadExecute(packet.Read())
 		if !ok {
 			// should've been caught by eqp.Client
 			panic("unreachable")
@@ -277,7 +276,7 @@ func (T *Server) Read(ctx middleware.Context, packet *zap.Packet) error {
 
 		T.pendingCloses.PopFront()
 	case packets.ReadyForQuery:
-		state, ok := packets.ReadReadyForQuery(&read)
+		state, ok := packets.ReadReadyForQuery(packet.Read())
 		if !ok {
 			return errors.New("bad packet format")
 		}

@@ -53,10 +53,9 @@ func (T *Server) Sync(client zap.ReadWriter, ps *Client) error {
 }
 
 func (T *Server) Read(_ middleware.Context, in *zap.Packet) error {
-	read := in.Read()
-	switch read.ReadType() {
+	switch in.ReadType() {
 	case packets.ParameterStatus:
-		key, value, ok := packets.ReadParameterStatus(&read)
+		key, value, ok := packets.ReadParameterStatus(in.Read())
 		if !ok {
 			return errors.New("bad packet format")
 		}

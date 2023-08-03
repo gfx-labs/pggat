@@ -13,11 +13,11 @@ type Portal struct {
 	hash   uint64
 }
 
-func ReadBind(in *zap.ReadablePacket) (destination string, portal Portal, ok bool) {
+func ReadBind(in zap.ReadablePacket) (destination string, portal Portal, ok bool) {
 	if in.ReadType() != packets.Bind {
 		return
 	}
-	in2 := *in
+	in2 := in
 	destination, ok = in2.ReadString()
 	if !ok {
 		return

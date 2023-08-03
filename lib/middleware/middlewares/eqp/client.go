@@ -53,7 +53,7 @@ func (T *Client) Write(_ middleware.Context, packet *zap.Packet) error {
 	read := packet.Read()
 	switch read.ReadType() {
 	case packets.ReadyForQuery:
-		state, ok := packets.ReadReadyForQuery(&read)
+		state, ok := packets.ReadReadyForQuery(read)
 		if !ok {
 			return errors.New("bad packet format")
 		}
@@ -71,8 +71,7 @@ func (T *Client) Write(_ middleware.Context, packet *zap.Packet) error {
 }
 
 func (T *Client) Read(ctx middleware.Context, packet *zap.Packet) error {
-	read := packet.Read()
-	switch read.ReadType() {
+	switch packet.ReadType() {
 	case packets.Query:
 		// clobber unnamed portal and unnamed prepared statement
 		T.deletePreparedStatement("")
@@ -80,7 +79,7 @@ func (T *Client) Read(ctx middleware.Context, packet *zap.Packet) error {
 	case packets.Parse:
 		ctx.Cancel()
 
-		destination, preparedStatement, ok := ReadParse(&read)
+		destination, preparedStatement, ok := ReadParse(packet.Read())
 		if !ok {
 			return errors.New("bad packet format")
 		}
@@ -96,7 +95,7 @@ func (T *Client) Read(ctx middleware.Context, packet *zap.Packet) error {
 	case packets.Bind:
 		ctx.Cancel()
 
-		destination, portal, ok := ReadBind(&read)
+		destination, portal, ok := ReadBind(packet.Read())
 		if !ok {
 			return errors.New("bad packet format")
 		}
@@ -112,7 +111,7 @@ func (T *Client) Read(ctx middleware.Context, packet *zap.Packet) error {
 	case packets.Close:
 		ctx.Cancel()
 
-		which, target, ok := packets.ReadClose(&read)
+		which, target, ok := packets.ReadClose(packet.Read())
 		if !ok {
 			return errors.New("bad packet format")
 		}
@@ -133,7 +132,7 @@ func (T *Client) Read(ctx middleware.Context, packet *zap.Packet) error {
 		}
 	case packets.Describe:
 		// ensure target exists
-		which, _, ok := packets.ReadDescribe(&read)
+		which, _, ok := packets.ReadDescribe(packet.Read())
 		if !ok {
 			return errors.New("bad packet format")
 		}
@@ -144,7 +143,7 @@ func (T *Client) Read(ctx middleware.Context, packet *zap.Packet) error {
 			return errors.New("unknown describe target")
 		}
 	case packets.Execute:
-		_, _, ok := packets.ReadExecute(&read)
+		_, _, ok := packets.ReadExecute(packet.Read())
 		if !ok {
 			return errors.New("bad packet format")
 		}
