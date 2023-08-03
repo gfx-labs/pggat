@@ -4,7 +4,7 @@ import (
 	"pggat2/lib/zap"
 )
 
-func ReadPasswordMessage(in *zap.ReadablePacket) (string, bool) {
+func ReadPasswordMessage(in zap.ReadablePacket) (string, bool) {
 	if in.ReadType() != AuthenticationResponse {
 		return "", false
 	}

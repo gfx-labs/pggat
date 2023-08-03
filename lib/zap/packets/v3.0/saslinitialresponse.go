@@ -2,7 +2,7 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadSASLInitialResponse(in *zap.ReadablePacket) (mechanism string, initialResponse []byte, ok bool) {
+func ReadSASLInitialResponse(in zap.ReadablePacket) (mechanism string, initialResponse []byte, ok bool) {
 	if in.ReadType() != AuthenticationResponse {
 		return
 	}

@@ -4,7 +4,7 @@ import (
 	"pggat2/lib/zap"
 )
 
-func ReadReadyForQuery(in *zap.ReadablePacket) (byte, bool) {
+func ReadReadyForQuery(in zap.ReadablePacket) (byte, bool) {
 	if in.ReadType() != ReadyForQuery {
 		return 0, false
 	}

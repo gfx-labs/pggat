@@ -79,7 +79,7 @@ func (T *Pool) close(conn Conn) {
 
 func (T *Pool) release(conn Conn) {
 	// reset session state
-	err := backends.Query(conn.rw, "DISCARD ALL")
+	err := backends.QueryString(&backends.Context{}, conn.rw, "DISCARD ALL")
 	if err != nil {
 		T.close(conn)
 		return
@@ -119,7 +119,7 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, startupParameters 
 		}
 
 		for key, value := range startupParameters {
-			err := backends.Query(conn.rw, "SET "+key+" = '"+strings.Escape(value, "'")+"'")
+			err := backends.QueryString(&backends.Context{}, conn.rw, "SET "+key+" = '"+strings.Escape(value, "'")+"'")
 			if err != nil {
 				connOk = false
 				return true

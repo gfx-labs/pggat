@@ -2,7 +2,7 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadBind(in *zap.ReadablePacket) (destination string, source string, parameterFormatCodes []int16, parameterValues [][]byte, resultFormatCodes []int16, ok bool) {
+func ReadBind(in zap.ReadablePacket) (destination string, source string, parameterFormatCodes []int16, parameterValues [][]byte, resultFormatCodes []int16, ok bool) {
 	if in.ReadType() != Bind {
 		return
 	}

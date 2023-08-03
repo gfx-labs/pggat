@@ -115,11 +115,10 @@ func startup0(server zap.ReadWriter, username, password string) (done bool, err 
 	if err != nil {
 		return
 	}
-	read := packet.Read()
 
-	switch read.ReadType() {
+	switch packet.ReadType() {
 	case packets.ErrorResponse:
-		err2, ok := packets.ReadErrorResponse(&read)
+		err2, ok := packets.ReadErrorResponse(packet.Read())
 		if !ok {
 			err = ErrBadFormat
 		} else {
@@ -127,8 +126,8 @@ func startup0(server zap.ReadWriter, username, password string) (done bool, err 
 		}
 		return
 	case packets.Authentication:
-		read2 := read
-		method, ok := read2.ReadInt32()
+		read := packet.Read()
+		method, ok := read.ReadInt32()
 		if !ok {
 			err = ErrBadFormat
 			return
@@ -144,7 +143,7 @@ func startup0(server zap.ReadWriter, username, password string) (done bool, err 
 		case 3:
 			return false, authenticationCleartext(server, password)
 		case 5:
-			salt, ok := packets.ReadAuthenticationMD5(&read)
+			salt, ok := packets.ReadAuthenticationMD5(packet.Read())
 			if !ok {
 				err = ErrBadFormat
 				return
@@ -161,7 +160,7 @@ func startup0(server zap.ReadWriter, username, password string) (done bool, err 
 			return
 		case 10:
 			// read list of mechanisms
-			mechanisms, ok := packets.ReadAuthenticationSASL(&read)
+			mechanisms, ok := packets.ReadAuthenticationSASL(packet.Read())
 			if !ok {
 				err = ErrBadFormat
 				return
@@ -189,10 +188,10 @@ func startup1(server zap.ReadWriter, parameterStatus map[string]string) (done bo
 	if err != nil {
 		return
 	}
-	read := packet.Read()
 
-	switch read.ReadType() {
+	switch packet.ReadType() {
 	case packets.BackendKeyData:
+		read := packet.Read()
 		var cancellationKey [8]byte
 		ok := read.ReadBytes(cancellationKey[:])
 		if !ok {
@@ -202,7 +201,7 @@ func startup1(server zap.ReadWriter, parameterStatus map[string]string) (done bo
 		// TODO(garet) put cancellation key somewhere
 		return false, nil
 	case packets.ParameterStatus:
-		key, value, ok := packets.ReadParameterStatus(&read)
+		key, value, ok := packets.ReadParameterStatus(packet.Read())
 		if !ok {
 			err = ErrBadFormat
 			return
@@ -212,7 +211,7 @@ func startup1(server zap.ReadWriter, parameterStatus map[string]string) (done bo
 	case packets.ReadyForQuery:
 		return true, nil
 	case packets.ErrorResponse:
-		err2, ok := packets.ReadErrorResponse(&read)
+		err2, ok := packets.ReadErrorResponse(packet.Read())
 		if !ok {
 			err = ErrBadFormat
 		} else {

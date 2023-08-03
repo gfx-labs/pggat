@@ -2,7 +2,7 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadAuthenticationCleartext(in *zap.ReadablePacket) bool {
+func ReadAuthenticationCleartext(in zap.ReadablePacket) bool {
 	if in.ReadType() != Authentication {
 		return false
 	}

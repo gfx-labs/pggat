@@ -2,7 +2,7 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadExecute(in *zap.ReadablePacket) (target string, maxRows int32, ok bool) {
+func ReadExecute(in zap.ReadablePacket) (target string, maxRows int32, ok bool) {
 	if in.ReadType() != Execute {
 		return
 	}

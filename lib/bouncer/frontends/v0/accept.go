@@ -171,8 +171,7 @@ func authenticationSASLInitial(client zap.ReadWriter, username, password string)
 	if err != nil {
 		return
 	}
-	read := packet.Read()
-	mechanism, initialResponse, ok := packets.ReadSASLInitialResponse(&read)
+	mechanism, initialResponse, ok := packets.ReadSASLInitialResponse(packet.Read())
 	if !ok {
 		err = packets.ErrBadFormat
 		return
@@ -200,8 +199,7 @@ func authenticationSASLContinue(client zap.ReadWriter, tool sasl.Server) (resp [
 	if err != nil {
 		return
 	}
-	read := packet.Read()
-	clientResp, ok := packets.ReadAuthenticationResponse(&read)
+	clientResp, ok := packets.ReadAuthenticationResponse(packet.Read())
 	if !ok {
 		err = packets.ErrBadFormat
 		return

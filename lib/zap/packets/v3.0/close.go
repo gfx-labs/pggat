@@ -2,7 +2,7 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadClose(in *zap.ReadablePacket) (which uint8, target string, ok bool) {
+func ReadClose(in zap.ReadablePacket) (which uint8, target string, ok bool) {
 	if in.ReadType() != Close {
 		return
 	}

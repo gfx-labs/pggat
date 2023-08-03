@@ -4,7 +4,7 @@ import (
 	"pggat2/lib/zap"
 )
 
-func ReadParse(in *zap.ReadablePacket) (destination string, query string, parameterDataTypes []int32, ok bool) {
+func ReadParse(in zap.ReadablePacket) (destination string, query string, parameterDataTypes []int32, ok bool) {
 	if in.ReadType() != Parse {
 		return
 	}

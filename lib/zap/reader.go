@@ -1,6 +1,8 @@
 package zap
 
-import "io"
+import (
+	"io"
+)
 
 type Reader interface {
 	ReadByte() (byte, error)

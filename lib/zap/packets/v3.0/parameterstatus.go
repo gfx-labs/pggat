@@ -2,7 +2,7 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadParameterStatus(in *zap.ReadablePacket) (key, value string, ok bool) {
+func ReadParameterStatus(in zap.ReadablePacket) (key, value string, ok bool) {
 	if in.ReadType() != ParameterStatus {
 		return
 	}

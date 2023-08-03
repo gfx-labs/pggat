@@ -2,7 +2,7 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadAuthenticationSASL(in *zap.ReadablePacket) ([]string, bool) {
+func ReadAuthenticationSASL(in zap.ReadablePacket) ([]string, bool) {
 	if in.ReadType() != Authentication {
 		return nil, false
 	}
@@ -16,7 +16,7 @@ func ReadAuthenticationSASL(in *zap.ReadablePacket) ([]string, bool) {
 		return nil, false
 	}
 
-	in2 := *in
+	in2 := in
 
 	// get count first to prevent reallocating the slice a bunch
 	var mechanismCount int

@@ -2,7 +2,7 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadAuthenticationSASLContinue(in *zap.ReadablePacket) ([]byte, bool) {
+func ReadAuthenticationSASLContinue(in zap.ReadablePacket) ([]byte, bool) {
 	if in.ReadType() != Authentication {
 		return nil, false
 	}

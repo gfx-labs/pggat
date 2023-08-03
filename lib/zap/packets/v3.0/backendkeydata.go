@@ -2,7 +2,7 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadBackendKeyData(in *zap.ReadablePacket) ([8]byte, bool) {
+func ReadBackendKeyData(in zap.ReadablePacket) ([8]byte, bool) {
 	if in.ReadType() != BackendKeyData {
 		return [8]byte{}, false
 	}

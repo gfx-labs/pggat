@@ -5,7 +5,7 @@ import (
 	"pggat2/lib/zap"
 )
 
-func ReadErrorResponse(in *zap.ReadablePacket) (perror.Error, bool) {
+func ReadErrorResponse(in zap.ReadablePacket) (perror.Error, bool) {
 	if in.ReadType() != ErrorResponse {
 		return nil, false
 	}

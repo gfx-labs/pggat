@@ -2,7 +2,7 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadAuthenticationMD5(in *zap.ReadablePacket) ([4]byte, bool) {
+func ReadAuthenticationMD5(in zap.ReadablePacket) ([4]byte, bool) {
 	if in.ReadType() != Authentication {
 		return [4]byte{}, false
 	}

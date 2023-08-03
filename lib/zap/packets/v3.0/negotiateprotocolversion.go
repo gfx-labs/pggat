@@ -2,7 +2,7 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadNegotiateProtocolVersion(in *zap.ReadablePacket) (minorProtocolVersion int32, unrecognizedOptions []string, ok bool) {
+func ReadNegotiateProtocolVersion(in zap.ReadablePacket) (minorProtocolVersion int32, unrecognizedOptions []string, ok bool) {
 	if in.ReadType() != NegotiateProtocolVersion {
 		return
 	}

@@ -2,7 +2,7 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadDescribe(in *zap.ReadablePacket) (which uint8, target string, ok bool) {
+func ReadDescribe(in zap.ReadablePacket) (which uint8, target string, ok bool) {
 	if in.ReadType() != Describe {
 		return
 	}
