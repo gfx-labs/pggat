@@ -12,7 +12,6 @@ import (
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v1"
 	"pggat2/lib/zap"
-	"pggat2/lib/zap/zapbuf"
 )
 
 type Pool struct {
@@ -69,19 +68,23 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, _ map[string]strin
 		eqpc,
 		psc,
 	)
-	buffer := zapbuf.NewBuffer(client)
-	defer buffer.Done()
 	robCtx := rob.Context{
 		OnWait: ctx.OnWait,
 	}
+
+	packet := zap.NewPacket()
+	defer packet.Done()
+
 	for {
-		if err := buffer.Buffer(); err != nil {
+		if err := client.Read(packet); err != nil {
 			break
 		}
+
 		source.Do(&robCtx, Work{
-			rw:  buffer,
-			eqp: eqpc,
-			ps:  psc,
+			rw:            client,
+			initialPacket: packet,
+			eqp:           eqpc,
+			ps:            psc,
 		})
 	}
 	_ = client.Close()

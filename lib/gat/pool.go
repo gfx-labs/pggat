@@ -42,11 +42,7 @@ func (T *PoolRecipe) connect() (zap.ReadWriter, map[string]string, error) {
 		return nil, nil, err
 	}
 
-	var parameterStatus = map[string]string{
-		"datestyle":     "Postgres, MDY",
-		"intervalstyle": "postgres_verbose",
-		"timezone":      "PST8PDT",
-	}
+	var parameterStatus = map[string]string{}
 
 	err = backends.Accept(rw, T.r.GetUser(), T.r.GetPassword(), T.r.GetDatabase(), parameterStatus)
 	if err != nil {
@@ -105,10 +101,7 @@ func NewPool(raw RawPool, idleTimeout time.Duration) *Pool {
 	return pool
 }
 
-func (T *Pool) tryAddServers(recipe *PoolRecipe, amount int) (remaining int) {
-	recipe.mu.Lock()
-	defer recipe.mu.Unlock()
-
+func (T *Pool) _tryAddServers(recipe *PoolRecipe, amount int) (remaining int) {
 	remaining = amount
 
 	if recipe.removed {
@@ -140,22 +133,20 @@ func (T *Pool) tryAddServers(recipe *PoolRecipe, amount int) (remaining int) {
 	return
 }
 
+func (T *Pool) tryAddServers(recipe *PoolRecipe, amount int) (remaining int) {
+	recipe.mu.Lock()
+	defer recipe.mu.Unlock()
+
+	return T._tryAddServers(recipe, amount)
+}
+
 func (T *Pool) addRecipe(recipe *PoolRecipe) {
 	recipe.mu.Lock()
 	defer recipe.mu.Unlock()
 
 	recipe.removed = false
 	min := recipe.r.GetMinConnections() - len(recipe.servers)
-	for i := 0; i < min; i++ {
-		conn, ps, err := recipe.connect()
-		if err != nil {
-			log.Printf("error connecting to server: %v", err)
-			continue
-		}
-
-		id := T.raw.AddServer(conn, ps)
-		recipe.servers = append(recipe.servers, id)
-	}
+	T._tryAddServers(recipe, min)
 }
 
 func (T *Pool) removeRecipe(recipe *PoolRecipe) {

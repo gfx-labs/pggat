@@ -25,7 +25,7 @@ func (T *Conn) Do(ctx *rob.Context, work any) {
 	}
 
 	T.eqp.SetClient(job.eqp)
-	clientErr, serverErr := bouncers.Bounce(job.rw, T.rw)
+	clientErr, serverErr := bouncers.Bounce(job.rw, T.rw, job.initialPacket)
 	if clientErr != nil || serverErr != nil {
 		_ = job.rw.Close()
 		if serverErr != nil {

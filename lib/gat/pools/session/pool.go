@@ -143,8 +143,14 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, startupParameters 
 		return
 	}
 
+	packet := zap.NewPacket()
+	defer packet.Done()
+
 	for {
-		clientErr, serverErr := bouncers.Bounce(client, conn.rw)
+		if err := client.Read(packet); err != nil {
+			break
+		}
+		clientErr, serverErr := bouncers.Bounce(client, conn.rw, packet)
 		if clientErr != nil || serverErr != nil {
 			connOk = serverErr == nil
 			break
@@ -153,9 +159,6 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, startupParameters 
 }
 
 func (T *Pool) AddServer(server zap.ReadWriter, parameters map[string]string) uuid.UUID {
-	if server == nil {
-		panic("AAAAAAAAAAAAAAAAAAAAAAAAAAAA SERVER IS NILLLLLl")
-	}
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
 

@@ -15,16 +15,11 @@ func clientFail(client zap.ReadWriter, err perror.Error) {
 	_ = client.Write(packet)
 }
 
-func Bounce(client, server zap.ReadWriter) (clientError error, serverError error) {
-	packet := zap.NewPacket()
-	defer packet.Done()
-	if clientError = client.Read(packet); clientError != nil {
-		return
-	}
+func Bounce(client, server zap.ReadWriter, initialPacket *zap.Packet) (clientError error, serverError error) {
 	ctx := backends.Context{
 		Peer: client,
 	}
-	serverError = backends.Transaction(&ctx, server, packet)
+	serverError = backends.Transaction(&ctx, server, initialPacket)
 	clientError = ctx.PeerError
 
 	if clientError != nil {
