@@ -103,6 +103,11 @@ outer:
 }
 
 func setpath(rv reflect.Value, section, key, value string) error {
+	if section == "" {
+		return get(rv, key, func(entry reflect.Value) error {
+			return set(entry, value)
+		})
+	}
 	return get(rv, section, func(sec reflect.Value) error {
 		return get(sec, key, func(entry reflect.Value) error {
 			return set(entry, value)
