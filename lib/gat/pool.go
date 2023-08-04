@@ -42,7 +42,13 @@ func (T *PoolRecipe) connect() (zap.ReadWriter, map[string]string, error) {
 		return nil, nil, err
 	}
 
-	parameterStatus, err := backends.Accept(rw, T.r.GetUser(), T.r.GetPassword(), T.r.GetDatabase())
+	var parameterStatus = map[string]string{
+		"datestyle":     "Postgres, MDY",
+		"intervalstyle": "postgres_verbose",
+		"timezone":      "PST8PDT",
+	}
+
+	err = backends.Accept(rw, T.r.GetUser(), T.r.GetPassword(), T.r.GetDatabase(), parameterStatus)
 	if err != nil {
 		return nil, nil, err
 	}

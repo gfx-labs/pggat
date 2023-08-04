@@ -119,14 +119,19 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, startupParameters 
 		}
 
 		for key, value := range startupParameters {
+			packet := zap.NewPacket()
+			packets.WriteParameterStatus(packet, key, value)
+			pkts.Append(packet)
+
+			if current, ok := conn.initialParameters[key]; ok && current == value {
+				continue
+			}
+
 			err := backends.QueryString(&backends.Context{}, conn.rw, "SET "+key+" = '"+strings.Escape(value, "'")+"'")
 			if err != nil {
 				connOk = false
 				return true
 			}
-			packet := zap.NewPacket()
-			packets.WriteParameterStatus(packet, key, value)
-			pkts.Append(packet)
 		}
 
 		err := client.WriteV(pkts)
@@ -148,6 +153,9 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, startupParameters 
 }
 
 func (T *Pool) AddServer(server zap.ReadWriter, parameters map[string]string) uuid.UUID {
+	if server == nil {
+		panic("AAAAAAAAAAAAAAAAAAAAAAAAAAAA SERVER IS NILLLLLl")
+	}
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
 

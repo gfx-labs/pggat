@@ -227,9 +227,7 @@ func startup1(server zap.ReadWriter, parameterStatus map[string]string) (done bo
 	}
 }
 
-func Accept(server zap.ReadWriter, username, password, database string) (map[string]string, error) {
-	parameterStatus := make(map[string]string)
-
+func Accept(server zap.ReadWriter, username, password, database string, startupParameters map[string]string) error {
 	if database == "" {
 		database = username
 	}
@@ -242,18 +240,22 @@ func Accept(server zap.ReadWriter, username, password, database string) (map[str
 	packet.WriteString(username)
 	packet.WriteString("database")
 	packet.WriteString(database)
+	for key, value := range startupParameters {
+		packet.WriteString(key)
+		packet.WriteString(value)
+	}
 	packet.WriteString("")
 
 	err := server.WriteUntyped(packet)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	for {
 		var done bool
 		done, err = startup0(server, username, password)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if done {
 			break
@@ -262,9 +264,9 @@ func Accept(server zap.ReadWriter, username, password, database string) (map[str
 
 	for {
 		var done bool
-		done, err = startup1(server, parameterStatus)
+		done, err = startup1(server, startupParameters)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if done {
 			break
@@ -272,5 +274,5 @@ func Accept(server zap.ReadWriter, username, password, database string) (map[str
 	}
 
 	// startup complete, connection is ready for queries
-	return parameterStatus, nil
+	return nil
 }
