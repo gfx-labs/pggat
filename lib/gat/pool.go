@@ -42,7 +42,11 @@ func (T *PoolRecipe) connect() (zap.ReadWriter, map[string]string, error) {
 		return nil, nil, err
 	}
 
-	var parameterStatus = map[string]string{}
+	startupParameters := T.r.GetStartupParameters()
+	parameterStatus := make(map[string]string, len(startupParameters))
+	for k, v := range startupParameters {
+		parameterStatus[k] = v
+	}
 
 	err = backends.Accept(rw, T.r.GetUser(), T.r.GetPassword(), T.r.GetDatabase(), parameterStatus)
 	if err != nil {

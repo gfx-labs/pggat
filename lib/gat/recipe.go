@@ -13,6 +13,8 @@ type Recipe interface {
 	GetUser() string
 	GetPassword() string
 
+	GetStartupParameters() map[string]string
+
 	GetMinConnections() int
 	GetMaxConnections() int
 }
@@ -46,6 +48,10 @@ func (T TCPRecipe) GetUser() string {
 
 func (T TCPRecipe) GetPassword() string {
 	return T.Password
+}
+
+func (T TCPRecipe) GetStartupParameters() map[string]string {
+	return nil
 }
 
 func (T TCPRecipe) GetMinConnections() int {
