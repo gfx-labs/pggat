@@ -7,7 +7,7 @@ import (
 
 type Database struct {
 	Host           string `ini:"host"`
-	Port           string `ini:"port"`
+	Port           uint16 `ini:"port"`
 	User           string `ini:"user"`
 	Password       string `ini:"password"`
 	ClientEncoding string `ini:"client_encoding"`
@@ -149,7 +149,7 @@ forcedb = host=localhost port=300 user=baz password=foo client_encoding=UNICODE 
 				},
 				"forcedb": {
 					Host:           "localhost",
-					Port:           "300",
+					Port:           300,
 					User:           "baz",
 					Password:       "foo",
 					ClientEncoding: "UNICODE",

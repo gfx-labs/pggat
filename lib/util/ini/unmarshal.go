@@ -176,6 +176,7 @@ func Unmarshal(data []byte, v any) error {
 	var line []byte
 	for {
 		line, data, _ = bytes.Cut(data, []byte{'\n'})
+		line = bytes.TrimSpace(line)
 		if len(line) == 0 {
 			if len(data) == 0 {
 				break
@@ -183,7 +184,10 @@ func Unmarshal(data []byte, v any) error {
 			continue
 		}
 
-		line = bytes.TrimSpace(line)
+		// %include
+		if bytes.HasPrefix(line, []byte("%include")) {
+			return errors.New("%include directive found. Use ReadFile instead")
+		}
 
 		// comment
 		if bytes.HasPrefix(line, []byte{';'}) || bytes.HasPrefix(line, []byte{'#'}) {

@@ -44,6 +44,12 @@ const (
 	TLSProtocolLegacy TLSProtocol = "legacy"
 )
 
+type TLSCipher string
+
+type TLSECDHCurve string
+
+type TLSDHEParams string
+
 type PgBouncer struct {
 	LogFile                 string        `ini:"logfile"`
 	PidFile                 string        `ini:"pidfile"`
@@ -106,14 +112,66 @@ type PgBouncer struct {
 	ClientTLSCertFile       string        `ini:"client_tls_cert_file"`
 	ClientTLSCaFile         string        `ini:"client_tls_ca_file"`
 	ClientTLSProtocols      []TLSProtocol `ini:"client_tls_protocols"`
+	ClientTLSCiphers        []TLSCipher   `ini:"client_tls_ciphers"`
+	ClientTLSECDHCurve      TLSECDHCurve  `ini:"client_tls_ecdhcurve"`
+	ClientTLSDHEParams      TLSDHEParams  `ini:"client_tls_dheparams"`
+	ServerTLSSSLMode        SSLMode       `ini:"server_tls_sslmode"`
+	ServerTLSCaFile         string        `ini:"server_tls_ca_file"`
+	ServerTLSKeyFile        string        `ini:"server_tls_key_file"`
+	ServerTLSCertFile       string        `ini:"server_tls_cert_file"`
+	ServerTLSProtocols      []TLSProtocol `ini:"server_tls_protocols"`
+	ServerTLSCiphers        []TLSCipher   `ini:"server_tls_ciphers"`
+	QueryTimeout            float64       `ini:"query_timeout"`
+	QueryWaitTimeout        float64       `ini:"query_wait_timeout"`
+	CancelWaitTimeout       float64       `ini:"cancel_wait_timeout"`
+	ClientIdleTimeout       float64       `ini:"client_idle_timeout"`
+	IdleTransactionTimeout  float64       `ini:"idle_transaction_timeout"`
+	SuspendTimeout          float64       `ini:"suspend_timeout"`
+	PktBuf                  int           `ini:"pkt_buf"`
+	MaxPacketSize           int           `ini:"max_packet_size"`
+	ListenBacklog           int           `ini:"listen_backlog"`
+	SbufLoopcnt             int           `ini:"sbuf_loopcnt"`
+	SoReuseport             int           `ini:"so_reuseport"`
+	TcpDeferAccept          int           `ini:"tcp_defer_accept"`
+	TcpSocketBuffer         int           `ini:"tcp_socket_buffer"`
+	TcpKeepalive            int           `ini:"tcp_keepalive"`
+	TcpKeepidle             int           `ini:"tcp_keepidle"`
+	TcpKeepintvl            int           `ini:"tcp_keepintvl"`
+	TcpUserTimeout          int           `ini:"tcp_user_timeout"`
+}
+
+type Database struct {
+	DBName           string   `ini:"dbname"`
+	Host             string   `ini:"host"`
+	Port             int      `ini:"port"`
+	User             string   `ini:"user"`
+	Password         string   `ini:"password"`
+	AuthUser         string   `ini:"auth_user"`
+	PoolSize         int      `ini:"pool_size"`
+	MinPoolSize      int      `ini:"min_pool_size"`
+	ReservePool      int      `ini:"reserve_pool"`
+	ConnectQuery     string   `ini:"connect_query"`
+	PoolMode         PoolMode `ini:"pool_mode"`
+	MaxDBConnections int      `ini:"max_db_connections"`
+	ClientEncoding   string   `ini:"client_encoding"`
+	Datestyle        string   `ini:"datestyle"`
+	Timezone         string   `ini:"timezone"`
+}
+
+type User struct {
+	PoolMode           PoolMode `ini:"pool_mode"`
+	MaxUserConnections int      `ini:"max_user_connections"`
+}
+
+type Peer struct {
+	Host     string `ini:"host"`
+	Port     int    `ini:"port"`
+	PoolSize int    `ini:"pool_size"`
 }
 
 type Config struct {
-	PgBouncer PgBouncer         `ini:"pgbouncer"`
-	Databases map[string]string `ini:"databases"`
-	Users     map[string]string `ini:"users"`
-}
-
-func Test() {
-
+	PgBouncer PgBouncer           `ini:"pgbouncer"`
+	Databases map[string]Database `ini:"databases"`
+	Users     map[string]User     `ini:"users"`
+	Peers     map[string]Peer     `ini:"peers"`
 }
