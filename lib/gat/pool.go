@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/util/maps"
 	"pggat2/lib/util/maths"
 	"pggat2/lib/zap"
@@ -34,26 +33,6 @@ type PoolRecipe struct {
 	mu      sync.Mutex
 
 	r Recipe
-}
-
-func (T *PoolRecipe) connect() (zap.ReadWriter, map[string]string, error) {
-	rw, err := T.r.Connect()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	startupParameters := T.r.GetStartupParameters()
-	parameterStatus := make(map[string]string, len(startupParameters))
-	for k, v := range startupParameters {
-		parameterStatus[k] = v
-	}
-
-	err = backends.Accept(rw, T.r.GetUser(), T.r.GetPassword(), T.r.GetDatabase(), parameterStatus)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return rw, parameterStatus, nil
 }
 
 type Pool struct {
@@ -121,9 +100,13 @@ func (T *Pool) _tryAddServers(recipe *PoolRecipe, amount int) (remaining int) {
 	}
 	recipe.servers = recipe.servers[:j]
 
-	max := maths.Min(recipe.r.GetMaxConnections()-j, amount)
+	var max = amount
+	maxConnections := recipe.r.GetMaxConnections()
+	if maxConnections != 0 {
+		max = maths.Min(maxConnections-j, max)
+	}
 	for i := 0; i < max; i++ {
-		conn, ps, err := recipe.connect()
+		conn, ps, err := recipe.r.Connect()
 		if err != nil {
 			log.Printf("error connecting to server: %v", err)
 			continue

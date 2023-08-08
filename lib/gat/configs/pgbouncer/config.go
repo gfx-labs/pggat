@@ -1,5 +1,17 @@
 package pgbouncer
 
+import (
+	"errors"
+	"net"
+	"strconv"
+	"time"
+
+	"pggat2/lib/gat"
+	"pggat2/lib/gat/pools/session"
+	"pggat2/lib/gat/pools/transaction"
+	"pggat2/lib/util/ini"
+)
+
 type PoolMode string
 
 const (
@@ -54,7 +66,7 @@ type PgBouncer struct {
 	LogFile                 string        `ini:"logfile"`
 	PidFile                 string        `ini:"pidfile"`
 	ListenAddr              string        `ini:"listen_addr"`
-	ListenPort              string        `ini:"listen_port"`
+	ListenPort              int           `ini:"listen_port"`
 	UnixSocketDir           string        `ini:"unix_socket_dir"`
 	UnixSocketMode          string        `ini:"unix_socket_mode"`
 	UnixSocketGroup         string        `ini:"unix_socket_group"`
@@ -174,4 +186,148 @@ type Config struct {
 	Databases map[string]Database `ini:"databases"`
 	Users     map[string]User     `ini:"users"`
 	Peers     map[string]Peer     `ini:"peers"`
+}
+
+var Default = Config{
+	PgBouncer: PgBouncer{
+		ListenPort:         6432,
+		UnixSocketDir:      "/tmp",
+		UnixSocketMode:     "0777",
+		PoolMode:           PoolModeSession,
+		MaxClientConn:      100,
+		DefaultPoolSize:    20,
+		ReservePoolTimeout: 5.0,
+		TrackExtraParameters: []string{
+			"IntervalStyle",
+		},
+		ServiceName:          "pgbouncer",
+		StatsPeriod:          60,
+		AuthQuery:            "SELECT usename, passwd FROM pg_shadow WHERE usename=$1",
+		SyslogIdent:          "pgbouncer",
+		SyslogFacility:       "daemon",
+		LogConnections:       1,
+		LogDisconnections:    1,
+		LogPoolerErrors:      1,
+		LogStats:             1,
+		ServerResetQuery:     "DISCARD ALL",
+		ServerCheckDelay:     30.0,
+		ServerCheckQuery:     "select 1",
+		ServerLifetime:       3600.0,
+		ServerIdleTimeout:    600.0,
+		ServerConnectTimeout: 15.0,
+		ServerLoginRetry:     15.0,
+		ClientLoginTimeout:   60.0,
+		AutodbIdleTimeout:    3600.0,
+		DnsMaxTtl:            15.0,
+		DnsNxdomainTtl:       15.0,
+		ClientTLSSSLMode:     SSLModeDisable,
+		ClientTLSProtocols: []TLSProtocol{
+			TLSProtocolSecure,
+		},
+		ClientTLSCiphers: []TLSCipher{
+			"fast",
+		},
+		ClientTLSECDHCurve: "auto",
+		ServerTLSSSLMode:   SSLModePrefer,
+		ServerTLSProtocols: []TLSProtocol{
+			TLSProtocolSecure,
+		},
+		ServerTLSCiphers: []TLSCipher{
+			"fast",
+		},
+		QueryWaitTimeout:  120.0,
+		CancelWaitTimeout: 10.0,
+		SuspendTimeout:    10.0,
+		PktBuf:            4096,
+		MaxPacketSize:     2147483647,
+		ListenBacklog:     128,
+		SbufLoopcnt:       5,
+		TcpDeferAccept:    1,
+		TcpKeepalive:      1,
+	},
+}
+
+func Load() (Config, error) {
+	conf, err := ini.ReadFile("pgbouncer.ini")
+	if err != nil {
+		return Config{}, err
+	}
+
+	var c = Default
+	err = ini.Unmarshal(conf, &c)
+	return c, err
+}
+
+func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
+	for name, user := range T.Users {
+		u := gat.NewUser("pw") // TODO(garet) passwords
+		pooler.AddUser(name, u)
+
+		for dbname, db := range T.Databases {
+			if db.User != "" && db.User != name {
+				continue
+			}
+
+			var poolMode PoolMode
+			if user.PoolMode != "" {
+				poolMode = user.PoolMode
+			} else if db.PoolMode != "" {
+				poolMode = db.PoolMode
+			} else {
+				poolMode = T.PgBouncer.PoolMode
+			}
+
+			var raw gat.RawPool
+			switch poolMode {
+			case PoolModeSession:
+				raw = session.NewPool(T.PgBouncer.ServerRoundRobin != 0)
+			case PoolModeTransaction:
+				raw = transaction.NewPool()
+			default:
+				return errors.New("unsupported pool mode")
+			}
+
+			p := gat.NewPool(raw, time.Duration(T.PgBouncer.ServerIdleTimeout*float64(time.Second)))
+			u.AddPool(dbname, p)
+
+			startupParameters := make(map[string]string)
+			if db.ClientEncoding != "" {
+				startupParameters["client_encoding"] = db.ClientEncoding
+			}
+			if db.Datestyle != "" {
+				startupParameters["datestyle"] = db.Datestyle
+			}
+			if db.Timezone != "" {
+				startupParameters["timezone"] = db.Timezone
+			}
+
+			if db.Host == "" {
+				// connect over unix socket
+				// TODO(garet)
+			} else {
+				// connect over tcp
+				recipe := gat.TCPRecipe{
+					Database:          db.DBName,
+					Address:           db.Host,
+					User:              name,
+					Password:          "pw",
+					MinConnections:    db.MinPoolSize,
+					MaxConnections:    db.MaxDBConnections,
+					StartupParameters: startupParameters,
+				}
+				if recipe.MinConnections == 0 {
+					recipe.MinConnections = T.PgBouncer.MinPoolSize
+				}
+				if recipe.MaxConnections == 0 {
+					recipe.MaxConnections = T.PgBouncer.MaxDBConnections
+				}
+
+				p.AddRecipe("pgbouncer", recipe)
+			}
+		}
+	}
+
+	return pooler.ListenAndServe(
+		net.JoinHostPort(T.PgBouncer.ListenAddr, strconv.Itoa(T.PgBouncer.ListenPort)),
+	)
 }
