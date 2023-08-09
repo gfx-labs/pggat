@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"pggat2/lib/auth/credentials"
 	"pggat2/lib/gat"
 	"pggat2/lib/gat/pools/session"
 	"pggat2/lib/gat/pools/transaction"
@@ -276,7 +277,11 @@ func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
 	}
 
 	for name, user := range T.Users {
-		u := gat.NewUser(authFile[name]) // TODO(garet) passwords
+		creds := credentials.Cleartext{
+			Username: name,
+			Password: authFile[name], // TODO(garet) md5 and sasl
+		}
+		u := gat.NewUser(creds)
 		pooler.AddUser(name, u)
 
 		for dbname, db := range T.Databases {
@@ -328,20 +333,17 @@ func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
 					address = net.JoinHostPort(db.Host, strconv.Itoa(db.Port))
 				}
 
-				var password string
-				if db.Password == "" {
+				creds := creds
+				if db.Password != "" {
 					// lookup password
-					password = authFile[name]
-				} else {
-					password = db.Password
+					creds.Password = db.Password
 				}
 
 				// connect over tcp
 				recipe := gat.TCPRecipe{
 					Database:          db.DBName,
 					Address:           address,
-					User:              name,
-					Password:          password,
+					Credentials:       creds,
 					MinConnections:    db.MinPoolSize,
 					MaxConnections:    db.MaxDBConnections,
 					StartupParameters: startupParameters,

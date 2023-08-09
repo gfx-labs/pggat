@@ -1,21 +1,24 @@
 package gat
 
-import "pggat2/lib/util/maps"
+import (
+	"pggat2/lib/auth"
+	"pggat2/lib/util/maps"
+)
 
 type User struct {
-	password string
+	credentials auth.Credentials
 
 	pools maps.RWLocked[string, *Pool]
 }
 
-func NewUser(password string) *User {
+func NewUser(credentials auth.Credentials) *User {
 	return &User{
-		password: password,
+		credentials: credentials,
 	}
 }
 
-func (T *User) GetPassword() string {
-	return T.password
+func (T *User) GetCredentials() auth.Credentials {
+	return T.credentials
 }
 
 func (T *User) AddPool(name string, pool *Pool) {

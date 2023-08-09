@@ -3,6 +3,7 @@ package gat
 import (
 	"net"
 
+	"pggat2/lib/auth"
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/middleware/interceptor"
 	"pggat2/lib/middleware/middlewares/unterminate"
@@ -37,16 +38,16 @@ func (T *Pooler) Serve(client zap.ReadWriter) {
 		unterminate.Unterminate,
 	)
 
-	username, database, startupParameters, err := frontends.Accept(client, func(username, database string) (string, bool) {
+	username, database, startupParameters, err := frontends.Accept(client, func(username, database string) (auth.Credentials, bool) {
 		user := T.GetUser(username)
 		if user == nil {
-			return "", false
+			return nil, false
 		}
 		pool := user.GetPool(database)
 		if pool == nil {
-			return "", false
+			return nil, false
 		}
-		return user.GetPassword(), true
+		return user.GetCredentials(), true
 	})
 	if err != nil {
 		_ = client.Close()

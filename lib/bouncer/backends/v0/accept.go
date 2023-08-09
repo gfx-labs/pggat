@@ -3,13 +3,12 @@ package backends
 import (
 	"errors"
 
-	"pggat2/lib/auth/md5"
-	"pggat2/lib/auth/sasl"
+	"pggat2/lib/auth"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
-func authenticationSASLChallenge(server zap.ReadWriter, mechanism sasl.Client) (done bool, err error) {
+func authenticationSASLChallenge(server zap.ReadWriter, encoder auth.SASLEncoder) (done bool, err error) {
 	packet := zap.NewPacket()
 	defer packet.Done()
 	err = server.Read(packet)
@@ -33,7 +32,7 @@ func authenticationSASLChallenge(server zap.ReadWriter, mechanism sasl.Client) (
 	case 11:
 		// challenge
 		var response []byte
-		response, err = mechanism.Continue(read.ReadUnsafeRemaining())
+		response, err = encoder.Write(read.ReadUnsafeRemaining())
 		if err != nil {
 			return
 		}
@@ -44,7 +43,7 @@ func authenticationSASLChallenge(server zap.ReadWriter, mechanism sasl.Client) (
 		return
 	case 12:
 		// finish
-		err = mechanism.Final(read.ReadUnsafeRemaining())
+		_, err = encoder.Write(read.ReadUnsafeRemaining())
 		if err != nil {
 			return
 		}
@@ -56,16 +55,19 @@ func authenticationSASLChallenge(server zap.ReadWriter, mechanism sasl.Client) (
 	}
 }
 
-func authenticationSASL(server zap.ReadWriter, mechanisms []string, username, password string) error {
-	mechanism, err := sasl.NewClient(mechanisms, username, password)
+func authenticationSASL(server zap.ReadWriter, mechanisms []string, creds auth.SASL) error {
+	mechanism, encoder, err := creds.EncodeSASL(mechanisms)
 	if err != nil {
 		return err
 	}
-	initialResponse := mechanism.InitialResponse()
+	initialResponse, err := encoder.Write(nil)
+	if err != nil {
+		return err
+	}
 
 	packet := zap.NewPacket()
 	defer packet.Done()
-	packets.WriteSASLInitialResponse(packet, mechanism.Name(), initialResponse)
+	packets.WriteSASLInitialResponse(packet, mechanism, initialResponse)
 	err = server.Write(packet)
 	if err != nil {
 		return err
@@ -74,7 +76,7 @@ func authenticationSASL(server zap.ReadWriter, mechanisms []string, username, pa
 	// challenge loop
 	for {
 		var done bool
-		done, err = authenticationSASLChallenge(server, mechanism)
+		done, err = authenticationSASLChallenge(server, encoder)
 		if err != nil {
 			return err
 		}
@@ -86,10 +88,10 @@ func authenticationSASL(server zap.ReadWriter, mechanisms []string, username, pa
 	return nil
 }
 
-func authenticationMD5(server zap.ReadWriter, salt [4]byte, username, password string) error {
+func authenticationMD5(server zap.ReadWriter, salt [4]byte, creds auth.MD5) error {
 	packet := zap.NewPacket()
 	defer packet.Done()
-	packets.WritePasswordMessage(packet, md5.Encode(username, password, salt))
+	packets.WritePasswordMessage(packet, creds.EncodeMD5(salt))
 	err := server.Write(packet)
 	if err != nil {
 		return err
@@ -97,10 +99,10 @@ func authenticationMD5(server zap.ReadWriter, salt [4]byte, username, password s
 	return nil
 }
 
-func authenticationCleartext(server zap.ReadWriter, password string) error {
+func authenticationCleartext(server zap.ReadWriter, creds auth.Cleartext) error {
 	packet := zap.NewPacket()
 	defer packet.Done()
-	packets.WritePasswordMessage(packet, password)
+	packets.WritePasswordMessage(packet, creds.EncodeCleartext())
 	err := server.Write(packet)
 	if err != nil {
 		return err
@@ -108,7 +110,7 @@ func authenticationCleartext(server zap.ReadWriter, password string) error {
 	return nil
 }
 
-func startup0(server zap.ReadWriter, username, password string) (done bool, err error) {
+func startup0(server zap.ReadWriter, creds auth.Credentials) (done bool, err error) {
 	packet := zap.NewPacket()
 	defer packet.Done()
 	err = server.Read(packet)
@@ -141,14 +143,22 @@ func startup0(server zap.ReadWriter, username, password string) (done bool, err 
 			err = errors.New("kerberos v5 is not supported")
 			return
 		case 3:
-			return false, authenticationCleartext(server, password)
+			c, ok := creds.(auth.Cleartext)
+			if !ok {
+				return false, auth.ErrMethodNotSupported
+			}
+			return false, authenticationCleartext(server, c)
 		case 5:
 			salt, ok := packets.ReadAuthenticationMD5(packet.Read())
 			if !ok {
 				err = ErrBadFormat
 				return
 			}
-			return false, authenticationMD5(server, salt, username, password)
+			c, ok := creds.(auth.MD5)
+			if !ok {
+				return false, auth.ErrMethodNotSupported
+			}
+			return false, authenticationMD5(server, salt, c)
 		case 6:
 			err = errors.New("scm credential is not supported")
 			return
@@ -166,7 +176,11 @@ func startup0(server zap.ReadWriter, username, password string) (done bool, err 
 				return
 			}
 
-			return false, authenticationSASL(server, mechanisms, username, password)
+			c, ok := creds.(auth.SASL)
+			if !ok {
+				return false, auth.ErrMethodNotSupported
+			}
+			return false, authenticationSASL(server, mechanisms, c)
 		default:
 			err = errors.New("unknown authentication method")
 			return
@@ -227,9 +241,9 @@ func startup1(server zap.ReadWriter, parameterStatus map[string]string) (done bo
 	}
 }
 
-func Accept(server zap.ReadWriter, username, password, database string, startupParameters map[string]string) error {
+func Accept(server zap.ReadWriter, creds auth.Credentials, database string, startupParameters map[string]string) error {
 	if database == "" {
-		database = username
+		database = creds.GetUsername()
 	}
 	// we can re-use the memory for this pkt most of the way down because we don't pass this anywhere
 	packet := zap.NewUntypedPacket()
@@ -237,7 +251,7 @@ func Accept(server zap.ReadWriter, username, password, database string, startupP
 	packet.WriteInt16(3)
 	packet.WriteInt16(0)
 	packet.WriteString("user")
-	packet.WriteString(username)
+	packet.WriteString(creds.GetUsername())
 	packet.WriteString("database")
 	packet.WriteString(database)
 	for key, value := range startupParameters {
@@ -253,7 +267,7 @@ func Accept(server zap.ReadWriter, username, password, database string, startupP
 
 	for {
 		var done bool
-		done, err = startup0(server, username, password)
+		done, err = startup0(server, creds)
 		if err != nil {
 			return err
 		}

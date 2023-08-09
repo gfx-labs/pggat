@@ -3,6 +3,7 @@ package gat
 import (
 	"net"
 
+	"pggat2/lib/auth"
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/util/maps"
 	"pggat2/lib/zap"
@@ -18,10 +19,9 @@ type Recipe interface {
 }
 
 type TCPRecipe struct {
-	Database string
-	Address  string
-	User     string
-	Password string
+	Database    string
+	Address     string
+	Credentials auth.Credentials
 
 	MinConnections int
 	MaxConnections int
@@ -38,28 +38,12 @@ func (T TCPRecipe) Connect() (zap.ReadWriter, map[string]string, error) {
 
 	parameterStatus := maps.Clone(T.StartupParameters)
 
-	err = backends.Accept(rw, T.User, T.Password, T.Database, T.StartupParameters)
+	err = backends.Accept(rw, T.Credentials, T.Database, T.StartupParameters)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	return rw, parameterStatus, nil
-}
-
-func (T TCPRecipe) GetDatabase() string {
-	return T.Database
-}
-
-func (T TCPRecipe) GetUser() string {
-	return T.User
-}
-
-func (T TCPRecipe) GetPassword() string {
-	return T.Password
-}
-
-func (T TCPRecipe) GetStartupParameters() map[string]string {
-	return T.StartupParameters
 }
 
 func (T TCPRecipe) GetMinConnections() int {

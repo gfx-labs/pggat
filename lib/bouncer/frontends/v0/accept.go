@@ -2,9 +2,10 @@ package frontends
 
 import (
 	"crypto/rand"
+	"errors"
 	"strings"
 
-	"pggat2/lib/auth/sasl"
+	"pggat2/lib/auth"
 	"pggat2/lib/perror"
 	"pggat2/lib/zap"
 	"pggat2/lib/zap/packets/v3.0"
@@ -163,7 +164,7 @@ func startup0(client zap.ReadWriter, startupParameters map[string]string) (user,
 	return
 }
 
-func authenticationSASLInitial(client zap.ReadWriter, username, password string) (tool sasl.Server, resp []byte, done bool, err perror.Error) {
+func authenticationSASLInitial(client zap.ReadWriter, creds auth.SASL) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {
 	// check which authentication method the client wants
 	packet := zap.NewPacket()
 	defer packet.Done()
@@ -178,21 +179,25 @@ func authenticationSASLInitial(client zap.ReadWriter, username, password string)
 	}
 
 	var err2 error
-	tool, err2 = sasl.NewServer(mechanism, username, password)
+	tool, err2 = creds.VerifySASL(mechanism)
 	if err2 != nil {
 		err = perror.Wrap(err2)
 		return
 	}
 
-	resp, done, err2 = tool.InitialResponse(initialResponse)
+	resp, err2 = tool.Write(initialResponse)
 	if err2 != nil {
+		if errors.Is(err2, auth.ErrSASLComplete) {
+			done = true
+			return
+		}
 		err = perror.Wrap(err2)
 		return
 	}
 	return
 }
 
-func authenticationSASLContinue(client zap.ReadWriter, tool sasl.Server) (resp []byte, done bool, err perror.Error) {
+func authenticationSASLContinue(client zap.ReadWriter, tool auth.SASLVerifier) (resp []byte, done bool, err perror.Error) {
 	packet := zap.NewPacket()
 	defer packet.Done()
 	err = perror.Wrap(client.Read(packet))
@@ -206,24 +211,28 @@ func authenticationSASLContinue(client zap.ReadWriter, tool sasl.Server) (resp [
 	}
 
 	var err2 error
-	resp, done, err2 = tool.Continue(clientResp)
+	resp, err2 = tool.Write(clientResp)
 	if err2 != nil {
+		if errors.Is(err2, auth.ErrSASLComplete) {
+			done = true
+			return
+		}
 		err = perror.Wrap(err2)
 		return
 	}
 	return
 }
 
-func authenticationSASL(client zap.ReadWriter, username, password string) perror.Error {
+func authenticationSASL(client zap.ReadWriter, creds auth.SASL) perror.Error {
 	packet := zap.NewPacket()
 	defer packet.Done()
-	packets.WriteAuthenticationSASL(packet, sasl.Mechanisms)
+	packets.WriteAuthenticationSASL(packet, creds.SupportedSASLMechanisms())
 	err := perror.Wrap(client.Write(packet))
 	if err != nil {
 		return err
 	}
 
-	tool, resp, done, err := authenticationSASLInitial(client, username, password)
+	tool, resp, done, err := authenticationSASLInitial(client, creds)
 	if err != nil {
 		return err
 	}
@@ -260,7 +269,7 @@ func updateParameter(pkts *zap.Packets, name, value string) {
 	pkts.Append(packet)
 }
 
-func accept(client zap.ReadWriter, getPassword func(user, database string) (string, bool)) (user string, database string, startupParameters map[string]string, err perror.Error) {
+func accept(client zap.ReadWriter, getCredentials func(user, database string) (auth.Credentials, bool)) (user string, database string, startupParameters map[string]string, err perror.Error) {
 	startupParameters = make(map[string]string)
 
 	for {
@@ -274,7 +283,7 @@ func accept(client zap.ReadWriter, getPassword func(user, database string) (stri
 		}
 	}
 
-	password, ok := getPassword(user, database)
+	creds, ok := getCredentials(user, database)
 	if !ok {
 		err = perror.New(
 			perror.FATAL,
@@ -283,8 +292,16 @@ func accept(client zap.ReadWriter, getPassword func(user, database string) (stri
 		)
 		return
 	}
+	credsSASL, ok := creds.(auth.SASL)
+	if !ok {
+		err = perror.New(
+			perror.FATAL,
+			perror.InternalError,
+			"Auth method not supported",
+		)
+	}
 
-	err = authenticationSASL(client, user, password)
+	err = authenticationSASL(client, credsSASL)
 	if err != nil {
 		return
 	}
@@ -333,8 +350,8 @@ func fail(client zap.ReadWriter, err perror.Error) {
 	_ = client.Write(packet)
 }
 
-func Accept(client zap.ReadWriter, getPassword func(user, database string) (string, bool)) (user, database string, startupParameters map[string]string, err perror.Error) {
-	user, database, startupParameters, err = accept(client, getPassword)
+func Accept(client zap.ReadWriter, getCredentials func(user, database string) (auth.Credentials, bool)) (user, database string, startupParameters map[string]string, err perror.Error) {
+	user, database, startupParameters, err = accept(client, getCredentials)
 	if err != nil {
 		fail(client, err)
 	}
