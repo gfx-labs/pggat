@@ -2,14 +2,17 @@ package pgbouncer
 
 import (
 	"errors"
+	"log"
 	"net"
+	"os"
 	"strconv"
 	"time"
 
 	"pggat2/lib/gat"
 	"pggat2/lib/gat/pools/session"
 	"pggat2/lib/gat/pools/transaction"
-	"pggat2/lib/util/ini"
+	ini2 "pggat2/lib/util/encoding/ini"
+	"pggat2/lib/util/encoding/userlist"
 )
 
 type PoolMode string
@@ -248,19 +251,32 @@ var Default = Config{
 }
 
 func Load() (Config, error) {
-	conf, err := ini.ReadFile("pgbouncer.ini")
+	conf, err := ini2.ReadFile("pgbouncer.ini")
 	if err != nil {
 		return Config{}, err
 	}
 
 	var c = Default
-	err = ini.Unmarshal(conf, &c)
+	err = ini2.Unmarshal(conf, &c)
 	return c, err
 }
 
 func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
+	var authFile map[string]string
+	if T.PgBouncer.AuthFile != "" {
+		file, err := os.ReadFile(T.PgBouncer.AuthFile)
+		if err != nil {
+			return err
+		}
+
+		authFile, err = userlist.Unmarshal(file)
+		if err != nil {
+			return err
+		}
+	}
+
 	for name, user := range T.Users {
-		u := gat.NewUser("pw") // TODO(garet) passwords
+		u := gat.NewUser(authFile[name]) // TODO(garet) passwords
 		pooler.AddUser(name, u)
 
 		for dbname, db := range T.Databases {
@@ -305,12 +321,27 @@ func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
 				// connect over unix socket
 				// TODO(garet)
 			} else {
+				var address string
+				if db.Port == 0 {
+					address = net.JoinHostPort(db.Host, "5432")
+				} else {
+					address = net.JoinHostPort(db.Host, strconv.Itoa(db.Port))
+				}
+
+				var password string
+				if db.Password == "" {
+					// lookup password
+					password = authFile[name]
+				} else {
+					password = db.Password
+				}
+
 				// connect over tcp
 				recipe := gat.TCPRecipe{
 					Database:          db.DBName,
-					Address:           db.Host,
+					Address:           address,
 					User:              name,
-					Password:          "pw",
+					Password:          password,
 					MinConnections:    db.MinPoolSize,
 					MaxConnections:    db.MaxDBConnections,
 					StartupParameters: startupParameters,
@@ -327,7 +358,9 @@ func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
 		}
 	}
 
-	return pooler.ListenAndServe(
-		net.JoinHostPort(T.PgBouncer.ListenAddr, strconv.Itoa(T.PgBouncer.ListenPort)),
-	)
+	listen := net.JoinHostPort(T.PgBouncer.ListenAddr, strconv.Itoa(T.PgBouncer.ListenPort))
+
+	log.Println("listening on", listen)
+
+	return pooler.ListenAndServe(listen)
 }

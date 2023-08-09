@@ -223,7 +223,7 @@ func startup1(server zap.ReadWriter, parameterStatus map[string]string) (done bo
 		return false, nil
 	default:
 		err = ErrUnexpectedPacket
-		return false, err
+		return
 	}
 }
 

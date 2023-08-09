@@ -57,29 +57,31 @@ func NewPool(raw RawPool, idleTimeout time.Duration) *Pool {
 		}
 	}()
 
-	go func() {
-		for {
-			var wait time.Duration
+	if idleTimeout != 0 {
+		go func() {
+			for {
+				var wait time.Duration
 
-			now := time.Now()
-			idle := pool.IdleSince()
-			for now.Sub(idle) > idleTimeout {
-				if idle == (time.Time{}) {
-					break
+				now := time.Now()
+				idle := pool.IdleSince()
+				for now.Sub(idle) > idleTimeout {
+					if idle == (time.Time{}) {
+						break
+					}
+					pool.ScaleDown(1)
+					idle = pool.IdleSince()
 				}
-				pool.ScaleDown(1)
-				idle = pool.IdleSince()
-			}
 
-			if idle == (time.Time{}) {
-				wait = idleTimeout
-			} else {
-				wait = now.Sub(idle.Add(idleTimeout))
-			}
+				if idle == (time.Time{}) {
+					wait = idleTimeout
+				} else {
+					wait = now.Sub(idle.Add(idleTimeout))
+				}
 
-			time.Sleep(wait)
-		}
-	}()
+				time.Sleep(wait)
+			}
+		}()
+	}
 
 	return pool
 }
