@@ -6,7 +6,10 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"pggat2/lib/auth/credentials"
 	"pggat2/lib/gat"
@@ -360,19 +363,47 @@ func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
 		}
 	}
 
+	var wg errgroup.Group
+
 	if T.PgBouncer.ListenAddr != "" {
-		listenAddr := T.PgBouncer.ListenAddr
-		if listenAddr == "*" {
-			listenAddr = ""
-		}
+		wg.Go(func() error {
+			listenAddr := T.PgBouncer.ListenAddr
+			if listenAddr == "*" {
+				listenAddr = ""
+			}
 
-		listen := net.JoinHostPort(listenAddr, strconv.Itoa(T.PgBouncer.ListenPort))
+			listen := net.JoinHostPort(listenAddr, strconv.Itoa(T.PgBouncer.ListenPort))
 
-		log.Println("listening on", listen)
+			log.Println("listening on", listen)
 
-		return pooler.ListenAndServe(listen)
+			listener, err := net.Listen("tcp", listen)
+			if err != nil {
+				return err
+			}
+
+			return pooler.ListenAndServe(listener)
+		})
 	}
 
 	// listen on unix socket
-	return nil
+	wg.Go(func() error {
+		dir := T.PgBouncer.UnixSocketDir
+		port := T.PgBouncer.ListenPort
+
+		if !strings.HasSuffix(dir, "/") {
+			dir = dir + "/"
+		}
+		dir = dir + ".s.PGSQL." + strconv.Itoa(port)
+
+		listener, err := net.Listen("unix", dir)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("listening on unix:%s", dir)
+
+		return pooler.ListenAndServe(listener)
+	})
+
+	return wg.Wait()
 }

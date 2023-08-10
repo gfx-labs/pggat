@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/google/uuid v1.3.0
 	github.com/xdg-go/scram v1.1.2
+	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 	k8s.io/api v0.27.4
 	k8s.io/apimachinery v0.27.4
 	k8s.io/client-go v0.27.4

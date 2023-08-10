@@ -69,12 +69,7 @@ func (T *Pooler) Serve(client zap.ReadWriter) {
 	pool.Serve(client, startupParameters)
 }
 
-func (T *Pooler) ListenAndServe(address string) error {
-	listener, err := net.Listen("tcp", address)
-	if err != nil {
-		return err
-	}
-
+func (T *Pooler) ListenAndServe(listener net.Listener) error {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
