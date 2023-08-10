@@ -251,8 +251,8 @@ var Default = Config{
 	},
 }
 
-func Load() (Config, error) {
-	conf, err := ini2.ReadFile("pgbouncer.ini")
+func Load(config string) (Config, error) {
+	conf, err := ini2.ReadFile(config)
 	if err != nil {
 		return Config{}, err
 	}
@@ -360,9 +360,19 @@ func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
 		}
 	}
 
-	listen := net.JoinHostPort(T.PgBouncer.ListenAddr, strconv.Itoa(T.PgBouncer.ListenPort))
+	if T.PgBouncer.ListenAddr != "" {
+		listenAddr := T.PgBouncer.ListenAddr
+		if listenAddr == "*" {
+			listenAddr = ""
+		}
 
-	log.Println("listening on", listen)
+		listen := net.JoinHostPort(listenAddr, strconv.Itoa(T.PgBouncer.ListenPort))
 
-	return pooler.ListenAndServe(listen)
+		log.Println("listening on", listen)
+
+		return pooler.ListenAndServe(listen)
+	}
+
+	// listen on unix socket
+	return nil
 }

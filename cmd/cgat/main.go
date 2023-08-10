@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
 
 	"pggat2/lib/gat"
 	"pggat2/lib/gat/configs/pgbouncer"
@@ -16,7 +17,11 @@ func main() {
 
 	log.Println("Starting pggat...")
 
-	conf, err := pgbouncer.Load()
+	if len(os.Args) < 2 {
+		panic("usage: pggat <config>")
+	}
+
+	conf, err := pgbouncer.Load(os.Args[1])
 	if err != nil {
 		panic(err)
 	}
