@@ -112,18 +112,20 @@ func (T *Pool) AddWorker(constraints rob.Constraints, worker rob.Worker) uuid.UU
 	id := uuid.New()
 	s := sink.NewSink(id, constraints, worker)
 
-	T.mu.Lock()
-	// if mu is locked, we don't need to lock bmu, because we are the only accessor
-	T.sinks[id] = s
-	i := 0
-	for _, v := range T.backlog {
-		if ok := s.ExecuteStalled(v); !ok {
-			T.backlog[i] = v
-			i++
+	func() {
+		T.mu.Lock()
+		defer T.mu.Unlock()
+		// if mu is locked, we don't need to lock bmu, because we are the only accessor
+		T.sinks[id] = s
+		i := 0
+		for _, v := range T.backlog {
+			if ok := s.ExecuteStalled(v); !ok {
+				T.backlog[i] = v
+				i++
+			}
 		}
-	}
-	T.backlog = T.backlog[:i]
-	T.mu.Unlock()
+		T.backlog = T.backlog[:i]
+	}()
 
 	T.stealFor(id)
 
@@ -156,14 +158,17 @@ func (T *Pool) GetIdleWorker() (id uuid.UUID, idleStart time.Time) {
 }
 
 func (T *Pool) RemoveWorker(id uuid.UUID) rob.Worker {
-	T.mu.Lock()
-	s, ok := T.sinks[id]
+	var s *sink.Sink
+	var ok bool
+	func() {
+		T.mu.Lock()
+		defer T.mu.Unlock()
+		s, ok = T.sinks[id]
+		delete(T.sinks, id)
+	}()
 	if !ok {
-		T.mu.Unlock()
 		return nil
 	}
-	delete(T.sinks, id)
-	T.mu.Unlock()
 
 	// now we need to reschedule all the work that was scheduled to s (stalled only).
 	jobs := s.StealAll()
@@ -207,9 +212,12 @@ func (T *Pool) stealFor(id uuid.UUID) {
 }
 
 func (T *Pool) Execute(id uuid.UUID, ctx *rob.Context, work any) {
-	T.mu.RLock()
-	s := T.sinks[id]
-	T.mu.RUnlock()
+	var s *sink.Sink
+	func() {
+		T.mu.RLock()
+		defer T.mu.RUnlock()
+		s = T.sinks[id]
+	}()
 
 	hasMore := s.Execute(ctx, work)
 	if ctx.Removed {
@@ -236,14 +244,16 @@ func (T *Pool) ReadMetrics(metrics *rob.Metrics) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 
-	T.bmu.Lock()
-	for _, j := range T.backlog {
-		metrics.Jobs[j.ID] = rob.JobMetrics{
-			Created:    j.Created,
-			Backlogged: true,
+	func() {
+		T.bmu.Lock()
+		defer T.bmu.Unlock()
+		for _, j := range T.backlog {
+			metrics.Jobs[j.ID] = rob.JobMetrics{
+				Created:    j.Created,
+				Backlogged: true,
+			}
 		}
-	}
-	T.bmu.Unlock()
+	}()
 
 	for _, worker := range T.sinks {
 		worker.ReadMetrics(metrics)

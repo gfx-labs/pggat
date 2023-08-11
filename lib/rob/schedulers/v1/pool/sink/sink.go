@@ -83,17 +83,22 @@ func (T *Sink) ExecuteConcurrent(j job.Concurrent) (ok, hasMore bool) {
 		return false, false
 	}
 
-	T.mu.Lock()
+	var wasInUse bool
 
-	if T.active != uuid.Nil {
-		// this Sink is in use
-		T.mu.Unlock()
+	func() {
+		T.mu.Lock()
+		defer T.mu.Unlock()
+
+		if T.active != uuid.Nil {
+			wasInUse = true
+			return
+		}
+
+		T.setActive(j.Source)
+	}()
+	if wasInUse {
 		return false, false
 	}
-
-	T.setActive(j.Source)
-
-	T.mu.Unlock()
 
 	return true, T.Execute(j.Context, j.Work)
 }
@@ -242,15 +247,16 @@ func (T *Sink) StealFor(rhs *Sink) uuid.UUID {
 			pending, _ := T.pending[source]
 			delete(T.pending, source)
 
-			T.mu.Unlock()
+			func() {
+				T.mu.Unlock()
+				defer T.mu.Lock()
 
-			rhs.ExecuteStalled(j)
-
-			for j, ok = pending.PopFront(); ok; j, ok = pending.PopFront() {
 				rhs.ExecuteStalled(j)
-			}
 
-			T.mu.Lock()
+				for j, ok = pending.PopFront(); ok; j, ok = pending.PopFront() {
+					rhs.ExecuteStalled(j)
+				}
+			}()
 
 			if pending != nil {
 				if _, ok = T.pending[source]; !ok {

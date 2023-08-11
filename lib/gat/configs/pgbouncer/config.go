@@ -374,12 +374,12 @@ func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
 
 			listen := net.JoinHostPort(listenAddr, strconv.Itoa(T.PgBouncer.ListenPort))
 
-			log.Println("listening on", listen)
-
 			listener, err := net.Listen("tcp", listen)
 			if err != nil {
 				return err
 			}
+
+			log.Println("listening on", listen)
 
 			return pooler.ListenAndServe(listener)
 		})

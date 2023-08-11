@@ -63,6 +63,7 @@ func (T *RWLocked[K, V]) Swap(key K, value V) (previous V, loaded bool) {
 }
 
 func (T *RWLocked[K, V]) Range(fn func(key K, value V) bool) bool {
+	// this is ok because if fn panics the map will be unlocked
 	T.mu.RLock()
 	for k, v := range T.inner {
 		T.mu.RUnlock()

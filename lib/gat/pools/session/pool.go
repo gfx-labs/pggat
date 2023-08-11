@@ -12,7 +12,6 @@ import (
 	"pggat2/lib/util/chans"
 	"pggat2/lib/util/maps"
 	"pggat2/lib/util/ring"
-	"pggat2/lib/util/strings"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
 )
@@ -90,10 +89,9 @@ func (T *Pool) release(conn Conn) {
 	T._release(conn.id)
 }
 
-func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, startupParameters map[string]string) {
+func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, _ map[string]string) {
 	defer func() {
 		_ = client.Close()
-
 	}()
 
 	connOk := true
@@ -110,28 +108,9 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, startupParameters 
 		pkts := zap.NewPackets()
 		defer pkts.Done()
 		for key, value := range conn.initialParameters {
-			if _, ok := startupParameters[key]; ok {
-				continue
-			}
 			packet := zap.NewPacket()
 			packets.WriteParameterStatus(packet, key, value)
 			pkts.Append(packet)
-		}
-
-		for key, value := range startupParameters {
-			packet := zap.NewPacket()
-			packets.WriteParameterStatus(packet, key, value)
-			pkts.Append(packet)
-
-			if current, ok := conn.initialParameters[key]; ok && current == value {
-				continue
-			}
-
-			err := backends.QueryString(&backends.Context{}, conn.rw, "SET "+key+" = '"+strings.Escape(value, "'")+"'")
-			if err != nil {
-				connOk = false
-				return true
-			}
 		}
 
 		err := client.WriteV(pkts)
