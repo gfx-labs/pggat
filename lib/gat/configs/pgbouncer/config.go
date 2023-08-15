@@ -292,6 +292,10 @@ func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
 				continue
 			}
 
+			if db.DBName != "" {
+				dbname = db.DBName
+			}
+
 			var poolMode PoolMode
 			if user.PoolMode != "" {
 				poolMode = user.PoolMode
@@ -344,7 +348,7 @@ func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
 
 				// connect over tcp
 				recipe := gat.TCPRecipe{
-					Database:          db.DBName,
+					Database:          dbname,
 					Address:           address,
 					Credentials:       creds,
 					MinConnections:    db.MinPoolSize,

@@ -37,8 +37,11 @@ func (T TCPRecipe) Connect() (zap.ReadWriter, map[string]string, error) {
 	rw := zap.WrapIOReadWriter(conn)
 
 	parameterStatus := maps.Clone(T.StartupParameters)
+	if parameterStatus == nil {
+		parameterStatus = make(map[string]string)
+	}
 
-	err = backends.Accept(rw, T.Credentials, T.Database, T.StartupParameters)
+	err = backends.Accept(rw, T.Credentials, T.Database, parameterStatus)
 	if err != nil {
 		return nil, nil, err
 	}
