@@ -37,6 +37,9 @@ outer:
 			if !ok {
 				name = field.Name
 			}
+			if name == "*" {
+				return get(rv.Field(i), key, fn)
+			}
 			if name == key {
 				return fn(rv.Field(i))
 			}

@@ -160,21 +160,19 @@ type PgBouncer struct {
 }
 
 type Database struct {
-	DBName           string   `ini:"dbname"`
-	Host             string   `ini:"host"`
-	Port             int      `ini:"port"`
-	User             string   `ini:"user"`
-	Password         string   `ini:"password"`
-	AuthUser         string   `ini:"auth_user"`
-	PoolSize         int      `ini:"pool_size"`
-	MinPoolSize      int      `ini:"min_pool_size"`
-	ReservePool      int      `ini:"reserve_pool"`
-	ConnectQuery     string   `ini:"connect_query"`
-	PoolMode         PoolMode `ini:"pool_mode"`
-	MaxDBConnections int      `ini:"max_db_connections"`
-	ClientEncoding   string   `ini:"client_encoding"`
-	Datestyle        string   `ini:"datestyle"`
-	Timezone         string   `ini:"timezone"`
+	DBName            string            `ini:"dbname"`
+	Host              string            `ini:"host"`
+	Port              int               `ini:"port"`
+	User              string            `ini:"user"`
+	Password          string            `ini:"password"`
+	AuthUser          string            `ini:"auth_user"`
+	PoolSize          int               `ini:"pool_size"`
+	MinPoolSize       int               `ini:"min_pool_size"`
+	ReservePool       int               `ini:"reserve_pool"`
+	ConnectQuery      string            `ini:"connect_query"`
+	PoolMode          PoolMode          `ini:"pool_mode"`
+	MaxDBConnections  int               `ini:"max_db_connections"`
+	StartupParameters map[string]string `ini:"*"`
 }
 
 type User struct {
@@ -318,17 +316,6 @@ func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
 			p := gat.NewPool(raw, time.Duration(T.PgBouncer.ServerIdleTimeout*float64(time.Second)))
 			u.AddPool(dbname, p)
 
-			startupParameters := make(map[string]string)
-			if db.ClientEncoding != "" {
-				startupParameters["client_encoding"] = db.ClientEncoding
-			}
-			if db.Datestyle != "" {
-				startupParameters["datestyle"] = db.Datestyle
-			}
-			if db.Timezone != "" {
-				startupParameters["timezone"] = db.Timezone
-			}
-
 			if db.Host == "" {
 				// connect over unix socket
 				// TODO(garet)
@@ -353,7 +340,7 @@ func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
 					Credentials:       creds,
 					MinConnections:    db.MinPoolSize,
 					MaxConnections:    db.MaxDBConnections,
-					StartupParameters: startupParameters,
+					StartupParameters: db.StartupParameters,
 				}
 				if recipe.MinConnections == 0 {
 					recipe.MinConnections = T.PgBouncer.MinPoolSize
