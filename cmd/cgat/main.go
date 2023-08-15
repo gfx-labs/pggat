@@ -6,7 +6,6 @@ import (
 	_ "net/http/pprof"
 	"os"
 
-	"pggat2/lib/gat"
 	"pggat2/lib/gat/configs/pgbouncer"
 )
 
@@ -26,9 +25,7 @@ func main() {
 		panic(err)
 	}
 
-	pooler := gat.NewPooler()
-
-	err = conf.ListenAndServe(pooler)
+	err = conf.ListenAndServe()
 	if err != nil {
 		panic(err)
 	}

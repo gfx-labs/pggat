@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"pggat2/lib/auth"
+	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
 )
@@ -195,7 +196,7 @@ func startup0(server zap.ReadWriter, creds auth.Credentials) (done bool, err err
 	}
 }
 
-func startup1(server zap.ReadWriter, parameterStatus map[string]string) (done bool, err error) {
+func startup1(server zap.ReadWriter, parameterStatus map[strutil.CIString]string) (done bool, err error) {
 	packet := zap.NewPacket()
 	defer packet.Done()
 	err = server.Read(packet)
@@ -220,7 +221,8 @@ func startup1(server zap.ReadWriter, parameterStatus map[string]string) (done bo
 			err = ErrBadFormat
 			return
 		}
-		parameterStatus[key] = value
+		ikey := strutil.MakeCIString(key)
+		parameterStatus[ikey] = value
 		return false, nil
 	case packets.ReadyForQuery:
 		return true, nil
@@ -241,7 +243,7 @@ func startup1(server zap.ReadWriter, parameterStatus map[string]string) (done bo
 	}
 }
 
-func Accept(server zap.ReadWriter, creds auth.Credentials, database string, startupParameters map[string]string) error {
+func Accept(server zap.ReadWriter, creds auth.Credentials, database string, startupParameters map[strutil.CIString]string) error {
 	if database == "" {
 		database = creds.GetUsername()
 	}
@@ -255,7 +257,7 @@ func Accept(server zap.ReadWriter, creds auth.Credentials, database string, star
 	packet.WriteString("database")
 	packet.WriteString(database)
 	for key, value := range startupParameters {
-		packet.WriteString(key)
+		packet.WriteString(key.String())
 		packet.WriteString(value)
 	}
 	packet.WriteString("")

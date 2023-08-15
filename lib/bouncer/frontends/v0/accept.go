@@ -3,15 +3,22 @@ package frontends
 import (
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"strings"
 
 	"pggat2/lib/auth"
 	"pggat2/lib/perror"
+	"pggat2/lib/util/slices"
+	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 	"pggat2/lib/zap/packets/v3.0"
 )
 
-func startup0(client zap.ReadWriter, startupParameters map[string]string) (user, database string, done bool, err perror.Error) {
+func startup0(
+	client zap.ReadWriter,
+	allowedStartupParameters []strutil.CIString,
+	startupParameters map[strutil.CIString]string,
+) (user, database string, done bool, err perror.Error) {
 	packet := zap.NewUntypedPacket()
 	defer packet.Done()
 	err = perror.Wrap(client.ReadUntyped(packet))
@@ -109,7 +116,17 @@ func startup0(client zap.ReadWriter, startupParameters map[string]string) (user,
 						return
 					}
 
-					startupParameters[key] = value
+					ikey := strutil.MakeCIString(key)
+
+					if !slices.Contains(allowedStartupParameters, ikey) {
+						err = perror.New(
+							perror.FATAL,
+							perror.FeatureNotSupported,
+							fmt.Sprintf(`Startup parameter "%s" is not allowed`, key),
+						)
+						return
+					}
+					startupParameters[ikey] = value
 				default:
 					err = perror.New(
 						perror.FATAL,
@@ -131,7 +148,18 @@ func startup0(client zap.ReadWriter, startupParameters map[string]string) (user,
 				// we don't support protocol extensions at the moment
 				unsupportedOptions = append(unsupportedOptions, key)
 			} else {
-				startupParameters[key] = value
+				ikey := strutil.MakeCIString(key)
+
+				if !slices.Contains(allowedStartupParameters, ikey) {
+					err = perror.New(
+						perror.FATAL,
+						perror.FeatureNotSupported,
+						fmt.Sprintf(`Startup parameter "%s" is not allowed`, key),
+					)
+					return
+				}
+
+				startupParameters[ikey] = value
 			}
 		}
 	}
@@ -269,12 +297,16 @@ func updateParameter(pkts *zap.Packets, name, value string) {
 	pkts.Append(packet)
 }
 
-func accept(client zap.ReadWriter, getCredentials func(user, database string) (auth.Credentials, bool)) (user string, database string, startupParameters map[string]string, err perror.Error) {
-	startupParameters = make(map[string]string)
+func accept(
+	client zap.ReadWriter,
+	getCredentials func(user, database string) (auth.Credentials, bool),
+	allowedStartupParameters []strutil.CIString,
+) (user string, database string, startupParameters map[strutil.CIString]string, err perror.Error) {
+	startupParameters = make(map[strutil.CIString]string)
 
 	for {
 		var done bool
-		user, database, done, err = startup0(client, startupParameters)
+		user, database, done, err = startup0(client, allowedStartupParameters, startupParameters)
 		if err != nil {
 			return
 		}
@@ -350,8 +382,12 @@ func fail(client zap.ReadWriter, err perror.Error) {
 	_ = client.Write(packet)
 }
 
-func Accept(client zap.ReadWriter, getCredentials func(user, database string) (auth.Credentials, bool)) (user, database string, startupParameters map[string]string, err perror.Error) {
-	user, database, startupParameters, err = accept(client, getCredentials)
+func Accept(
+	client zap.ReadWriter,
+	getCredentials func(user, database string) (auth.Credentials, bool),
+	allowedStartupParameters []strutil.CIString,
+) (user, database string, startupParameters map[strutil.CIString]string, err perror.Error) {
+	user, database, startupParameters, err = accept(client, getCredentials, allowedStartupParameters)
 	if err != nil {
 		fail(client, err)
 	}

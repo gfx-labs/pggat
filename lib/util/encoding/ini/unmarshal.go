@@ -5,10 +5,17 @@ import (
 	"errors"
 	"reflect"
 	"strconv"
-	"strings"
 )
 
-func get(rv reflect.Value, key string, fn func(rv reflect.Value) error) error {
+type Unmarshaller interface {
+	UnmarshalINI(bytes []byte) error
+}
+
+var (
+	unmarshaller = reflect.TypeOf((*Unmarshaller)(nil)).Elem()
+)
+
+func get(rv reflect.Value, key []byte, fn func(rv reflect.Value) error) error {
 outer:
 	for {
 		switch rv.Kind() {
@@ -26,6 +33,7 @@ outer:
 
 	switch rv.Kind() {
 	case reflect.Struct:
+		keystr := string(key)
 		rt := rv.Type()
 		numFields := rt.NumField()
 		for i := 0; i < numFields; i++ {
@@ -40,7 +48,7 @@ outer:
 			if name == "*" {
 				return get(rv.Field(i), key, fn)
 			}
-			if name == key {
+			if name == keystr {
 				return fn(rv.Field(i))
 			}
 		}
@@ -48,14 +56,13 @@ outer:
 	case reflect.Map:
 		rt := rv.Type()
 		rtKey := rt.Key()
-		if rtKey.Kind() != reflect.String {
-			return nil
-		}
 		if rv.IsNil() {
 			rv.Set(reflect.MakeMap(rt))
 		}
 		k := reflect.New(rtKey).Elem()
-		k.SetString(key)
+		if err := set(k, key); err != nil {
+			return err
+		}
 		v := reflect.New(rt.Elem()).Elem()
 		if err := fn(v); err != nil {
 			return err
@@ -67,7 +74,7 @@ outer:
 	}
 }
 
-func set(rv reflect.Value, value string) error {
+func set(rv reflect.Value, value []byte) error {
 outer:
 	for {
 		switch rv.Kind() {
@@ -89,11 +96,21 @@ outer:
 		}
 	}
 
+	rt := rv.Type()
+	if rt.Implements(unmarshaller) {
+		rvu := rv.Interface().(Unmarshaller)
+		return rvu.UnmarshalINI(value)
+	}
+	if rv.CanAddr() && reflect.PointerTo(rt).Implements(unmarshaller) {
+		rvu := rv.Addr().Interface().(Unmarshaller)
+		return rvu.UnmarshalINI(value)
+	}
+
 	switch rv.Kind() {
 	case reflect.Struct, reflect.Map:
-		fields := strings.Fields(value)
+		fields := bytes.Fields(value)
 		for _, field := range fields {
-			k, v, ok := strings.Cut(field, "=")
+			k, v, ok := bytes.Cut(field, []byte{'='})
 			if !ok {
 				return errors.New("expected key=value")
 			}
@@ -105,45 +122,45 @@ outer:
 		}
 		return nil
 	case reflect.Array:
-		items := strings.Split(value, ",")
+		items := bytes.Split(value, []byte{','})
 		if len(items) != rv.Len() {
 			return errors.New("wrong length for array")
 		}
 		for i, item := range items {
-			if err := set(rv.Index(i), strings.TrimSpace(item)); err != nil {
+			if err := set(rv.Index(i), bytes.TrimSpace(item)); err != nil {
 				return err
 			}
 		}
 		return nil
 	case reflect.Slice:
-		items := strings.Split(value, ",")
-		slice := reflect.MakeSlice(rv.Type().Elem(), len(items), len(items))
+		items := bytes.Split(value, []byte{','})
+		slice := reflect.MakeSlice(rt.Elem(), len(items), len(items))
 		for i, item := range items {
-			if err := set(slice.Index(i), strings.TrimSpace(item)); err != nil {
+			if err := set(slice.Index(i), bytes.TrimSpace(item)); err != nil {
 				return err
 			}
 		}
 		rv.Set(slice)
 		return nil
 	case reflect.String:
-		rv.SetString(value)
+		rv.SetString(string(value))
 		return nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		v, err := strconv.ParseInt(value, 10, 64)
+		v, err := strconv.ParseInt(string(value), 10, 64)
 		if err != nil {
 			return err
 		}
 		rv.SetInt(v)
 		return nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		v, err := strconv.ParseUint(value, 10, 64)
+		v, err := strconv.ParseUint(string(value), 10, 64)
 		if err != nil {
 			return err
 		}
 		rv.SetUint(v)
 		return nil
 	case reflect.Float32, reflect.Float64:
-		v, err := strconv.ParseFloat(value, 64)
+		v, err := strconv.ParseFloat(string(value), 64)
 		if err != nil {
 			return err
 		}
@@ -154,8 +171,8 @@ outer:
 	}
 }
 
-func setpath(rv reflect.Value, section, key, value string) error {
-	if section == "" {
+func setpath(rv reflect.Value, section, key, value []byte) error {
+	if len(section) == 0 {
 		return get(rv, key, func(entry reflect.Value) error {
 			return set(entry, value)
 		})
@@ -174,7 +191,7 @@ func Unmarshal(data []byte, v any) error {
 	}
 	rv = rv.Elem()
 
-	var section string
+	var section []byte
 
 	var line []byte
 	for {
@@ -199,7 +216,7 @@ func Unmarshal(data []byte, v any) error {
 
 		// section
 		if bytes.HasPrefix(line, []byte{'['}) && bytes.HasSuffix(line, []byte{']'}) {
-			section = string(line[1 : len(line)-1])
+			section = line[1 : len(line)-1]
 			continue
 		}
 
@@ -211,7 +228,7 @@ func Unmarshal(data []byte, v any) error {
 		key = bytes.TrimSpace(key)
 		value = bytes.TrimSpace(value)
 
-		if err := setpath(rv, section, string(key), string(value)); err != nil {
+		if err := setpath(rv, section, key, value); err != nil {
 			return err
 		}
 	}

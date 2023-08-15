@@ -4,25 +4,26 @@ import (
 	"errors"
 
 	"pggat2/lib/middleware"
+	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
 type Server struct {
-	parameters map[string]string
+	parameters map[strutil.CIString]string
 
 	middleware.Nil
 }
 
-func NewServer(parameters map[string]string) *Server {
+func NewServer(parameters map[strutil.CIString]string) *Server {
 	return &Server{
 		parameters: parameters,
 	}
 }
 
-func (T *Server) syncParameter(pkts *zap.Packets, ps *Client, name, expected string) {
+func (T *Server) syncParameter(pkts *zap.Packets, ps *Client, name strutil.CIString, expected string) {
 	packet := zap.NewPacket()
-	packets.WriteParameterStatus(packet, name, expected)
+	packets.WriteParameterStatus(packet, name.String(), expected)
 	pkts.Append(packet)
 
 	ps.parameters[name] = expected
@@ -59,7 +60,8 @@ func (T *Server) Read(_ middleware.Context, in *zap.Packet) error {
 		if !ok {
 			return errors.New("bad packet format")
 		}
-		T.parameters[key] = value
+		ikey := strutil.MakeCIString(key)
+		T.parameters[ikey] = value
 	}
 	return nil
 }

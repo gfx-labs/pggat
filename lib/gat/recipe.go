@@ -6,11 +6,12 @@ import (
 	"pggat2/lib/auth"
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/util/maps"
+	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 )
 
 type Recipe interface {
-	Connect() (zap.ReadWriter, map[string]string, error)
+	Connect() (zap.ReadWriter, map[strutil.CIString]string, error)
 
 	GetMinConnections() int
 	// GetMaxConnections returns the maximum amount of connections for this db
@@ -26,10 +27,10 @@ type TCPRecipe struct {
 	MinConnections int
 	MaxConnections int
 
-	StartupParameters map[string]string
+	StartupParameters map[strutil.CIString]string
 }
 
-func (T TCPRecipe) Connect() (zap.ReadWriter, map[string]string, error) {
+func (T TCPRecipe) Connect() (zap.ReadWriter, map[strutil.CIString]string, error) {
 	conn, err := net.Dial("tcp", T.Address)
 	if err != nil {
 		return nil, nil, err
@@ -38,7 +39,7 @@ func (T TCPRecipe) Connect() (zap.ReadWriter, map[string]string, error) {
 
 	parameterStatus := maps.Clone(T.StartupParameters)
 	if parameterStatus == nil {
-		parameterStatus = make(map[string]string)
+		parameterStatus = make(map[strutil.CIString]string)
 	}
 
 	err = backends.Accept(rw, T.Credentials, T.Database, parameterStatus)

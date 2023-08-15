@@ -9,6 +9,7 @@ import (
 
 	"pggat2/lib/util/maps"
 	"pggat2/lib/util/maths"
+	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 )
 
@@ -17,9 +18,9 @@ type Context struct {
 }
 
 type RawPool interface {
-	Serve(ctx *Context, client zap.ReadWriter, startupParameters map[string]string)
+	Serve(ctx *Context, client zap.ReadWriter, startupParameters map[strutil.CIString]string)
 
-	AddServer(server zap.ReadWriter, startupParameters map[string]string) uuid.UUID
+	AddServer(server zap.ReadWriter, startupParameters map[strutil.CIString]string) uuid.UUID
 	GetServer(id uuid.UUID) zap.ReadWriter
 	RemoveServer(id uuid.UUID) zap.ReadWriter
 
@@ -36,15 +37,23 @@ type PoolRecipe struct {
 }
 
 type Pool struct {
+	config PoolConfig
+
 	recipes maps.RWLocked[string, *PoolRecipe]
 
 	ctx Context
 	raw RawPool
 }
 
-func NewPool(raw RawPool, idleTimeout time.Duration) *Pool {
+type PoolConfig struct {
+	// IdleTimeout determines how long idle servers are kept in the pool
+	IdleTimeout time.Duration
+}
+
+func NewPool(raw RawPool, config PoolConfig) *Pool {
 	onWait := make(chan struct{})
 	pool := &Pool{
+		config: config,
 		ctx: Context{
 			OnWait: onWait,
 		},
@@ -57,14 +66,14 @@ func NewPool(raw RawPool, idleTimeout time.Duration) *Pool {
 		}
 	}()
 
-	if idleTimeout != 0 {
+	if config.IdleTimeout != 0 {
 		go func() {
 			for {
 				var wait time.Duration
 
 				now := time.Now()
 				idle := pool.IdleSince()
-				for now.Sub(idle) > idleTimeout {
+				for now.Sub(idle) > config.IdleTimeout {
 					if idle == (time.Time{}) {
 						break
 					}
@@ -73,9 +82,9 @@ func NewPool(raw RawPool, idleTimeout time.Duration) *Pool {
 				}
 
 				if idle == (time.Time{}) {
-					wait = idleTimeout
+					wait = config.IdleTimeout
 				} else {
-					wait = now.Sub(idle.Add(idleTimeout))
+					wait = now.Sub(idle.Add(config.IdleTimeout))
 				}
 
 				time.Sleep(wait)
@@ -185,6 +194,6 @@ func (T *Pool) RemoveRecipe(name string) {
 	}
 }
 
-func (T *Pool) Serve(client zap.ReadWriter, startupParameters map[string]string) {
+func (T *Pool) Serve(client zap.ReadWriter, startupParameters map[strutil.CIString]string) {
 	T.raw.Serve(&T.ctx, client, startupParameters)
 }

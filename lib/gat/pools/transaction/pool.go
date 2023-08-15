@@ -11,6 +11,7 @@ import (
 	"pggat2/lib/middleware/middlewares/ps"
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v1"
+	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 )
 
@@ -26,7 +27,7 @@ func NewPool() *Pool {
 	return pool
 }
 
-func (T *Pool) AddServer(server zap.ReadWriter, parameters map[string]string) uuid.UUID {
+func (T *Pool) AddServer(server zap.ReadWriter, parameters map[strutil.CIString]string) uuid.UUID {
 	eqps := eqp.NewServer()
 	pss := ps.NewServer(parameters)
 	mw := interceptor.NewInterceptor(
@@ -58,7 +59,7 @@ func (T *Pool) RemoveServer(id uuid.UUID) zap.ReadWriter {
 	return conn.(*Conn).rw
 }
 
-func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, _ map[string]string) {
+func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, _ map[strutil.CIString]string) {
 	source := T.s.NewSource()
 	eqpc := eqp.NewClient()
 	defer eqpc.Done()

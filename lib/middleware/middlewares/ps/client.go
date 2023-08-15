@@ -4,19 +4,20 @@ import (
 	"errors"
 
 	"pggat2/lib/middleware"
+	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
 type Client struct {
-	parameters map[string]string
+	parameters map[strutil.CIString]string
 
 	middleware.Nil
 }
 
 func NewClient() *Client {
 	return &Client{
-		parameters: make(map[string]string),
+		parameters: make(map[strutil.CIString]string),
 	}
 }
 
@@ -27,12 +28,13 @@ func (T *Client) Send(ctx middleware.Context, packet *zap.Packet) error {
 		if !ok {
 			return errors.New("bad packet format")
 		}
-		if T.parameters[key] == value {
+		ikey := strutil.MakeCIString(key)
+		if T.parameters[ikey] == value {
 			// already set
 			ctx.Cancel()
 			break
 		}
-		T.parameters[key] = value
+		T.parameters[ikey] = value
 	}
 	return nil
 }

@@ -12,6 +12,7 @@ import (
 	"pggat2/lib/util/chans"
 	"pggat2/lib/util/maps"
 	"pggat2/lib/util/ring"
+	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
 )
@@ -22,7 +23,7 @@ type queueItem struct {
 }
 
 type Pool struct {
-	roundRobin bool
+	config Config
 
 	// use slice lifo for better perf
 	queue ring.Ring[queueItem]
@@ -32,11 +33,9 @@ type Pool struct {
 }
 
 // NewPool creates a new session pool.
-// roundRobin determines which order connections will be chosen. If roundRobin = false, connections are handled lifo,
-// otherwise they are chosen fifo
-func NewPool(roundRobin bool) *Pool {
+func NewPool(config Config) *Pool {
 	p := &Pool{
-		roundRobin: roundRobin,
+		config: config,
 	}
 	p.ready.L = &p.qmu
 	return p
@@ -51,7 +50,7 @@ func (T *Pool) acquire(ctx *gat.Context) Conn {
 	}
 
 	var entry queueItem
-	if T.roundRobin {
+	if T.config.RoundRobin {
 		entry, _ = T.queue.PopFront()
 	} else {
 		entry, _ = T.queue.PopBack()
@@ -89,7 +88,7 @@ func (T *Pool) release(conn Conn) {
 	T._release(conn.id)
 }
 
-func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, _ map[string]string) {
+func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, ps map[strutil.CIString]string) {
 	defer func() {
 		_ = client.Close()
 	}()
@@ -104,12 +103,26 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, _ map[string]strin
 		}
 	}()
 
+	for key, value := range ps {
+		if conn.initialParameters[key] == value {
+			continue
+		}
+		if err := backends.QueryString(&backends.Context{}, conn.rw, `SET `+strutil.Escape(key.String(), `"`)+` = `+strutil.Escape(value, `'`)); err != nil {
+			connOk = false
+			return
+		}
+	}
+
 	if func() bool {
 		pkts := zap.NewPackets()
 		defer pkts.Done()
 		for key, value := range conn.initialParameters {
 			packet := zap.NewPacket()
-			packets.WriteParameterStatus(packet, key, value)
+			if val, ok := ps[key]; ok {
+				packets.WriteParameterStatus(packet, key.String(), val)
+			} else {
+				packets.WriteParameterStatus(packet, key.String(), value)
+			}
 			pkts.Append(packet)
 		}
 
@@ -137,7 +150,7 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, _ map[string]strin
 	}
 }
 
-func (T *Pool) AddServer(server zap.ReadWriter, parameters map[string]string) uuid.UUID {
+func (T *Pool) AddServer(server zap.ReadWriter, parameters map[strutil.CIString]string) uuid.UUID {
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
 

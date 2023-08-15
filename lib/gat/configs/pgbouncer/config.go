@@ -15,8 +15,9 @@ import (
 	"pggat2/lib/gat"
 	"pggat2/lib/gat/pools/session"
 	"pggat2/lib/gat/pools/transaction"
-	ini2 "pggat2/lib/util/encoding/ini"
+	"pggat2/lib/util/encoding/ini"
 	"pggat2/lib/util/encoding/userlist"
+	"pggat2/lib/util/strutil"
 )
 
 type PoolMode string
@@ -160,19 +161,19 @@ type PgBouncer struct {
 }
 
 type Database struct {
-	DBName            string            `ini:"dbname"`
-	Host              string            `ini:"host"`
-	Port              int               `ini:"port"`
-	User              string            `ini:"user"`
-	Password          string            `ini:"password"`
-	AuthUser          string            `ini:"auth_user"`
-	PoolSize          int               `ini:"pool_size"`
-	MinPoolSize       int               `ini:"min_pool_size"`
-	ReservePool       int               `ini:"reserve_pool"`
-	ConnectQuery      string            `ini:"connect_query"`
-	PoolMode          PoolMode          `ini:"pool_mode"`
-	MaxDBConnections  int               `ini:"max_db_connections"`
-	StartupParameters map[string]string `ini:"*"`
+	DBName            string                      `ini:"dbname"`
+	Host              string                      `ini:"host"`
+	Port              int                         `ini:"port"`
+	User              string                      `ini:"user"`
+	Password          string                      `ini:"password"`
+	AuthUser          string                      `ini:"auth_user"`
+	PoolSize          int                         `ini:"pool_size"`
+	MinPoolSize       int                         `ini:"min_pool_size"`
+	ReservePool       int                         `ini:"reserve_pool"`
+	ConnectQuery      string                      `ini:"connect_query"`
+	PoolMode          PoolMode                    `ini:"pool_mode"`
+	MaxDBConnections  int                         `ini:"max_db_connections"`
+	StartupParameters map[strutil.CIString]string `ini:"*"`
 }
 
 type User struct {
@@ -253,17 +254,27 @@ var Default = Config{
 }
 
 func Load(config string) (Config, error) {
-	conf, err := ini2.ReadFile(config)
+	conf, err := ini.ReadFile(config)
 	if err != nil {
 		return Config{}, err
 	}
 
 	var c = Default
-	err = ini2.Unmarshal(conf, &c)
+	err = ini.Unmarshal(conf, &c)
 	return c, err
 }
 
-func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
+func (T *Config) ListenAndServe() error {
+	pooler := gat.NewPooler(gat.PoolerConfig{
+		AllowedStartupParameters: []strutil.CIString{
+			strutil.MakeCIString("intervalstyle"),
+			strutil.MakeCIString("application_name"),
+			strutil.MakeCIString("client_encoding"),
+			strutil.MakeCIString("datestyle"),
+			strutil.MakeCIString("timezone"),
+		},
+	})
+
 	var authFile map[string]string
 	if T.PgBouncer.AuthFile != "" {
 		file, err := os.ReadFile(T.PgBouncer.AuthFile)
@@ -286,19 +297,22 @@ func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
 		pooler.AddUser(name, u)
 
 		for dbname, db := range T.Databases {
+			// filter out dbs specific to users
 			if db.User != "" && db.User != name {
 				continue
 			}
 
+			// override dbname
 			if db.DBName != "" {
 				dbname = db.DBName
 			}
 
+			// override poolmode
 			var poolMode PoolMode
-			if user.PoolMode != "" {
-				poolMode = user.PoolMode
-			} else if db.PoolMode != "" {
+			if db.PoolMode != "" {
 				poolMode = db.PoolMode
+			} else if user.PoolMode != "" {
+				poolMode = user.PoolMode
 			} else {
 				poolMode = T.PgBouncer.PoolMode
 			}
@@ -306,14 +320,18 @@ func (T *Config) ListenAndServe(pooler *gat.Pooler) error {
 			var raw gat.RawPool
 			switch poolMode {
 			case PoolModeSession:
-				raw = session.NewPool(T.PgBouncer.ServerRoundRobin != 0)
+				raw = session.NewPool(session.Config{
+					RoundRobin: T.PgBouncer.ServerRoundRobin != 0,
+				})
 			case PoolModeTransaction:
 				raw = transaction.NewPool()
 			default:
 				return errors.New("unsupported pool mode")
 			}
 
-			p := gat.NewPool(raw, time.Duration(T.PgBouncer.ServerIdleTimeout*float64(time.Second)))
+			p := gat.NewPool(raw, gat.PoolConfig{
+				IdleTimeout: time.Duration(T.PgBouncer.ServerIdleTimeout * float64(time.Second)),
+			})
 			u.AddPool(dbname, p)
 
 			if db.Host == "" {

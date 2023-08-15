@@ -8,15 +8,24 @@ import (
 	"pggat2/lib/middleware/interceptor"
 	"pggat2/lib/middleware/middlewares/unterminate"
 	"pggat2/lib/util/maps"
+	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 )
 
 type Pooler struct {
+	config PoolerConfig
+
 	users maps.RWLocked[string, *User]
 }
 
-func NewPooler() *Pooler {
-	return &Pooler{}
+type PoolerConfig struct {
+	AllowedStartupParameters []strutil.CIString
+}
+
+func NewPooler(config PoolerConfig) *Pooler {
+	return &Pooler{
+		config: config,
+	}
 }
 
 func (T *Pooler) AddUser(name string, user *User) {
@@ -38,17 +47,21 @@ func (T *Pooler) Serve(client zap.ReadWriter) {
 		unterminate.Unterminate,
 	)
 
-	username, database, startupParameters, err := frontends.Accept(client, func(username, database string) (auth.Credentials, bool) {
-		user := T.GetUser(username)
-		if user == nil {
-			return nil, false
-		}
-		pool := user.GetPool(database)
-		if pool == nil {
-			return nil, false
-		}
-		return user.GetCredentials(), true
-	})
+	username, database, startupParameters, err := frontends.Accept(
+		client,
+		func(username, database string) (auth.Credentials, bool) {
+			user := T.GetUser(username)
+			if user == nil {
+				return nil, false
+			}
+			pool := user.GetPool(database)
+			if pool == nil {
+				return nil, false
+			}
+			return user.GetCredentials(), true
+		},
+		T.config.AllowedStartupParameters,
+	)
 	if err != nil {
 		_ = client.Close()
 		return
