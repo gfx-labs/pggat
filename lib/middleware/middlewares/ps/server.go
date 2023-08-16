@@ -21,38 +21,6 @@ func NewServer(parameters map[strutil.CIString]string) *Server {
 	}
 }
 
-func (T *Server) syncParameter(pkts *zap.Packets, ps *Client, name strutil.CIString, expected string) {
-	packet := zap.NewPacket()
-	packets.WriteParameterStatus(packet, name.String(), expected)
-	pkts.Append(packet)
-
-	ps.parameters[name] = expected
-}
-
-func (T *Server) Sync(client zap.ReadWriter, ps *Client) error {
-	pkts := zap.NewPackets()
-	defer pkts.Done()
-
-	for name, value := range ps.parameters {
-		expected := T.parameters[name]
-		if value == expected {
-			continue
-		}
-
-		T.syncParameter(pkts, ps, name, expected)
-	}
-
-	for name, expected := range T.parameters {
-		if T.parameters[name] == expected {
-			continue
-		}
-
-		T.syncParameter(pkts, ps, name, expected)
-	}
-
-	return client.WriteV(pkts)
-}
-
 func (T *Server) Read(_ middleware.Context, in *zap.Packet) error {
 	switch in.ReadType() {
 	case packets.ParameterStatus:
@@ -61,6 +29,9 @@ func (T *Server) Read(_ middleware.Context, in *zap.Packet) error {
 			return errors.New("bad packet format")
 		}
 		ikey := strutil.MakeCIString(key)
+		if T.parameters == nil {
+			T.parameters = make(map[strutil.CIString]string)
+		}
 		T.parameters[ikey] = value
 	}
 	return nil

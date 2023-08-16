@@ -28,6 +28,10 @@ type RawPool interface {
 	IdleSince() time.Time
 }
 
+type BaseRawPoolConfig struct {
+	TrackedParameters []strutil.CIString
+}
+
 type PoolRecipe struct {
 	removed bool
 	servers []uuid.UUID

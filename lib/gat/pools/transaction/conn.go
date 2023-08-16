@@ -18,11 +18,7 @@ func (T *Conn) Do(ctx *rob.Context, work any) {
 	job := work.(Work)
 
 	// sync parameters
-	err := T.ps.Sync(job.rw, job.ps)
-	if err != nil {
-		_ = job.rw.Close()
-		return
-	}
+	ps.Sync(job.trackedParameters, job.rw, job.ps, T.rw, T.ps)
 
 	T.eqp.SetClient(job.eqp)
 	clientErr, serverErr := bouncers.Bounce(job.rw, T.rw, job.initialPacket)

@@ -71,93 +71,93 @@ type TLSECDHCurve string
 type TLSDHEParams string
 
 type PgBouncer struct {
-	LogFile                 string        `ini:"logfile"`
-	PidFile                 string        `ini:"pidfile"`
-	ListenAddr              string        `ini:"listen_addr"`
-	ListenPort              int           `ini:"listen_port"`
-	UnixSocketDir           string        `ini:"unix_socket_dir"`
-	UnixSocketMode          string        `ini:"unix_socket_mode"`
-	UnixSocketGroup         string        `ini:"unix_socket_group"`
-	User                    string        `ini:"user"`
-	PoolMode                PoolMode      `ini:"pool_mode"`
-	MaxClientConn           int           `ini:"max_client_conn"`
-	DefaultPoolSize         int           `ini:"default_pool_size"`
-	MinPoolSize             int           `ini:"min_pool_size"`
-	ReservePoolSize         int           `ini:"reserve_pool_size"`
-	ReservePoolTimeout      float64       `ini:"reserve_pool_timeout"`
-	MaxDBConnections        int           `ini:"max_db_connections"`
-	MaxUserConnections      int           `ini:"max_user_connections"`
-	ServerRoundRobin        int           `ini:"server_round_robin"`
-	TrackExtraParameters    []string      `ini:"track_extra_parameters"`
-	IgnoreStartupParameters []string      `ini:"ignore_startup_parameters"`
-	PeerID                  int           `ini:"peer_id"`
-	DisablePQExec           int           `ini:"disable_pqexec"`
-	ApplicationNameAddHost  int           `ini:"application_name_add_host"`
-	ConfFile                string        `ini:"conffile"`
-	ServiceName             string        `ini:"service_name"`
-	StatsPeriod             int           `ini:"stats_period"`
-	AuthType                string        `ini:"auth_type"`
-	AuthHbaFile             string        `ini:"auth_hba_file"`
-	AuthFile                string        `ini:"auth_file"`
-	AuthUser                string        `ini:"auth_user"`
-	AuthQuery               string        `ini:"auth_query"`
-	AuthDbname              string        `ini:"auth_dbname"`
-	Syslog                  string        `ini:"syslog"`
-	SyslogIdent             string        `ini:"syslog_ident"`
-	SyslogFacility          string        `ini:"syslog_facility"`
-	LogConnections          int           `ini:"log_connections"`
-	LogDisconnections       int           `ini:"log_disconnections"`
-	LogPoolerErrors         int           `ini:"log_pooler_errors"`
-	LogStats                int           `ini:"log_stats"`
-	Verbose                 int           `ini:"verbose"`
-	AdminUsers              []string      `ini:"auth_users"`
-	StatsUsers              []string      `ini:"stats_users"`
-	ServerResetQuery        string        `ini:"server_reset_query"`
-	ServerResetQueryAlways  int           `ini:"server_reset_query_always"`
-	ServerCheckDelay        float64       `ini:"server_check_delay"`
-	ServerCheckQuery        string        `ini:"server_check_query"`
-	ServerFastClose         int           `ini:"server_fast_close"`
-	ServerLifetime          float64       `ini:"server_lifetime"`
-	ServerIdleTimeout       float64       `ini:"server_idle_timeout"`
-	ServerConnectTimeout    float64       `ini:"server_connect_timeout"`
-	ServerLoginRetry        float64       `ini:"server_login_retry"`
-	ClientLoginTimeout      float64       `ini:"client_login_timeout"`
-	AutodbIdleTimeout       float64       `ini:"autodb_idle_timeout"`
-	DnsMaxTtl               float64       `ini:"dns_max_ttl"`
-	DnsNxdomainTtl          float64       `ini:"dns_nxdomain_ttl"`
-	DnsZoneCheckPeriod      float64       `ini:"dns_zone_check_period"`
-	ResolvConf              string        `ini:"resolv.conf"`
-	ClientTLSSSLMode        SSLMode       `ini:"client_tls_sslmode"`
-	ClientTLSKeyFile        string        `ini:"client_tls_key_file"`
-	ClientTLSCertFile       string        `ini:"client_tls_cert_file"`
-	ClientTLSCaFile         string        `ini:"client_tls_ca_file"`
-	ClientTLSProtocols      []TLSProtocol `ini:"client_tls_protocols"`
-	ClientTLSCiphers        []TLSCipher   `ini:"client_tls_ciphers"`
-	ClientTLSECDHCurve      TLSECDHCurve  `ini:"client_tls_ecdhcurve"`
-	ClientTLSDHEParams      TLSDHEParams  `ini:"client_tls_dheparams"`
-	ServerTLSSSLMode        SSLMode       `ini:"server_tls_sslmode"`
-	ServerTLSCaFile         string        `ini:"server_tls_ca_file"`
-	ServerTLSKeyFile        string        `ini:"server_tls_key_file"`
-	ServerTLSCertFile       string        `ini:"server_tls_cert_file"`
-	ServerTLSProtocols      []TLSProtocol `ini:"server_tls_protocols"`
-	ServerTLSCiphers        []TLSCipher   `ini:"server_tls_ciphers"`
-	QueryTimeout            float64       `ini:"query_timeout"`
-	QueryWaitTimeout        float64       `ini:"query_wait_timeout"`
-	CancelWaitTimeout       float64       `ini:"cancel_wait_timeout"`
-	ClientIdleTimeout       float64       `ini:"client_idle_timeout"`
-	IdleTransactionTimeout  float64       `ini:"idle_transaction_timeout"`
-	SuspendTimeout          float64       `ini:"suspend_timeout"`
-	PktBuf                  int           `ini:"pkt_buf"`
-	MaxPacketSize           int           `ini:"max_packet_size"`
-	ListenBacklog           int           `ini:"listen_backlog"`
-	SbufLoopcnt             int           `ini:"sbuf_loopcnt"`
-	SoReuseport             int           `ini:"so_reuseport"`
-	TcpDeferAccept          int           `ini:"tcp_defer_accept"`
-	TcpSocketBuffer         int           `ini:"tcp_socket_buffer"`
-	TcpKeepalive            int           `ini:"tcp_keepalive"`
-	TcpKeepidle             int           `ini:"tcp_keepidle"`
-	TcpKeepintvl            int           `ini:"tcp_keepintvl"`
-	TcpUserTimeout          int           `ini:"tcp_user_timeout"`
+	LogFile                 string             `ini:"logfile"`
+	PidFile                 string             `ini:"pidfile"`
+	ListenAddr              string             `ini:"listen_addr"`
+	ListenPort              int                `ini:"listen_port"`
+	UnixSocketDir           string             `ini:"unix_socket_dir"`
+	UnixSocketMode          string             `ini:"unix_socket_mode"`
+	UnixSocketGroup         string             `ini:"unix_socket_group"`
+	User                    string             `ini:"user"`
+	PoolMode                PoolMode           `ini:"pool_mode"`
+	MaxClientConn           int                `ini:"max_client_conn"`
+	DefaultPoolSize         int                `ini:"default_pool_size"`
+	MinPoolSize             int                `ini:"min_pool_size"`
+	ReservePoolSize         int                `ini:"reserve_pool_size"`
+	ReservePoolTimeout      float64            `ini:"reserve_pool_timeout"`
+	MaxDBConnections        int                `ini:"max_db_connections"`
+	MaxUserConnections      int                `ini:"max_user_connections"`
+	ServerRoundRobin        int                `ini:"server_round_robin"`
+	TrackExtraParameters    []strutil.CIString `ini:"track_extra_parameters"`
+	IgnoreStartupParameters []strutil.CIString `ini:"ignore_startup_parameters"`
+	PeerID                  int                `ini:"peer_id"`
+	DisablePQExec           int                `ini:"disable_pqexec"`
+	ApplicationNameAddHost  int                `ini:"application_name_add_host"`
+	ConfFile                string             `ini:"conffile"`
+	ServiceName             string             `ini:"service_name"`
+	StatsPeriod             int                `ini:"stats_period"`
+	AuthType                string             `ini:"auth_type"`
+	AuthHbaFile             string             `ini:"auth_hba_file"`
+	AuthFile                string             `ini:"auth_file"`
+	AuthUser                string             `ini:"auth_user"`
+	AuthQuery               string             `ini:"auth_query"`
+	AuthDbname              string             `ini:"auth_dbname"`
+	Syslog                  string             `ini:"syslog"`
+	SyslogIdent             string             `ini:"syslog_ident"`
+	SyslogFacility          string             `ini:"syslog_facility"`
+	LogConnections          int                `ini:"log_connections"`
+	LogDisconnections       int                `ini:"log_disconnections"`
+	LogPoolerErrors         int                `ini:"log_pooler_errors"`
+	LogStats                int                `ini:"log_stats"`
+	Verbose                 int                `ini:"verbose"`
+	AdminUsers              []string           `ini:"auth_users"`
+	StatsUsers              []string           `ini:"stats_users"`
+	ServerResetQuery        string             `ini:"server_reset_query"`
+	ServerResetQueryAlways  int                `ini:"server_reset_query_always"`
+	ServerCheckDelay        float64            `ini:"server_check_delay"`
+	ServerCheckQuery        string             `ini:"server_check_query"`
+	ServerFastClose         int                `ini:"server_fast_close"`
+	ServerLifetime          float64            `ini:"server_lifetime"`
+	ServerIdleTimeout       float64            `ini:"server_idle_timeout"`
+	ServerConnectTimeout    float64            `ini:"server_connect_timeout"`
+	ServerLoginRetry        float64            `ini:"server_login_retry"`
+	ClientLoginTimeout      float64            `ini:"client_login_timeout"`
+	AutodbIdleTimeout       float64            `ini:"autodb_idle_timeout"`
+	DnsMaxTtl               float64            `ini:"dns_max_ttl"`
+	DnsNxdomainTtl          float64            `ini:"dns_nxdomain_ttl"`
+	DnsZoneCheckPeriod      float64            `ini:"dns_zone_check_period"`
+	ResolvConf              string             `ini:"resolv.conf"`
+	ClientTLSSSLMode        SSLMode            `ini:"client_tls_sslmode"`
+	ClientTLSKeyFile        string             `ini:"client_tls_key_file"`
+	ClientTLSCertFile       string             `ini:"client_tls_cert_file"`
+	ClientTLSCaFile         string             `ini:"client_tls_ca_file"`
+	ClientTLSProtocols      []TLSProtocol      `ini:"client_tls_protocols"`
+	ClientTLSCiphers        []TLSCipher        `ini:"client_tls_ciphers"`
+	ClientTLSECDHCurve      TLSECDHCurve       `ini:"client_tls_ecdhcurve"`
+	ClientTLSDHEParams      TLSDHEParams       `ini:"client_tls_dheparams"`
+	ServerTLSSSLMode        SSLMode            `ini:"server_tls_sslmode"`
+	ServerTLSCaFile         string             `ini:"server_tls_ca_file"`
+	ServerTLSKeyFile        string             `ini:"server_tls_key_file"`
+	ServerTLSCertFile       string             `ini:"server_tls_cert_file"`
+	ServerTLSProtocols      []TLSProtocol      `ini:"server_tls_protocols"`
+	ServerTLSCiphers        []TLSCipher        `ini:"server_tls_ciphers"`
+	QueryTimeout            float64            `ini:"query_timeout"`
+	QueryWaitTimeout        float64            `ini:"query_wait_timeout"`
+	CancelWaitTimeout       float64            `ini:"cancel_wait_timeout"`
+	ClientIdleTimeout       float64            `ini:"client_idle_timeout"`
+	IdleTransactionTimeout  float64            `ini:"idle_transaction_timeout"`
+	SuspendTimeout          float64            `ini:"suspend_timeout"`
+	PktBuf                  int                `ini:"pkt_buf"`
+	MaxPacketSize           int                `ini:"max_packet_size"`
+	ListenBacklog           int                `ini:"listen_backlog"`
+	SbufLoopcnt             int                `ini:"sbuf_loopcnt"`
+	SoReuseport             int                `ini:"so_reuseport"`
+	TcpDeferAccept          int                `ini:"tcp_defer_accept"`
+	TcpSocketBuffer         int                `ini:"tcp_socket_buffer"`
+	TcpKeepalive            int                `ini:"tcp_keepalive"`
+	TcpKeepidle             int                `ini:"tcp_keepidle"`
+	TcpKeepintvl            int                `ini:"tcp_keepintvl"`
+	TcpUserTimeout          int                `ini:"tcp_user_timeout"`
 }
 
 type Database struct {
@@ -203,8 +203,8 @@ var Default = Config{
 		MaxClientConn:      100,
 		DefaultPoolSize:    20,
 		ReservePoolTimeout: 5.0,
-		TrackExtraParameters: []string{
-			"IntervalStyle",
+		TrackExtraParameters: []strutil.CIString{
+			strutil.MakeCIString("IntervalStyle"),
 		},
 		ServiceName:          "pgbouncer",
 		StatsPeriod:          60,
@@ -265,14 +265,18 @@ func Load(config string) (Config, error) {
 }
 
 func (T *Config) ListenAndServe() error {
+	trackedParameters := append([]strutil.CIString{
+		strutil.MakeCIString("client_encoding"),
+		strutil.MakeCIString("datestyle"),
+		strutil.MakeCIString("timezone"),
+		strutil.MakeCIString("standard_conforming_strings"),
+		strutil.MakeCIString("application_name"),
+	}, T.PgBouncer.TrackExtraParameters...)
+
+	ignoreStartupParameters := append(trackedParameters, T.PgBouncer.IgnoreStartupParameters...)
+
 	pooler := gat.NewPooler(gat.PoolerConfig{
-		AllowedStartupParameters: []strutil.CIString{
-			strutil.MakeCIString("intervalstyle"),
-			strutil.MakeCIString("application_name"),
-			strutil.MakeCIString("client_encoding"),
-			strutil.MakeCIString("datestyle"),
-			strutil.MakeCIString("timezone"),
-		},
+		AllowedStartupParameters: ignoreStartupParameters,
 	})
 
 	var authFile map[string]string
@@ -317,14 +321,21 @@ func (T *Config) ListenAndServe() error {
 				poolMode = T.PgBouncer.PoolMode
 			}
 
+			rawPoolConfig := gat.BaseRawPoolConfig{
+				TrackedParameters: trackedParameters,
+			}
+
 			var raw gat.RawPool
 			switch poolMode {
 			case PoolModeSession:
 				raw = session.NewPool(session.Config{
-					RoundRobin: T.PgBouncer.ServerRoundRobin != 0,
+					RoundRobin:        T.PgBouncer.ServerRoundRobin != 0,
+					BaseRawPoolConfig: rawPoolConfig,
 				})
 			case PoolModeTransaction:
-				raw = transaction.NewPool()
+				raw = transaction.NewPool(transaction.Config{
+					BaseRawPoolConfig: rawPoolConfig,
+				})
 			default:
 				return errors.New("unsupported pool mode")
 			}

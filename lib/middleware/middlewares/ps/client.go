@@ -10,14 +10,15 @@ import (
 )
 
 type Client struct {
+	synced     bool
 	parameters map[strutil.CIString]string
 
 	middleware.Nil
 }
 
-func NewClient() *Client {
+func NewClient(parameters map[strutil.CIString]string) *Client {
 	return &Client{
-		parameters: make(map[strutil.CIString]string),
+		parameters: parameters,
 	}
 }
 
@@ -33,6 +34,9 @@ func (T *Client) Send(ctx middleware.Context, packet *zap.Packet) error {
 			// already set
 			ctx.Cancel()
 			break
+		}
+		if T.parameters == nil {
+			T.parameters = make(map[strutil.CIString]string)
 		}
 		T.parameters[ikey] = value
 	}

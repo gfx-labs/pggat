@@ -322,16 +322,15 @@ func accept(
 		)
 		return
 	}
-	credsSASL, ok := creds.(auth.SASL)
-	if !ok {
+	if credsSASL, ok := creds.(auth.SASL); ok {
+		err = authenticationSASL(client, credsSASL)
+	} else {
 		err = perror.New(
 			perror.FATAL,
 			perror.InternalError,
 			"Auth method not supported",
 		)
 	}
-
-	err = authenticationSASL(client, credsSASL)
 	if err != nil {
 		return
 	}

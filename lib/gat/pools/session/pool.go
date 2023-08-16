@@ -12,6 +12,7 @@ import (
 	"pggat2/lib/util/chans"
 	"pggat2/lib/util/maps"
 	"pggat2/lib/util/ring"
+	"pggat2/lib/util/slices"
 	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
@@ -103,27 +104,47 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, ps map[strutil.CIS
 		}
 	}()
 
-	for key, value := range ps {
-		if conn.initialParameters[key] == value {
-			continue
-		}
-		if err := backends.QueryString(&backends.Context{}, conn.rw, `SET `+strutil.Escape(key.String(), `"`)+` = `+strutil.Escape(value, `'`)); err != nil {
-			connOk = false
-			return
-		}
-	}
-
 	if func() bool {
 		pkts := zap.NewPackets()
 		defer pkts.Done()
-		for key, value := range conn.initialParameters {
-			packet := zap.NewPacket()
-			if val, ok := ps[key]; ok {
-				packets.WriteParameterStatus(packet, key.String(), val)
-			} else {
-				packets.WriteParameterStatus(packet, key.String(), value)
+
+		add := func(key strutil.CIString) {
+			if value, ok := conn.initialParameters[key]; ok {
+				pkt := zap.NewPacket()
+				packets.WriteParameterStatus(pkt, key.String(), value)
+				pkts.Append(pkt)
 			}
-			pkts.Append(packet)
+		}
+
+		for key, value := range ps {
+			// skip already set params
+			if conn.initialParameters[key] == value {
+				add(key)
+				continue
+			}
+
+			// only set tracking params
+			if !slices.Contains(T.config.TrackedParameters, key) {
+				add(key)
+				continue
+			}
+
+			pkt := zap.NewPacket()
+			packets.WriteParameterStatus(pkt, key.String(), value)
+			pkts.Append(pkt)
+
+			if err := backends.QueryString(&backends.Context{}, conn.rw, `SET `+strutil.Escape(key.String(), `"`)+` = `+strutil.Escape(value, `'`)); err != nil {
+				connOk = false
+				return true
+			}
+		}
+
+		for key := range conn.initialParameters {
+			if _, ok := ps[key]; ok {
+				continue
+			}
+
+			add(key)
 		}
 
 		err := client.WriteV(pkts)

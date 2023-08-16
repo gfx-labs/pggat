@@ -25,6 +25,10 @@ func NewPackets() *Packets {
 }
 
 func (T *Packets) WriteTo(w io.Writer) (int64, error) {
+	if len(T.order) == 0 {
+		return 0, nil
+	}
+
 	buffers := make(net.Buffers, 0, len(T.order))
 
 	for _, order := range T.order {

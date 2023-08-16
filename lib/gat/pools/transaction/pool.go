@@ -16,12 +16,14 @@ import (
 )
 
 type Pool struct {
-	s schedulers.Scheduler
+	config Config
+	s      schedulers.Scheduler
 }
 
-func NewPool() *Pool {
+func NewPool(config Config) *Pool {
 	pool := &Pool{
-		s: schedulers.MakeScheduler(),
+		config: config,
+		s:      schedulers.MakeScheduler(),
 	}
 
 	return pool
@@ -59,11 +61,11 @@ func (T *Pool) RemoveServer(id uuid.UUID) zap.ReadWriter {
 	return conn.(*Conn).rw
 }
 
-func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, _ map[strutil.CIString]string) {
+func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, parameters map[strutil.CIString]string) {
 	source := T.s.NewSource()
 	eqpc := eqp.NewClient()
 	defer eqpc.Done()
-	psc := ps.NewClient()
+	psc := ps.NewClient(parameters)
 	client = interceptor.NewInterceptor(
 		client,
 		eqpc,
@@ -82,10 +84,11 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, _ map[strutil.CISt
 		}
 
 		source.Do(&robCtx, Work{
-			rw:            client,
-			initialPacket: packet,
-			eqp:           eqpc,
-			ps:            psc,
+			rw:                client,
+			initialPacket:     packet,
+			eqp:               eqpc,
+			ps:                psc,
+			trackedParameters: T.config.TrackedParameters,
 		})
 	}
 	_ = client.Close()
