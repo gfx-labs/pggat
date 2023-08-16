@@ -8,6 +8,7 @@ import (
 	"pggat2/lib/middleware/interceptor"
 	"pggat2/lib/middleware/middlewares/unterminate"
 	"pggat2/lib/util/maps"
+	"pggat2/lib/util/slices"
 	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 )
@@ -41,41 +42,47 @@ func (T *Pooler) GetUser(name string) *User {
 	return user
 }
 
+func (T *Pooler) GetUserCredentials(user, database string) auth.Credentials {
+	u := T.GetUser(user)
+	if u == nil {
+		return nil
+	}
+	d := u.GetPool(database)
+	if d == nil {
+		return nil
+	}
+	return u.GetCredentials()
+}
+
+func (T *Pooler) IsStartupParameterAllowed(parameter strutil.CIString) bool {
+	return slices.Contains(T.config.AllowedStartupParameters, parameter)
+}
+
 func (T *Pooler) Serve(client zap.ReadWriter) {
+	defer func() {
+		_ = client.Close()
+	}()
+
 	client = interceptor.NewInterceptor(
 		client,
 		unterminate.Unterminate,
 	)
 
 	username, database, startupParameters, err := frontends.Accept(
+		T,
 		client,
-		func(username, database string) (auth.Credentials, bool) {
-			user := T.GetUser(username)
-			if user == nil {
-				return nil, false
-			}
-			pool := user.GetPool(database)
-			if pool == nil {
-				return nil, false
-			}
-			return user.GetCredentials(), true
-		},
-		T.config.AllowedStartupParameters,
 	)
 	if err != nil {
-		_ = client.Close()
 		return
 	}
 
 	user := T.GetUser(username)
 	if user == nil {
-		_ = client.Close()
 		return
 	}
 
 	pool := user.GetPool(database)
 	if pool == nil {
-		_ = client.Close()
 		return
 	}
 
@@ -91,3 +98,5 @@ func (T *Pooler) ListenAndServe(listener net.Listener) error {
 		go T.Serve(zap.WrapIOReadWriter(conn))
 	}
 }
+
+var _ frontends.Acceptor = (*Pooler)(nil)

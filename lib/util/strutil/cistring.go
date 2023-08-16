@@ -27,14 +27,18 @@ func (T *CIString) MarshalJSON() ([]byte, error) {
 }
 
 func (T *CIString) UnmarshalJSON(bytes []byte) error {
-	return json.Unmarshal(bytes, &T.value)
+	if err := json.Unmarshal(bytes, &T.value); err != nil {
+		return err
+	}
+	T.value = strings.ToLower(T.value)
+	return nil
 }
 
 var _ json.Marshaler = (*CIString)(nil)
 var _ json.Unmarshaler = (*CIString)(nil)
 
 func (T *CIString) UnmarshalINI(bytes []byte) error {
-	T.value = string(bytes)
+	T.value = strings.ToLower(string(bytes))
 	return nil
 }
 

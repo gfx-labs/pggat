@@ -8,15 +8,14 @@ import (
 
 	"pggat2/lib/auth"
 	"pggat2/lib/perror"
-	"pggat2/lib/util/slices"
 	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 	"pggat2/lib/zap/packets/v3.0"
 )
 
 func startup0(
+	acceptor Acceptor,
 	client zap.ReadWriter,
-	allowedStartupParameters []strutil.CIString,
 	startupParameters map[strutil.CIString]string,
 ) (user, database string, done bool, err perror.Error) {
 	packet := zap.NewUntypedPacket()
@@ -118,7 +117,7 @@ func startup0(
 
 					ikey := strutil.MakeCIString(key)
 
-					if !slices.Contains(allowedStartupParameters, ikey) {
+					if !acceptor.IsStartupParameterAllowed(ikey) {
 						err = perror.New(
 							perror.FATAL,
 							perror.FeatureNotSupported,
@@ -150,7 +149,7 @@ func startup0(
 			} else {
 				ikey := strutil.MakeCIString(key)
 
-				if !slices.Contains(allowedStartupParameters, ikey) {
+				if !acceptor.IsStartupParameterAllowed(ikey) {
 					err = perror.New(
 						perror.FATAL,
 						perror.FeatureNotSupported,
@@ -298,15 +297,14 @@ func updateParameter(pkts *zap.Packets, name, value string) {
 }
 
 func accept(
+	acceptor Acceptor,
 	client zap.ReadWriter,
-	getCredentials func(user, database string) (auth.Credentials, bool),
-	allowedStartupParameters []strutil.CIString,
 ) (user string, database string, startupParameters map[strutil.CIString]string, err perror.Error) {
 	startupParameters = make(map[strutil.CIString]string)
 
 	for {
 		var done bool
-		user, database, done, err = startup0(client, allowedStartupParameters, startupParameters)
+		user, database, done, err = startup0(acceptor, client, startupParameters)
 		if err != nil {
 			return
 		}
@@ -315,8 +313,8 @@ func accept(
 		}
 	}
 
-	creds, ok := getCredentials(user, database)
-	if !ok {
+	creds := acceptor.GetUserCredentials(user, database)
+	if creds == nil {
 		err = perror.New(
 			perror.FATAL,
 			perror.InvalidPassword,
@@ -383,11 +381,10 @@ func fail(client zap.ReadWriter, err perror.Error) {
 }
 
 func Accept(
+	acceptor Acceptor,
 	client zap.ReadWriter,
-	getCredentials func(user, database string) (auth.Credentials, bool),
-	allowedStartupParameters []strutil.CIString,
 ) (user, database string, startupParameters map[strutil.CIString]string, err perror.Error) {
-	user, database, startupParameters, err = accept(client, getCredentials, allowedStartupParameters)
+	user, database, startupParameters, err = accept(acceptor, client)
 	if err != nil {
 		fail(client, err)
 	}
