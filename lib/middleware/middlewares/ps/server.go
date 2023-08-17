@@ -2,6 +2,7 @@ package ps
 
 import (
 	"errors"
+	"log"
 
 	"pggat2/lib/middleware"
 	"pggat2/lib/util/strutil"
@@ -29,6 +30,7 @@ func (T *Server) Read(_ middleware.Context, in *zap.Packet) error {
 			return errors.New("bad packet format")
 		}
 		ikey := strutil.MakeCIString(key)
+		log.Printf("backend updated %s = %s", ikey.String(), value)
 		if T.parameters == nil {
 			T.parameters = make(map[strutil.CIString]string)
 		}

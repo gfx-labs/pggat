@@ -7,6 +7,7 @@ import (
 
 func Escape(str, sequence string) string {
 	var b strings.Builder
+	b.WriteString(sequence)
 	for len(str) > 0 {
 		if strings.HasPrefix(str, sequence) {
 			b.WriteByte('\\')
@@ -26,5 +27,6 @@ func Escape(str, sequence string) string {
 		b.WriteRune(r)
 		str = str[size:]
 	}
+	b.WriteString(sequence)
 	return b.String()
 }

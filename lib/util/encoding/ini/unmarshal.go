@@ -134,7 +134,7 @@ outer:
 		return nil
 	case reflect.Slice:
 		items := bytes.Split(value, []byte{','})
-		slice := reflect.MakeSlice(rt.Elem(), len(items), len(items))
+		slice := reflect.MakeSlice(rt, len(items), len(items))
 		for i, item := range items {
 			if err := set(slice.Index(i), bytes.TrimSpace(item)); err != nil {
 				return err

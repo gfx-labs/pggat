@@ -1,6 +1,8 @@
 package ps
 
 import (
+	"log"
+
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/util/slices"
 	"pggat2/lib/util/strutil"
@@ -21,20 +23,27 @@ func sync(tracking []strutil.CIString, clientPackets *zap.Packets, c *Client, se
 		return
 	}
 
-	if hasValue && slices.Contains(tracking, name) {
-		if err := backends.SetParameter(&backends.Context{}, server, name, value); err != nil {
-			panic(err) // TODO(garet)
-		}
-		if s.parameters == nil {
-			s.parameters = make(map[strutil.CIString]string)
+	if slices.Contains(tracking, name) {
+		if hasValue {
+			log.Printf("backend set %s = %s", name.String(), value)
+			if err := backends.SetParameter(&backends.Context{}, server, name, value); err != nil {
+				panic(err) // TODO(garet)
+			}
+			if s.parameters == nil {
+				s.parameters = make(map[strutil.CIString]string)
+			}
+			s.parameters[name] = value
+		} else {
+			log.Printf("backend reset %s", name.String())
+			if err := backends.ResetParameter(&backends.Context{}, server, name); err != nil {
+				panic(err) // TODO(garet)
+			}
+			delete(s.parameters, name)
 		}
 	} else if hasExpected {
 		pkt := zap.NewPacket()
 		packets.WriteParameterStatus(pkt, name.String(), expected)
 		clientPackets.Append(pkt)
-		if c.parameters == nil {
-			c.parameters = make(map[strutil.CIString]string)
-		}
 	}
 }
 

@@ -1,6 +1,7 @@
 package strutil
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 
@@ -37,8 +38,8 @@ func (T *CIString) UnmarshalJSON(bytes []byte) error {
 var _ json.Marshaler = (*CIString)(nil)
 var _ json.Unmarshaler = (*CIString)(nil)
 
-func (T *CIString) UnmarshalINI(bytes []byte) error {
-	T.value = strings.ToLower(string(bytes))
+func (T *CIString) UnmarshalINI(b []byte) error {
+	T.value = string(bytes.ToLower(b))
 	return nil
 }
 

@@ -132,6 +132,10 @@ func SetParameter(ctx *Context, server zap.ReadWriter, name strutil.CIString, va
 	return QueryString(ctx, server, `SET `+strutil.Escape(name.String(), `"`)+` = `+strutil.Escape(value, `'`))
 }
 
+func ResetParameter(ctx *Context, server zap.ReadWriter, name strutil.CIString) error {
+	return QueryString(ctx, server, `RESET `+strutil.Escape(name.String(), `"`))
+}
+
 func FunctionCall(ctx *Context, server zap.ReadWriter, packet *zap.Packet) error {
 	if err := server.Write(packet); err != nil {
 		return err
