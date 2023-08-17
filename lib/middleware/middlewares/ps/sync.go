@@ -9,11 +9,10 @@ import (
 )
 
 func sync(tracking []strutil.CIString, clientPackets *zap.Packets, c *Client, server zap.ReadWriter, s *Server, name strutil.CIString) {
-	value := c.parameters[name]
-	expected := s.parameters[name]
+	value, hasValue := c.parameters[name]
+	expected, hasExpected := s.parameters[name]
 
 	if value == expected {
-		// TODO(garet) this will send twice if both server and client have it
 		if !c.synced {
 			pkt := zap.NewPacket()
 			packets.WriteParameterStatus(pkt, name.String(), expected)
@@ -22,22 +21,20 @@ func sync(tracking []strutil.CIString, clientPackets *zap.Packets, c *Client, se
 		return
 	}
 
-	if slices.Contains(tracking, name) {
+	if hasValue && slices.Contains(tracking, name) {
 		if err := backends.SetParameter(&backends.Context{}, server, name, value); err != nil {
 			panic(err) // TODO(garet)
 		}
 		if s.parameters == nil {
 			s.parameters = make(map[strutil.CIString]string)
 		}
-		s.parameters[name] = value
-	} else {
+	} else if hasExpected {
 		pkt := zap.NewPacket()
 		packets.WriteParameterStatus(pkt, name.String(), expected)
 		clientPackets.Append(pkt)
 		if c.parameters == nil {
 			c.parameters = make(map[strutil.CIString]string)
 		}
-		c.parameters[name] = value
 	}
 }
 
@@ -50,6 +47,9 @@ func Sync(tracking []strutil.CIString, client zap.ReadWriter, c *Client, server 
 	}
 
 	for name := range s.parameters {
+		if _, ok := c.parameters[name]; ok {
+			continue
+		}
 		sync(tracking, pkts, c, server, s, name)
 	}
 
