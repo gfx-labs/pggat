@@ -23,7 +23,7 @@ func sync(tracking []strutil.CIString, clientPackets *zap.Packets, c *Client, se
 	}
 
 	if slices.Contains(tracking, name) {
-		if err := backends.QueryString(&backends.Context{}, server, `SET `+strutil.Escape(name.String(), `"`)+` = `+strutil.Escape(value, `'`)); err != nil {
+		if err := backends.SetParameter(&backends.Context{}, server, name, value); err != nil {
 			panic(err) // TODO(garet)
 		}
 		if s.parameters == nil {

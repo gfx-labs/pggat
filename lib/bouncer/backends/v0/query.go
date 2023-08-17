@@ -1,6 +1,7 @@
 package backends
 
 import (
+	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
 )
@@ -125,6 +126,10 @@ func QueryString(ctx *Context, server zap.ReadWriter, query string) error {
 	defer packet.Done()
 	packets.WriteQuery(packet, query)
 	return Query(ctx, server, packet)
+}
+
+func SetParameter(ctx *Context, server zap.ReadWriter, name strutil.CIString, value string) error {
+	return QueryString(ctx, server, `SET `+strutil.Escape(name.String(), `"`)+` = `+strutil.Escape(value, `'`))
 }
 
 func FunctionCall(ctx *Context, server zap.ReadWriter, packet *zap.Packet) error {

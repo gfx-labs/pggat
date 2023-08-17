@@ -133,7 +133,7 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, ps map[strutil.CIS
 			packets.WriteParameterStatus(pkt, key.String(), value)
 			pkts.Append(pkt)
 
-			if err := backends.QueryString(&backends.Context{}, conn.rw, `SET `+strutil.Escape(key.String(), `"`)+` = `+strutil.Escape(value, `'`)); err != nil {
+			if err := backends.SetParameter(&backends.Context{}, conn.rw, key, value); err != nil {
 				connOk = false
 				return true
 			}
