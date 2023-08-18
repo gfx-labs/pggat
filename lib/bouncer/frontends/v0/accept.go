@@ -355,6 +355,9 @@ func accept(
 	packets.WriteBackendKeyData(packet, cancellationKey)
 	pkts.Append(packet)
 
+	startupParameters[strutil.MakeCIString("client_encoding")] = "UTF8"
+	startupParameters[strutil.MakeCIString("server_encoding")] = "UTF8"
+	startupParameters[strutil.MakeCIString("server_version")] = "14.5"
 	updateParameter(pkts, "client_encoding", "UTF8")
 	updateParameter(pkts, "server_encoding", "UTF8")
 	updateParameter(pkts, "server_version", "14.5")

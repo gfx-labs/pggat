@@ -298,7 +298,6 @@ func Transaction(ctx *Context, server zap.ReadWriter, packet *zap.Packet) error 
 			}
 		default:
 			ctx.PeerFail(ErrUnexpectedPacket)
-			continue
 		}
 
 		if ctx.TxState == 'I' || ctx.TxState == '\x00' {
