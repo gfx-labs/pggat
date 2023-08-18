@@ -22,7 +22,7 @@ func NewClient(parameters map[strutil.CIString]string) *Client {
 	}
 }
 
-func (T *Client) Send(ctx middleware.Context, packet *zap.Packet) error {
+func (T *Client) Write(ctx middleware.Context, packet *zap.Packet) error {
 	switch packet.ReadType() {
 	case packets.ParameterStatus:
 		key, value, ok := packets.ReadParameterStatus(packet.Read())

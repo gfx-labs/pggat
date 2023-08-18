@@ -17,17 +17,28 @@ type Conn struct {
 func (T *Conn) Do(ctx *rob.Context, work any) {
 	job := work.(Work)
 
+	var clientErr, serverErr error
+
+	defer func() {
+		if clientErr != nil || serverErr != nil {
+			_ = job.rw.Close()
+			if serverErr != nil {
+				_ = T.rw.Close()
+				ctx.Remove()
+			}
+		}
+	}()
+
 	// sync parameters
-	ps.Sync(job.trackedParameters, job.rw, job.ps, T.rw, T.ps)
+	clientErr, serverErr = ps.Sync(job.trackedParameters, job.rw, job.ps, T.rw, T.ps)
+	if clientErr != nil || serverErr != nil {
+		return
+	}
 
 	T.eqp.SetClient(job.eqp)
-	clientErr, serverErr := bouncers.Bounce(job.rw, T.rw, job.initialPacket)
+	clientErr, serverErr = bouncers.Bounce(job.rw, T.rw, job.initialPacket)
 	if clientErr != nil || serverErr != nil {
-		_ = job.rw.Close()
-		if serverErr != nil {
-			_ = T.rw.Close()
-			ctx.Remove()
-		}
+		return
 	}
 	return
 }
