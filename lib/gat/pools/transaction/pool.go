@@ -5,13 +5,13 @@ import (
 
 	"github.com/google/uuid"
 
+	"pggat2/lib/bouncer"
 	"pggat2/lib/gat"
 	"pggat2/lib/middleware/interceptor"
 	"pggat2/lib/middleware/middlewares/eqp"
 	"pggat2/lib/middleware/middlewares/ps"
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v1"
-	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 )
 
@@ -29,11 +29,11 @@ func NewPool(config Config) *Pool {
 	return pool
 }
 
-func (T *Pool) AddServer(server zap.ReadWriter, parameters map[strutil.CIString]string) uuid.UUID {
+func (T *Pool) AddServer(server bouncer.Conn) uuid.UUID {
 	eqps := eqp.NewServer()
-	pss := ps.NewServer(parameters)
+	pss := ps.NewServer(server.InitialParameters)
 	mw := interceptor.NewInterceptor(
-		server,
+		server.RW,
 		eqps,
 		pss,
 	)
@@ -61,13 +61,13 @@ func (T *Pool) RemoveServer(id uuid.UUID) zap.ReadWriter {
 	return conn.(*Conn).rw
 }
 
-func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, parameters map[strutil.CIString]string) {
+func (T *Pool) Serve(ctx *gat.Context, client bouncer.Conn) {
 	source := T.s.NewSource()
 	eqpc := eqp.NewClient()
 	defer eqpc.Done()
-	psc := ps.NewClient(parameters)
-	client = interceptor.NewInterceptor(
-		client,
+	psc := ps.NewClient(client.InitialParameters)
+	c := interceptor.NewInterceptor(
+		client.RW,
 		eqpc,
 		psc,
 	)
@@ -79,19 +79,19 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, parameters map[str
 	defer packet.Done()
 
 	for {
-		if err := client.Read(packet); err != nil {
+		if err := c.Read(packet); err != nil {
 			break
 		}
 
 		source.Do(&robCtx, Work{
-			rw:                client,
+			rw:                c,
 			initialPacket:     packet,
 			eqp:               eqpc,
 			ps:                psc,
 			trackedParameters: T.config.TrackedParameters,
 		})
 	}
-	_ = client.Close()
+	_ = c.Close()
 }
 
 func (T *Pool) ScaleDown(amount int) (remaining int) {

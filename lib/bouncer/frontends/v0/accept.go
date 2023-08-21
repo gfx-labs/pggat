@@ -7,20 +7,21 @@ import (
 	"strings"
 
 	"pggat2/lib/auth"
+	"pggat2/lib/bouncer"
 	"pggat2/lib/perror"
+	"pggat2/lib/util/slices"
 	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 	"pggat2/lib/zap/packets/v3.0"
 )
 
 func startup0(
-	acceptor Acceptor,
-	client zap.ReadWriter,
-	startupParameters map[strutil.CIString]string,
-) (user, database string, done bool, err perror.Error) {
+	client *bouncer.Conn,
+	options AcceptOptions,
+) (done bool, err perror.Error) {
 	packet := zap.NewUntypedPacket()
 	defer packet.Done()
-	err = perror.Wrap(client.ReadUntyped(packet))
+	err = perror.Wrap(client.RW.ReadUntyped(packet))
 	if err != nil {
 		return
 	}
@@ -42,19 +43,24 @@ func startup0(
 		switch minorVersion {
 		case 5678:
 			// Cancel
+			if !read.ReadBytes(client.CancellationKey[:]) {
+				err = packets.ErrBadFormat
+				return
+			}
+
 			err = perror.New(
 				perror.FATAL,
-				perror.FeatureNotSupported,
-				"Cancel is not supported yet",
+				perror.ProtocolViolation,
+				"Expected client to disconnect",
 			)
 			return
 		case 5679:
 			// SSL is not supported yet
-			err = perror.Wrap(client.WriteByte('N'))
+			err = perror.Wrap(client.RW.WriteByte('N'))
 			return
 		case 5680:
 			// GSSAPI is not supported yet
-			err = perror.Wrap(client.WriteByte('N'))
+			err = perror.Wrap(client.RW.WriteByte('N'))
 			return
 		default:
 			err = perror.New(
@@ -95,9 +101,9 @@ func startup0(
 
 		switch key {
 		case "user":
-			user = value
+			client.User = value
 		case "database":
-			database = value
+			client.Database = value
 		case "options":
 			fields := strings.Fields(value)
 			for i := 0; i < len(fields); i++ {
@@ -117,7 +123,7 @@ func startup0(
 
 					ikey := strutil.MakeCIString(key)
 
-					if !acceptor.IsStartupParameterAllowed(ikey) {
+					if !slices.Contains(options.AllowedStartupOptions, ikey) {
 						err = perror.New(
 							perror.FATAL,
 							perror.FeatureNotSupported,
@@ -125,7 +131,11 @@ func startup0(
 						)
 						return
 					}
-					startupParameters[ikey] = value
+
+					if client.InitialParameters == nil {
+						client.InitialParameters = make(map[strutil.CIString]string)
+					}
+					client.InitialParameters[ikey] = value
 				default:
 					err = perror.New(
 						perror.FATAL,
@@ -149,7 +159,7 @@ func startup0(
 			} else {
 				ikey := strutil.MakeCIString(key)
 
-				if !acceptor.IsStartupParameterAllowed(ikey) {
+				if !slices.Contains(options.AllowedStartupOptions, ikey) {
 					err = perror.New(
 						perror.FATAL,
 						perror.FeatureNotSupported,
@@ -158,7 +168,10 @@ func startup0(
 					return
 				}
 
-				startupParameters[ikey] = value
+				if client.InitialParameters == nil {
+					client.InitialParameters = make(map[strutil.CIString]string)
+				}
+				client.InitialParameters[ikey] = value
 			}
 		}
 	}
@@ -169,13 +182,13 @@ func startup0(
 		defer packet.Done()
 		packets.WriteNegotiateProtocolVersion(packet, 0, unsupportedOptions)
 
-		err = perror.Wrap(client.Write(packet))
+		err = perror.Wrap(client.RW.Write(packet))
 		if err != nil {
 			return
 		}
 	}
 
-	if user == "" {
+	if client.User == "" {
 		err = perror.New(
 			perror.FATAL,
 			perror.InvalidAuthorizationSpecification,
@@ -183,8 +196,8 @@ func startup0(
 		)
 		return
 	}
-	if database == "" {
-		database = user
+	if client.Database == "" {
+		client.Database = client.User
 	}
 
 	done = true
@@ -297,14 +310,14 @@ func updateParameter(pkts *zap.Packets, name, value string) {
 }
 
 func accept(
-	acceptor Acceptor,
 	client zap.ReadWriter,
-) (user string, database string, startupParameters map[strutil.CIString]string, err perror.Error) {
-	startupParameters = make(map[strutil.CIString]string)
+	options AcceptOptions,
+) (conn bouncer.Conn, err perror.Error) {
+	conn.RW = client
 
 	for {
 		var done bool
-		user, database, done, err = startup0(acceptor, client, startupParameters)
+		done, err = startup0(&conn, options)
 		if err != nil {
 			return
 		}
@@ -313,7 +326,7 @@ func accept(
 		}
 	}
 
-	creds := acceptor.GetUserCredentials(user, database)
+	creds := options.Pooler.GetUserCredentials(conn.User, conn.Database)
 	if creds == nil {
 		err = perror.New(
 			perror.FATAL,
@@ -344,20 +357,22 @@ func accept(
 	pkts.Append(packet)
 
 	// send backend key data
-	var cancellationKey [8]byte
-	_, err2 := rand.Read(cancellationKey[:])
+	_, err2 := rand.Read(conn.CancellationKey[:])
 	if err2 != nil {
 		err = perror.Wrap(err2)
 		return
 	}
 
 	packet = zap.NewPacket()
-	packets.WriteBackendKeyData(packet, cancellationKey)
+	packets.WriteBackendKeyData(packet, conn.CancellationKey)
 	pkts.Append(packet)
 
-	startupParameters[strutil.MakeCIString("client_encoding")] = "UTF8"
-	startupParameters[strutil.MakeCIString("server_encoding")] = "UTF8"
-	startupParameters[strutil.MakeCIString("server_version")] = "14.5"
+	if conn.InitialParameters == nil {
+		conn.InitialParameters = make(map[strutil.CIString]string)
+	}
+	conn.InitialParameters[strutil.MakeCIString("client_encoding")] = "UTF8"
+	conn.InitialParameters[strutil.MakeCIString("server_encoding")] = "UTF8"
+	conn.InitialParameters[strutil.MakeCIString("server_version")] = "14.5"
 	updateParameter(pkts, "client_encoding", "UTF8")
 	updateParameter(pkts, "server_encoding", "UTF8")
 	updateParameter(pkts, "server_version", "14.5")
@@ -382,13 +397,11 @@ func fail(client zap.ReadWriter, err perror.Error) {
 	_ = client.Write(packet)
 }
 
-func Accept(
-	acceptor Acceptor,
-	client zap.ReadWriter,
-) (user, database string, startupParameters map[strutil.CIString]string, err perror.Error) {
-	user, database, startupParameters, err = accept(acceptor, client)
+func Accept(client zap.ReadWriter, options AcceptOptions) (bouncer.Conn, perror.Error) {
+	conn, err := accept(client, options)
 	if err != nil {
 		fail(client, err)
+		return bouncer.Conn{}, err
 	}
-	return
+	return conn, nil
 }

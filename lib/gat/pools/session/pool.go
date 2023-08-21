@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"pggat2/lib/bouncer"
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/bouncers/v2"
 	"pggat2/lib/gat"
@@ -89,9 +90,9 @@ func (T *Pool) release(conn Conn) {
 	T._release(conn.id)
 }
 
-func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, ps map[strutil.CIString]string) {
+func (T *Pool) Serve(ctx *gat.Context, client bouncer.Conn) {
 	defer func() {
-		_ = client.Close()
+		_ = client.RW.Close()
 	}()
 
 	connOk := true
@@ -116,7 +117,7 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, ps map[strutil.CIS
 			}
 		}
 
-		for key, value := range ps {
+		for key, value := range client.InitialParameters {
 			// skip already set params
 			if conn.initialParameters[key] == value {
 				add(key)
@@ -140,14 +141,14 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, ps map[strutil.CIS
 		}
 
 		for key := range conn.initialParameters {
-			if _, ok := ps[key]; ok {
+			if _, ok := client.InitialParameters[key]; ok {
 				continue
 			}
 
 			add(key)
 		}
 
-		err := client.WriteV(pkts)
+		err := client.RW.WriteV(pkts)
 		if err != nil {
 			return true
 		}
@@ -160,10 +161,10 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, ps map[strutil.CIS
 	defer packet.Done()
 
 	for {
-		if err := client.Read(packet); err != nil {
+		if err := client.RW.Read(packet); err != nil {
 			break
 		}
-		clientErr, serverErr := bouncers.Bounce(client, conn.rw, packet)
+		clientErr, serverErr := bouncers.Bounce(client.RW, conn.rw, packet)
 		if clientErr != nil || serverErr != nil {
 			connOk = serverErr == nil
 			break
@@ -171,7 +172,7 @@ func (T *Pool) Serve(ctx *gat.Context, client zap.ReadWriter, ps map[strutil.CIS
 	}
 }
 
-func (T *Pool) AddServer(server zap.ReadWriter, parameters map[strutil.CIString]string) uuid.UUID {
+func (T *Pool) AddServer(server bouncer.Conn) uuid.UUID {
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
 
@@ -181,8 +182,8 @@ func (T *Pool) AddServer(server zap.ReadWriter, parameters map[strutil.CIString]
 	}
 	T.conns[id] = Conn{
 		id:                id,
-		rw:                server,
-		initialParameters: parameters,
+		rw:                server.RW,
+		initialParameters: server.InitialParameters,
 	}
 	T._release(id)
 	return id

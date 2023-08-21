@@ -4,6 +4,7 @@ import (
 	"net"
 
 	"pggat2/lib/auth"
+	"pggat2/lib/bouncer"
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/middleware/interceptor"
 	"pggat2/lib/middleware/middlewares/unterminate"
@@ -68,25 +69,28 @@ func (T *Pooler) Serve(client zap.ReadWriter) {
 		unterminate.Unterminate,
 	)
 
-	username, database, startupParameters, err := frontends.Accept(
-		T,
+	conn, err := frontends.Accept(
 		client,
+		frontends.AcceptOptions{
+			Pooler:                T,
+			AllowedStartupOptions: T.config.AllowedStartupParameters,
+		},
 	)
 	if err != nil {
 		return
 	}
 
-	user := T.GetUser(username)
+	user := T.GetUser(conn.User)
 	if user == nil {
 		return
 	}
 
-	pool := user.GetPool(database)
+	pool := user.GetPool(conn.Database)
 	if pool == nil {
 		return
 	}
 
-	pool.Serve(client, startupParameters)
+	pool.Serve(conn)
 }
 
 func (T *Pooler) ListenAndServe(listener net.Listener) error {
@@ -99,4 +103,4 @@ func (T *Pooler) ListenAndServe(listener net.Listener) error {
 	}
 }
 
-var _ frontends.Acceptor = (*Pooler)(nil)
+var _ bouncer.Pooler = (*Pooler)(nil)

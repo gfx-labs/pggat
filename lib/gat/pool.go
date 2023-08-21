@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"pggat2/lib/bouncer"
 	"pggat2/lib/util/maps"
 	"pggat2/lib/util/maths"
 	"pggat2/lib/util/strutil"
@@ -18,9 +19,9 @@ type Context struct {
 }
 
 type RawPool interface {
-	Serve(ctx *Context, client zap.ReadWriter, startupParameters map[strutil.CIString]string)
+	Serve(ctx *Context, client bouncer.Conn)
 
-	AddServer(server zap.ReadWriter, startupParameters map[strutil.CIString]string) uuid.UUID
+	AddServer(server bouncer.Conn) uuid.UUID
 	GetServer(id uuid.UUID) zap.ReadWriter
 	RemoveServer(id uuid.UUID) zap.ReadWriter
 
@@ -121,13 +122,13 @@ func (T *Pool) _tryAddServers(recipe *PoolRecipe, amount int) (remaining int) {
 		max = maths.Min(maxConnections-j, max)
 	}
 	for i := 0; i < max; i++ {
-		conn, ps, err := recipe.r.Connect()
+		conn, err := recipe.r.Connect()
 		if err != nil {
 			log.Printf("error connecting to server: %v", err)
 			continue
 		}
 
-		id := T.raw.AddServer(conn, ps)
+		id := T.raw.AddServer(conn)
 		recipe.servers = append(recipe.servers, id)
 		remaining--
 	}
@@ -198,6 +199,6 @@ func (T *Pool) RemoveRecipe(name string) {
 	}
 }
 
-func (T *Pool) Serve(client zap.ReadWriter, startupParameters map[strutil.CIString]string) {
-	T.raw.Serve(&T.ctx, client, startupParameters)
+func (T *Pool) Serve(conn bouncer.Conn) {
+	T.raw.Serve(&T.ctx, conn)
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"pggat2/lib/auth"
+	"pggat2/lib/bouncer"
 	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
@@ -196,10 +197,10 @@ func startup0(server zap.ReadWriter, creds auth.Credentials) (done bool, err err
 	}
 }
 
-func startup1(server zap.ReadWriter, parameterStatus map[strutil.CIString]string) (done bool, err error) {
+func startup1(conn *bouncer.Conn) (done bool, err error) {
 	packet := zap.NewPacket()
 	defer packet.Done()
-	err = server.Read(packet)
+	err = conn.RW.Read(packet)
 	if err != nil {
 		return
 	}
@@ -207,13 +208,11 @@ func startup1(server zap.ReadWriter, parameterStatus map[strutil.CIString]string
 	switch packet.ReadType() {
 	case packets.BackendKeyData:
 		read := packet.Read()
-		var cancellationKey [8]byte
-		ok := read.ReadBytes(cancellationKey[:])
+		ok := read.ReadBytes(conn.CancellationKey[:])
 		if !ok {
 			err = ErrBadFormat
 			return
 		}
-		// TODO(garet) put cancellation key somewhere
 		return false, nil
 	case packets.ParameterStatus:
 		key, value, ok := packets.ReadParameterStatus(packet.Read())
@@ -222,7 +221,10 @@ func startup1(server zap.ReadWriter, parameterStatus map[strutil.CIString]string
 			return
 		}
 		ikey := strutil.MakeCIString(key)
-		parameterStatus[ikey] = value
+		if conn.InitialParameters == nil {
+			conn.InitialParameters = make(map[strutil.CIString]string)
+		}
+		conn.InitialParameters[ikey] = value
 		return false, nil
 	case packets.ReadyForQuery:
 		return true, nil
@@ -243,20 +245,23 @@ func startup1(server zap.ReadWriter, parameterStatus map[strutil.CIString]string
 	}
 }
 
-func Accept(server zap.ReadWriter, creds auth.Credentials, database string, startupParameters map[strutil.CIString]string) error {
-	if database == "" {
-		database = creds.GetUsername()
+func Accept(server zap.ReadWriter, options AcceptOptions) (bouncer.Conn, error) {
+	username := options.Credentials.GetUsername()
+
+	if options.Database == "" {
+		options.Database = username
 	}
+
 	// we can re-use the memory for this pkt most of the way down because we don't pass this anywhere
 	packet := zap.NewUntypedPacket()
 	defer packet.Done()
 	packet.WriteInt16(3)
 	packet.WriteInt16(0)
 	packet.WriteString("user")
-	packet.WriteString(creds.GetUsername())
+	packet.WriteString(username)
 	packet.WriteString("database")
-	packet.WriteString(database)
-	for key, value := range startupParameters {
+	packet.WriteString(options.Database)
+	for key, value := range options.StartupParameters {
 		packet.WriteString(key.String())
 		packet.WriteString(value)
 	}
@@ -264,25 +269,31 @@ func Accept(server zap.ReadWriter, creds auth.Credentials, database string, star
 
 	err := server.WriteUntyped(packet)
 	if err != nil {
-		return err
+		return bouncer.Conn{}, err
 	}
 
 	for {
 		var done bool
-		done, err = startup0(server, creds)
+		done, err = startup0(server, options.Credentials)
 		if err != nil {
-			return err
+			return bouncer.Conn{}, err
 		}
 		if done {
 			break
 		}
 	}
 
+	conn := bouncer.Conn{
+		RW:       server,
+		User:     username,
+		Database: options.Database,
+	}
+
 	for {
 		var done bool
-		done, err = startup1(server, startupParameters)
+		done, err = startup1(&conn)
 		if err != nil {
-			return err
+			return bouncer.Conn{}, err
 		}
 		if done {
 			break
@@ -290,5 +301,5 @@ func Accept(server zap.ReadWriter, creds auth.Credentials, database string, star
 	}
 
 	// startup complete, connection is ready for queries
-	return nil
+	return conn, nil
 }
