@@ -43,10 +43,12 @@ func startup0(
 		switch minorVersion {
 		case 5678:
 			// Cancel
-			if !read.ReadBytes(client.CancellationKey[:]) {
+			if !read.ReadBytes(client.BackendKey[:]) {
 				err = packets.ErrBadFormat
 				return
 			}
+
+			options.Pooler.Cancel(client.BackendKey)
 
 			err = perror.New(
 				perror.FATAL,
@@ -357,14 +359,14 @@ func accept(
 	pkts.Append(packet)
 
 	// send backend key data
-	_, err2 := rand.Read(conn.CancellationKey[:])
+	_, err2 := rand.Read(conn.BackendKey[:])
 	if err2 != nil {
 		err = perror.Wrap(err2)
 		return
 	}
 
 	packet = zap.NewPacket()
-	packets.WriteBackendKeyData(packet, conn.CancellationKey)
+	packets.WriteBackendKeyData(packet, conn.BackendKey)
 	pkts.Append(packet)
 
 	if conn.InitialParameters == nil {

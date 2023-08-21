@@ -208,7 +208,7 @@ func startup1(conn *bouncer.Conn) (done bool, err error) {
 	switch packet.ReadType() {
 	case packets.BackendKeyData:
 		read := packet.Read()
-		ok := read.ReadBytes(conn.CancellationKey[:])
+		ok := read.ReadBytes(conn.BackendKey[:])
 		if !ok {
 			err = ErrBadFormat
 			return

@@ -17,6 +17,9 @@ import (
 type Pooler struct {
 	config PoolerConfig
 
+	// key -> pool for cancellation
+	keys maps.RWLocked[[8]byte, *Pool]
+
 	users maps.RWLocked[string, *User]
 }
 
@@ -55,6 +58,15 @@ func (T *Pooler) GetUserCredentials(user, database string) auth.Credentials {
 	return u.GetCredentials()
 }
 
+func (T *Pooler) Cancel(key [8]byte) {
+	pool, ok := T.keys.Load(key)
+	if !ok {
+		return
+	}
+
+	pool.Cancel(key)
+}
+
 func (T *Pooler) IsStartupParameterAllowed(parameter strutil.CIString) bool {
 	return slices.Contains(T.config.AllowedStartupParameters, parameter)
 }
@@ -89,6 +101,9 @@ func (T *Pooler) Serve(client zap.ReadWriter) {
 	if pool == nil {
 		return
 	}
+
+	T.keys.Store(conn.BackendKey, pool)
+	defer T.keys.Delete(conn.BackendKey)
 
 	pool.Serve(conn)
 }

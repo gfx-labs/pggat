@@ -202,3 +202,8 @@ func (T *Pool) RemoveRecipe(name string) {
 func (T *Pool) Serve(conn bouncer.Conn) {
 	T.raw.Serve(&T.ctx, conn)
 }
+
+func (T *Pool) Cancel(key [8]byte) {
+	log.Println("cancel in pool", T, key)
+	// TODO(garet)
+}

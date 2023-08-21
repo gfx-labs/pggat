@@ -11,5 +11,5 @@ type Conn struct {
 	User              string
 	Database          string
 	InitialParameters map[strutil.CIString]string
-	CancellationKey   [8]byte
+	BackendKey        [8]byte
 }
