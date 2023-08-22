@@ -11,6 +11,7 @@ import (
 )
 
 type Recipe interface {
+	Dial() (zap.ReadWriter, error)
 	Connect() (bouncer.Conn, error)
 
 	GetMinConnections() int
@@ -30,12 +31,20 @@ type TCPRecipe struct {
 	StartupParameters map[strutil.CIString]string
 }
 
-func (T TCPRecipe) Connect() (bouncer.Conn, error) {
+func (T TCPRecipe) Dial() (zap.ReadWriter, error) {
 	conn, err := net.Dial("tcp", T.Address)
+	if err != nil {
+		return nil, err
+	}
+	rw := zap.WrapIOReadWriter(conn)
+	return rw, nil
+}
+
+func (T TCPRecipe) Connect() (bouncer.Conn, error) {
+	rw, err := T.Dial()
 	if err != nil {
 		return bouncer.Conn{}, err
 	}
-	rw := zap.WrapIOReadWriter(conn)
 
 	server, err := backends.Accept(rw, backends.AcceptOptions{
 		Credentials:       T.Credentials,

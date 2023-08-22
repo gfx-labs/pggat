@@ -8,10 +8,11 @@ import (
 	"github.com/google/uuid"
 
 	"pggat2/lib/bouncer"
+	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/util/maps"
 	"pggat2/lib/util/maths"
+	"pggat2/lib/util/slices"
 	"pggat2/lib/util/strutil"
-	"pggat2/lib/zap"
 )
 
 type Context struct {
@@ -22,8 +23,11 @@ type RawPool interface {
 	Serve(ctx *Context, client bouncer.Conn)
 
 	AddServer(server bouncer.Conn) uuid.UUID
-	GetServer(id uuid.UUID) zap.ReadWriter
-	RemoveServer(id uuid.UUID) zap.ReadWriter
+	GetServer(id uuid.UUID) bouncer.Conn
+	RemoveServer(id uuid.UUID) bouncer.Conn
+
+	// LookupCorresponding finds the corresponding server and key for a particular client
+	LookupCorresponding(key [8]byte) (uuid.UUID, [8]byte, bool)
 
 	ScaleDown(amount int) (remaining int)
 	IdleSince() time.Time
@@ -109,7 +113,7 @@ func (T *Pool) _tryAddServers(recipe *PoolRecipe, amount int) (remaining int) {
 
 	j := 0
 	for i := 0; i < len(recipe.servers); i++ {
-		if T.raw.GetServer(recipe.servers[i]) != nil {
+		if T.raw.GetServer(recipe.servers[i]).RW != nil {
 			recipe.servers[j] = recipe.servers[i]
 			j++
 		}
@@ -158,8 +162,8 @@ func (T *Pool) removeRecipe(recipe *PoolRecipe) {
 
 	recipe.removed = true
 	for _, id := range recipe.servers {
-		if conn := T.raw.RemoveServer(id); conn != nil {
-			_ = conn.Close()
+		if conn := T.raw.RemoveServer(id); conn.RW != nil {
+			_ = conn.RW.Close()
 		}
 	}
 
@@ -204,6 +208,20 @@ func (T *Pool) Serve(conn bouncer.Conn) {
 }
 
 func (T *Pool) Cancel(key [8]byte) {
-	log.Println("cancel in pool", T, key)
-	// TODO(garet)
+	server, cancelKey, ok := T.raw.LookupCorresponding(key)
+	if !ok {
+		return
+	}
+	T.recipes.Range(func(_ string, recipe *PoolRecipe) bool {
+		if slices.Contains(recipe.servers, server) {
+			rw, err := recipe.r.Dial()
+			if err != nil {
+				return false
+			}
+			// error doesn't matter
+			_ = backends.Cancel(rw, cancelKey)
+			return false
+		}
+		return true
+	})
 }

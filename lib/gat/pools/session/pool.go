@@ -29,7 +29,7 @@ type Pool struct {
 
 	// use slice lifo for better perf
 	queue ring.Ring[queueItem]
-	conns map[uuid.UUID]Conn
+	conns map[uuid.UUID]bouncer.Conn
 	ready sync.Cond
 	qmu   sync.Mutex
 }
@@ -43,7 +43,7 @@ func NewPool(config Config) *Pool {
 	return p
 }
 
-func (T *Pool) acquire(ctx *gat.Context) Conn {
+func (T *Pool) acquire(ctx *gat.Context) (uuid.UUID, bouncer.Conn) {
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
 	for T.queue.Length() == 0 {
@@ -57,7 +57,7 @@ func (T *Pool) acquire(ctx *gat.Context) Conn {
 	} else {
 		entry, _ = T.queue.PopBack()
 	}
-	return T.conns[entry.id]
+	return entry.id, T.conns[entry.id]
 }
 
 func (T *Pool) _release(id uuid.UUID) {
@@ -69,25 +69,25 @@ func (T *Pool) _release(id uuid.UUID) {
 	T.ready.Signal()
 }
 
-func (T *Pool) close(conn Conn) {
-	_ = conn.rw.Close()
+func (T *Pool) close(id uuid.UUID, conn bouncer.Conn) {
+	_ = conn.RW.Close()
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
 
-	delete(T.conns, conn.id)
+	delete(T.conns, id)
 }
 
-func (T *Pool) release(conn Conn) {
+func (T *Pool) release(id uuid.UUID, conn bouncer.Conn) {
 	// reset session state
-	err := backends.QueryString(&backends.Context{}, conn.rw, "DISCARD ALL")
+	err := backends.QueryString(&backends.Context{}, conn.RW, "DISCARD ALL")
 	if err != nil {
-		T.close(conn)
+		T.close(id, conn)
 		return
 	}
 
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
-	T._release(conn.id)
+	T._release(id)
 }
 
 func (T *Pool) Serve(ctx *gat.Context, client bouncer.Conn) {
@@ -95,13 +95,13 @@ func (T *Pool) Serve(ctx *gat.Context, client bouncer.Conn) {
 		_ = client.RW.Close()
 	}()
 
-	connOk := true
-	conn := T.acquire(ctx)
+	serverOK := true
+	serverID, server := T.acquire(ctx)
 	defer func() {
-		if connOk {
-			T.release(conn)
+		if serverOK {
+			T.release(serverID, server)
 		} else {
-			T.close(conn)
+			T.close(serverID, server)
 		}
 	}()
 
@@ -110,7 +110,7 @@ func (T *Pool) Serve(ctx *gat.Context, client bouncer.Conn) {
 		defer pkts.Done()
 
 		add := func(key strutil.CIString) {
-			if value, ok := conn.initialParameters[key]; ok {
+			if value, ok := server.InitialParameters[key]; ok {
 				pkt := zap.NewPacket()
 				packets.WriteParameterStatus(pkt, key.String(), value)
 				pkts.Append(pkt)
@@ -119,7 +119,7 @@ func (T *Pool) Serve(ctx *gat.Context, client bouncer.Conn) {
 
 		for key, value := range client.InitialParameters {
 			// skip already set params
-			if conn.initialParameters[key] == value {
+			if server.InitialParameters[key] == value {
 				add(key)
 				continue
 			}
@@ -134,13 +134,13 @@ func (T *Pool) Serve(ctx *gat.Context, client bouncer.Conn) {
 			packets.WriteParameterStatus(pkt, key.String(), value)
 			pkts.Append(pkt)
 
-			if err := backends.SetParameter(&backends.Context{}, conn.rw, key, value); err != nil {
-				connOk = false
+			if err := backends.SetParameter(&backends.Context{}, server.RW, key, value); err != nil {
+				serverOK = false
 				return true
 			}
 		}
 
-		for key := range conn.initialParameters {
+		for key := range server.InitialParameters {
 			if _, ok := client.InitialParameters[key]; ok {
 				continue
 			}
@@ -164,12 +164,17 @@ func (T *Pool) Serve(ctx *gat.Context, client bouncer.Conn) {
 		if err := client.RW.Read(packet); err != nil {
 			break
 		}
-		clientErr, serverErr := bouncers.Bounce(client.RW, conn.rw, packet)
+		clientErr, serverErr := bouncers.Bounce(client.RW, server.RW, packet)
 		if clientErr != nil || serverErr != nil {
-			connOk = serverErr == nil
+			serverOK = serverErr == nil
 			break
 		}
 	}
+}
+
+func (T *Pool) LookupCorresponding(key [8]byte) (uuid.UUID, [8]byte, bool) {
+	// TODO(garet)
+	return uuid.Nil, [8]byte{}, false
 }
 
 func (T *Pool) AddServer(server bouncer.Conn) uuid.UUID {
@@ -178,34 +183,30 @@ func (T *Pool) AddServer(server bouncer.Conn) uuid.UUID {
 
 	id := uuid.New()
 	if T.conns == nil {
-		T.conns = make(map[uuid.UUID]Conn)
+		T.conns = make(map[uuid.UUID]bouncer.Conn)
 	}
-	T.conns[id] = Conn{
-		id:                id,
-		rw:                server.RW,
-		initialParameters: server.InitialParameters,
-	}
+	T.conns[id] = server
 	T._release(id)
 	return id
 }
 
-func (T *Pool) GetServer(id uuid.UUID) zap.ReadWriter {
+func (T *Pool) GetServer(id uuid.UUID) bouncer.Conn {
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
 
-	return T.conns[id].rw
+	return T.conns[id]
 }
 
-func (T *Pool) RemoveServer(id uuid.UUID) zap.ReadWriter {
+func (T *Pool) RemoveServer(id uuid.UUID) bouncer.Conn {
 	T.qmu.Lock()
 	defer T.qmu.Unlock()
 
 	conn, ok := T.conns[id]
 	if !ok {
-		return nil
+		return bouncer.Conn{}
 	}
 	delete(T.conns, id)
-	return conn.rw
+	return conn
 }
 
 func (T *Pool) ScaleDown(amount int) (remaining int) {
@@ -226,7 +227,7 @@ func (T *Pool) ScaleDown(amount int) (remaining int) {
 		}
 		delete(T.conns, v.id)
 
-		_ = conn.rw.Close()
+		_ = conn.RW.Close()
 		remaining--
 	}
 

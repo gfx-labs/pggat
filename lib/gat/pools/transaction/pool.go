@@ -32,33 +32,33 @@ func NewPool(config Config) *Pool {
 func (T *Pool) AddServer(server bouncer.Conn) uuid.UUID {
 	eqps := eqp.NewServer()
 	pss := ps.NewServer(server.InitialParameters)
-	mw := interceptor.NewInterceptor(
+	server.RW = interceptor.NewInterceptor(
 		server.RW,
 		eqps,
 		pss,
 	)
 	sink := &Conn{
-		rw:  mw,
+		b:   server,
 		eqp: eqps,
 		ps:  pss,
 	}
 	return T.s.AddWorker(0, sink)
 }
 
-func (T *Pool) GetServer(id uuid.UUID) zap.ReadWriter {
+func (T *Pool) GetServer(id uuid.UUID) bouncer.Conn {
 	conn := T.s.GetWorker(id)
 	if conn == nil {
-		return nil
+		return bouncer.Conn{}
 	}
-	return conn.(*Conn).rw
+	return conn.(*Conn).b
 }
 
-func (T *Pool) RemoveServer(id uuid.UUID) zap.ReadWriter {
+func (T *Pool) RemoveServer(id uuid.UUID) bouncer.Conn {
 	conn := T.s.RemoveWorker(id)
 	if conn == nil {
-		return nil
+		return bouncer.Conn{}
 	}
-	return conn.(*Conn).rw
+	return conn.(*Conn).b
 }
 
 func (T *Pool) Serve(ctx *gat.Context, client bouncer.Conn) {
@@ -94,6 +94,11 @@ func (T *Pool) Serve(ctx *gat.Context, client bouncer.Conn) {
 	_ = c.Close()
 }
 
+func (T *Pool) LookupCorresponding(key [8]byte) (uuid.UUID, [8]byte, bool) {
+	// TODO(garet)
+	return uuid.Nil, [8]byte{}, false
+}
+
 func (T *Pool) ScaleDown(amount int) (remaining int) {
 	remaining = amount
 
@@ -108,7 +113,7 @@ func (T *Pool) ScaleDown(amount int) (remaining int) {
 			continue
 		}
 		conn := worker.(*Conn)
-		_ = conn.rw.Close()
+		_ = conn.b.RW.Close()
 		remaining--
 	}
 
