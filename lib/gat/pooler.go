@@ -33,8 +33,8 @@ func NewPooler(config PoolerConfig) *Pooler {
 	}
 }
 
-func (T *Pooler) AddUser(name string, user *User) {
-	T.users.Store(name, user)
+func (T *Pooler) AddUser(user *User) {
+	T.users.Store(user.GetCredentials().GetUsername(), user)
 }
 
 func (T *Pooler) RemoveUser(name string) {

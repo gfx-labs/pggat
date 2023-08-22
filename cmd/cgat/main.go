@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"pggat2/lib/gat/configs/pgbouncer"
+	"pggat2/lib/gat/configs/zalando"
 )
 
 func main() {
@@ -16,11 +17,20 @@ func main() {
 
 	log.Println("Starting pggat...")
 
-	if len(os.Args) < 2 {
-		panic("usage: pggat <config>")
+	if len(os.Args) == 2 {
+		log.Println("running in pgbouncer compatibility mode")
+		conf, err := pgbouncer.Load(os.Args[1])
+		if err != nil {
+			panic(err)
+		}
+
+		err = conf.ListenAndServe()
+		if err != nil {
+			panic(err)
+		}
 	}
 
-	conf, err := pgbouncer.Load(os.Args[1])
+	conf, err := zalando.Load()
 	if err != nil {
 		panic(err)
 	}

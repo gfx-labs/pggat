@@ -9,7 +9,6 @@ RUN go build -o pggat ./cmd/cgat
 
 FROM alpine:latest
 WORKDIR /bin
-COPY --from=GOBUILDER /src/pggat pgbouncer
+COPY --from=GOBUILDER /src/pggat pggat
 
-# use these so it works with zalando/postgres-operator
-ENTRYPOINT ["/bin/pgbouncer", "/etc/pgbouncer/pgbouncer.ini"]
+ENTRYPOINT ["/bin/pggat"]

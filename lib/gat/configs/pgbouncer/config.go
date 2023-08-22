@@ -9,14 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"pggat2/lib/auth/credentials"
 	"pggat2/lib/gat"
 	"pggat2/lib/gat/pools/session"
 	"pggat2/lib/gat/pools/transaction"
 	"pggat2/lib/util/encoding/ini"
 	"pggat2/lib/util/encoding/userlist"
+	"pggat2/lib/util/flip"
 	"pggat2/lib/util/strutil"
 )
 
@@ -298,7 +297,7 @@ func (T *Config) ListenAndServe() error {
 			Password: authFile[name], // TODO(garet) md5 and sasl
 		}
 		u := gat.NewUser(creds)
-		pooler.AddUser(name, u)
+		pooler.AddUser(u)
 
 		for dbname, db := range T.Databases {
 			// filter out dbs specific to users
@@ -383,10 +382,10 @@ func (T *Config) ListenAndServe() error {
 		}
 	}
 
-	var wg errgroup.Group
+	var bank flip.Bank
 
 	if T.PgBouncer.ListenAddr != "" {
-		wg.Go(func() error {
+		bank.Queue(func() error {
 			listenAddr := T.PgBouncer.ListenAddr
 			if listenAddr == "*" {
 				listenAddr = ""
@@ -406,7 +405,7 @@ func (T *Config) ListenAndServe() error {
 	}
 
 	// listen on unix socket
-	wg.Go(func() error {
+	bank.Queue(func() error {
 		dir := T.PgBouncer.UnixSocketDir
 		port := T.PgBouncer.ListenPort
 
@@ -425,5 +424,5 @@ func (T *Config) ListenAndServe() error {
 		return pooler.ListenAndServe(listener)
 	})
 
-	return wg.Wait()
+	return bank.Wait()
 }
