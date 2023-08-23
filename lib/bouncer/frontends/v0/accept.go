@@ -57,7 +57,6 @@ func startup0(
 			)
 			return
 		case 5679:
-			// SSL is not supported yet
 			if err = perror.Wrap(client.RW.WriteByte('S')); err != nil {
 				return
 			}

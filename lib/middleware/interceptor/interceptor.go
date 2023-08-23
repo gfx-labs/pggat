@@ -23,6 +23,10 @@ func NewInterceptor(rw zap.ReadWriter, middlewares ...middleware.Middleware) *In
 	}
 }
 
+func (T *Interceptor) EnableSSL(client bool) error {
+	return T.rw.EnableSSL(client)
+}
+
 func (T *Interceptor) ReadByte() (byte, error) {
 	return T.rw.ReadByte()
 }
