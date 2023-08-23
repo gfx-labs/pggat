@@ -28,7 +28,10 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		return
 	}
+
+	log.Println("running in zalando compatibility mode")
 
 	conf, err := zalando.Load()
 	if err != nil {

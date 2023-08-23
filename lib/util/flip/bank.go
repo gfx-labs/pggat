@@ -1,6 +1,8 @@
 package flip
 
-import "sync"
+import (
+	"sync"
+)
 
 type Bank struct {
 	pending []func() error
@@ -41,16 +43,17 @@ func (T *Bank) Wait() error {
 		return batch[0]()
 	}
 
-	ch := make(chan error, len(T.pending))
+	ch := make(chan error, len(batch))
 
-	for _, pending := range T.pending {
+	for _, pending := range batch {
 		go func(pending func() error) {
 			ch <- pending()
 		}(pending)
 	}
 
-	for i := 0; i < len(T.pending); i++ {
-		if err := <-ch; err != nil {
+	for i := 0; i < len(batch); i++ {
+		err := <-ch
+		if err != nil {
 			return err
 		}
 	}
