@@ -58,7 +58,12 @@ func startup0(
 			return
 		case 5679:
 			// SSL is not supported yet
-			err = perror.Wrap(client.RW.WriteByte('N'))
+			if err = perror.Wrap(client.RW.WriteByte('S')); err != nil {
+				return
+			}
+			if err = perror.Wrap(client.RW.EnableSSL(false)); err != nil {
+				return
+			}
 			return
 		case 5680:
 			// GSSAPI is not supported yet

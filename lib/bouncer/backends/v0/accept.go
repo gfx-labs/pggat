@@ -245,6 +245,33 @@ func startup1(conn *bouncer.Conn) (done bool, err error) {
 	}
 }
 
+func enableSSL(server zap.ReadWriter) (bool, error) {
+	packet := zap.NewUntypedPacket()
+	defer packet.Done()
+	packet.WriteUint16(1234)
+	packet.WriteUint16(5679)
+	if err := server.WriteUntyped(packet); err != nil {
+		return false, err
+	}
+
+	// read byte to see if ssl is allowed
+	yn, err := server.ReadByte()
+	if err != nil {
+		return false, err
+	}
+
+	if yn != 'S' {
+		// not supported
+		return false, nil
+	}
+
+	if err = server.EnableSSL(true); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 func Accept(server zap.ReadWriter, options AcceptOptions) (bouncer.Conn, error) {
 	username := options.Credentials.GetUsername()
 
@@ -252,11 +279,21 @@ func Accept(server zap.ReadWriter, options AcceptOptions) (bouncer.Conn, error) 
 		options.Database = username
 	}
 
+	if options.SSLMode.ShouldAttempt() {
+		ok, err := enableSSL(server)
+		if err != nil {
+			return bouncer.Conn{}, err
+		}
+		if !ok && options.SSLMode.IsRequired() {
+			return bouncer.Conn{}, errors.New("server rejected SSL encryption")
+		}
+	}
+
 	// we can re-use the memory for this pkt most of the way down because we don't pass this anywhere
 	packet := zap.NewUntypedPacket()
 	defer packet.Done()
-	packet.WriteInt16(3)
-	packet.WriteInt16(0)
+	packet.WriteUint16(3)
+	packet.WriteUint16(0)
 	packet.WriteString("user")
 	packet.WriteString(username)
 	packet.WriteString("database")

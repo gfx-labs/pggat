@@ -1,6 +1,7 @@
 package zap
 
 import (
+	"crypto/tls"
 	"io"
 	"net"
 )
@@ -14,6 +15,17 @@ func WrapNetConn(conn net.Conn) *Conn {
 	return &Conn{
 		conn: conn,
 	}
+}
+
+func (T *Conn) EnableSSL(client bool) error {
+	var sslConn *tls.Conn
+	if client {
+		sslConn = tls.Client(T.conn, nil)
+	} else {
+		sslConn = tls.Server(T.conn, nil)
+	}
+	T.conn = sslConn
+	return sslConn.Handshake()
 }
 
 func (T *Conn) ReadByte() (byte, error) {
