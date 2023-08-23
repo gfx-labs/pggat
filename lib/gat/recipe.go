@@ -36,7 +36,7 @@ func (T TCPRecipe) Dial() (zap.ReadWriter, error) {
 	if err != nil {
 		return nil, err
 	}
-	rw := zap.WrapIOReadWriter(conn)
+	rw := zap.WrapNetConn(conn)
 	return rw, nil
 }
 

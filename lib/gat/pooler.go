@@ -114,7 +114,7 @@ func (T *Pooler) ListenAndServe(listener net.Listener) error {
 		if err != nil {
 			return err
 		}
-		go T.Serve(zap.WrapIOReadWriter(conn))
+		go T.Serve(zap.WrapNetConn(conn))
 	}
 }
 
