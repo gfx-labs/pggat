@@ -8,6 +8,7 @@ import (
 type Conn struct {
 	RW zap.ReadWriter
 
+	SSLEnabled        bool
 	User              string
 	Database          string
 	InitialParameters map[strutil.CIString]string

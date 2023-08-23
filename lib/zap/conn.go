@@ -17,13 +17,14 @@ func WrapNetConn(conn net.Conn) *Conn {
 	}
 }
 
-func (T *Conn) EnableSSL(client bool) error {
-	var sslConn *tls.Conn
-	if client {
-		sslConn = tls.Client(T.conn, nil)
-	} else {
-		sslConn = tls.Server(T.conn, nil)
-	}
+func (T *Conn) EnableSSLClient(config *tls.Config) error {
+	sslConn := tls.Client(T.conn, config)
+	T.conn = sslConn
+	return sslConn.Handshake()
+}
+
+func (T *Conn) EnableSSLServer(config *tls.Config) error {
+	sslConn := tls.Server(T.conn, config)
 	T.conn = sslConn
 	return sslConn.Handshake()
 }

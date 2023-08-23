@@ -57,12 +57,20 @@ func startup0(
 			)
 			return
 		case 5679:
+			// ssl is not enabled
+			if options.SSLConfig == nil {
+				err = perror.Wrap(client.RW.WriteByte('N'))
+				return
+			}
+
+			// do ssl
 			if err = perror.Wrap(client.RW.WriteByte('S')); err != nil {
 				return
 			}
-			if err = perror.Wrap(client.RW.EnableSSL(false)); err != nil {
+			if err = perror.Wrap(client.RW.EnableSSLServer(options.SSLConfig)); err != nil {
 				return
 			}
+			client.SSLEnabled = true
 			return
 		case 5680:
 			// GSSAPI is not supported yet
@@ -330,6 +338,15 @@ func accept(
 		if done {
 			break
 		}
+	}
+
+	if options.SSLRequired && !conn.SSLEnabled {
+		err = perror.New(
+			perror.FATAL,
+			perror.InvalidPassword,
+			"SSL is required",
+		)
+		return
 	}
 
 	creds := options.Pooler.GetUserCredentials(conn.User, conn.Database)

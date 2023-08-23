@@ -1,6 +1,7 @@
 package gat
 
 import (
+	"crypto/tls"
 	"net"
 
 	"pggat2/lib/auth"
@@ -28,6 +29,8 @@ type TCPRecipe struct {
 	MinConnections int
 	MaxConnections int
 
+	SSLMode bouncer.SSLMode
+
 	StartupParameters map[strutil.CIString]string
 }
 
@@ -47,6 +50,11 @@ func (T TCPRecipe) Connect() (bouncer.Conn, error) {
 	}
 
 	server, err := backends.Accept(rw, backends.AcceptOptions{
+		SSLMode: T.SSLMode,
+		SSLConfig: &tls.Config{
+			// TODO(garet) SSL certificates if they need to be verified
+			InsecureSkipVerify: !T.SSLMode.VerifyCertificates(),
+		},
 		Credentials:       T.Credentials,
 		Database:          T.Database,
 		StartupParameters: T.StartupParameters,

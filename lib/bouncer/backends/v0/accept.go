@@ -1,6 +1,7 @@
 package backends
 
 import (
+	"crypto/tls"
 	"errors"
 
 	"pggat2/lib/auth"
@@ -245,7 +246,7 @@ func startup1(conn *bouncer.Conn) (done bool, err error) {
 	}
 }
 
-func enableSSL(server zap.ReadWriter) (bool, error) {
+func enableSSL(server zap.ReadWriter, config *tls.Config) (bool, error) {
 	packet := zap.NewUntypedPacket()
 	defer packet.Done()
 	packet.WriteUint16(1234)
@@ -265,7 +266,7 @@ func enableSSL(server zap.ReadWriter) (bool, error) {
 		return false, nil
 	}
 
-	if err = server.EnableSSL(true); err != nil {
+	if err = server.EnableSSLClient(config); err != nil {
 		return false, err
 	}
 
@@ -279,12 +280,19 @@ func Accept(server zap.ReadWriter, options AcceptOptions) (bouncer.Conn, error) 
 		options.Database = username
 	}
 
+	conn := bouncer.Conn{
+		RW:       server,
+		User:     username,
+		Database: options.Database,
+	}
+
 	if options.SSLMode.ShouldAttempt() {
-		ok, err := enableSSL(server)
+		var err error
+		conn.SSLEnabled, err = enableSSL(server, options.SSLConfig)
 		if err != nil {
 			return bouncer.Conn{}, err
 		}
-		if !ok && options.SSLMode.IsRequired() {
+		if !conn.SSLEnabled && options.SSLMode.IsRequired() {
 			return bouncer.Conn{}, errors.New("server rejected SSL encryption")
 		}
 	}
@@ -318,12 +326,6 @@ func Accept(server zap.ReadWriter, options AcceptOptions) (bouncer.Conn, error) 
 		if done {
 			break
 		}
-	}
-
-	conn := bouncer.Conn{
-		RW:       server,
-		User:     username,
-		Database: options.Database,
 	}
 
 	for {

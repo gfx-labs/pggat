@@ -25,6 +25,7 @@ type Pooler struct {
 
 type PoolerConfig struct {
 	AllowedStartupParameters []strutil.CIString
+	SSLMode                  bouncer.SSLMode
 }
 
 func NewPooler(config PoolerConfig) *Pooler {
@@ -84,6 +85,8 @@ func (T *Pooler) Serve(client zap.ReadWriter) {
 	conn, err := frontends.Accept(
 		client,
 		frontends.AcceptOptions{
+			SSLRequired: T.config.SSLMode.IsRequired(),
+			// TODO(garet) SSL Config
 			Pooler:                T,
 			AllowedStartupOptions: T.config.AllowedStartupParameters,
 		},

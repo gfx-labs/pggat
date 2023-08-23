@@ -22,9 +22,18 @@ func (T SSLMode) ShouldAttempt() bool {
 
 func (T SSLMode) IsRequired() bool {
 	switch T {
-	case SSLModeDisable, SSLModeAllow, SSLModeRequire:
+	case SSLModeDisable, SSLModeAllow, SSLModeRequire, "":
 		return false
 	default:
 		return true
+	}
+}
+
+func (T SSLMode) VerifyCertificates() bool {
+	switch T {
+	case SSLModeVerifyCa, SSLModeVerifyFull:
+		return true
+	default:
+		return false
 	}
 }

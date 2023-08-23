@@ -1,6 +1,8 @@
 package interceptor
 
 import (
+	"crypto/tls"
+
 	"pggat2/lib/middleware"
 	"pggat2/lib/zap"
 )
@@ -23,8 +25,12 @@ func NewInterceptor(rw zap.ReadWriter, middlewares ...middleware.Middleware) *In
 	}
 }
 
-func (T *Interceptor) EnableSSL(client bool) error {
-	return T.rw.EnableSSL(client)
+func (T *Interceptor) EnableSSLClient(config *tls.Config) error {
+	return T.rw.EnableSSLClient(config)
+}
+
+func (T *Interceptor) EnableSSLServer(config *tls.Config) error {
+	return T.rw.EnableSSLServer(config)
 }
 
 func (T *Interceptor) ReadByte() (byte, error) {
