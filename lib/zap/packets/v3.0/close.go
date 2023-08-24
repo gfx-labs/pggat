@@ -17,7 +17,7 @@ func (T *Close) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *Close) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeClose)
+	packet := zap.NewPacket(TypeClose, 2+len(T.Target))
 	packet = packet.AppendUint8(T.Which)
 	packet = packet.AppendString(T.Target)
 	return packet

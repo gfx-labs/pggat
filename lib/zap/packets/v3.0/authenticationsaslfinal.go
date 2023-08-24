@@ -22,7 +22,7 @@ func (T *AuthenticationSASLFinal) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *AuthenticationSASLFinal) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeAuthentication)
+	packet := zap.NewPacket(TypeAuthentication, 4+len(*T))
 	packet = packet.AppendUint32(12)
 	packet = packet.AppendBytes(*T)
 	return packet

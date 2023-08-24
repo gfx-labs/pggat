@@ -15,7 +15,7 @@ func (T *CopyFail) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *CopyFail) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeCopyFail)
+	packet := zap.NewPacket(TypeCopyFail, len(T.Reason)+1)
 	packet = packet.AppendString(T.Reason)
 	return packet
 }

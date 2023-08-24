@@ -17,7 +17,7 @@ func (T *Execute) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *Execute) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeExecute)
+	packet := zap.NewPacket(TypeExecute, len(T.Target)+5)
 	packet = packet.AppendString(T.Target)
 	packet = packet.AppendInt32(T.MaxRows)
 	return packet

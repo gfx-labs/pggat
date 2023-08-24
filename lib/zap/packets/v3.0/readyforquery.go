@@ -15,7 +15,7 @@ func (T *ReadyForQuery) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *ReadyForQuery) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeReadyForQuery)
+	packet := zap.NewPacket(TypeReadyForQuery, 1)
 	packet = packet.AppendUint8(byte(*T))
 	return packet
 }

@@ -27,7 +27,7 @@ func (T *Parse) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *Parse) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeParse)
+	packet := zap.NewPacket(TypeParse, len(T.Destination)+len(T.Query)+4+len(T.ParameterDataTypes)*4)
 	packet = packet.AppendString(T.Destination)
 	packet = packet.AppendString(T.Query)
 	packet = packet.AppendInt16(int16(len(T.ParameterDataTypes)))

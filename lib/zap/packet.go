@@ -7,8 +7,14 @@ import (
 
 type Packet []byte
 
-func NewPacket(typ Type) Packet {
-	return []byte{byte(typ), 0, 0, 0, 4}
+func NewPacket(typ Type, size ...int) Packet {
+	if len(size) > 0 {
+		packet := make([]byte, 5, 5+size[0])
+		packet[0] = byte(typ)
+		return packet
+	} else {
+		return []byte{byte(typ), 0, 0, 0, 0}
+	}
 }
 
 func (T Packet) Payload() PacketFragment {
@@ -37,6 +43,16 @@ func (T Packet) Grow(n int) Packet {
 	}
 
 	return p
+}
+
+func (T Packet) Reserve(n int) Packet {
+	if len(T)+n > cap(T) {
+		p := make([]byte, len(T), len(T)+n)
+		copy(p, T)
+		return p
+	}
+
+	return T
 }
 
 func (T Packet) Type() Type {

@@ -20,7 +20,7 @@ func (T *AuthenticationMD5) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *AuthenticationMD5) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeAuthentication)
+	packet := zap.NewPacket(TypeAuthentication, 8)
 	packet = packet.AppendUint32(5)
 	packet = packet.AppendBytes(T.Salt[:])
 	return packet

@@ -15,7 +15,7 @@ func (T *BackendKeyData) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *BackendKeyData) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeBackendKeyData)
+	packet := zap.NewPacket(TypeBackendKeyData, 8)
 	packet = packet.AppendBytes(T.CancellationKey[:])
 	return packet
 }

@@ -17,7 +17,7 @@ func (T *ParameterStatus) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *ParameterStatus) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeParameterStatus)
+	packet := zap.NewPacket(TypeParameterStatus, len(T.Key)+len(T.Value)+2)
 	packet = packet.AppendString(T.Key)
 	packet = packet.AppendString(T.Value)
 	return packet

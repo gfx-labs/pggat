@@ -27,7 +27,7 @@ func (T *SASLInitialResponse) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *SASLInitialResponse) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeAuthenticationResponse)
+	packet := zap.NewPacket(TypeAuthenticationResponse, len(T.Mechanism)+5+len(T.InitialResponse))
 	packet = packet.AppendString(T.Mechanism)
 	packet = packet.AppendInt32(int32(len(T.InitialResponse)))
 	packet = packet.AppendBytes(T.InitialResponse)

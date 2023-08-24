@@ -52,7 +52,19 @@ func (T *Bind) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *Bind) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeBind)
+	size := 0
+	size += len(T.Destination) + 1
+	size += len(T.Source) + 1
+	size += 2
+	size += len(T.ParameterFormatCodes) * 2
+	size += 2
+	for _, v := range T.ParameterValues {
+		size += 4 + len(v)
+	}
+	size += 2
+	size += len(T.ResultFormatCodes) * 2
+
+	packet := zap.NewPacket(TypeBind, size)
 	packet = packet.AppendString(T.Destination)
 	packet = packet.AppendString(T.Source)
 	packet = packet.AppendUint16(uint16(len(T.ParameterFormatCodes)))

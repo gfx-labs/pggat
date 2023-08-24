@@ -13,7 +13,7 @@ func (T *Query) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *Query) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeQuery)
+	packet := zap.NewPacket(TypeQuery, len(*T)+1)
 	packet = packet.AppendString(string(*T))
 	return packet
 }

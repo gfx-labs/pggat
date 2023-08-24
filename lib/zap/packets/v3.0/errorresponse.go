@@ -57,7 +57,15 @@ func (T *ErrorResponse) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *ErrorResponse) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeErrorResponse)
+	size := 1
+	size += len(T.Error.Severity()) + 2
+	size += len(T.Error.Code()) + 2
+	size += len(T.Error.Message()) + 2
+	for _, field := range T.Error.Extra() {
+		size += len(field.Value) + 2
+	}
+
+	packet := zap.NewPacket(TypeErrorResponse, size)
 
 	packet = packet.AppendUint8('S')
 	packet = packet.AppendString(string(T.Error.Severity()))

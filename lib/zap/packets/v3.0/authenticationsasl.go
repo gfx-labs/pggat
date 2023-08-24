@@ -28,7 +28,13 @@ func (T *AuthenticationSASL) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *AuthenticationSASL) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeAuthentication)
+	size := 5
+	for _, mechanism := range T.Mechanisms {
+		size += len(mechanism) + 1
+	}
+
+	packet := zap.NewPacket(TypeAuthentication, size)
+
 	packet = packet.AppendInt32(10)
 	for _, mechanism := range T.Mechanisms {
 		packet = packet.AppendString(mechanism)

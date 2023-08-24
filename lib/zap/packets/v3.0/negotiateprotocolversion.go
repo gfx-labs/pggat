@@ -28,7 +28,12 @@ func (T *NegotiateProtocolVersion) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *NegotiateProtocolVersion) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeNegotiateProtocolVersion)
+	size := 8
+	for _, v := range T.UnrecognizedOptions {
+		size += len(v) + 1
+	}
+
+	packet := zap.NewPacket(TypeNegotiateProtocolVersion, size)
 	packet = packet.AppendInt32(T.MinorProtocolVersion)
 	packet = packet.AppendInt32(int32(len(T.UnrecognizedOptions)))
 	for _, v := range T.UnrecognizedOptions {

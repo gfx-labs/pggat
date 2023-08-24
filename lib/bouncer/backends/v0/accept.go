@@ -231,7 +231,7 @@ func startup1(conn *bouncer.Conn) (done bool, err error) {
 }
 
 func enableSSL(server zap.ReadWriter, config *tls.Config) (bool, error) {
-	packet := zap.NewPacket(0)
+	packet := zap.NewPacket(0, 4)
 	packet = packet.AppendUint16(1234)
 	packet = packet.AppendUint16(5679)
 	if err := server.WritePacket(packet); err != nil {
@@ -280,8 +280,13 @@ func Accept(server zap.ReadWriter, options AcceptOptions) (bouncer.Conn, error) 
 		}
 	}
 
-	// we can re-use the memory for this pkt most of the way down because we don't pass this anywhere
-	packet := zap.NewPacket(0)
+	size := 4 + len("user") + 1 + len(username) + 1 + len("database") + 1 + len(options.Database) + 1
+	for key, value := range options.StartupParameters {
+		size += len(key.String()) + len(value) + 2
+	}
+	size += 1
+
+	packet := zap.NewPacket(0, size)
 	packet = packet.AppendUint16(3)
 	packet = packet.AppendUint16(0)
 	packet = packet.AppendString("user")
@@ -292,7 +297,7 @@ func Accept(server zap.ReadWriter, options AcceptOptions) (bouncer.Conn, error) 
 		packet = packet.AppendString(key.String())
 		packet = packet.AppendString(value)
 	}
-	packet = packet.AppendString("")
+	packet = packet.AppendUint8(0)
 
 	err := server.WritePacket(packet)
 	if err != nil {

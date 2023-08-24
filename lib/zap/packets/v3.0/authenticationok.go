@@ -17,7 +17,7 @@ func (T *AuthenticationOk) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *AuthenticationOk) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeAuthentication)
+	packet := zap.NewPacket(TypeAuthentication, 4)
 	packet = packet.AppendUint32(0)
 	return packet
 }

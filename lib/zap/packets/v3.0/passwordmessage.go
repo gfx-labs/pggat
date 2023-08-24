@@ -17,7 +17,7 @@ func (T *PasswordMessage) ReadFromPacket(packet zap.Packet) bool {
 }
 
 func (T *PasswordMessage) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeAuthenticationResponse)
+	packet := zap.NewPacket(TypeAuthenticationResponse, len(T.Password)+1)
 	packet = packet.AppendString(T.Password)
 	return packet
 }
