@@ -4,18 +4,20 @@ import (
 	"pggat2/lib/zap"
 )
 
-func ReadPasswordMessage(in zap.ReadablePacket) (string, bool) {
-	if in.ReadType() != AuthenticationResponse {
-		return "", false
-	}
-	password, ok := in.ReadString()
-	if !ok {
-		return "", false
-	}
-	return password, true
+type PasswordMessage struct {
+	Password string
 }
 
-func WritePasswordMessage(out *zap.Packet, password string) {
-	out.WriteType(AuthenticationResponse)
-	out.WriteString(password)
+func (T *PasswordMessage) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeAuthenticationResponse {
+		return false
+	}
+	packet.ReadString(&T.Password)
+	return true
+}
+
+func (T *PasswordMessage) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeAuthenticationResponse)
+	packet = packet.AppendString(T.Password)
+	return packet
 }

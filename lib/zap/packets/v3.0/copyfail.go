@@ -2,18 +2,20 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadCopyFail(in zap.ReadablePacket) (string, bool) {
-	if in.ReadType() != CopyFail {
-		return "", false
-	}
-	reason, ok := in.ReadString()
-	if !ok {
-		return "", false
-	}
-	return reason, true
+type CopyFail struct {
+	Reason string
 }
 
-func WriteCopyFail(out *zap.Packet, reason string) {
-	out.WriteType(CopyFail)
-	out.WriteString(reason)
+func (T *CopyFail) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeCopyFail {
+		return false
+	}
+	packet.ReadString(&T.Reason)
+	return true
+}
+
+func (T *CopyFail) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeCopyFail)
+	packet = packet.AppendString(T.Reason)
+	return packet
 }

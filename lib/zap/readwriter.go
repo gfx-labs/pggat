@@ -1,21 +1,16 @@
 package zap
 
-import (
-	"crypto/tls"
-	"io"
-)
+import "crypto/tls"
 
 type ReadWriter interface {
-	io.ByteReader
-	io.ByteWriter
-	io.Closer
-
 	EnableSSLClient(config *tls.Config) error
 	EnableSSLServer(config *tls.Config) error
 
-	Read(*Packet) error
-	ReadUntyped(*UntypedPacket) error
-	Write(*Packet) error
-	WriteUntyped(*UntypedPacket) error
-	WriteV(*Packets) error
+	ReadByte() (byte, error)
+	ReadPacket(typed bool) (Packet, error)
+
+	WriteByte(byte) error
+	WritePacket(Packet) error
+
+	Close() error
 }

@@ -8,28 +8,18 @@ import (
 )
 
 type PreparedStatement struct {
-	packet *zap.Packet
+	packet zap.Packet
 	hash   uint64
 }
 
-func ReadParse(in zap.ReadablePacket) (destination string, preparedStatement PreparedStatement, ok bool) {
-	if in.ReadType() != packets.Parse {
-		return
-	}
-	in2 := in
-	destination, ok = in2.ReadString()
-	if !ok {
+func ReadParse(packet zap.Packet) (destination string, preparedStatement PreparedStatement, ok bool) {
+	if packet.Type() != packets.TypeParse {
 		return
 	}
 
-	preparedStatement.packet = zap.NewPacket()
-	preparedStatement.packet.WriteType(packets.Parse)
-	preparedStatement.packet.WriteBytes(in.ReadUnsafeRemaining())
+	packet.ReadString(&destination)
+
+	preparedStatement.packet = packet
 	preparedStatement.hash = maphash.Bytes(seed, preparedStatement.packet.Payload())
 	return
-}
-
-func (T *PreparedStatement) Done() {
-	T.packet.Done()
-	T.packet = nil
 }

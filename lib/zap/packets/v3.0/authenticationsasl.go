@@ -2,52 +2,37 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadAuthenticationSASL(in zap.ReadablePacket) ([]string, bool) {
-	if in.ReadType() != Authentication {
-		return nil, false
-	}
+type AuthenticationSASL struct {
+	Mechanisms []string
+}
 
-	method, ok := in.ReadInt32()
-	if !ok {
-		return nil, false
+func (T *AuthenticationSASL) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeAuthentication {
+		return false
 	}
-
+	var method int32
+	p := packet.ReadInt32(&method)
 	if method != 10 {
-		return nil, false
+		return false
 	}
-
-	in2 := in
-
-	// get count first to prevent reallocating the slice a bunch
-	var mechanismCount int
+	T.Mechanisms = T.Mechanisms[:0]
 	for {
-		mechanism, ok := in2.ReadString()
-		if !ok {
-			return nil, false
-		}
+		var mechanism string
+		p = p.ReadString(&mechanism)
 		if mechanism == "" {
 			break
 		}
-		mechanismCount++
+		T.Mechanisms = append(T.Mechanisms, mechanism)
 	}
-
-	mechanisms := make([]string, 0, mechanismCount)
-	for i := 0; i < mechanismCount; i++ {
-		mechanism, ok := in.ReadString()
-		if !ok {
-			return nil, false
-		}
-		mechanisms = append(mechanisms, mechanism)
-	}
-
-	return mechanisms, true
+	return true
 }
 
-func WriteAuthenticationSASL(out *zap.Packet, mechanisms []string) {
-	out.WriteType(Authentication)
-	out.WriteInt32(10)
-	for _, mechanism := range mechanisms {
-		out.WriteString(mechanism)
+func (T *AuthenticationSASL) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeAuthentication)
+	packet = packet.AppendInt32(10)
+	for _, mechanism := range T.Mechanisms {
+		packet = packet.AppendString(mechanism)
 	}
-	out.WriteUint8(0)
+	packet = packet.AppendUint8(0)
+	return packet
 }

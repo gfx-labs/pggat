@@ -21,18 +21,18 @@ func NewServer(parameters map[strutil.CIString]string) *Server {
 	}
 }
 
-func (T *Server) Read(_ middleware.Context, in *zap.Packet) error {
-	switch in.ReadType() {
-	case packets.ParameterStatus:
-		key, value, ok := packets.ReadParameterStatus(in.Read())
-		if !ok {
+func (T *Server) Read(_ middleware.Context, packet zap.Packet) error {
+	switch packet.Type() {
+	case packets.TypeParameterStatus:
+		var ps packets.ParameterStatus
+		if !ps.ReadFromPacket(packet) {
 			return errors.New("bad packet format")
 		}
-		ikey := strutil.MakeCIString(key)
+		ikey := strutil.MakeCIString(ps.Key)
 		if T.parameters == nil {
 			T.parameters = make(map[strutil.CIString]string)
 		}
-		T.parameters[ikey] = value
+		T.parameters[ikey] = ps.Value
 	}
 	return nil
 }

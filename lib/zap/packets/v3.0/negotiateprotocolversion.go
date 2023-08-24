@@ -1,38 +1,39 @@
 package packets
 
-import "pggat2/lib/zap"
+import (
+	"pggat2/lib/util/slices"
+	"pggat2/lib/zap"
+)
 
-func ReadNegotiateProtocolVersion(in zap.ReadablePacket) (minorProtocolVersion int32, unrecognizedOptions []string, ok bool) {
-	if in.ReadType() != NegotiateProtocolVersion {
-		return
-	}
-	minorProtocolVersion, ok = in.ReadInt32()
-	if !ok {
-		return
-	}
-	var numUnrecognizedOptions int32
-	numUnrecognizedOptions, ok = in.ReadInt32()
-	if !ok {
-		return
-	}
-	unrecognizedOptions = make([]string, 0, numUnrecognizedOptions)
-	for i := 0; i < int(numUnrecognizedOptions); i++ {
-		var unrecognizedOption string
-		unrecognizedOption, ok = in.ReadString()
-		if !ok {
-			return
-		}
-		unrecognizedOptions = append(unrecognizedOptions, unrecognizedOption)
-	}
-	ok = true
-	return
+type NegotiateProtocolVersion struct {
+	MinorProtocolVersion int32
+	UnrecognizedOptions  []string
 }
 
-func WriteNegotiateProtocolVersion(out *zap.Packet, minorProtocolVersion int32, unrecognizedOptions []string) {
-	out.WriteType(NegotiateProtocolVersion)
-	out.WriteInt32(minorProtocolVersion)
-	out.WriteInt32(int32(len(unrecognizedOptions)))
-	for _, option := range unrecognizedOptions {
-		out.WriteString(option)
+func (T *NegotiateProtocolVersion) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeNegotiateProtocolVersion {
+		return false
 	}
+	p := packet.ReadInt32(&T.MinorProtocolVersion)
+
+	var numUnrecognizedOptions int32
+	p = p.ReadInt32(&numUnrecognizedOptions)
+
+	T.UnrecognizedOptions = slices.Resize(T.UnrecognizedOptions, int(numUnrecognizedOptions))
+	for i := 0; i < int(numUnrecognizedOptions); i++ {
+		p = p.ReadString(&T.UnrecognizedOptions[i])
+	}
+
+	return true
+}
+
+func (T *NegotiateProtocolVersion) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeNegotiateProtocolVersion)
+	packet = packet.AppendInt32(T.MinorProtocolVersion)
+	packet = packet.AppendInt32(int32(len(T.UnrecognizedOptions)))
+	for _, v := range T.UnrecognizedOptions {
+		packet = packet.AppendString(v)
+	}
+
+	return packet
 }

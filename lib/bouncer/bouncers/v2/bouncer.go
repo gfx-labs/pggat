@@ -9,13 +9,13 @@ import (
 
 func clientFail(client zap.ReadWriter, err perror.Error) {
 	// send fatal error to client
-	packet := zap.NewPacket()
-	defer packet.Done()
-	packets.WriteErrorResponse(packet, err)
-	_ = client.Write(packet)
+	resp := packets.ErrorResponse{
+		Error: err,
+	}
+	_ = client.WritePacket(resp.IntoPacket())
 }
 
-func Bounce(client, server zap.ReadWriter, initialPacket *zap.Packet) (clientError error, serverError error) {
+func Bounce(client, server zap.ReadWriter, initialPacket zap.Packet) (clientError error, serverError error) {
 	ctx := backends.Context{
 		Peer: client,
 	}

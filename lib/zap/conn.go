@@ -2,13 +2,17 @@ package zap
 
 import (
 	"crypto/tls"
+	"encoding/binary"
 	"io"
 	"net"
 )
 
 type Conn struct {
 	conn net.Conn
-	buf  [1]byte
+
+	buffers net.Buffers
+
+	byteBuf [1]byte
 }
 
 func WrapNetConn(conn net.Conn) *Conn {
@@ -29,43 +33,61 @@ func (T *Conn) EnableSSLServer(config *tls.Config) error {
 	return sslConn.Handshake()
 }
 
+func (T *Conn) flush() error {
+	if len(T.buffers) == 0 {
+		return nil
+	}
+
+	_, err := T.buffers.WriteTo(T.conn)
+	T.buffers = T.buffers[0:]
+	return err
+}
+
 func (T *Conn) ReadByte() (byte, error) {
-	_, err := io.ReadFull(T.conn, T.buf[:])
+	if err := T.flush(); err != nil {
+		return 0, err
+	}
+	_, err := io.ReadFull(T.conn, T.byteBuf[:])
 	if err != nil {
 		return 0, err
 	}
-	return T.buf[0], nil
+	return T.byteBuf[0], nil
 }
 
-func (T *Conn) Read(packet *Packet) error {
-	_, err := packet.ReadFrom(T.conn)
-	return err
-}
+func (T *Conn) ReadPacket(typed bool) (Packet, error) {
+	if err := T.flush(); err != nil {
+		return nil, err
+	}
+	packet := NewPacket(0)
+	if typed {
+		_, err := io.ReadFull(T.conn, packet)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		_, err := io.ReadFull(T.conn, packet[1:])
+		if err != nil {
+			return nil, err
+		}
+	}
 
-func (T *Conn) ReadUntyped(packet *UntypedPacket) error {
-	_, err := packet.ReadFrom(T.conn)
-	return err
+	length := binary.BigEndian.Uint32(packet[1:])
+	packet = packet.Grow(int(length) - 4)
+	_, err := io.ReadFull(T.conn, packet.Payload())
+	if err != nil {
+		return nil, err
+	}
+	return packet, nil
 }
 
 func (T *Conn) WriteByte(b byte) error {
-	T.buf[0] = b
-	_, err := T.conn.Write(T.buf[:])
-	return err
+	T.buffers = append(T.buffers, []byte{b})
+	return nil
 }
 
-func (T *Conn) Write(packet *Packet) error {
-	_, err := packet.WriteTo(T.conn)
-	return err
-}
-
-func (T *Conn) WriteUntyped(packet *UntypedPacket) error {
-	_, err := packet.WriteTo(T.conn)
-	return err
-}
-
-func (T *Conn) WriteV(packets *Packets) error {
-	_, err := packets.WriteTo(T.conn)
-	return err
+func (T *Conn) WritePacket(packet Packet) error {
+	T.buffers = append(T.buffers, packet.Bytes())
+	return nil
 }
 
 func (T *Conn) Close() error {

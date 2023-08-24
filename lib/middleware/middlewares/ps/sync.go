@@ -8,15 +8,19 @@ import (
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
-func sync(tracking []strutil.CIString, clientPackets *zap.Packets, c *Client, server zap.ReadWriter, s *Server, name strutil.CIString) error {
+func sync(tracking []strutil.CIString, client zap.ReadWriter, c *Client, server zap.ReadWriter, s *Server, name strutil.CIString) error {
 	value, hasValue := c.parameters[name]
 	expected, hasExpected := s.parameters[name]
 
 	if value == expected {
 		if !c.synced {
-			pkt := zap.NewPacket()
-			packets.WriteParameterStatus(pkt, name.String(), expected)
-			clientPackets.Append(pkt)
+			ps := packets.ParameterStatus{
+				Key:   name.String(),
+				Value: expected,
+			}
+			if err := client.WritePacket(ps.IntoPacket()); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
@@ -37,20 +41,21 @@ func sync(tracking []strutil.CIString, clientPackets *zap.Packets, c *Client, se
 			delete(s.parameters, name)
 		}
 	} else if hasExpected {
-		pkt := zap.NewPacket()
-		packets.WriteParameterStatus(pkt, name.String(), expected)
-		clientPackets.Append(pkt)
+		ps := packets.ParameterStatus{
+			Key:   name.String(),
+			Value: expected,
+		}
+		if err := client.WritePacket(ps.IntoPacket()); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
 func Sync(tracking []strutil.CIString, client zap.ReadWriter, c *Client, server zap.ReadWriter, s *Server) (clientErr, serverErr error) {
-	pkts := zap.NewPackets()
-	defer pkts.Done()
-
 	for name := range c.parameters {
-		if serverErr = sync(tracking, pkts, c, server, s, name); serverErr != nil {
+		if serverErr = sync(tracking, client, c, server, s, name); serverErr != nil {
 			return
 		}
 	}
@@ -59,16 +64,12 @@ func Sync(tracking []strutil.CIString, client zap.ReadWriter, c *Client, server 
 		if _, ok := c.parameters[name]; ok {
 			continue
 		}
-		if serverErr = sync(tracking, pkts, c, server, s, name); serverErr != nil {
+		if serverErr = sync(tracking, client, c, server, s, name); serverErr != nil {
 			return
 		}
 	}
 
 	c.synced = true
-
-	if clientErr = client.WriteV(pkts); clientErr != nil {
-		return
-	}
 
 	return
 }

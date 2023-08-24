@@ -2,23 +2,23 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadExecute(in zap.ReadablePacket) (target string, maxRows int32, ok bool) {
-	if in.ReadType() != Execute {
-		return
-	}
-	target, ok = in.ReadString()
-	if !ok {
-		return
-	}
-	maxRows, ok = in.ReadInt32()
-	if !ok {
-		return
-	}
-	return
+type Execute struct {
+	Target  string
+	MaxRows int32
 }
 
-func WriteExecute(out *zap.Packet, target string, maxRows int32) {
-	out.WriteType(Execute)
-	out.WriteString(target)
-	out.WriteInt32(maxRows)
+func (T *Execute) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeExecute {
+		return false
+	}
+	p := packet.ReadString(&T.Target)
+	p = p.ReadInt32(&T.MaxRows)
+	return true
+}
+
+func (T *Execute) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeExecute)
+	packet = packet.AppendString(T.Target)
+	packet = packet.AppendInt32(T.MaxRows)
+	return packet
 }

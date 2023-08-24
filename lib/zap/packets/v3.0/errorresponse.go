@@ -5,9 +5,13 @@ import (
 	"pggat2/lib/zap"
 )
 
-func ReadErrorResponse(in zap.ReadablePacket) (perror.Error, bool) {
-	if in.ReadType() != ErrorResponse {
-		return nil, false
+type ErrorResponse struct {
+	Error perror.Error
+}
+
+func (T *ErrorResponse) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeErrorResponse {
+		return false
 	}
 
 	var severity perror.Severity
@@ -15,20 +19,18 @@ func ReadErrorResponse(in zap.ReadablePacket) (perror.Error, bool) {
 	var message string
 	var extra []perror.ExtraField
 
+	p := packet.Payload()
+
 	for {
-		typ, ok := in.ReadUint8()
-		if !ok {
-			return nil, false
-		}
+		var typ uint8
+		p = p.ReadUint8(&typ)
 
 		if typ == 0 {
 			break
 		}
 
-		value, ok := in.ReadString()
-		if !ok {
-			return nil, false
-		}
+		var value string
+		p = p.ReadString(&value)
 
 		switch typ {
 		case 'S':
@@ -45,30 +47,32 @@ func ReadErrorResponse(in zap.ReadablePacket) (perror.Error, bool) {
 		}
 	}
 
-	return perror.New(
+	T.Error = perror.New(
 		severity,
 		code,
 		message,
 		extra...,
-	), true
+	)
+	return true
 }
 
-func WriteErrorResponse(out *zap.Packet, err perror.Error) {
-	out.WriteType(ErrorResponse)
+func (T *ErrorResponse) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeErrorResponse)
 
-	out.WriteUint8('S')
-	out.WriteString(string(err.Severity()))
+	packet = packet.AppendUint8('S')
+	packet = packet.AppendString(string(T.Error.Severity()))
 
-	out.WriteUint8('C')
-	out.WriteString(string(err.Code()))
+	packet = packet.AppendUint8('C')
+	packet = packet.AppendString(string(T.Error.Code()))
 
-	out.WriteUint8('M')
-	out.WriteString(err.Message())
+	packet = packet.AppendUint8('M')
+	packet = packet.AppendString(T.Error.Message())
 
-	for _, field := range err.Extra() {
-		out.WriteUint8(uint8(field.Type))
-		out.WriteString(field.Value)
+	for _, field := range T.Error.Extra() {
+		packet = packet.AppendUint8(uint8(field.Type))
+		packet = packet.AppendString(field.Value)
 	}
 
-	out.WriteUint8(0)
+	packet = packet.AppendUint8(0)
+	return packet
 }

@@ -2,23 +2,23 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadDescribe(in zap.ReadablePacket) (which uint8, target string, ok bool) {
-	if in.ReadType() != Describe {
-		return
-	}
-	which, ok = in.ReadUint8()
-	if !ok {
-		return
-	}
-	target, ok = in.ReadString()
-	if !ok {
-		return
-	}
-	return
+type Describe struct {
+	Which  byte
+	Target string
 }
 
-func WriteDescribe(out *zap.Packet, which uint8, target string) {
-	out.WriteType(Describe)
-	out.WriteUint8(which)
-	out.WriteString(target)
+func (T *Describe) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeDescribe {
+		return false
+	}
+	p := packet.ReadUint8(&T.Which)
+	p = p.ReadString(&T.Target)
+	return true
+}
+
+func (T *Describe) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeDescribe)
+	packet = packet.AppendUint8(T.Which)
+	packet = packet.AppendString(T.Target)
+	return packet
 }

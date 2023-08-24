@@ -1,91 +1,76 @@
 package packets
 
-import "pggat2/lib/zap"
+import (
+	"pggat2/lib/util/slices"
+	"pggat2/lib/zap"
+)
 
-func ReadBind(in zap.ReadablePacket) (destination string, source string, parameterFormatCodes []int16, parameterValues [][]byte, resultFormatCodes []int16, ok bool) {
-	if in.ReadType() != Bind {
-		return
-	}
-	destination, ok = in.ReadString()
-	if !ok {
-		return
-	}
-	source, ok = in.ReadString()
-	if !ok {
-		return
-	}
-	var parameterFormatCodesLength uint16
-	parameterFormatCodesLength, ok = in.ReadUint16()
-	if !ok {
-		return
-	}
-	parameterFormatCodes = make([]int16, 0, int(parameterFormatCodesLength))
-	for i := 0; i < int(parameterFormatCodesLength); i++ {
-		var parameterFormatCode int16
-		parameterFormatCode, ok = in.ReadInt16()
-		if !ok {
-			return
-		}
-		parameterFormatCodes = append(parameterFormatCodes, parameterFormatCode)
-	}
-	var parameterValuesLength uint16
-	parameterValuesLength, ok = in.ReadUint16()
-	if !ok {
-		return
-	}
-	parameterValues = make([][]byte, 0, int(parameterValuesLength))
-	for i := 0; i < int(parameterValuesLength); i++ {
-		var parameterValueLength int32
-		parameterValueLength, ok = in.ReadInt32()
-		if !ok {
-			return
-		}
-		var parameterValue []byte
-		if parameterValueLength >= 0 {
-			parameterValue = make([]byte, int(parameterValueLength))
-			ok = in.ReadBytes(parameterValue)
-			if !ok {
-				return
-			}
-		}
-		parameterValues = append(parameterValues, parameterValue)
-	}
-	var resultFormatCodesLength uint16
-	resultFormatCodesLength, ok = in.ReadUint16()
-	if !ok {
-		return
-	}
-	resultFormatCodes = make([]int16, 0, int(resultFormatCodesLength))
-	for i := 0; i < int(resultFormatCodesLength); i++ {
-		var resultFormatCode int16
-		resultFormatCode, ok = in.ReadInt16()
-		if !ok {
-			return
-		}
-		resultFormatCodes = append(resultFormatCodes, resultFormatCode)
-	}
-	return
+type Bind struct {
+	Destination          string
+	Source               string
+	ParameterFormatCodes []int16
+	ParameterValues      [][]byte
+	ResultFormatCodes    []int16
 }
 
-func WriteBind(out *zap.Packet, destination, source string, parameterFormatCodes []int16, parameterValues [][]byte, resultFormatCodes []int16) {
-	out.WriteType(Bind)
-	out.WriteString(destination)
-	out.WriteString(source)
-	out.WriteUint16(uint16(len(parameterFormatCodes)))
-	for _, v := range parameterFormatCodes {
-		out.WriteInt16(v)
+func (T *Bind) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeBind {
+		return false
 	}
-	out.WriteUint16(uint16(len(parameterValues)))
-	for _, v := range parameterValues {
-		if v == nil {
-			out.WriteInt32(-1)
+	p := packet.ReadString(&T.Destination)
+	p = p.ReadString(&T.Source)
+
+	var parameterFormatCodesLength uint16
+	p = p.ReadUint16(&parameterFormatCodesLength)
+	T.ParameterFormatCodes = slices.Resize(T.ParameterFormatCodes, int(parameterFormatCodesLength))
+	for i := 0; i < int(parameterFormatCodesLength); i++ {
+		p = p.ReadInt16(&T.ParameterFormatCodes[i])
+	}
+
+	var parameterValuesLength uint16
+	p = p.ReadUint16(&parameterValuesLength)
+	T.ParameterValues = slices.Resize(T.ParameterValues, int(parameterValuesLength))
+	for i := 0; i < int(parameterValuesLength); i++ {
+		var parameterValueLength int32
+		p = p.ReadInt32(&parameterValueLength)
+		if parameterValueLength == -1 {
+			T.ParameterValues[i] = nil
 			continue
 		}
-		out.WriteInt32(int32(len(v)))
-		out.WriteBytes(v)
+		T.ParameterValues[i] = slices.Resize(T.ParameterValues[i], int(parameterValueLength))
+		p = p.ReadBytes(T.ParameterValues[i])
 	}
-	out.WriteUint16(uint16(len(resultFormatCodes)))
-	for _, v := range resultFormatCodes {
-		out.WriteInt16(v)
+
+	var resultFormatCodesLength uint16
+	p = p.ReadUint16(&resultFormatCodesLength)
+	T.ResultFormatCodes = slices.Resize(T.ResultFormatCodes, int(resultFormatCodesLength))
+	for i := 0; i < int(resultFormatCodesLength); i++ {
+		p = p.ReadInt16(&T.ResultFormatCodes[i])
 	}
+
+	return true
+}
+
+func (T *Bind) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeBind)
+	packet = packet.AppendString(T.Destination)
+	packet = packet.AppendString(T.Source)
+	packet = packet.AppendUint16(uint16(len(T.ParameterFormatCodes)))
+	for _, v := range T.ParameterFormatCodes {
+		packet = packet.AppendInt16(v)
+	}
+	packet = packet.AppendUint16(uint16(len(T.ParameterValues)))
+	for _, v := range T.ParameterValues {
+		if v == nil {
+			packet = packet.AppendInt32(-1)
+			continue
+		}
+		packet = packet.AppendInt32(int32(len(v)))
+		packet = packet.AppendBytes(v)
+	}
+	packet = packet.AppendUint16(uint16(len(T.ResultFormatCodes)))
+	for _, v := range T.ResultFormatCodes {
+		packet = packet.AppendInt16(v)
+	}
+	return packet
 }

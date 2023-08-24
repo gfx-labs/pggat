@@ -4,18 +4,18 @@ import (
 	"pggat2/lib/zap"
 )
 
-func ReadReadyForQuery(in zap.ReadablePacket) (byte, bool) {
-	if in.ReadType() != ReadyForQuery {
-		return 0, false
+type ReadyForQuery byte
+
+func (T *ReadyForQuery) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeReadyForQuery {
+		return false
 	}
-	state, ok := in.ReadUint8()
-	if !ok {
-		return 0, false
-	}
-	return state, true
+	packet.ReadUint8((*byte)(T))
+	return true
 }
 
-func WriteReadyForQuery(out *zap.Packet, state uint8) {
-	out.WriteType(ReadyForQuery)
-	out.WriteUint8(state)
+func (T *ReadyForQuery) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeReadyForQuery)
+	packet = packet.AppendUint8(byte(*T))
+	return packet
 }

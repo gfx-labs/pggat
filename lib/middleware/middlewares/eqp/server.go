@@ -59,10 +59,11 @@ func (T *Server) closePreparedStatement(ctx middleware.Context, target string) e
 	}
 
 	// send close packet
-	packet := zap.NewPacket()
-	defer packet.Done()
-	packets.WriteClose(packet, 'S', target)
-	err := ctx.Write(packet)
+	c := packets.Close{
+		Which:  'S',
+		Target: target,
+	}
+	err := ctx.Write(c.IntoPacket())
 	if err != nil {
 		return err
 	}
@@ -94,10 +95,11 @@ func (T *Server) closePortal(ctx middleware.Context, target string) error {
 	}
 
 	// send close packet
-	packet := zap.NewPacket()
-	defer packet.Done()
-	packets.WriteClose(packet, 'P', target)
-	err := ctx.Write(packet)
+	c := packets.Close{
+		Which:  'P',
+		Target: target,
+	}
+	err := ctx.Write(c.IntoPacket())
 	if err != nil {
 		return err
 	}
@@ -212,46 +214,46 @@ func (T *Server) syncPortal(ctx middleware.Context, target string) error {
 	return T.bindPortal(ctx, target, expected)
 }
 
-func (T *Server) Write(ctx middleware.Context, packet *zap.Packet) error {
-	switch packet.ReadType() {
-	case packets.Query:
+func (T *Server) Write(ctx middleware.Context, packet zap.Packet) error {
+	switch packet.Type() {
+	case packets.TypeQuery:
 		// clobber unnamed portal and unnamed prepared statement
 		T.deletePreparedStatement("")
 		T.deletePortal("")
-	case packets.Parse, packets.Bind, packets.Close:
+	case packets.TypeParse, packets.TypeBind, packets.TypeClose:
 		// should've been caught by eqp.Client
 		panic("unreachable")
-	case packets.Describe:
+	case packets.TypeDescribe:
 		// ensure target exists
-		which, target, ok := packets.ReadDescribe(packet.Read())
-		if !ok {
+		var describe packets.Describe
+		if !describe.ReadFromPacket(packet) {
 			// should've been caught by eqp.Client
 			panic("unreachable")
 		}
-		switch which {
+		switch describe.Which {
 		case 'S':
 			// sync prepared statement
-			err := T.syncPreparedStatement(ctx, target)
+			err := T.syncPreparedStatement(ctx, describe.Target)
 			if err != nil {
 				return err
 			}
 		case 'P':
 			// sync portal
-			err := T.syncPortal(ctx, target)
+			err := T.syncPortal(ctx, describe.Target)
 			if err != nil {
 				return err
 			}
 		default:
 			panic("unknown describe target")
 		}
-	case packets.Execute:
-		target, _, ok := packets.ReadExecute(packet.Read())
-		if !ok {
+	case packets.TypeExecute:
+		var execute packets.Execute
+		if !execute.ReadFromPacket(packet) {
 			// should've been caught by eqp.Client
 			panic("unreachable")
 		}
 		// sync portal
-		err := T.syncPortal(ctx, target)
+		err := T.syncPortal(ctx, execute.Target)
 		if err != nil {
 			return err
 		}
@@ -260,24 +262,23 @@ func (T *Server) Write(ctx middleware.Context, packet *zap.Packet) error {
 	return nil
 }
 
-func (T *Server) Read(ctx middleware.Context, packet *zap.Packet) error {
-	read := packet.Read()
-	switch read.ReadType() {
-	case packets.ParseComplete:
+func (T *Server) Read(ctx middleware.Context, packet zap.Packet) error {
+	switch packet.Type() {
+	case packets.TypeParseComplete:
 		ctx.Cancel()
 
 		T.pendingPreparedStatements.PopFront()
-	case packets.BindComplete:
+	case packets.TypeBindComplete:
 		ctx.Cancel()
 
 		T.pendingPortals.PopFront()
-	case packets.CloseComplete:
+	case packets.TypeCloseComplete:
 		ctx.Cancel()
 
 		T.pendingCloses.PopFront()
-	case packets.ReadyForQuery:
-		state, ok := packets.ReadReadyForQuery(packet.Read())
-		if !ok {
+	case packets.TypeReadyForQuery:
+		var state packets.ReadyForQuery
+		if !state.ReadFromPacket(packet) {
 			return errors.New("bad packet format")
 		}
 		if state == 'I' {

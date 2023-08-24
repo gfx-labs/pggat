@@ -7,7 +7,5 @@ type Context interface {
 	Cancel()
 
 	// Write packet to underlying connection
-	Write(packet *zap.Packet) error
-	// WriteUntyped is the same as Write but with an UntypedPacket
-	WriteUntyped(packet *zap.UntypedPacket) error
+	Write(packet zap.Packet) error
 }

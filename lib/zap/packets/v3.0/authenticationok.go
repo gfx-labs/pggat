@@ -2,21 +2,22 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadAuthenticationOk(in zap.ReadablePacket) bool {
-	if in.ReadType() != Authentication {
+type AuthenticationOk struct{}
+
+func (T *AuthenticationOk) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeAuthentication {
 		return false
 	}
-	method, ok := in.ReadInt32()
-	if !ok {
-		return false
-	}
+	var method int32
+	packet.ReadInt32(&method)
 	if method != 0 {
 		return false
 	}
 	return true
 }
 
-func WriteAuthenticationOk(out *zap.Packet) {
-	out.WriteType(Authentication)
-	out.WriteInt32(0)
+func (T *AuthenticationOk) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeAuthentication)
+	packet = packet.AppendUint32(0)
+	return packet
 }

@@ -2,19 +2,20 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadBackendKeyData(in zap.ReadablePacket) ([8]byte, bool) {
-	if in.ReadType() != BackendKeyData {
-		return [8]byte{}, false
-	}
-	var cancellationKey [8]byte
-	ok := in.ReadBytes(cancellationKey[:])
-	if !ok {
-		return cancellationKey, false
-	}
-	return cancellationKey, true
+type BackendKeyData struct {
+	CancellationKey [8]byte
 }
 
-func WriteBackendKeyData(out *zap.Packet, cancellationKey [8]byte) {
-	out.WriteType(BackendKeyData)
-	out.WriteBytes(cancellationKey[:])
+func (T *BackendKeyData) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeBackendKeyData {
+		return false
+	}
+	packet.ReadBytes(T.CancellationKey[:])
+	return true
+}
+
+func (T *BackendKeyData) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeBackendKeyData)
+	packet = packet.AppendBytes(T.CancellationKey[:])
+	return packet
 }

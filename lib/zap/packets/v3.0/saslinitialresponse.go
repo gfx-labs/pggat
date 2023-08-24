@@ -1,37 +1,35 @@
 package packets
 
-import "pggat2/lib/zap"
+import (
+	"pggat2/lib/util/slices"
+	"pggat2/lib/zap"
+)
 
-func ReadSASLInitialResponse(in zap.ReadablePacket) (mechanism string, initialResponse []byte, ok bool) {
-	if in.ReadType() != AuthenticationResponse {
-		return
-	}
-
-	mechanism, ok = in.ReadString()
-	if !ok {
-		return
-	}
-
-	var initialResponseSize int32
-	initialResponseSize, ok = in.ReadInt32()
-	if !ok {
-		return
-	}
-	if initialResponseSize == -1 {
-		return
-	}
-
-	initialResponse, ok = in.ReadUnsafeBytes(int(initialResponseSize))
-	return
+type SASLInitialResponse struct {
+	Mechanism       string
+	InitialResponse []byte
 }
 
-func WriteSASLInitialResponse(out *zap.Packet, mechanism string, initialResponse []byte) {
-	out.WriteType(AuthenticationResponse)
-	out.WriteString(mechanism)
-	if initialResponse == nil {
-		out.WriteInt32(-1)
-	} else {
-		out.WriteInt32(int32(len(initialResponse)))
-		out.WriteBytes(initialResponse)
+func (T *SASLInitialResponse) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeAuthenticationResponse {
+		return false
 	}
+
+	p := packet.ReadString(&T.Mechanism)
+
+	var initialResponseSize int32
+	p = p.ReadInt32(&initialResponseSize)
+
+	T.InitialResponse = slices.Resize(T.InitialResponse, int(initialResponseSize))
+	p = p.ReadBytes(T.InitialResponse[:])
+
+	return true
+}
+
+func (T *SASLInitialResponse) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeAuthenticationResponse)
+	packet = packet.AppendString(T.Mechanism)
+	packet = packet.AppendInt32(int32(len(T.InitialResponse)))
+	packet = packet.AppendBytes(T.InitialResponse)
+	return packet
 }

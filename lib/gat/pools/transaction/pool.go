@@ -12,7 +12,6 @@ import (
 	"pggat2/lib/middleware/middlewares/ps"
 	"pggat2/lib/rob"
 	"pggat2/lib/rob/schedulers/v1"
-	"pggat2/lib/zap"
 )
 
 type Pool struct {
@@ -75,11 +74,9 @@ func (T *Pool) Serve(ctx *gat.Context, client bouncer.Conn) {
 		OnWait: ctx.OnWait,
 	}
 
-	packet := zap.NewPacket()
-	defer packet.Done()
-
 	for {
-		if err := c.Read(packet); err != nil {
+		packet, err := c.ReadPacket(true)
+		if err != nil {
 			break
 		}
 

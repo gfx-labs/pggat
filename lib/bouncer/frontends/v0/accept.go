@@ -19,34 +19,23 @@ func startup0(
 	client *bouncer.Conn,
 	options AcceptOptions,
 ) (done bool, err perror.Error) {
-	packet := zap.NewUntypedPacket()
-	defer packet.Done()
-	err = perror.Wrap(client.RW.ReadUntyped(packet))
-	if err != nil {
+	packet, err2 := client.RW.ReadPacket(false)
+	if err2 != nil {
+		err = perror.Wrap(err2)
 		return
 	}
-	read := packet.Read()
 
-	majorVersion, ok := read.ReadUint16()
-	if !ok {
-		err = packets.ErrBadFormat
-		return
-	}
-	minorVersion, ok := read.ReadUint16()
-	if !ok {
-		err = packets.ErrBadFormat
-		return
-	}
+	var majorVersion uint16
+	var minorVersion uint16
+	p := packet.ReadUint16(&majorVersion)
+	p = p.ReadUint16(&minorVersion)
 
 	if majorVersion == 1234 {
 		// Cancel or SSL
 		switch minorVersion {
 		case 5678:
 			// Cancel
-			if !read.ReadBytes(client.BackendKey[:]) {
-				err = packets.ErrBadFormat
-				return
-			}
+			p.ReadBytes(client.BackendKey[:])
 
 			options.Pooler.Cancel(client.BackendKey)
 
@@ -98,20 +87,14 @@ func startup0(
 	var unsupportedOptions []string
 
 	for {
-		key, ok := read.ReadString()
-		if !ok {
-			err = packets.ErrBadFormat
-			return
-		}
+		var key string
+		p = p.ReadString(&key)
 		if key == "" {
 			break
 		}
 
-		value, ok := read.ReadString()
-		if !ok {
-			err = packets.ErrBadFormat
-			return
-		}
+		var value string
+		p = p.ReadString(&value)
 
 		switch key {
 		case "user":
@@ -125,6 +108,7 @@ func startup0(
 				case "-c":
 					i++
 					set := fields[i]
+					var ok bool
 					key, value, ok = strings.Cut(set, "=")
 					if !ok {
 						err = perror.New(
@@ -192,11 +176,12 @@ func startup0(
 
 	if minorVersion != 0 || len(unsupportedOptions) > 0 {
 		// negotiate protocol
-		packet := zap.NewPacket()
-		defer packet.Done()
-		packets.WriteNegotiateProtocolVersion(packet, 0, unsupportedOptions)
+		uopts := packets.NegotiateProtocolVersion{
+			MinorProtocolVersion: 0,
+			UnrecognizedOptions:  unsupportedOptions,
+		}
 
-		err = perror.Wrap(client.RW.Write(packet))
+		err = perror.Wrap(client.RW.WritePacket(uopts.IntoPacket()))
 		if err != nil {
 			return
 		}
@@ -220,26 +205,24 @@ func startup0(
 
 func authenticationSASLInitial(client zap.ReadWriter, creds auth.SASL) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {
 	// check which authentication method the client wants
-	packet := zap.NewPacket()
-	defer packet.Done()
-	err = perror.Wrap(client.Read(packet))
-	if err != nil {
+	packet, err2 := client.ReadPacket(true)
+	if err2 != nil {
+		err = perror.Wrap(err2)
 		return
 	}
-	mechanism, initialResponse, ok := packets.ReadSASLInitialResponse(packet.Read())
-	if !ok {
+	var initialResponse packets.SASLInitialResponse
+	if !initialResponse.ReadFromPacket(packet) {
 		err = packets.ErrBadFormat
 		return
 	}
 
-	var err2 error
-	tool, err2 = creds.VerifySASL(mechanism)
+	tool, err2 = creds.VerifySASL(initialResponse.Mechanism)
 	if err2 != nil {
 		err = perror.Wrap(err2)
 		return
 	}
 
-	resp, err2 = tool.Write(initialResponse)
+	resp, err2 = tool.Write(initialResponse.InitialResponse)
 	if err2 != nil {
 		if errors.Is(err2, auth.ErrSASLComplete) {
 			done = true
@@ -252,20 +235,18 @@ func authenticationSASLInitial(client zap.ReadWriter, creds auth.SASL) (tool aut
 }
 
 func authenticationSASLContinue(client zap.ReadWriter, tool auth.SASLVerifier) (resp []byte, done bool, err perror.Error) {
-	packet := zap.NewPacket()
-	defer packet.Done()
-	err = perror.Wrap(client.Read(packet))
-	if err != nil {
+	packet, err2 := client.ReadPacket(true)
+	if err2 != nil {
+		err = perror.Wrap(err2)
 		return
 	}
-	clientResp, ok := packets.ReadAuthenticationResponse(packet.Read())
-	if !ok {
+	var authResp packets.AuthenticationResponse
+	if !authResp.ReadFromPacket(packet) {
 		err = packets.ErrBadFormat
 		return
 	}
 
-	var err2 error
-	resp, err2 = tool.Write(clientResp)
+	resp, err2 = tool.Write(authResp)
 	if err2 != nil {
 		if errors.Is(err2, auth.ErrSASLComplete) {
 			done = true
@@ -278,10 +259,10 @@ func authenticationSASLContinue(client zap.ReadWriter, tool auth.SASLVerifier) (
 }
 
 func authenticationSASL(client zap.ReadWriter, creds auth.SASL) perror.Error {
-	packet := zap.NewPacket()
-	defer packet.Done()
-	packets.WriteAuthenticationSASL(packet, creds.SupportedSASLMechanisms())
-	err := perror.Wrap(client.Write(packet))
+	saslInitial := packets.AuthenticationSASL{
+		Mechanisms: creds.SupportedSASLMechanisms(),
+	}
+	err := perror.Wrap(client.WritePacket(saslInitial.IntoPacket()))
 	if err != nil {
 		return err
 	}
@@ -293,15 +274,15 @@ func authenticationSASL(client zap.ReadWriter, creds auth.SASL) perror.Error {
 
 	for {
 		if done {
-			packets.WriteAuthenticationSASLFinal(packet, resp)
-			err = perror.Wrap(client.Write(packet))
+			final := packets.AuthenticationSASLFinal(resp)
+			err = perror.Wrap(client.WritePacket(final.IntoPacket()))
 			if err != nil {
 				return err
 			}
 			break
 		} else {
-			packets.WriteAuthenticationSASLContinue(packet, resp)
-			err = perror.Wrap(client.Write(packet))
+			cont := packets.AuthenticationSASLContinue(resp)
+			err = perror.Wrap(client.WritePacket(cont.IntoPacket()))
 			if err != nil {
 				return err
 			}
@@ -316,11 +297,12 @@ func authenticationSASL(client zap.ReadWriter, creds auth.SASL) perror.Error {
 	return nil
 }
 
-func updateParameter(pkts *zap.Packets, name, value string) {
-	packet := zap.NewPacket()
-	defer packet.Done()
-	packets.WriteParameterStatus(packet, name, value)
-	pkts.Append(packet)
+func updateParameter(client zap.ReadWriter, name, value string) perror.Error {
+	ps := packets.ParameterStatus{
+		Key:   name,
+		Value: value,
+	}
+	return perror.Wrap(client.WritePacket(ps.IntoPacket()))
 }
 
 func accept(
@@ -371,13 +353,11 @@ func accept(
 		return
 	}
 
-	pkts := zap.NewPackets()
-	defer pkts.Done()
-
 	// send auth Ok
-	packet := zap.NewPacket()
-	packets.WriteAuthenticationOk(packet)
-	pkts.Append(packet)
+	authOk := packets.AuthenticationOk{}
+	if err = perror.Wrap(client.WritePacket(authOk.IntoPacket())); err != nil {
+		return
+	}
 
 	// send backend key data
 	_, err2 := rand.Read(conn.BackendKey[:])
@@ -386,27 +366,26 @@ func accept(
 		return
 	}
 
-	packet = zap.NewPacket()
-	packets.WriteBackendKeyData(packet, conn.BackendKey)
-	pkts.Append(packet)
-
-	if conn.InitialParameters == nil {
-		conn.InitialParameters = make(map[strutil.CIString]string)
+	keyData := packets.BackendKeyData{
+		CancellationKey: conn.BackendKey,
 	}
-	conn.InitialParameters[strutil.MakeCIString("client_encoding")] = "UTF8"
-	conn.InitialParameters[strutil.MakeCIString("server_encoding")] = "UTF8"
-	conn.InitialParameters[strutil.MakeCIString("server_version")] = "14.5"
-	updateParameter(pkts, "client_encoding", "UTF8")
-	updateParameter(pkts, "server_encoding", "UTF8")
-	updateParameter(pkts, "server_version", "14.5")
+	if err = perror.Wrap(client.WritePacket(keyData.IntoPacket())); err != nil {
+		return
+	}
+
+	if err = updateParameter(client, "client_encoding", "UTF8"); err != nil {
+		return
+	}
+	if err = updateParameter(client, "server_encoding", "UTF8"); err != nil {
+		return
+	}
+	if err = updateParameter(client, "server_version", "14.5"); err != nil {
+		return
+	}
 
 	// send ready for query
-	packet = zap.NewPacket()
-	packets.WriteReadyForQuery(packet, 'I')
-	pkts.Append(packet)
-
-	err = perror.Wrap(client.WriteV(pkts))
-	if err != nil {
+	rfq := packets.ReadyForQuery('I')
+	if err = perror.Wrap(client.WritePacket(rfq.IntoPacket())); err != nil {
 		return
 	}
 
@@ -414,10 +393,10 @@ func accept(
 }
 
 func fail(client zap.ReadWriter, err perror.Error) {
-	packet := zap.NewPacket()
-	defer packet.Done()
-	packets.WriteErrorResponse(packet, err)
-	_ = client.Write(packet)
+	resp := packets.ErrorResponse{
+		Error: err,
+	}
+	_ = client.WritePacket(resp.IntoPacket())
 }
 
 func Accept(client zap.ReadWriter, options AcceptOptions) (bouncer.Conn, perror.Error) {

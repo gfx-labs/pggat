@@ -12,41 +12,35 @@ import (
 )
 
 func authenticationSASLChallenge(server zap.ReadWriter, encoder auth.SASLEncoder) (done bool, err error) {
-	packet := zap.NewPacket()
-	defer packet.Done()
-	err = server.Read(packet)
+	var packet zap.Packet
+	packet, err = server.ReadPacket(true)
 	if err != nil {
 		return
 	}
-	read := packet.Read()
 
-	if read.ReadType() != packets.Authentication {
+	if packet.Type() != packets.TypeAuthentication {
 		err = ErrUnexpectedPacket
 		return
 	}
 
-	method, ok := read.ReadInt32()
-	if !ok {
-		err = ErrBadFormat
-		return
-	}
+	var method int32
+	p := packet.ReadInt32(&method)
 
 	switch method {
 	case 11:
 		// challenge
 		var response []byte
-		response, err = encoder.Write(read.ReadUnsafeRemaining())
+		response, err = encoder.Write(p)
 		if err != nil {
 			return
 		}
 
-		packets.WriteAuthenticationResponse(packet, response)
-
-		err = server.Write(packet)
+		resp := packets.AuthenticationResponse(response)
+		err = server.WritePacket(resp.IntoPacket())
 		return
 	case 12:
 		// finish
-		_, err = encoder.Write(read.ReadUnsafeRemaining())
+		_, err = encoder.Write(p)
 		if err != nil {
 			return
 		}
@@ -68,10 +62,11 @@ func authenticationSASL(server zap.ReadWriter, mechanisms []string, creds auth.S
 		return err
 	}
 
-	packet := zap.NewPacket()
-	defer packet.Done()
-	packets.WriteSASLInitialResponse(packet, mechanism, initialResponse)
-	err = server.Write(packet)
+	saslInitialResponse := packets.SASLInitialResponse{
+		Mechanism:       mechanism,
+		InitialResponse: initialResponse,
+	}
+	err = server.WritePacket(saslInitialResponse.IntoPacket())
 	if err != nil {
 		return err
 	}
@@ -92,10 +87,10 @@ func authenticationSASL(server zap.ReadWriter, mechanisms []string, creds auth.S
 }
 
 func authenticationMD5(server zap.ReadWriter, salt [4]byte, creds auth.MD5) error {
-	packet := zap.NewPacket()
-	defer packet.Done()
-	packets.WritePasswordMessage(packet, creds.EncodeMD5(salt))
-	err := server.Write(packet)
+	pw := packets.PasswordMessage{
+		Password: creds.EncodeMD5(salt),
+	}
+	err := server.WritePacket(pw.IntoPacket())
 	if err != nil {
 		return err
 	}
@@ -103,10 +98,10 @@ func authenticationMD5(server zap.ReadWriter, salt [4]byte, creds auth.MD5) erro
 }
 
 func authenticationCleartext(server zap.ReadWriter, creds auth.Cleartext) error {
-	packet := zap.NewPacket()
-	defer packet.Done()
-	packets.WritePasswordMessage(packet, creds.EncodeCleartext())
-	err := server.Write(packet)
+	pw := packets.PasswordMessage{
+		Password: creds.EncodeCleartext(),
+	}
+	err := server.WritePacket(pw.IntoPacket())
 	if err != nil {
 		return err
 	}
@@ -114,29 +109,24 @@ func authenticationCleartext(server zap.ReadWriter, creds auth.Cleartext) error 
 }
 
 func startup0(server zap.ReadWriter, creds auth.Credentials) (done bool, err error) {
-	packet := zap.NewPacket()
-	defer packet.Done()
-	err = server.Read(packet)
+	var packet zap.Packet
+	packet, err = server.ReadPacket(true)
 	if err != nil {
 		return
 	}
 
-	switch packet.ReadType() {
-	case packets.ErrorResponse:
-		err2, ok := packets.ReadErrorResponse(packet.Read())
-		if !ok {
+	switch packet.Type() {
+	case packets.TypeErrorResponse:
+		var err2 packets.ErrorResponse
+		if !err2.ReadFromPacket(packet) {
 			err = ErrBadFormat
 		} else {
-			err = errors.New(err2.String())
+			err = errors.New(err2.Error.String())
 		}
 		return
-	case packets.Authentication:
-		read := packet.Read()
-		method, ok := read.ReadInt32()
-		if !ok {
-			err = ErrBadFormat
-			return
-		}
+	case packets.TypeAuthentication:
+		var method int32
+		packet.ReadInt32(&method)
 		// they have more authentication methods than there are pokemon
 		switch method {
 		case 0:
@@ -152,8 +142,8 @@ func startup0(server zap.ReadWriter, creds auth.Credentials) (done bool, err err
 			}
 			return false, authenticationCleartext(server, c)
 		case 5:
-			salt, ok := packets.ReadAuthenticationMD5(packet.Read())
-			if !ok {
+			var md5 packets.AuthenticationMD5
+			if !md5.ReadFromPacket(packet) {
 				err = ErrBadFormat
 				return
 			}
@@ -161,7 +151,7 @@ func startup0(server zap.ReadWriter, creds auth.Credentials) (done bool, err err
 			if !ok {
 				return false, auth.ErrMethodNotSupported
 			}
-			return false, authenticationMD5(server, salt, c)
+			return false, authenticationMD5(server, md5.Salt, c)
 		case 6:
 			err = errors.New("scm credential is not supported")
 			return
@@ -173,8 +163,8 @@ func startup0(server zap.ReadWriter, creds auth.Credentials) (done bool, err err
 			return
 		case 10:
 			// read list of mechanisms
-			mechanisms, ok := packets.ReadAuthenticationSASL(packet.Read())
-			if !ok {
+			var sasl packets.AuthenticationSASL
+			if !sasl.ReadFromPacket(packet) {
 				err = ErrBadFormat
 				return
 			}
@@ -183,12 +173,12 @@ func startup0(server zap.ReadWriter, creds auth.Credentials) (done bool, err err
 			if !ok {
 				return false, auth.ErrMethodNotSupported
 			}
-			return false, authenticationSASL(server, mechanisms, c)
+			return false, authenticationSASL(server, sasl.Mechanisms, c)
 		default:
 			err = errors.New("unknown authentication method")
 			return
 		}
-	case packets.NegotiateProtocolVersion:
+	case packets.TypeNegotiateProtocolVersion:
 		// we only support protocol 3.0 for now
 		err = errors.New("server wanted to negotiate protocol version")
 		return
@@ -199,45 +189,39 @@ func startup0(server zap.ReadWriter, creds auth.Credentials) (done bool, err err
 }
 
 func startup1(conn *bouncer.Conn) (done bool, err error) {
-	packet := zap.NewPacket()
-	defer packet.Done()
-	err = conn.RW.Read(packet)
+	var packet zap.Packet
+	packet, err = conn.RW.ReadPacket(true)
 	if err != nil {
 		return
 	}
 
-	switch packet.ReadType() {
-	case packets.BackendKeyData:
-		read := packet.Read()
-		ok := read.ReadBytes(conn.BackendKey[:])
-		if !ok {
-			err = ErrBadFormat
-			return
-		}
+	switch packet.Type() {
+	case packets.TypeBackendKeyData:
+		packet.ReadBytes(conn.BackendKey[:])
 		return false, nil
-	case packets.ParameterStatus:
-		key, value, ok := packets.ReadParameterStatus(packet.Read())
-		if !ok {
+	case packets.TypeParameterStatus:
+		var ps packets.ParameterStatus
+		if !ps.ReadFromPacket(packet) {
 			err = ErrBadFormat
 			return
 		}
-		ikey := strutil.MakeCIString(key)
+		ikey := strutil.MakeCIString(ps.Key)
 		if conn.InitialParameters == nil {
 			conn.InitialParameters = make(map[strutil.CIString]string)
 		}
-		conn.InitialParameters[ikey] = value
+		conn.InitialParameters[ikey] = ps.Value
 		return false, nil
-	case packets.ReadyForQuery:
+	case packets.TypeReadyForQuery:
 		return true, nil
-	case packets.ErrorResponse:
-		err2, ok := packets.ReadErrorResponse(packet.Read())
-		if !ok {
+	case packets.TypeErrorResponse:
+		var err2 packets.ErrorResponse
+		if !err2.ReadFromPacket(packet) {
 			err = ErrBadFormat
 		} else {
-			err = errors.New(err2.String())
+			err = errors.New(err2.Error.String())
 		}
 		return
-	case packets.NoticeResponse:
+	case packets.TypeNoticeResponse:
 		// TODO(garet) do something with notice
 		return false, nil
 	default:
@@ -247,11 +231,10 @@ func startup1(conn *bouncer.Conn) (done bool, err error) {
 }
 
 func enableSSL(server zap.ReadWriter, config *tls.Config) (bool, error) {
-	packet := zap.NewUntypedPacket()
-	defer packet.Done()
-	packet.WriteUint16(1234)
-	packet.WriteUint16(5679)
-	if err := server.WriteUntyped(packet); err != nil {
+	packet := zap.NewPacket(0)
+	packet = packet.AppendUint16(1234)
+	packet = packet.AppendUint16(5679)
+	if err := server.WritePacket(packet); err != nil {
 		return false, err
 	}
 
@@ -298,21 +281,20 @@ func Accept(server zap.ReadWriter, options AcceptOptions) (bouncer.Conn, error) 
 	}
 
 	// we can re-use the memory for this pkt most of the way down because we don't pass this anywhere
-	packet := zap.NewUntypedPacket()
-	defer packet.Done()
-	packet.WriteUint16(3)
-	packet.WriteUint16(0)
-	packet.WriteString("user")
-	packet.WriteString(username)
-	packet.WriteString("database")
-	packet.WriteString(options.Database)
+	packet := zap.NewPacket(0)
+	packet = packet.AppendUint16(3)
+	packet = packet.AppendUint16(0)
+	packet = packet.AppendString("user")
+	packet = packet.AppendString(username)
+	packet = packet.AppendString("database")
+	packet = packet.AppendString(options.Database)
 	for key, value := range options.StartupParameters {
-		packet.WriteString(key.String())
-		packet.WriteString(value)
+		packet = packet.AppendString(key.String())
+		packet = packet.AppendString(value)
 	}
-	packet.WriteString("")
+	packet = packet.AppendString("")
 
-	err := server.WriteUntyped(packet)
+	err := server.WritePacket(packet)
 	if err != nil {
 		return bouncer.Conn{}, err
 	}

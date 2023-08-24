@@ -23,20 +23,10 @@ func NewClient() *Client {
 }
 
 func (T *Client) deletePreparedStatement(name string) {
-	preparedStatement, ok := T.preparedStatements[name]
-	if !ok {
-		return
-	}
-	preparedStatement.Done()
 	delete(T.preparedStatements, name)
 }
 
 func (T *Client) deletePortal(name string) {
-	portal, ok := T.portals[name]
-	if !ok {
-		return
-	}
-	portal.Done()
 	delete(T.portals, name)
 }
 
@@ -49,37 +39,36 @@ func (T *Client) Done() {
 	}
 }
 
-func (T *Client) Write(_ middleware.Context, packet *zap.Packet) error {
-	read := packet.Read()
-	switch read.ReadType() {
-	case packets.ReadyForQuery:
-		state, ok := packets.ReadReadyForQuery(read)
-		if !ok {
+func (T *Client) Write(_ middleware.Context, packet zap.Packet) error {
+	switch packet.Type() {
+	case packets.TypeReadyForQuery:
+		var readyForQuery packets.ReadyForQuery
+		if !readyForQuery.ReadFromPacket(packet) {
 			return errors.New("bad packet format")
 		}
-		if state == 'I' {
+		if readyForQuery == 'I' {
 			// clobber all named portals
 			for name := range T.portals {
 				T.deletePortal(name)
 			}
 		}
-	case packets.ParseComplete, packets.BindComplete, packets.CloseComplete:
+	case packets.TypeParseComplete, packets.TypeBindComplete, packets.TypeCloseComplete:
 		// should've been caught by eqp.Server
 		panic("unreachable")
 	}
 	return nil
 }
 
-func (T *Client) Read(ctx middleware.Context, packet *zap.Packet) error {
-	switch packet.ReadType() {
-	case packets.Query:
+func (T *Client) Read(ctx middleware.Context, packet zap.Packet) error {
+	switch packet.Type() {
+	case packets.TypeQuery:
 		// clobber unnamed portal and unnamed prepared statement
 		T.deletePreparedStatement("")
 		T.deletePortal("")
-	case packets.Parse:
+	case packets.TypeParse:
 		ctx.Cancel()
 
-		destination, preparedStatement, ok := ReadParse(packet.Read())
+		destination, preparedStatement, ok := ReadParse(packet)
 		if !ok {
 			return errors.New("bad packet format")
 		}
@@ -87,15 +76,15 @@ func (T *Client) Read(ctx middleware.Context, packet *zap.Packet) error {
 		T.preparedStatements[destination] = preparedStatement
 
 		// send parse complete
-		packet.WriteType(packets.ParseComplete)
+		packet = zap.NewPacket(packets.TypeParseComplete)
 		err := ctx.Write(packet)
 		if err != nil {
 			return err
 		}
-	case packets.Bind:
+	case packets.TypeBind:
 		ctx.Cancel()
 
-		destination, portal, ok := ReadBind(packet.Read())
+		destination, portal, ok := ReadBind(packet)
 		if !ok {
 			return errors.New("bad packet format")
 		}
@@ -103,48 +92,48 @@ func (T *Client) Read(ctx middleware.Context, packet *zap.Packet) error {
 		T.portals[destination] = portal
 
 		// send bind complete
-		packet.WriteType(packets.BindComplete)
+		packet = zap.NewPacket(packets.TypeParseComplete)
 		err := ctx.Write(packet)
 		if err != nil {
 			return err
 		}
-	case packets.Close:
+	case packets.TypeClose:
 		ctx.Cancel()
 
-		which, target, ok := packets.ReadClose(packet.Read())
-		if !ok {
+		var p packets.Close
+		if !p.ReadFromPacket(packet) {
 			return errors.New("bad packet format")
 		}
-		switch which {
+		switch p.Which {
 		case 'S':
-			T.deletePreparedStatement(target)
+			T.deletePreparedStatement(p.Target)
 		case 'P':
-			T.deletePortal(target)
+			T.deletePortal(p.Target)
 		default:
 			return errors.New("bad packet format")
 		}
 
 		// send close complete
-		packet.WriteType(packets.CloseComplete)
+		packet = zap.NewPacket(packets.TypeCloseComplete)
 		err := ctx.Write(packet)
 		if err != nil {
 			return err
 		}
-	case packets.Describe:
+	case packets.TypeDescribe:
 		// ensure target exists
-		which, _, ok := packets.ReadDescribe(packet.Read())
-		if !ok {
+		var describe packets.Describe
+		if !describe.ReadFromPacket(packet) {
 			return errors.New("bad packet format")
 		}
-		switch which {
+		switch describe.Which {
 		case 'S', 'P':
 			// ok
 		default:
 			return errors.New("unknown describe target")
 		}
-	case packets.Execute:
-		_, _, ok := packets.ReadExecute(packet.Read())
-		if !ok {
+	case packets.TypeExecute:
+		var execute packets.Execute
+		if !execute.ReadFromPacket(packet) {
 			return errors.New("bad packet format")
 		}
 	}

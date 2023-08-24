@@ -9,7 +9,7 @@ import (
 
 type Work struct {
 	rw                zap.ReadWriter
-	initialPacket     *zap.Packet
+	initialPacket     zap.Packet
 	eqp               *eqp.Client
 	ps                *ps.Client
 	trackedParameters []strutil.CIString

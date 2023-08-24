@@ -1,15 +1,22 @@
 package packets
 
-import "pggat2/lib/zap"
+import (
+	"pggat2/lib/util/slices"
+	"pggat2/lib/zap"
+)
 
-func ReadAuthenticationResponse(in zap.ReadablePacket) ([]byte, bool) {
-	if in.ReadType() != AuthenticationResponse {
-		return nil, false
+type AuthenticationResponse []byte
+
+func (T *AuthenticationResponse) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeAuthenticationResponse {
+		return false
 	}
-	return in.ReadUnsafeRemaining(), true
+	*T = slices.Resize(*T, len(packet.Payload()))
+	packet.ReadBytes(*T)
+	return true
 }
 
-func WriteAuthenticationResponse(out *zap.Packet, resp []byte) {
-	out.WriteType(AuthenticationResponse)
-	out.WriteBytes(resp)
+func (T *AuthenticationResponse) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeAuthenticationResponse)
+	return packet.AppendBytes(*T)
 }

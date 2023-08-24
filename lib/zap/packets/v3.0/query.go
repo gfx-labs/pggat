@@ -2,18 +2,18 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadQuery(in zap.ReadablePacket) (string, bool) {
-	if in.ReadType() != Query {
-		return "", false
+type Query string
+
+func (T *Query) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeQuery {
+		return false
 	}
-	query, ok := in.ReadString()
-	if !ok {
-		return "", false
-	}
-	return query, true
+	packet.ReadString((*string)(T))
+	return true
 }
 
-func WriteQuery(out *zap.Packet, query string) {
-	out.WriteType(Query)
-	out.WriteString(query)
+func (T *Query) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeQuery)
+	packet = packet.AppendString(string(*T))
+	return packet
 }

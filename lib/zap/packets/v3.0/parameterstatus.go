@@ -2,23 +2,23 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadParameterStatus(in zap.ReadablePacket) (key, value string, ok bool) {
-	if in.ReadType() != ParameterStatus {
-		return
-	}
-	key, ok = in.ReadString()
-	if !ok {
-		return
-	}
-	value, ok = in.ReadString()
-	if !ok {
-		return
-	}
-	return
+type ParameterStatus struct {
+	Key   string
+	Value string
 }
 
-func WriteParameterStatus(out *zap.Packet, key, value string) {
-	out.WriteType(ParameterStatus)
-	out.WriteString(key)
-	out.WriteString(value)
+func (T *ParameterStatus) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeParameterStatus {
+		return false
+	}
+	p := packet.ReadString(&T.Key)
+	p = p.ReadString(&T.Value)
+	return true
+}
+
+func (T *ParameterStatus) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeParameterStatus)
+	packet = packet.AppendString(T.Key)
+	packet = packet.AppendString(T.Value)
+	return packet
 }

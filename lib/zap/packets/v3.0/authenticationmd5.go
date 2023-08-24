@@ -2,27 +2,26 @@ package packets
 
 import "pggat2/lib/zap"
 
-func ReadAuthenticationMD5(in zap.ReadablePacket) ([4]byte, bool) {
-	if in.ReadType() != Authentication {
-		return [4]byte{}, false
-	}
-	method, ok := in.ReadInt32()
-	if !ok {
-		return [4]byte{}, false
-	}
-	if method != 5 {
-		return [4]byte{}, false
-	}
-	var salt [4]byte
-	ok = in.ReadBytes(salt[:])
-	if !ok {
-		return salt, false
-	}
-	return salt, true
+type AuthenticationMD5 struct {
+	Salt [4]byte
 }
 
-func WriteAuthenticationMD5(out *zap.Packet, salt [4]byte) {
-	out.WriteType(Authentication)
-	out.WriteUint32(5)
-	out.WriteBytes(salt[:])
+func (T *AuthenticationMD5) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeAuthentication {
+		return false
+	}
+	var method int32
+	p := packet.ReadInt32(&method)
+	if method != 5 {
+		return false
+	}
+	p = p.ReadBytes(T.Salt[:])
+	return true
+}
+
+func (T *AuthenticationMD5) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeAuthentication)
+	packet = packet.AppendUint32(5)
+	packet = packet.AppendBytes(T.Salt[:])
+	return packet
 }

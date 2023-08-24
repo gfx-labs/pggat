@@ -1,23 +1,29 @@
 package packets
 
-import "pggat2/lib/zap"
+import (
+	"pggat2/lib/util/slices"
+	"pggat2/lib/zap"
+)
 
-func ReadAuthenticationSASLFinal(in zap.ReadablePacket) ([]byte, bool) {
-	if in.ReadType() != Authentication {
-		return nil, false
+type AuthenticationSASLFinal []byte
+
+func (T *AuthenticationSASLFinal) ReadFromPacket(packet zap.Packet) bool {
+	if packet.Type() != TypeAuthentication {
+		return false
 	}
-	method, ok := in.ReadInt32()
-	if !ok {
-		return nil, false
-	}
+	var method int32
+	p := packet.ReadInt32(&method)
 	if method != 12 {
-		return nil, false
+		return false
 	}
-	return in.ReadUnsafeRemaining(), true
+	*T = slices.Resize(*T, len(p))
+	p.ReadBytes(*T)
+	return true
 }
 
-func WriteAuthenticationSASLFinal(out *zap.Packet, resp []byte) {
-	out.WriteType(Authentication)
-	out.WriteInt32(12)
-	out.WriteBytes(resp)
+func (T *AuthenticationSASLFinal) IntoPacket() zap.Packet {
+	packet := zap.NewPacket(TypeAuthentication)
+	packet = packet.AppendUint32(12)
+	packet = packet.AppendBytes(*T)
+	return packet
 }

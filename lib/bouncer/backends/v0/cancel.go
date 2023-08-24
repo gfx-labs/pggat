@@ -3,10 +3,9 @@ package backends
 import "pggat2/lib/zap"
 
 func Cancel(server zap.ReadWriter, key [8]byte) error {
-	packet := zap.NewUntypedPacket()
-	defer packet.Done()
-	packet.WriteUint16(1234)
-	packet.WriteUint16(5678)
-	packet.WriteBytes(key[:])
-	return server.WriteUntyped(packet)
+	packet := zap.NewPacket(0)
+	packet = packet.AppendUint16(1234)
+	packet = packet.AppendUint16(5678)
+	packet = packet.AppendBytes(key[:])
+	return server.WritePacket(packet)
 }

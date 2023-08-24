@@ -37,49 +37,26 @@ func (T *Interceptor) ReadByte() (byte, error) {
 	return T.rw.ReadByte()
 }
 
-func (T *Interceptor) Read(packet *zap.Packet) error {
+func (T *Interceptor) ReadPacket(typed bool) (zap.Packet, error) {
 outer:
 	for {
-		err := T.rw.Read(packet)
+		packet, err := T.rw.ReadPacket(typed)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		for _, mw := range T.middlewares {
 			T.context.reset()
-			err := mw.Read(&T.context, packet)
+			err = mw.Read(&T.context, packet)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if T.context.cancelled {
 				continue outer
 			}
 		}
 
-		return nil
-	}
-}
-
-func (T *Interceptor) ReadUntyped(packet *zap.UntypedPacket) error {
-outer:
-	for {
-		err := T.rw.ReadUntyped(packet)
-		if err != nil {
-			return err
-		}
-
-		for _, mw := range T.middlewares {
-			T.context.reset()
-			err := mw.ReadUntyped(&T.context, packet)
-			if err != nil {
-				return err
-			}
-			if T.context.cancelled {
-				continue outer
-			}
-		}
-
-		return nil
+		return packet, nil
 	}
 }
 
@@ -87,7 +64,7 @@ func (T *Interceptor) WriteByte(b byte) error {
 	return T.rw.WriteByte(b)
 }
 
-func (T *Interceptor) Write(packet *zap.Packet) error {
+func (T *Interceptor) WritePacket(packet zap.Packet) error {
 	for _, mw := range T.middlewares {
 		T.context.reset()
 		err := mw.Write(&T.context, packet)
@@ -99,60 +76,7 @@ func (T *Interceptor) Write(packet *zap.Packet) error {
 		}
 	}
 
-	return T.rw.Write(packet)
-}
-
-func (T *Interceptor) WriteUntyped(packet *zap.UntypedPacket) error {
-	for _, mw := range T.middlewares {
-		T.context.reset()
-		err := mw.WriteUntyped(&T.context, packet)
-		if err != nil {
-			return err
-		}
-		if T.context.cancelled {
-			return nil
-		}
-	}
-
-	return T.rw.WriteUntyped(packet)
-}
-
-func (T *Interceptor) WriteV(packets *zap.Packets) error {
-	T.context.packets = packets
-	defer func() {
-		T.context.packets = nil
-	}()
-	for T.context.packetsIndex = 0; T.context.packetsIndex < packets.Size(); T.context.packetsIndex++ {
-		if packets.IsTyped(T.context.packetsIndex) {
-			for _, mw := range T.middlewares {
-				T.context.reset()
-				err := mw.Write(&T.context, packets.Get(T.context.packetsIndex))
-				if err != nil {
-					return err
-				}
-				if T.context.cancelled {
-					packets.Remove(T.context.packetsIndex)
-					T.context.packetsIndex--
-					break
-				}
-			}
-		} else {
-			for _, mw := range T.middlewares {
-				T.context.reset()
-				err := mw.WriteUntyped(&T.context, packets.GetUntyped(T.context.packetsIndex))
-				if err != nil {
-					return err
-				}
-				if T.context.cancelled {
-					packets.Remove(T.context.packetsIndex)
-					T.context.packetsIndex--
-					break
-				}
-			}
-		}
-	}
-
-	return T.rw.WriteV(packets)
+	return T.rw.WritePacket(packet)
 }
 
 func (T *Interceptor) Close() error {

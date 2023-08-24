@@ -23,42 +23,29 @@ func (T *Context) PeerFail(err error) {
 	T.PeerError = err
 }
 
-func (T *Context) PeerRead(packet *zap.Packet) bool {
+func (T *Context) PeerRead() zap.Packet {
 	if T == nil {
-		return false
+		return nil
 	}
 	if !T.PeerOK() {
-		return false
+		return nil
 	}
-	err := T.Peer.Read(packet)
+	packet, err := T.Peer.ReadPacket(true)
 	if err != nil {
 		T.PeerFail(err)
-		return false
+		return nil
 	}
-	return true
+	return packet
 }
 
-func (T *Context) PeerWrite(packet *zap.Packet) {
+func (T *Context) PeerWrite(packet zap.Packet) {
 	if T == nil {
 		return
 	}
 	if !T.PeerOK() {
 		return
 	}
-	err := T.Peer.Write(packet)
-	if err != nil {
-		T.PeerFail(err)
-	}
-}
-
-func (T *Context) PeerWriteV(packets *zap.Packets) {
-	if T == nil {
-		return
-	}
-	if !T.PeerOK() {
-		return
-	}
-	err := T.Peer.WriteV(packets)
+	err := T.Peer.WritePacket(packet)
 	if err != nil {
 		T.PeerFail(err)
 	}

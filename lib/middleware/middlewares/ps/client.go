@@ -22,15 +22,15 @@ func NewClient(parameters map[strutil.CIString]string) *Client {
 	}
 }
 
-func (T *Client) Write(ctx middleware.Context, packet *zap.Packet) error {
-	switch packet.ReadType() {
-	case packets.ParameterStatus:
-		key, value, ok := packets.ReadParameterStatus(packet.Read())
-		if !ok {
+func (T *Client) Write(ctx middleware.Context, packet zap.Packet) error {
+	switch packet.Type() {
+	case packets.TypeParameterStatus:
+		var ps packets.ParameterStatus
+		if !ps.ReadFromPacket(packet) {
 			return errors.New("bad packet format")
 		}
-		ikey := strutil.MakeCIString(key)
-		if T.parameters[ikey] == value {
+		ikey := strutil.MakeCIString(ps.Key)
+		if T.parameters[ikey] == ps.Value {
 			// already set
 			ctx.Cancel()
 			break
@@ -38,7 +38,7 @@ func (T *Client) Write(ctx middleware.Context, packet *zap.Packet) error {
 		if T.parameters == nil {
 			T.parameters = make(map[strutil.CIString]string)
 		}
-		T.parameters[ikey] = value
+		T.parameters[ikey] = ps.Value
 	}
 	return nil
 }

@@ -15,7 +15,6 @@ import (
 	"pggat2/lib/util/ring"
 	"pggat2/lib/util/slices"
 	"pggat2/lib/util/strutil"
-	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
@@ -106,33 +105,44 @@ func (T *Pool) Serve(ctx *gat.Context, client bouncer.Conn) {
 	}()
 
 	if func() bool {
-		pkts := zap.NewPackets()
-		defer pkts.Done()
-
-		add := func(key strutil.CIString) {
+		add := func(key strutil.CIString) error {
 			if value, ok := server.InitialParameters[key]; ok {
-				pkt := zap.NewPacket()
-				packets.WriteParameterStatus(pkt, key.String(), value)
-				pkts.Append(pkt)
+				ps := packets.ParameterStatus{
+					Key:   key.String(),
+					Value: value,
+				}
+
+				if err := client.RW.WritePacket(ps.IntoPacket()); err != nil {
+					return err
+				}
 			}
+			return nil
 		}
 
 		for key, value := range client.InitialParameters {
 			// skip already set params
 			if server.InitialParameters[key] == value {
-				add(key)
+				if err := add(key); err != nil {
+					return true
+				}
 				continue
 			}
 
 			// only set tracking params
 			if !slices.Contains(T.config.TrackedParameters, key) {
-				add(key)
+				if err := add(key); err != nil {
+					return true
+				}
 				continue
 			}
 
-			pkt := zap.NewPacket()
-			packets.WriteParameterStatus(pkt, key.String(), value)
-			pkts.Append(pkt)
+			ps := packets.ParameterStatus{
+				Key:   key.String(),
+				Value: value,
+			}
+			if err := client.RW.WritePacket(ps.IntoPacket()); err != nil {
+				return true
+			}
 
 			if err := backends.SetParameter(&backends.Context{}, server.RW, key, value); err != nil {
 				serverOK = false
@@ -145,23 +155,19 @@ func (T *Pool) Serve(ctx *gat.Context, client bouncer.Conn) {
 				continue
 			}
 
-			add(key)
+			if err := add(key); err != nil {
+				return true
+			}
 		}
 
-		err := client.RW.WriteV(pkts)
-		if err != nil {
-			return true
-		}
 		return false
 	}() {
 		return
 	}
 
-	packet := zap.NewPacket()
-	defer packet.Done()
-
 	for {
-		if err := client.RW.Read(packet); err != nil {
+		packet, err := client.RW.ReadPacket(true)
+		if err != nil {
 			break
 		}
 		clientErr, serverErr := bouncers.Bounce(client.RW, server.RW, packet)
