@@ -29,7 +29,7 @@ func TestQuery(t *testing.T) {
 		return
 	}
 
-	err = Query(server, "SELECT * FROM pg_shadow")
+	err = Query(server, "SELECT usename, passwd FROM pg_shadow WHERE usename='postgres'")
 	if err != nil {
 		t.Error(err)
 		return

@@ -36,9 +36,17 @@ func (T *resultReader) WriteByte(_ byte) error {
 func (T *resultReader) WritePacket(packet zap.Packet) error {
 	switch packet.Type() {
 	case packets.TypeRowDescription:
-		log.Println("row description", packet)
+		var rd packets.RowDescription
+		if !rd.ReadFromPacket(packet) {
+			return errors.New("invalid format")
+		}
+		log.Printf("row description: %#v", rd)
 	case packets.TypeDataRow:
-		log.Println("data row", packet)
+		var dr packets.DataRow
+		if !dr.ReadFromPacket(packet) {
+			return errors.New("invalid format")
+		}
+		log.Printf("data row: %#v", dr)
 	}
 	return nil
 }
