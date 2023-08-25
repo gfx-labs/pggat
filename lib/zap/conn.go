@@ -7,9 +7,18 @@ import (
 	"net"
 )
 
+type Conn interface {
+	ReadWriter
+
+	EnableSSLClient(config *tls.Config) error
+	EnableSSLServer(config *tls.Config) error
+
+	Close() error
+}
+
 const pktBufSize = 4096
 
-type Conn struct {
+type netConn struct {
 	conn net.Conn
 	w    io.Writer
 
@@ -19,28 +28,28 @@ type Conn struct {
 	readBuf []byte
 }
 
-func WrapNetConn(conn net.Conn) *Conn {
-	return &Conn{
+func WrapNetConn(conn net.Conn) Conn {
+	return &netConn{
 		conn: conn,
 		w:    conn,
 	}
 }
 
-func (T *Conn) EnableSSLClient(config *tls.Config) error {
+func (T *netConn) EnableSSLClient(config *tls.Config) error {
 	sslConn := tls.Client(T.conn, config)
 	T.conn = sslConn
 	T.w = sslConn
 	return sslConn.Handshake()
 }
 
-func (T *Conn) EnableSSLServer(config *tls.Config) error {
+func (T *netConn) EnableSSLServer(config *tls.Config) error {
 	sslConn := tls.Server(T.conn, config)
 	T.conn = sslConn
 	T.w = sslConn
 	return sslConn.Handshake()
 }
 
-func (T *Conn) flush() error {
+func (T *netConn) flush() error {
 	if len(T.writeBuf) == 0 {
 		return nil
 	}
@@ -50,7 +59,7 @@ func (T *Conn) flush() error {
 	return err
 }
 
-func (T *Conn) read(buf []byte) (n int, err error) {
+func (T *netConn) read(buf []byte) (n int, err error) {
 	for {
 		if len(T.readBuf) > 0 {
 			cn := copy(buf, T.readBuf)
@@ -82,7 +91,7 @@ func (T *Conn) read(buf []byte) (n int, err error) {
 	}
 }
 
-func (T *Conn) ReadByte() (byte, error) {
+func (T *netConn) ReadByte() (byte, error) {
 	if err := T.flush(); err != nil {
 		return 0, err
 	}
@@ -94,7 +103,7 @@ func (T *Conn) ReadByte() (byte, error) {
 	return b[0], nil
 }
 
-func (T *Conn) ReadPacket(typed bool) (Packet, error) {
+func (T *netConn) ReadPacket(typed bool) (Packet, error) {
 	if err := T.flush(); err != nil {
 		return nil, err
 	}
@@ -120,18 +129,18 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 	return packet, nil
 }
 
-func (T *Conn) WriteByte(b byte) error {
+func (T *netConn) WriteByte(b byte) error {
 	T.writeBuf = append(T.writeBuf, []byte{b})
 	return nil
 }
 
-func (T *Conn) WritePacket(packet Packet) error {
+func (T *netConn) WritePacket(packet Packet) error {
 	T.writeBuf = append(T.writeBuf, packet.Bytes())
 	return nil
 }
 
-func (T *Conn) Close() error {
+func (T *netConn) Close() error {
 	return T.conn.Close()
 }
 
-var _ ReadWriter = (*Conn)(nil)
+var _ Conn = (*netConn)(nil)

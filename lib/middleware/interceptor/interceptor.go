@@ -10,10 +10,10 @@ import (
 type Interceptor struct {
 	middlewares []middleware.Middleware
 	context     Context
-	rw          zap.ReadWriter
+	rw          zap.Conn
 }
 
-func NewInterceptor(rw zap.ReadWriter, middlewares ...middleware.Middleware) *Interceptor {
+func NewInterceptor(rw zap.Conn, middlewares ...middleware.Middleware) *Interceptor {
 	if v, ok := rw.(*Interceptor); ok {
 		v.middlewares = append(v.middlewares, middlewares...)
 		return v
@@ -83,4 +83,4 @@ func (T *Interceptor) Close() error {
 	return T.rw.Close()
 }
 
-var _ zap.ReadWriter = (*Interceptor)(nil)
+var _ zap.Conn = (*Interceptor)(nil)

@@ -8,7 +8,7 @@ import (
 )
 
 type Work struct {
-	rw                zap.ReadWriter
+	rw                zap.Conn
 	initialPacket     zap.Packet
 	eqp               *eqp.Client
 	ps                *ps.Client

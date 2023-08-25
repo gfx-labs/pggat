@@ -1,7 +1,6 @@
 package psql
 
 import (
-	"crypto/tls"
 	"errors"
 	"io"
 	"reflect"
@@ -12,33 +11,56 @@ import (
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
-type resultReader struct {
-	result reflect.Value
-	rd     packets.RowDescription
-	row    int
+type packetReader struct {
+	packets []zap.Packet
 }
 
-func (T *resultReader) EnableSSLClient(_ *tls.Config) error {
-	return errors.New("ssl not supported")
-}
-
-func (T *resultReader) EnableSSLServer(_ *tls.Config) error {
-	return errors.New("ssl not supported")
-}
-
-func (T *resultReader) ReadByte() (byte, error) {
+func (T *packetReader) ReadByte() (byte, error) {
 	return 0, io.EOF
 }
 
-func (T *resultReader) ReadPacket(_ bool) (zap.Packet, error) {
+func (T *packetReader) ReadPacket(typed bool) (zap.Packet, error) {
+	if len(T.packets) == 0 {
+		return nil, io.EOF
+	}
+
+	packet := T.packets[0]
+	packetTyped := packet.Type() != 0
+
+	if packetTyped != typed {
+		return nil, io.EOF
+	}
+
+	T.packets = T.packets[1:]
+	return packet, nil
+}
+
+var _ zap.Reader = (*packetReader)(nil)
+
+type eofReader struct{}
+
+func (eofReader) ReadByte() (byte, error) {
+	return 0, io.EOF
+}
+
+func (eofReader) ReadPacket(_ bool) (zap.Packet, error) {
 	return nil, io.EOF
 }
 
-func (T *resultReader) WriteByte(_ byte) error {
+var _ zap.Reader = eofReader{}
+
+type resultWriter struct {
+	result reflect.Value
+	rd     packets.RowDescription
+	err    error
+	row    int
+}
+
+func (T *resultWriter) WriteByte(_ byte) error {
 	return nil
 }
 
-func (T *resultReader) set(i int, row []byte) error {
+func (T *resultWriter) set(i int, row []byte) error {
 	if i >= len(T.rd.Fields) {
 		return ErrExtraFields
 	}
@@ -227,7 +249,10 @@ outer2:
 	}
 }
 
-func (T *resultReader) WritePacket(packet zap.Packet) error {
+func (T *resultWriter) WritePacket(packet zap.Packet) error {
+	if T.err != nil {
+		return ErrFailed
+	}
 	switch packet.Type() {
 	case packets.TypeRowDescription:
 		if !T.rd.ReadFromPacket(packet) {
@@ -240,29 +265,105 @@ func (T *resultReader) WritePacket(packet zap.Packet) error {
 		}
 		for i, row := range dr.Columns {
 			if err := T.set(i, row); err != nil {
+				T.err = err
 				return err
 			}
 		}
 		T.row += 1
+	case packets.TypeErrorResponse:
+		var err packets.ErrorResponse
+		if !err.ReadFromPacket(packet) {
+			return errors.New("invalid format")
+		}
+		T.err = errors.New(err.Error.String())
 	}
 	return nil
 }
 
-func (T *resultReader) Close() error {
-	return nil
-}
+var _ zap.Writer = (*resultWriter)(nil)
 
-var _ zap.ReadWriter = (*resultReader)(nil)
+func Query(server zap.ReadWriter, result any, query string, args ...any) error {
+	if len(args) == 0 {
+		// simple query
 
-func Query(server zap.ReadWriter, query string, result any) error {
-	res := resultReader{
+		w := resultWriter{
+			result: reflect.ValueOf(result),
+		}
+		ctx := backends.Context{
+			Peer: zap.CombinedReadWriter{
+				Reader: eofReader{},
+				Writer: &w,
+			},
+		}
+		if err := backends.QueryString(&ctx, server, query); err != nil {
+			return err
+		}
+		if w.err != nil {
+			return w.err
+		}
+
+		return nil
+	}
+
+	// must use eqp
+
+	// parse
+	parse := packets.Parse{
+		Query: query,
+	}
+
+	// bind
+	params := make([][]byte, 0, len(args))
+	for _, arg := range args {
+		var value []byte
+		switch v := arg.(type) {
+		case string:
+			value = []byte(v)
+		default:
+			return ErrUnexpectedType
+		}
+		params = append(params, value)
+	}
+	bind := packets.Bind{
+		ParameterValues: params,
+	}
+
+	// describe
+	describe := packets.Describe{
+		Which: 'P',
+	}
+
+	// execute
+	execute := packets.Execute{
+		// TODO(garet) hint for max rows?
+	}
+
+	// sync
+	sync := zap.NewPacket(packets.TypeSync)
+
+	w := resultWriter{
 		result: reflect.ValueOf(result),
 	}
-	ctx := backends.Context{
-		Peer: &res,
+	r := packetReader{
+		packets: []zap.Packet{
+			bind.IntoPacket(),
+			describe.IntoPacket(),
+			execute.IntoPacket(),
+			sync,
+		},
 	}
-	if err := backends.QueryString(&ctx, server, query); err != nil {
+	ctx := backends.Context{
+		Peer: zap.CombinedReadWriter{
+			Reader: &r,
+			Writer: &w,
+		},
+	}
+
+	if err := backends.Transaction(&ctx, server, parse.IntoPacket()); err != nil {
 		return err
+	}
+	if w.err != nil {
+		return w.err
 	}
 
 	return nil

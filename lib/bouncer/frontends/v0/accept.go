@@ -203,7 +203,7 @@ func startup0(
 	return
 }
 
-func authenticationSASLInitial(client zap.ReadWriter, creds auth.SASL) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {
+func authenticationSASLInitial(client zap.Conn, creds auth.SASL) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {
 	// check which authentication method the client wants
 	packet, err2 := client.ReadPacket(true)
 	if err2 != nil {
@@ -234,7 +234,7 @@ func authenticationSASLInitial(client zap.ReadWriter, creds auth.SASL) (tool aut
 	return
 }
 
-func authenticationSASLContinue(client zap.ReadWriter, tool auth.SASLVerifier) (resp []byte, done bool, err perror.Error) {
+func authenticationSASLContinue(client zap.Conn, tool auth.SASLVerifier) (resp []byte, done bool, err perror.Error) {
 	packet, err2 := client.ReadPacket(true)
 	if err2 != nil {
 		err = perror.Wrap(err2)
@@ -258,7 +258,7 @@ func authenticationSASLContinue(client zap.ReadWriter, tool auth.SASLVerifier) (
 	return
 }
 
-func authenticationSASL(client zap.ReadWriter, creds auth.SASL) perror.Error {
+func authenticationSASL(client zap.Conn, creds auth.SASL) perror.Error {
 	saslInitial := packets.AuthenticationSASL{
 		Mechanisms: creds.SupportedSASLMechanisms(),
 	}
@@ -297,7 +297,7 @@ func authenticationSASL(client zap.ReadWriter, creds auth.SASL) perror.Error {
 	return nil
 }
 
-func updateParameter(client zap.ReadWriter, name, value string) perror.Error {
+func updateParameter(client zap.Conn, name, value string) perror.Error {
 	ps := packets.ParameterStatus{
 		Key:   name,
 		Value: value,
@@ -306,7 +306,7 @@ func updateParameter(client zap.ReadWriter, name, value string) perror.Error {
 }
 
 func accept(
-	client zap.ReadWriter,
+	client zap.Conn,
 	options AcceptOptions,
 ) (conn bouncer.Conn, err perror.Error) {
 	conn.RW = client
@@ -392,14 +392,14 @@ func accept(
 	return
 }
 
-func fail(client zap.ReadWriter, err perror.Error) {
+func fail(client zap.Conn, err perror.Error) {
 	resp := packets.ErrorResponse{
 		Error: err,
 	}
 	_ = client.WritePacket(resp.IntoPacket())
 }
 
-func Accept(client zap.ReadWriter, options AcceptOptions) (bouncer.Conn, perror.Error) {
+func Accept(client zap.Conn, options AcceptOptions) (bouncer.Conn, perror.Error) {
 	conn, err := accept(client, options)
 	if err != nil {
 		fail(client, err)

@@ -6,7 +6,7 @@ import (
 )
 
 type Conn struct {
-	RW zap.ReadWriter
+	RW zap.Conn
 
 	SSLEnabled        bool
 	User              string

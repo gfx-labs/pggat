@@ -12,7 +12,7 @@ import (
 )
 
 type Recipe interface {
-	Dial() (zap.ReadWriter, error)
+	Dial() (zap.Conn, error)
 	Connect() (bouncer.Conn, error)
 
 	GetMinConnections() int
@@ -34,7 +34,7 @@ type TCPRecipe struct {
 	StartupParameters map[strutil.CIString]string
 }
 
-func (T TCPRecipe) Dial() (zap.ReadWriter, error) {
+func (T TCPRecipe) Dial() (zap.Conn, error) {
 	conn, err := net.Dial("tcp", T.Address)
 	if err != nil {
 		return nil, err

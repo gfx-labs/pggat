@@ -38,7 +38,7 @@ func TestQuery(t *testing.T) {
 
 	var res Result
 
-	err = Query(server, "SELECT 'abc' as usename, 'test' as passwd", &res)
+	err = Query(server, &res, "SELECT $1 as usename, $2 as passwd", "postgres", "password")
 	if err != nil {
 		t.Error(err)
 		return

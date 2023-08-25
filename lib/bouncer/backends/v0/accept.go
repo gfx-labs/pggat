@@ -11,7 +11,7 @@ import (
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
-func authenticationSASLChallenge(server zap.ReadWriter, encoder auth.SASLEncoder) (done bool, err error) {
+func authenticationSASLChallenge(server zap.Conn, encoder auth.SASLEncoder) (done bool, err error) {
 	var packet zap.Packet
 	packet, err = server.ReadPacket(true)
 	if err != nil {
@@ -52,7 +52,7 @@ func authenticationSASLChallenge(server zap.ReadWriter, encoder auth.SASLEncoder
 	}
 }
 
-func authenticationSASL(server zap.ReadWriter, mechanisms []string, creds auth.SASL) error {
+func authenticationSASL(server zap.Conn, mechanisms []string, creds auth.SASL) error {
 	mechanism, encoder, err := creds.EncodeSASL(mechanisms)
 	if err != nil {
 		return err
@@ -86,7 +86,7 @@ func authenticationSASL(server zap.ReadWriter, mechanisms []string, creds auth.S
 	return nil
 }
 
-func authenticationMD5(server zap.ReadWriter, salt [4]byte, creds auth.MD5) error {
+func authenticationMD5(server zap.Conn, salt [4]byte, creds auth.MD5) error {
 	pw := packets.PasswordMessage{
 		Password: creds.EncodeMD5(salt),
 	}
@@ -97,7 +97,7 @@ func authenticationMD5(server zap.ReadWriter, salt [4]byte, creds auth.MD5) erro
 	return nil
 }
 
-func authenticationCleartext(server zap.ReadWriter, creds auth.Cleartext) error {
+func authenticationCleartext(server zap.Conn, creds auth.Cleartext) error {
 	pw := packets.PasswordMessage{
 		Password: creds.EncodeCleartext(),
 	}
@@ -108,7 +108,7 @@ func authenticationCleartext(server zap.ReadWriter, creds auth.Cleartext) error 
 	return nil
 }
 
-func startup0(server zap.ReadWriter, creds auth.Credentials) (done bool, err error) {
+func startup0(server zap.Conn, creds auth.Credentials) (done bool, err error) {
 	var packet zap.Packet
 	packet, err = server.ReadPacket(true)
 	if err != nil {
@@ -230,7 +230,7 @@ func startup1(conn *bouncer.Conn) (done bool, err error) {
 	}
 }
 
-func enableSSL(server zap.ReadWriter, config *tls.Config) (bool, error) {
+func enableSSL(server zap.Conn, config *tls.Config) (bool, error) {
 	packet := zap.NewPacket(0, 4)
 	packet = packet.AppendUint16(1234)
 	packet = packet.AppendUint16(5679)
@@ -256,7 +256,7 @@ func enableSSL(server zap.ReadWriter, config *tls.Config) (bool, error) {
 	return true, nil
 }
 
-func Accept(server zap.ReadWriter, options AcceptOptions) (bouncer.Conn, error) {
+func Accept(server zap.Conn, options AcceptOptions) (bouncer.Conn, error) {
 	username := options.Credentials.GetUsername()
 
 	if options.Database == "" {

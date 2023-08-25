@@ -72,7 +72,7 @@ func (T *Pooler) IsStartupParameterAllowed(parameter strutil.CIString) bool {
 	return slices.Contains(T.config.AllowedStartupParameters, parameter)
 }
 
-func (T *Pooler) Serve(client zap.ReadWriter) {
+func (T *Pooler) Serve(client zap.Conn) {
 	defer func() {
 		_ = client.Close()
 	}()
