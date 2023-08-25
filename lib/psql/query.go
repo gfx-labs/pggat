@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"strconv"
 
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/zap"
@@ -155,6 +156,12 @@ outer2:
 
 	if row == nil {
 		if result.Kind() == reflect.Pointer {
+			if result.IsNil() {
+				return nil
+			}
+			if !result.CanSet() {
+				return ErrUnexpectedType
+			}
 			result.Set(reflect.Zero(result.Type()))
 			return nil
 		} else {
@@ -178,6 +185,42 @@ outer2:
 	switch kind {
 	case reflect.String:
 		result.SetString(string(row))
+		return nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		x, err := strconv.ParseUint(string(row), 10, 64)
+		if err != nil {
+			return err
+		}
+		result.SetUint(x)
+		return nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		x, err := strconv.ParseInt(string(row), 10, 64)
+		if err != nil {
+			return err
+		}
+		result.SetInt(x)
+		return nil
+	case reflect.Float32, reflect.Float64:
+		x, err := strconv.ParseFloat(string(row), 64)
+		if err != nil {
+			return err
+		}
+		result.SetFloat(x)
+		return nil
+	case reflect.Bool:
+		if len(row) != 1 {
+			return ErrUnexpectedType
+		}
+		var x bool
+		switch row[0] {
+		case 'f':
+			x = false
+		case 't':
+			x = true
+		default:
+			return ErrUnexpectedType
+		}
+		result.SetBool(x)
 		return nil
 	default:
 		return ErrUnexpectedType
