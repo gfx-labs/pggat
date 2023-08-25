@@ -3,9 +3,9 @@ module pggat2
 go 1.20
 
 require (
+	gfx.cafe/util/go/gun v0.0.0-20230721185457-c559e86c829c
 	github.com/google/uuid v1.3.0
 	github.com/xdg-go/scram v1.1.2
-	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 	k8s.io/api v0.27.4
 	k8s.io/apimachinery v0.27.4
 	k8s.io/client-go v0.27.4
@@ -13,8 +13,6 @@ require (
 )
 
 require (
-	gfx.cafe/util/go v0.0.0-20230721185457-c559e86c829c // indirect
-	gfx.cafe/util/go/gun v0.0.0-20230721185457-c559e86c829c // indirect
 	github.com/cristalhq/aconfig v0.18.3 // indirect
 	github.com/cristalhq/aconfig/aconfigdotenv v0.17.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

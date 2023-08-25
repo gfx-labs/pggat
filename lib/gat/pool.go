@@ -1,9 +1,10 @@
 package gat
 
 import (
-	"log"
 	"sync"
 	"time"
+
+	"tuxpa.in/a/zlog/log"
 
 	"github.com/google/uuid"
 

@@ -3,9 +3,10 @@ package zalando
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"strconv"
+
+	"tuxpa.in/a/zlog/log"
 
 	"gfx.cafe/util/go/gun"
 
@@ -80,7 +81,7 @@ func (T *Config) ListenAndServe() error {
 			return err
 		}
 
-		log.Println("listening on", listen)
+		log.Printf("listening on %s", listen)
 
 		return pooler.ListenAndServe(listener)
 	})

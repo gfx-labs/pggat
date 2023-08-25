@@ -4,10 +4,17 @@ import (
 	"net"
 	"testing"
 
+	"tuxpa.in/a/zlog/log"
+
 	"pggat2/lib/auth/credentials"
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/zap"
 )
+
+type Result struct {
+	Username string  `sql:"usename"`
+	Password *string `sql:"passwd"`
+}
 
 func TestQuery(t *testing.T) {
 	// open server
@@ -29,9 +36,13 @@ func TestQuery(t *testing.T) {
 		return
 	}
 
-	err = Query(server, "SELECT usename, passwd FROM pg_shadow WHERE usename='postgres'")
+	var res Result
+
+	err = Query(server, "SELECT usename, passwd FROM pg_shadow WHERE usename='postgres'", &res)
 	if err != nil {
 		t.Error(err)
 		return
 	}
+
+	log.Printf("%#v", res)
 }

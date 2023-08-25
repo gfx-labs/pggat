@@ -2,12 +2,13 @@ package pgbouncer
 
 import (
 	"errors"
-	"log"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"tuxpa.in/a/zlog/log"
 
 	"pggat2/lib/auth/credentials"
 	"pggat2/lib/gat"
@@ -398,7 +399,7 @@ func (T *Config) ListenAndServe() error {
 				return err
 			}
 
-			log.Println("listening on", listen)
+			log.Printf("listening on %s", listen)
 
 			return pooler.ListenAndServe(listener)
 		})
