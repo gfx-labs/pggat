@@ -36,4 +36,8 @@ func (T err) String() string {
 	return string(T.severity) + ": " + T.message
 }
 
+func (T err) Error() string {
+	return T.String()
+}
+
 var _ Error = err{}

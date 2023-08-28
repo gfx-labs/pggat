@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"pggat2/lib/auth"
-	"pggat2/lib/bouncer"
 	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 	packets "pggat2/lib/zap/packets/v3.0"
@@ -188,16 +187,16 @@ func startup0(server zap.Conn, creds auth.Credentials) (done bool, err error) {
 	}
 }
 
-func startup1(conn *bouncer.Conn) (done bool, err error) {
+func startup1(conn zap.Conn, params *AcceptParams) (done bool, err error) {
 	var packet zap.Packet
-	packet, err = conn.RW.ReadPacket(true)
+	packet, err = conn.ReadPacket(true)
 	if err != nil {
 		return
 	}
 
 	switch packet.Type() {
 	case packets.TypeBackendKeyData:
-		packet.ReadBytes(conn.BackendKey[:])
+		packet.ReadBytes(params.BackendKey[:])
 		return false, nil
 	case packets.TypeParameterStatus:
 		var ps packets.ParameterStatus
@@ -206,10 +205,10 @@ func startup1(conn *bouncer.Conn) (done bool, err error) {
 			return
 		}
 		ikey := strutil.MakeCIString(ps.Key)
-		if conn.InitialParameters == nil {
-			conn.InitialParameters = make(map[strutil.CIString]string)
+		if params.InitialParameters == nil {
+			params.InitialParameters = make(map[strutil.CIString]string)
 		}
-		conn.InitialParameters[ikey] = ps.Value
+		params.InitialParameters[ikey] = ps.Value
 		return false, nil
 	case packets.TypeReadyForQuery:
 		return true, nil
@@ -256,27 +255,23 @@ func enableSSL(server zap.Conn, config *tls.Config) (bool, error) {
 	return true, nil
 }
 
-func Accept(server zap.Conn, options AcceptOptions) (bouncer.Conn, error) {
+func Accept(server zap.Conn, options AcceptOptions) (AcceptParams, error) {
 	username := options.Credentials.GetUsername()
 
 	if options.Database == "" {
 		options.Database = username
 	}
 
-	conn := bouncer.Conn{
-		RW:       server,
-		User:     username,
-		Database: options.Database,
-	}
+	var params AcceptParams
 
 	if options.SSLMode.ShouldAttempt() {
 		var err error
-		conn.SSLEnabled, err = enableSSL(server, options.SSLConfig)
+		params.SSLEnabled, err = enableSSL(server, options.SSLConfig)
 		if err != nil {
-			return bouncer.Conn{}, err
+			return AcceptParams{}, err
 		}
-		if !conn.SSLEnabled && options.SSLMode.IsRequired() {
-			return bouncer.Conn{}, errors.New("server rejected SSL encryption")
+		if !params.SSLEnabled && options.SSLMode.IsRequired() {
+			return AcceptParams{}, errors.New("server rejected SSL encryption")
 		}
 	}
 
@@ -301,14 +296,14 @@ func Accept(server zap.Conn, options AcceptOptions) (bouncer.Conn, error) {
 
 	err := server.WritePacket(packet)
 	if err != nil {
-		return bouncer.Conn{}, err
+		return AcceptParams{}, err
 	}
 
 	for {
 		var done bool
 		done, err = startup0(server, options.Credentials)
 		if err != nil {
-			return bouncer.Conn{}, err
+			return AcceptParams{}, err
 		}
 		if done {
 			break
@@ -317,9 +312,9 @@ func Accept(server zap.Conn, options AcceptOptions) (bouncer.Conn, error) {
 
 	for {
 		var done bool
-		done, err = startup1(&conn)
+		done, err = startup1(server, &params)
 		if err != nil {
-			return bouncer.Conn{}, err
+			return AcceptParams{}, err
 		}
 		if done {
 			break
@@ -327,5 +322,5 @@ func Accept(server zap.Conn, options AcceptOptions) (bouncer.Conn, error) {
 	}
 
 	// startup complete, connection is ready for queries
-	return conn, nil
+	return params, nil
 }

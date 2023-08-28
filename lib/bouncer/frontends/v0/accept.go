@@ -1,13 +1,9 @@
 package frontends
 
 import (
-	"crypto/rand"
-	"errors"
 	"fmt"
 	"strings"
 
-	"pggat2/lib/auth"
-	"pggat2/lib/bouncer"
 	"pggat2/lib/perror"
 	"pggat2/lib/util/slices"
 	"pggat2/lib/util/strutil"
@@ -16,10 +12,11 @@ import (
 )
 
 func startup0(
-	client *bouncer.Conn,
+	conn zap.Conn,
+	params *AcceptParams,
 	options AcceptOptions,
 ) (done bool, err perror.Error) {
-	packet, err2 := client.RW.ReadPacket(false)
+	packet, err2 := conn.ReadPacket(false)
 	if err2 != nil {
 		err = perror.Wrap(err2)
 		return
@@ -35,35 +32,40 @@ func startup0(
 		switch minorVersion {
 		case 5678:
 			// Cancel
-			p.ReadBytes(client.BackendKey[:])
+			p.ReadBytes(params.CancelKey[:])
 
-			options.Pooler.Cancel(client.BackendKey)
+			if params.CancelKey == [8]byte{} {
+				// very rare that this would ever happen
+				// and it's ok if we don't honor cancel requests
+				err = perror.New(
+					perror.FATAL,
+					perror.ProtocolViolation,
+					"cancel key cannot be null",
+				)
+				return
+			}
 
-			err = perror.New(
-				perror.FATAL,
-				perror.ProtocolViolation,
-				"Expected client to disconnect",
-			)
+			done = true
 			return
 		case 5679:
 			// ssl is not enabled
 			if options.SSLConfig == nil {
-				err = perror.Wrap(client.RW.WriteByte('N'))
+				err = perror.Wrap(conn.WriteByte('N'))
 				return
 			}
 
 			// do ssl
-			if err = perror.Wrap(client.RW.WriteByte('S')); err != nil {
+			if err = perror.Wrap(conn.WriteByte('S')); err != nil {
 				return
 			}
-			if err = perror.Wrap(client.RW.EnableSSLServer(options.SSLConfig)); err != nil {
+			if err = perror.Wrap(conn.EnableSSLServer(options.SSLConfig)); err != nil {
 				return
 			}
-			client.SSLEnabled = true
+			params.SSLEnabled = true
 			return
 		case 5680:
 			// GSSAPI is not supported yet
-			err = perror.Wrap(client.RW.WriteByte('N'))
+			err = perror.Wrap(conn.WriteByte('N'))
 			return
 		default:
 			err = perror.New(
@@ -98,9 +100,9 @@ func startup0(
 
 		switch key {
 		case "user":
-			client.User = value
+			params.User = value
 		case "database":
-			client.Database = value
+			params.Database = value
 		case "options":
 			fields := strings.Fields(value)
 			for i := 0; i < len(fields); i++ {
@@ -130,10 +132,10 @@ func startup0(
 						return
 					}
 
-					if client.InitialParameters == nil {
-						client.InitialParameters = make(map[strutil.CIString]string)
+					if params.InitialParameters == nil {
+						params.InitialParameters = make(map[strutil.CIString]string)
 					}
-					client.InitialParameters[ikey] = value
+					params.InitialParameters[ikey] = value
 				default:
 					err = perror.New(
 						perror.FATAL,
@@ -166,10 +168,10 @@ func startup0(
 					return
 				}
 
-				if client.InitialParameters == nil {
-					client.InitialParameters = make(map[strutil.CIString]string)
+				if params.InitialParameters == nil {
+					params.InitialParameters = make(map[strutil.CIString]string)
 				}
-				client.InitialParameters[ikey] = value
+				params.InitialParameters[ikey] = value
 			}
 		}
 	}
@@ -181,13 +183,13 @@ func startup0(
 			UnrecognizedOptions:  unsupportedOptions,
 		}
 
-		err = perror.Wrap(client.RW.WritePacket(uopts.IntoPacket()))
+		err = perror.Wrap(conn.WritePacket(uopts.IntoPacket()))
 		if err != nil {
 			return
 		}
 	}
 
-	if client.User == "" {
+	if params.User == "" {
 		err = perror.New(
 			perror.FATAL,
 			perror.InvalidAuthorizationSpecification,
@@ -195,125 +197,21 @@ func startup0(
 		)
 		return
 	}
-	if client.Database == "" {
-		client.Database = client.User
+	if params.Database == "" {
+		params.Database = params.User
 	}
 
 	done = true
 	return
 }
 
-func authenticationSASLInitial(client zap.Conn, creds auth.SASL) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {
-	// check which authentication method the client wants
-	packet, err2 := client.ReadPacket(true)
-	if err2 != nil {
-		err = perror.Wrap(err2)
-		return
-	}
-	var initialResponse packets.SASLInitialResponse
-	if !initialResponse.ReadFromPacket(packet) {
-		err = packets.ErrBadFormat
-		return
-	}
-
-	tool, err2 = creds.VerifySASL(initialResponse.Mechanism)
-	if err2 != nil {
-		err = perror.Wrap(err2)
-		return
-	}
-
-	resp, err2 = tool.Write(initialResponse.InitialResponse)
-	if err2 != nil {
-		if errors.Is(err2, auth.ErrSASLComplete) {
-			done = true
-			return
-		}
-		err = perror.Wrap(err2)
-		return
-	}
-	return
-}
-
-func authenticationSASLContinue(client zap.Conn, tool auth.SASLVerifier) (resp []byte, done bool, err perror.Error) {
-	packet, err2 := client.ReadPacket(true)
-	if err2 != nil {
-		err = perror.Wrap(err2)
-		return
-	}
-	var authResp packets.AuthenticationResponse
-	if !authResp.ReadFromPacket(packet) {
-		err = packets.ErrBadFormat
-		return
-	}
-
-	resp, err2 = tool.Write(authResp)
-	if err2 != nil {
-		if errors.Is(err2, auth.ErrSASLComplete) {
-			done = true
-			return
-		}
-		err = perror.Wrap(err2)
-		return
-	}
-	return
-}
-
-func authenticationSASL(client zap.Conn, creds auth.SASL) perror.Error {
-	saslInitial := packets.AuthenticationSASL{
-		Mechanisms: creds.SupportedSASLMechanisms(),
-	}
-	err := perror.Wrap(client.WritePacket(saslInitial.IntoPacket()))
-	if err != nil {
-		return err
-	}
-
-	tool, resp, done, err := authenticationSASLInitial(client, creds)
-	if err != nil {
-		return err
-	}
-
-	for {
-		if done {
-			final := packets.AuthenticationSASLFinal(resp)
-			err = perror.Wrap(client.WritePacket(final.IntoPacket()))
-			if err != nil {
-				return err
-			}
-			break
-		} else {
-			cont := packets.AuthenticationSASLContinue(resp)
-			err = perror.Wrap(client.WritePacket(cont.IntoPacket()))
-			if err != nil {
-				return err
-			}
-		}
-
-		resp, done, err = authenticationSASLContinue(client, tool)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func updateParameter(client zap.Conn, name, value string) perror.Error {
-	ps := packets.ParameterStatus{
-		Key:   name,
-		Value: value,
-	}
-	return perror.Wrap(client.WritePacket(ps.IntoPacket()))
-}
-
 func accept(
 	client zap.Conn,
 	options AcceptOptions,
-) (conn bouncer.Conn, err perror.Error) {
-	conn.RW = client
-
+) (params AcceptParams, err perror.Error) {
 	for {
 		var done bool
-		done, err = startup0(&conn, options)
+		done, err = startup0(client, &params, options)
 		if err != nil {
 			return
 		}
@@ -322,70 +220,16 @@ func accept(
 		}
 	}
 
-	if options.SSLRequired && !conn.SSLEnabled {
+	if params.CancelKey != [8]byte{} {
+		return
+	}
+
+	if options.SSLRequired && !params.SSLEnabled {
 		err = perror.New(
 			perror.FATAL,
 			perror.InvalidPassword,
 			"SSL is required",
 		)
-		return
-	}
-
-	creds := options.Pooler.GetUserCredentials(conn.User, conn.Database)
-	if creds == nil {
-		err = perror.New(
-			perror.FATAL,
-			perror.InvalidPassword,
-			"User or database not found",
-		)
-		return
-	}
-	if credsSASL, ok := creds.(auth.SASL); ok {
-		err = authenticationSASL(client, credsSASL)
-	} else {
-		err = perror.New(
-			perror.FATAL,
-			perror.InternalError,
-			"Auth method not supported",
-		)
-	}
-	if err != nil {
-		return
-	}
-
-	// send auth Ok
-	authOk := packets.AuthenticationOk{}
-	if err = perror.Wrap(client.WritePacket(authOk.IntoPacket())); err != nil {
-		return
-	}
-
-	// send backend key data
-	_, err2 := rand.Read(conn.BackendKey[:])
-	if err2 != nil {
-		err = perror.Wrap(err2)
-		return
-	}
-
-	keyData := packets.BackendKeyData{
-		CancellationKey: conn.BackendKey,
-	}
-	if err = perror.Wrap(client.WritePacket(keyData.IntoPacket())); err != nil {
-		return
-	}
-
-	if err = updateParameter(client, "client_encoding", "UTF8"); err != nil {
-		return
-	}
-	if err = updateParameter(client, "server_encoding", "UTF8"); err != nil {
-		return
-	}
-	if err = updateParameter(client, "server_version", "14.5"); err != nil {
-		return
-	}
-
-	// send ready for query
-	rfq := packets.ReadyForQuery('I')
-	if err = perror.Wrap(client.WritePacket(rfq.IntoPacket())); err != nil {
 		return
 	}
 
@@ -399,11 +243,11 @@ func fail(client zap.Conn, err perror.Error) {
 	_ = client.WritePacket(resp.IntoPacket())
 }
 
-func Accept(client zap.Conn, options AcceptOptions) (bouncer.Conn, perror.Error) {
-	conn, err := accept(client, options)
+func Accept(client zap.Conn, options AcceptOptions) (AcceptParams, perror.Error) {
+	params, err := accept(client, options)
 	if err != nil {
 		fail(client, err)
-		return bouncer.Conn{}, err
+		return AcceptParams{}, err
 	}
-	return conn, nil
+	return params, nil
 }

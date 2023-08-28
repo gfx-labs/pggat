@@ -6,4 +6,5 @@ type Error interface {
 	Message() string
 	Extra() []ExtraField
 	String() string
+	Error() string
 }

@@ -1,228 +1,241 @@
 package gat
 
 import (
-	"sync"
-	"time"
-
+	"github.com/google/uuid"
 	"tuxpa.in/a/zlog/log"
 
-	"github.com/google/uuid"
-
-	"pggat2/lib/bouncer"
+	"pggat2/lib/auth"
 	"pggat2/lib/bouncer/backends/v0"
-	"pggat2/lib/util/maps"
+	"pggat2/lib/bouncer/bouncers/v2"
+	"pggat2/lib/bouncer/frontends/v0"
+	"pggat2/lib/middleware/interceptor"
+	"pggat2/lib/middleware/middlewares/unterminate"
 	"pggat2/lib/util/maths"
-	"pggat2/lib/util/slices"
-	"pggat2/lib/util/strutil"
+	"pggat2/lib/zap"
 )
 
-type Context struct {
-	OnWait chan<- struct{}
-}
-
-type RawPool interface {
-	Serve(ctx *Context, client bouncer.Conn)
-
-	AddServer(server bouncer.Conn) uuid.UUID
-	GetServer(id uuid.UUID) bouncer.Conn
-	RemoveServer(id uuid.UUID) bouncer.Conn
-
-	// LookupCorresponding finds the corresponding server and key for a particular client
-	LookupCorresponding(key [8]byte) (uuid.UUID, [8]byte, bool)
-
-	ScaleDown(amount int) (remaining int)
-	IdleSince() time.Time
-}
-
-type BaseRawPoolConfig struct {
-	TrackedParameters []strutil.CIString
-}
-
-type PoolRecipe struct {
-	removed bool
-	servers []uuid.UUID
-	mu      sync.Mutex
-
-	r Recipe
+type poolRecipe struct {
+	recipe  Recipe
+	servers map[uuid.UUID]struct{}
 }
 
 type Pool struct {
-	config PoolConfig
+	options PoolOptions
 
-	recipes maps.RWLocked[string, *PoolRecipe]
+	recipes map[string]*poolRecipe
 
-	ctx Context
-	raw RawPool
+	servers map[uuid.UUID]zap.Conn
+	clients map[uuid.UUID]zap.Conn
 }
 
-type PoolConfig struct {
-	// IdleTimeout determines how long idle servers are kept in the pool
-	IdleTimeout time.Duration
+type PoolOptions struct {
+	Credentials      auth.Credentials
+	Pooler           Pooler
+	ServerResetQuery string
 }
 
-func NewPool(raw RawPool, config PoolConfig) *Pool {
-	onWait := make(chan struct{})
-	pool := &Pool{
-		config: config,
-		ctx: Context{
-			OnWait: onWait,
-		},
-		raw: raw,
+func NewPool(options PoolOptions) *Pool {
+	return &Pool{
+		options: options,
 	}
-
-	go func() {
-		for range onWait {
-			pool.ScaleUp(1)
-		}
-	}()
-
-	if config.IdleTimeout != 0 {
-		go func() {
-			for {
-				var wait time.Duration
-
-				now := time.Now()
-				idle := pool.IdleSince()
-				for now.Sub(idle) > config.IdleTimeout {
-					if idle == (time.Time{}) {
-						break
-					}
-					pool.ScaleDown(1)
-					idle = pool.IdleSince()
-				}
-
-				if idle == (time.Time{}) {
-					wait = config.IdleTimeout
-				} else {
-					wait = now.Sub(idle.Add(config.IdleTimeout))
-				}
-
-				time.Sleep(wait)
-			}
-		}()
-	}
-
-	return pool
 }
 
-func (T *Pool) _tryAddServers(recipe *PoolRecipe, amount int) (remaining int) {
-	remaining = amount
+func (T *Pool) GetCredentials() auth.Credentials {
+	return T.options.Credentials
+}
 
-	if recipe.removed {
+func (T *Pool) scale(name string, amount int) {
+	recipe := T.recipes[name]
+	if recipe == nil {
 		return
 	}
 
-	j := 0
-	for i := 0; i < len(recipe.servers); i++ {
-		if T.raw.GetServer(recipe.servers[i]).RW != nil {
-			recipe.servers[j] = recipe.servers[i]
-			j++
-		}
-	}
-	recipe.servers = recipe.servers[:j]
+	target := maths.Clamp(len(recipe.servers)+amount, recipe.recipe.MinConnections, recipe.recipe.MaxConnections)
+	diff := target - len(recipe.servers)
 
-	var max = amount
-	maxConnections := recipe.r.GetMaxConnections()
-	if maxConnections != 0 {
-		max = maths.Min(maxConnections-j, max)
-	}
-	for i := 0; i < max; i++ {
-		conn, err := recipe.r.Connect()
+	for diff > 0 {
+		diff--
+
+		// add server
+		server, params, err := recipe.recipe.Dialer.Dial()
 		if err != nil {
-			log.Printf("error connecting to server: %v", err)
+			log.Printf("failed to connect to server: %v", err)
 			continue
 		}
 
-		id := T.raw.AddServer(conn)
-		recipe.servers = append(recipe.servers, id)
-		remaining--
+		_ = params // TODO(garet)
+
+		serverID := T.addServer(server)
+		if recipe.servers == nil {
+			recipe.servers = make(map[uuid.UUID]struct{})
+		}
+		recipe.servers[serverID] = struct{}{}
 	}
 
-	return
-}
+	for diff < 0 {
+		diff++
 
-func (T *Pool) tryAddServers(recipe *PoolRecipe, amount int) (remaining int) {
-	recipe.mu.Lock()
-	defer recipe.mu.Unlock()
-
-	return T._tryAddServers(recipe, amount)
-}
-
-func (T *Pool) addRecipe(recipe *PoolRecipe) {
-	recipe.mu.Lock()
-	defer recipe.mu.Unlock()
-
-	recipe.removed = false
-	min := recipe.r.GetMinConnections() - len(recipe.servers)
-	T._tryAddServers(recipe, min)
-}
-
-func (T *Pool) removeRecipe(recipe *PoolRecipe) {
-	recipe.mu.Lock()
-	defer recipe.mu.Unlock()
-
-	recipe.removed = true
-	for _, id := range recipe.servers {
-		if conn := T.raw.RemoveServer(id); conn.RW != nil {
-			_ = conn.RW.Close()
+		// remove server
+		for s := range recipe.servers {
+			T.removeServer(s)
+			break
 		}
 	}
-
-	recipe.servers = recipe.servers[:0]
-}
-
-func (T *Pool) ScaleUp(amount int) (remaining int) {
-	remaining = amount
-	T.recipes.Range(func(_ string, r *PoolRecipe) bool {
-		remaining = T.tryAddServers(r, remaining)
-		return remaining != 0
-	})
-	return remaining
-}
-
-func (T *Pool) ScaleDown(amount int) (remaining int) {
-	return T.raw.ScaleDown(amount)
-}
-
-func (T *Pool) IdleSince() time.Time {
-	return T.raw.IdleSince()
 }
 
 func (T *Pool) AddRecipe(name string, recipe Recipe) {
-	r := &PoolRecipe{
-		r: recipe,
+	if T.recipes == nil {
+		T.recipes = make(map[string]*poolRecipe)
 	}
-	T.addRecipe(r)
-	if old, ok := T.recipes.Swap(name, r); ok {
-		T.removeRecipe(old)
+
+	T.recipes[name] = &poolRecipe{
+		recipe: recipe,
 	}
+
+	T.scale(name, 0)
 }
 
 func (T *Pool) RemoveRecipe(name string) {
-	if r, ok := T.recipes.LoadAndDelete(name); ok {
-		T.removeRecipe(r)
+	if recipe, ok := T.recipes[name]; ok {
+		recipe.recipe.MaxConnections = 0
+		T.scale(name, 0)
+		delete(T.recipes, name)
 	}
 }
 
-func (T *Pool) Serve(conn bouncer.Conn) {
-	T.raw.Serve(&T.ctx, conn)
+func (T *Pool) addClient(
+	client zap.Conn,
+) uuid.UUID {
+	clientID := uuid.New()
+	T.options.Pooler.AddClient(clientID)
+
+	if T.clients == nil {
+		T.clients = make(map[uuid.UUID]zap.Conn)
+	}
+	T.clients[clientID] = client
+	return clientID
 }
 
-func (T *Pool) Cancel(key [8]byte) {
-	server, cancelKey, ok := T.raw.LookupCorresponding(key)
-	if !ok {
-		return
+func (T *Pool) removeClient(
+	clientID uuid.UUID,
+) {
+	T.options.Pooler.RemoveClient(clientID)
+	if client, ok := T.clients[clientID]; ok {
+		_ = client.Close()
+		delete(T.clients, clientID)
 	}
-	T.recipes.Range(func(_ string, recipe *PoolRecipe) bool {
-		if slices.Contains(recipe.servers, server) {
-			rw, err := recipe.r.Dial()
-			if err != nil {
-				return false
-			}
-			// error doesn't matter
-			_ = backends.Cancel(rw, cancelKey)
-			return false
+}
+
+func (T *Pool) addServer(
+	server zap.Conn,
+) uuid.UUID {
+	serverID := uuid.New()
+	T.options.Pooler.AddServer(serverID)
+
+	if T.servers == nil {
+		T.servers = make(map[uuid.UUID]zap.Conn)
+	}
+	T.servers[serverID] = server
+	return serverID
+}
+
+func (T *Pool) acquireServer(
+	clientID uuid.UUID,
+) (serverID uuid.UUID, server zap.Conn) {
+	serverID = T.options.Pooler.AcquireConcurrent(clientID)
+	if serverID == uuid.Nil {
+		// TODO(garet) scale up
+		serverID = T.options.Pooler.AcquireAsync(clientID)
+	}
+
+	server = T.servers[serverID]
+	return
+}
+
+func (T *Pool) removeServer(
+	serverID uuid.UUID,
+) {
+	T.options.Pooler.RemoveServer(serverID)
+	if server, ok := T.servers[serverID]; ok {
+		_ = server.Close()
+		delete(T.servers, serverID)
+	}
+}
+
+func (T *Pool) tryReleaseServer(
+	serverID uuid.UUID,
+) bool {
+	if !T.options.Pooler.CanRelease(serverID) {
+		return false
+	}
+	T.releaseServer(serverID)
+	return true
+}
+
+func (T *Pool) releaseServer(
+	serverID uuid.UUID,
+) {
+	if T.options.ServerResetQuery != "" {
+		server := T.servers[serverID]
+		err := backends.QueryString(new(backends.Context), server, T.options.ServerResetQuery)
+		if err != nil {
+			T.removeServer(serverID)
+			return
 		}
-		return true
-	})
+	}
+	T.options.Pooler.Release(serverID)
+}
+
+func (T *Pool) Serve(
+	client zap.Conn,
+	acceptParams frontends.AcceptParams,
+	authParams frontends.AuthenticateParams,
+) error {
+	client = interceptor.NewInterceptor(
+		client,
+		unterminate.Unterminate,
+		// TODO(garet) add middlewares based on Pool.options
+	)
+
+	defer func() {
+		_ = client.Close()
+	}()
+
+	clientID := T.addClient(client)
+
+	var serverID uuid.UUID
+	var server zap.Conn
+
+	defer func() {
+		if serverID != uuid.Nil {
+			T.releaseServer(serverID)
+		}
+	}()
+
+	for {
+		packet, err := client.ReadPacket(true)
+		if err != nil {
+			return err
+		}
+
+		if serverID == uuid.Nil {
+			serverID, server = T.acquireServer(clientID)
+		}
+		clientErr, serverErr := bouncers.Bounce(client, server, packet)
+		if serverErr != nil {
+			T.removeServer(serverID)
+			serverID = uuid.Nil
+			server = nil
+			return serverErr
+		} else {
+			if T.tryReleaseServer(serverID) {
+				serverID = uuid.Nil
+				server = nil
+			}
+		}
+
+		if clientErr != nil {
+			return clientErr
+		}
+	}
 }

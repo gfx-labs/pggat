@@ -1,124 +1,27 @@
 package gat
 
-import (
-	"net"
+import "github.com/google/uuid"
 
-	"pggat2/lib/auth"
-	"pggat2/lib/bouncer"
-	"pggat2/lib/bouncer/frontends/v0"
-	"pggat2/lib/middleware/interceptor"
-	"pggat2/lib/middleware/middlewares/unterminate"
-	"pggat2/lib/util/maps"
-	"pggat2/lib/util/slices"
-	"pggat2/lib/util/strutil"
-	"pggat2/lib/zap"
-)
+type Pooler interface {
+	AddClient(client uuid.UUID)
+	RemoveClient(client uuid.UUID)
 
-type Pooler struct {
-	config PoolerConfig
+	AddServer(server uuid.UUID)
+	RemoveServer(server uuid.UUID)
 
-	// key -> pool for cancellation
-	keys maps.RWLocked[[8]byte, *Pool]
+	// AcquireConcurrent tries to acquire a peer for the client without stalling.
+	// Returns uuid.Nil if no peer can be acquired
+	AcquireConcurrent(client uuid.UUID) uuid.UUID
 
-	users maps.RWLocked[string, *User]
+	// AcquireAsync will stall until a peer is available.
+	AcquireAsync(client uuid.UUID) uuid.UUID
+
+	// CanRelease will check if a server can be released after a transaction.
+	// Some poolers (such as session poolers) do not release servers after each transaction.
+	// Returns true if Release could be called.
+	CanRelease(server uuid.UUID) bool
+
+	// Release will force release the server.
+	// This should be called when the paired client has disconnected, or after CanRelease returns true.
+	Release(server uuid.UUID)
 }
-
-type PoolerConfig struct {
-	AllowedStartupParameters []strutil.CIString
-	SSLMode                  bouncer.SSLMode
-}
-
-func NewPooler(config PoolerConfig) *Pooler {
-	return &Pooler{
-		config: config,
-	}
-}
-
-func (T *Pooler) AddUser(user *User) {
-	T.users.Store(user.GetCredentials().GetUsername(), user)
-}
-
-func (T *Pooler) RemoveUser(name string) {
-	T.users.Delete(name)
-}
-
-func (T *Pooler) GetUser(name string) *User {
-	user, _ := T.users.Load(name)
-	return user
-}
-
-func (T *Pooler) GetUserCredentials(user, database string) auth.Credentials {
-	u := T.GetUser(user)
-	if u == nil {
-		return nil
-	}
-	d := u.GetPool(database)
-	if d == nil {
-		return nil
-	}
-	return u.GetCredentials()
-}
-
-func (T *Pooler) Cancel(key [8]byte) {
-	pool, ok := T.keys.Load(key)
-	if !ok {
-		return
-	}
-
-	pool.Cancel(key)
-}
-
-func (T *Pooler) IsStartupParameterAllowed(parameter strutil.CIString) bool {
-	return slices.Contains(T.config.AllowedStartupParameters, parameter)
-}
-
-func (T *Pooler) Serve(client zap.Conn) {
-	defer func() {
-		_ = client.Close()
-	}()
-
-	client = interceptor.NewInterceptor(
-		client,
-		unterminate.Unterminate,
-	)
-
-	conn, err := frontends.Accept(
-		client,
-		frontends.AcceptOptions{
-			SSLRequired: T.config.SSLMode.IsRequired(),
-			// TODO(garet) SSL Config
-			Pooler:                T,
-			AllowedStartupOptions: T.config.AllowedStartupParameters,
-		},
-	)
-	if err != nil {
-		return
-	}
-
-	user := T.GetUser(conn.User)
-	if user == nil {
-		return
-	}
-
-	pool := user.GetPool(conn.Database)
-	if pool == nil {
-		return
-	}
-
-	T.keys.Store(conn.BackendKey, pool)
-	defer T.keys.Delete(conn.BackendKey)
-
-	pool.Serve(conn)
-}
-
-func (T *Pooler) ListenAndServe(listener net.Listener) error {
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			return err
-		}
-		go T.Serve(zap.WrapNetConn(conn))
-	}
-}
-
-var _ bouncer.Pooler = (*Pooler)(nil)
