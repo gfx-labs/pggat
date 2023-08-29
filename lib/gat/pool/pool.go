@@ -39,17 +39,24 @@ type poolRecipe struct {
 type Pool struct {
 	options Options
 
-	maxServers int
-	recipes    map[string]*poolRecipe
-	servers    map[uuid.UUID]poolServer
-	clients    map[uuid.UUID]zap.Conn
-	mu         sync.Mutex
+	recipes map[string]*poolRecipe
+	servers map[uuid.UUID]poolServer
+	clients map[uuid.UUID]zap.Conn
+	mu      sync.Mutex
 }
 
 func NewPool(options Options) *Pool {
-	return &Pool{
+	p := &Pool{
 		options: options,
 	}
+
+	if options.ServerIdleTimeout != 0 {
+		go func() {
+			// TODO(garet) check pool for idle servers
+		}()
+	}
+
+	return p
 }
 
 func (T *Pool) GetCredentials() auth.Credentials {
@@ -62,6 +69,7 @@ func (T *Pool) _scaleUpRecipe(name string) {
 	server, params, err := r.recipe.Dialer.Dial()
 	if err != nil {
 		log.Printf("failed to dial server: %v", err)
+		return
 	}
 
 	serverID := uuid.New()
@@ -103,7 +111,6 @@ func (T *Pool) AddRecipe(name string, recipe Recipe) {
 	if T.recipes == nil {
 		T.recipes = make(map[string]*poolRecipe)
 	}
-	T.maxServers += recipe.MaxConnections
 	T.recipes[name] = &poolRecipe{
 		recipe: recipe,
 		count:  0,
@@ -118,9 +125,6 @@ func (T *Pool) RemoveRecipe(name string) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	if r, ok := T.recipes[name]; ok {
-		T.maxServers -= r.count
-	}
 	delete(T.recipes, name)
 
 	// close all servers with this recipe
@@ -138,11 +142,13 @@ func (T *Pool) scaleUp() {
 	defer T.mu.Unlock()
 
 	for name, r := range T.recipes {
-		if r.count < r.recipe.MaxConnections {
+		if r.recipe.MaxConnections == 0 || r.count < r.recipe.MaxConnections {
 			T._scaleUpRecipe(name)
 			return
 		}
 	}
+
+	log.Println("warning: tried to scale up pool but no space was available")
 }
 
 func (T *Pool) syncInitialParameters(
@@ -185,21 +191,16 @@ func (T *Pool) syncInitialParameters(
 			continue
 		}
 
-		if slices.Contains(T.options.TrackedParameters, key) {
-			serverErr = backends.ResetParameter(new(backends.Context), server, key)
-			if serverErr != nil {
-				return
-			}
-		} else {
-			// send to client
-			p := packets.ParameterStatus{
-				Key:   key.String(),
-				Value: value,
-			}
-			clientErr = client.WritePacket(p.IntoPacket())
-			if clientErr != nil {
-				return
-			}
+		// Don't need to run reset on server because it will reset it to the initial value
+
+		// send to client
+		p := packets.ParameterStatus{
+			Key:   key.String(),
+			Value: value,
+		}
+		clientErr = client.WritePacket(p.IntoPacket())
+		if clientErr != nil {
+			return
 		}
 	}
 
@@ -270,7 +271,7 @@ func (T *Pool) Serve(
 				server.eqpServer.SetClient(eqpClient)
 			}
 		}
-		if clientErr != nil && serverErr != nil {
+		if clientErr == nil && serverErr == nil {
 			clientErr, serverErr = bouncers.Bounce(client, server.conn, packet)
 		}
 		if serverErr != nil {
@@ -351,4 +352,9 @@ func (T *Pool) removeServer(serverID uuid.UUID) {
 	defer T.mu.Unlock()
 
 	T._removeServer(serverID)
+}
+
+func (T *Pool) Cancel(key [8]byte) error {
+	// TODO(garet) implement cancel
+	return nil
 }

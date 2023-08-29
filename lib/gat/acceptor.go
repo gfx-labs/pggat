@@ -3,6 +3,7 @@ package gat
 import (
 	"net"
 
+	"pggat2/lib/auth"
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/zap"
 )
@@ -37,22 +38,59 @@ func Listen(network, address string, options frontends.AcceptOptions) (Acceptor,
 	}, nil
 }
 
-func Serve(acceptor Acceptor, gat *Gat) error {
+func serve(client zap.Conn, acceptParams frontends.AcceptParams, pools Pools) error {
+	defer func() {
+		_ = client.Close()
+	}()
+
+	if acceptParams.CancelKey != [8]byte{} {
+		p := pools.LookupKey(acceptParams.CancelKey)
+		if p == nil {
+			return nil
+		}
+		return p.Cancel(acceptParams.CancelKey)
+	}
+
+	p := pools.Lookup(acceptParams.User, acceptParams.Database)
+
+	var credentials auth.Credentials
+	if p != nil {
+		credentials = p.GetCredentials()
+	}
+
+	authParams, err := frontends.Authenticate(client, frontends.AuthenticateOptions{
+		Credentials: credentials,
+	})
+	if err != nil {
+		return err
+	}
+
+	if p == nil {
+		return nil
+	}
+
+	pools.RegisterKey(authParams.BackendKey, acceptParams.User, acceptParams.Database)
+	defer pools.UnregisterKey(authParams.BackendKey)
+
+	return p.Serve(client, acceptParams, authParams)
+}
+
+func Serve(acceptor Acceptor, pools Pools) error {
 	for {
-		conn, params, err := acceptor.Accept()
+		conn, acceptParams, err := acceptor.Accept()
 		if err != nil {
 			continue
 		}
 		go func() {
-			_ = gat.Serve(conn, params)
+			_ = serve(conn, acceptParams, pools)
 		}()
 	}
 }
 
-func ListenAndServe(network, address string, options frontends.AcceptOptions, gat *Gat) error {
+func ListenAndServe(network, address string, options frontends.AcceptOptions, pools Pools) error {
 	listener, err := Listen(network, address, options)
 	if err != nil {
 		return err
 	}
-	return Serve(listener, gat)
+	return Serve(listener, pools)
 }

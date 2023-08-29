@@ -46,26 +46,22 @@ func Load() (Config, error) {
 }
 
 func (T *Config) ListenAndServe() error {
-	g := new(gat.Gat)
+	pools := new(gat.PoolsMap)
 
 	creds := credentials.Cleartext{
 		Username: T.PGUser,
 		Password: T.PGPassword,
 	}
 
-	/* TODO(garet)
-	user := gat.NewUser(creds)
-	g.AddUser(user)
-	*/
-
 	var p *pool.Pool
 	if T.PoolerMode == "transaction" {
-		// p = transaction.NewPool(pool.Options{})
+		panic("transaction mode not implemented yet")
+		// TODO(garet) p = transaction.NewPool(pool.Options{})
 	} else {
 		p = session.NewPool(pool.Options{})
 	}
 
-	// TODO(garet) add to gat
+	pools.Add(T.PGUser, "test", p)
 
 	p.AddRecipe("zalando", pool.Recipe{
 		Dialer: pool.NetDialer{
@@ -87,7 +83,7 @@ func (T *Config) ListenAndServe() error {
 
 		log.Printf("listening on %s", listen)
 
-		return gat.ListenAndServe("tcp", listen, frontends.AcceptOptions{}, g)
+		return gat.ListenAndServe("tcp", listen, frontends.AcceptOptions{}, pools)
 	})
 
 	return bank.Wait()

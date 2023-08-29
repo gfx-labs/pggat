@@ -10,6 +10,7 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
+	"pggat2/lib/bouncer"
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/gat/pool"
@@ -42,17 +43,6 @@ const (
 	AuthTypeAny         AuthType = "any"
 	AuthTypeHba         AuthType = "hba"
 	AuthTypePam         AuthType = "pam"
-)
-
-type SSLMode string
-
-const (
-	SSLModeDisable    SSLMode = "disable"
-	SSLModeAllow      SSLMode = "allow"
-	SSLModePrefer     SSLMode = "prefer"
-	SSLModeRequire    SSLMode = "require"
-	SSLModeVerifyCa   SSLMode = "verify-ca"
-	SSLModeVerifyFull SSLMode = "verify-full"
 )
 
 type TLSProtocol string
@@ -130,7 +120,7 @@ type PgBouncer struct {
 	DnsNxdomainTtl          float64            `ini:"dns_nxdomain_ttl"`
 	DnsZoneCheckPeriod      float64            `ini:"dns_zone_check_period"`
 	ResolvConf              string             `ini:"resolv.conf"`
-	ClientTLSSSLMode        SSLMode            `ini:"client_tls_sslmode"`
+	ClientTLSSSLMode        bouncer.SSLMode    `ini:"client_tls_sslmode"`
 	ClientTLSKeyFile        string             `ini:"client_tls_key_file"`
 	ClientTLSCertFile       string             `ini:"client_tls_cert_file"`
 	ClientTLSCaFile         string             `ini:"client_tls_ca_file"`
@@ -138,7 +128,7 @@ type PgBouncer struct {
 	ClientTLSCiphers        []TLSCipher        `ini:"client_tls_ciphers"`
 	ClientTLSECDHCurve      TLSECDHCurve       `ini:"client_tls_ecdhcurve"`
 	ClientTLSDHEParams      TLSDHEParams       `ini:"client_tls_dheparams"`
-	ServerTLSSSLMode        SSLMode            `ini:"server_tls_sslmode"`
+	ServerTLSSSLMode        bouncer.SSLMode    `ini:"server_tls_sslmode"`
 	ServerTLSCaFile         string             `ini:"server_tls_ca_file"`
 	ServerTLSKeyFile        string             `ini:"server_tls_key_file"`
 	ServerTLSCertFile       string             `ini:"server_tls_cert_file"`
@@ -229,7 +219,7 @@ var Default = Config{
 		AutodbIdleTimeout:    3600.0,
 		DnsMaxTtl:            15.0,
 		DnsNxdomainTtl:       15.0,
-		ClientTLSSSLMode:     SSLModeDisable,
+		ClientTLSSSLMode:     bouncer.SSLModeDisable,
 		ClientTLSProtocols: []TLSProtocol{
 			TLSProtocolSecure,
 		},
@@ -237,7 +227,7 @@ var Default = Config{
 			"fast",
 		},
 		ClientTLSECDHCurve: "auto",
-		ServerTLSSSLMode:   SSLModePrefer,
+		ServerTLSSSLMode:   bouncer.SSLModePrefer,
 		ServerTLSProtocols: []TLSProtocol{
 			TLSProtocolSecure,
 		},
@@ -282,7 +272,7 @@ func (T *Config) ListenAndServe() error {
 		AllowedStartupOptions: allowedStartupParameters,
 	}
 
-	g := new(gat.Gat)
+	pools := new(gat.PoolsMap)
 
 	var authFile map[string]string
 	if T.PgBouncer.AuthFile != "" {
@@ -302,10 +292,6 @@ func (T *Config) ListenAndServe() error {
 			Username: name,
 			Password: authFile[name], // TODO(garet) md5 and sasl
 		}
-		/* TODO(garet)
-		u := gat.NewUser(creds)
-		g.AddUser(u)
-		*/
 
 		for dbname, db := range T.Databases {
 			// filter out dbs specific to users
@@ -329,7 +315,9 @@ func (T *Config) ListenAndServe() error {
 			}
 
 			poolOptions := pool.Options{
+				Credentials:       creds,
 				TrackedParameters: trackedParameters,
+				ServerResetQuery:  T.PgBouncer.ServerResetQuery,
 				ServerIdleTimeout: time.Duration(T.PgBouncer.ServerIdleTimeout * float64(time.Second)),
 			}
 
@@ -338,12 +326,16 @@ func (T *Config) ListenAndServe() error {
 			case PoolModeSession:
 				p = session.NewPool(poolOptions)
 			case PoolModeTransaction:
+				if T.PgBouncer.ServerResetQueryAlways == 0 {
+					poolOptions.ServerResetQuery = ""
+				}
+				panic("transaction mode not implemented yet")
 				// TODO(garet)
 			default:
 				return errors.New("unsupported pool mode")
 			}
 
-			// TODO(garet) add to gat
+			pools.Add(name, dbname, p)
 
 			if db.Host == "" {
 				// connect over unix socket
@@ -402,7 +394,7 @@ func (T *Config) ListenAndServe() error {
 
 			log.Printf("listening on %s", listen)
 
-			return gat.ListenAndServe("tcp", listen, acceptOptions, g)
+			return gat.ListenAndServe("tcp", listen, acceptOptions, pools)
 		})
 	}
 
@@ -418,7 +410,7 @@ func (T *Config) ListenAndServe() error {
 
 		log.Printf("listening on unix:%s", dir)
 
-		return gat.ListenAndServe("unix", dir, acceptOptions, g)
+		return gat.ListenAndServe("unix", dir, acceptOptions, pools)
 	})
 
 	return bank.Wait()
