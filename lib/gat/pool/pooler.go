@@ -1,4 +1,4 @@
-package gat
+package pool
 
 import "github.com/google/uuid"
 
@@ -16,10 +16,8 @@ type Pooler interface {
 	// AcquireAsync will stall until a peer is available.
 	AcquireAsync(client uuid.UUID) uuid.UUID
 
-	// CanRelease will check if a server can be released after a transaction.
-	// Some poolers (such as session poolers) do not release servers after each transaction.
-	// Returns true if Release could be called.
-	CanRelease(server uuid.UUID) bool
+	// ReleaseAfterTransaction queries whether servers should be immediately released after a transaction is completed.
+	ReleaseAfterTransaction() bool
 
 	// Release will force release the server.
 	// This should be called when the paired client has disconnected, or after CanRelease returns true.

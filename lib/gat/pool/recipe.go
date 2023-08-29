@@ -1,4 +1,4 @@
-package gat
+package pool
 
 type Recipe struct {
 	Dialer         Dialer

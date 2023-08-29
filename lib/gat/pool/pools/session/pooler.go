@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"pggat2/lib/gat"
+	"pggat2/lib/gat/pool"
 	"pggat2/lib/util/slices"
 )
 
@@ -79,7 +79,7 @@ func (T *Pooler) AcquireAsync(_ uuid.UUID) uuid.UUID {
 	return server
 }
 
-func (*Pooler) CanRelease(_ uuid.UUID) bool {
+func (*Pooler) ReleaseAfterTransaction() bool {
 	// servers are released when the client is removed
 	return false
 }
@@ -93,4 +93,4 @@ func (T *Pooler) Release(server uuid.UUID) {
 	T.queue = append(T.queue, server)
 }
 
-var _ gat.Pooler = (*Pooler)(nil)
+var _ pool.Pooler = (*Pooler)(nil)

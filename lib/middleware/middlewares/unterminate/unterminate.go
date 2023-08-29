@@ -8,6 +8,8 @@ import (
 	packets "pggat2/lib/zap/packets/v3.0"
 )
 
+// Unterminate catches the Terminate packet and returns io.EOF instead.
+// Useful if you don't want to forward to the server and close the connection.
 var Unterminate = unterm{}
 
 type unterm struct {

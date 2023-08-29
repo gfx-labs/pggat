@@ -3,11 +3,12 @@ package gat
 import (
 	"pggat2/lib/auth"
 	"pggat2/lib/bouncer/frontends/v0"
+	"pggat2/lib/gat/pool"
 	"pggat2/lib/zap"
 )
 
 type Gat struct {
-	TestPool *Pool
+	TestPool *pool.Pool
 }
 
 func (T *Gat) Serve(client zap.Conn, acceptParams frontends.AcceptParams) error {
@@ -20,14 +21,14 @@ func (T *Gat) Serve(client zap.Conn, acceptParams frontends.AcceptParams) error 
 		return nil
 	}
 
-	pool, err := T.GetPool(acceptParams.User, acceptParams.Database)
+	p, err := T.GetPool(acceptParams.User, acceptParams.Database)
 	if err != nil {
 		return err
 	}
 
 	var credentials auth.Credentials
-	if pool != nil {
-		credentials = pool.GetCredentials()
+	if p != nil {
+		credentials = p.GetCredentials()
 	}
 
 	authParams, err := frontends.Authenticate(client, frontends.AuthenticateOptions{
@@ -37,14 +38,14 @@ func (T *Gat) Serve(client zap.Conn, acceptParams frontends.AcceptParams) error 
 		return err
 	}
 
-	if pool == nil {
+	if p == nil {
 		return nil
 	}
 
-	return pool.Serve(client, acceptParams, authParams)
+	return p.Serve(client, acceptParams, authParams)
 }
 
-func (T *Gat) GetPool(user, database string) (*Pool, error) {
+func (T *Gat) GetPool(user, database string) (*pool.Pool, error) {
 	return T.TestPool, nil
 	return nil, nil // TODO(garet)
 }

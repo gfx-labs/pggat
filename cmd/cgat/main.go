@@ -12,7 +12,8 @@ import (
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/gat"
-	"pggat2/lib/gat/pools/session"
+	"pggat2/lib/gat/pool"
+	"pggat2/lib/gat/pool/pools/session"
 )
 
 func main() {
@@ -23,14 +24,14 @@ func main() {
 	log.Printf("Starting pggat...")
 
 	g := new(gat.Gat)
-	g.TestPool = session.NewPool(gat.PoolOptions{
+	g.TestPool = session.NewPool(pool.Options{
 		Credentials: credentials.Cleartext{
 			Username: "postgres",
 			Password: "password",
 		},
 	})
-	g.TestPool.AddRecipe("test", gat.Recipe{
-		Dialer: gat.NetDialer{
+	g.TestPool.AddRecipe("test", pool.Recipe{
+		Dialer: pool.NetDialer{
 			Network: "tcp",
 			Address: "localhost:5432",
 
