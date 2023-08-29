@@ -13,6 +13,7 @@ import (
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/gat/pool/pools/session"
+	"pggat2/lib/gat/pool/pools/transaction"
 
 	"pggat2/lib/auth/credentials"
 	"pggat2/lib/gat"
@@ -55,8 +56,7 @@ func (T *Config) ListenAndServe() error {
 
 	var p *pool.Pool
 	if T.PoolerMode == "transaction" {
-		panic("transaction mode not implemented yet")
-		// TODO(garet) p = transaction.NewPool(pool.Options{})
+		p = transaction.NewPool(pool.Options{})
 	} else {
 		p = session.NewPool(pool.Options{})
 	}

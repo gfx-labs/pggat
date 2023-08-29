@@ -15,6 +15,7 @@ import (
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/gat/pool"
 	"pggat2/lib/gat/pool/pools/session"
+	"pggat2/lib/gat/pool/pools/transaction"
 
 	"pggat2/lib/auth/credentials"
 	"pggat2/lib/gat"
@@ -329,8 +330,7 @@ func (T *Config) ListenAndServe() error {
 				if T.PgBouncer.ServerResetQueryAlways == 0 {
 					poolOptions.ServerResetQuery = ""
 				}
-				panic("transaction mode not implemented yet")
-				// TODO(garet)
+				p = transaction.NewPool(poolOptions)
 			default:
 				return errors.New("unsupported pool mode")
 			}
