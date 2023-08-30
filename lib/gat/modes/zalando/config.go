@@ -3,22 +3,12 @@ package zalando
 import (
 	"errors"
 	"fmt"
-	"net"
-	"strconv"
-
-	"tuxpa.in/a/zlog/log"
 
 	"gfx.cafe/util/go/gun"
 
-	"pggat2/lib/bouncer/backends/v0"
-	"pggat2/lib/bouncer/frontends/v0"
-	"pggat2/lib/gat/pool/pools/session"
-	"pggat2/lib/gat/pool/pools/transaction"
-
-	"pggat2/lib/auth/credentials"
-	"pggat2/lib/gat"
-	"pggat2/lib/gat/pool"
-	"pggat2/lib/util/flip"
+	"pggat2/lib/bouncer"
+	"pggat2/lib/gat/modes/pgbouncer"
+	"pggat2/lib/util/strutil"
 )
 
 type Config struct {
@@ -47,44 +37,48 @@ func Load() (Config, error) {
 }
 
 func (T *Config) ListenAndServe() error {
-	pools := new(gat.PoolsMap)
+	pgb := pgbouncer.Default
+	if pgb.Databases == nil {
+		pgb.Databases = make(map[string]pgbouncer.Database)
+	}
+	pgb.Databases["*"] = pgbouncer.Database{
+		Host:     T.PGHost,
+		Port:     T.PGPort,
+		AuthUser: T.PGUser,
+	}
+	pgb.PgBouncer.PoolMode = pgbouncer.PoolMode(T.PoolerMode)
+	pgb.PgBouncer.ListenPort = T.PoolerPort
+	pgb.PgBouncer.ListenAddr = "*"
+	pgb.PgBouncer.AuthType = "md5"
+	pgb.PgBouncer.AuthFile = "/etc/pgbouncer/auth_file.txt"
+	pgb.PgBouncer.AdminUsers = []string{T.PGUser}
+	pgb.PgBouncer.AuthQuery = fmt.Sprintf("SELECT * FROM %s.user_lookup($1)", T.PGSchema)
+	pgb.PgBouncer.LogFile = "/var/olg/pgbouncer/pgbouncer.log"
+	pgb.PgBouncer.PidFile = "/var/run/pgbouncer/pgbouncer.pid"
 
-	creds := credentials.Cleartext{
-		Username: T.PGUser,
-		Password: T.PGPassword,
+	pgb.PgBouncer.ServerTLSSSLMode = bouncer.SSLModeRequire
+	pgb.PgBouncer.ServerTLSCaFile = "/etc/ssl/certs/pgbouncer.crt"
+	pgb.PgBouncer.ServerTLSProtocols = []pgbouncer.TLSProtocol{
+		pgbouncer.TLSProtocolSecure,
+	}
+	pgb.PgBouncer.ClientTLSSSLMode = bouncer.SSLModeRequire
+	pgb.PgBouncer.ClientTLSKeyFile = "/etc/ssl/certs/pgbouncer.key"
+	pgb.PgBouncer.ClientTLSCertFile = "/etc/ssl/certs/pgbouncer.crt"
+
+	pgb.PgBouncer.LogConnections = 0
+	pgb.PgBouncer.LogDisconnections = 0
+
+	pgb.PgBouncer.DefaultPoolSize = T.PoolerDefaultSize
+	pgb.PgBouncer.ReservePoolSize = T.PoolerReserveSize
+	pgb.PgBouncer.MaxClientConn = T.PoolerMaxClientConn
+	pgb.PgBouncer.MaxDBConnections = T.PoolerMaxDBConn
+	pgb.PgBouncer.IdleTransactionTimeout = 600
+	pgb.PgBouncer.ServerLoginRetry = 5
+
+	pgb.PgBouncer.IgnoreStartupParameters = []strutil.CIString{
+		strutil.MakeCIString("extra_float_digits"),
+		strutil.MakeCIString("options"),
 	}
 
-	var p *pool.Pool
-	if T.PoolerMode == "transaction" {
-		p = transaction.NewPool(pool.Options{})
-	} else {
-		p = session.NewPool(pool.Options{})
-	}
-
-	pools.Add(T.PGUser, "test", p)
-
-	p.AddRecipe("zalando", pool.Recipe{
-		Dialer: pool.NetDialer{
-			Network: "tcp",
-			Address: net.JoinHostPort(T.PGHost, strconv.Itoa(T.PGPort)),
-			AcceptOptions: backends.AcceptOptions{
-				Credentials: creds,
-				Database:    "test",
-			},
-		},
-		MinConnections: T.PoolerMinSize,
-		MaxConnections: T.PoolerMaxDBConn,
-	})
-
-	var bank flip.Bank
-
-	bank.Queue(func() error {
-		listen := fmt.Sprintf(":%d", T.PoolerPort)
-
-		log.Printf("listening on %s", listen)
-
-		return gat.ListenAndServe("tcp", listen, frontends.AcceptOptions{}, pools)
-	})
-
-	return bank.Wait()
+	return pgb.ListenAndServe()
 }

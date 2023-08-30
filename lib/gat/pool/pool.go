@@ -267,6 +267,16 @@ func (T *Pool) syncInitialParameters(
 	return
 }
 
+func (T *Pool) Do(fn func(zap.Conn) error) error {
+	id := T.addClient(nil, [8]byte{})
+	defer T.removeClient(id)
+
+	serverID, server := T.acquireServer(id)
+	defer T.releaseServer(serverID)
+
+	return fn(server.conn)
+}
+
 func (T *Pool) Serve(
 	client zap.Conn,
 	accept frontends.AcceptParams,
@@ -300,6 +310,7 @@ func (T *Pool) Serve(
 	)
 
 	clientID := T.addClient(client, auth.BackendKey)
+	defer T.removeClient(clientID)
 
 	var serverID uuid.UUID
 	var server *poolServer
@@ -368,6 +379,14 @@ func (T *Pool) addClient(client zap.Conn, key [8]byte) uuid.UUID {
 	}
 	T.options.Pooler.AddClient(clientID)
 	return clientID
+}
+
+func (T *Pool) removeClient(clientID uuid.UUID) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	delete(T.clients, clientID)
+	T.options.Pooler.RemoveClient(clientID)
 }
 
 func (T *Pool) acquireServer(clientID uuid.UUID) (serverID uuid.UUID, server *poolServer) {

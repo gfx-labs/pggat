@@ -1,26 +1,16 @@
 package pgbouncer
 
 import (
-	"errors"
 	"net"
-	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"tuxpa.in/a/zlog/log"
 
 	"pggat2/lib/bouncer"
-	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/frontends/v0"
-	"pggat2/lib/gat/pool"
-	"pggat2/lib/gat/pool/pools/session"
-	"pggat2/lib/gat/pool/pools/transaction"
-
-	"pggat2/lib/auth/credentials"
 	"pggat2/lib/gat"
 	"pggat2/lib/util/encoding/ini"
-	"pggat2/lib/util/encoding/userlist"
 	"pggat2/lib/util/flip"
 	"pggat2/lib/util/strutil"
 )
@@ -167,6 +157,7 @@ type Database struct {
 	ConnectQuery      string                      `ini:"connect_query"`
 	PoolMode          PoolMode                    `ini:"pool_mode"`
 	MaxDBConnections  int                         `ini:"max_db_connections"`
+	AuthDBName        string                      `ini:"auth_dbname"`
 	StartupParameters map[strutil.CIString]string `ini:"*"`
 }
 
@@ -273,112 +264,9 @@ func (T *Config) ListenAndServe() error {
 		AllowedStartupOptions: allowedStartupParameters,
 	}
 
-	pools := new(gat.PoolsMap)
-
-	var authFile map[string]string
-	if T.PgBouncer.AuthFile != "" {
-		file, err := os.ReadFile(T.PgBouncer.AuthFile)
-		if err != nil {
-			return err
-		}
-
-		authFile, err = userlist.Unmarshal(file)
-		if err != nil {
-			return err
-		}
-	}
-
-	for name, user := range T.Users {
-		creds := credentials.Cleartext{
-			Username: name,
-			Password: authFile[name], // TODO(garet) md5 and sasl
-		}
-
-		for dbname, db := range T.Databases {
-			// filter out dbs specific to users
-			if db.User != "" && db.User != name {
-				continue
-			}
-
-			// override dbname
-			if db.DBName != "" {
-				dbname = db.DBName
-			}
-
-			// override poolmode
-			var poolMode PoolMode
-			if db.PoolMode != "" {
-				poolMode = db.PoolMode
-			} else if user.PoolMode != "" {
-				poolMode = user.PoolMode
-			} else {
-				poolMode = T.PgBouncer.PoolMode
-			}
-
-			poolOptions := pool.Options{
-				Credentials:       creds,
-				TrackedParameters: trackedParameters,
-				ServerResetQuery:  T.PgBouncer.ServerResetQuery,
-				ServerIdleTimeout: time.Duration(T.PgBouncer.ServerIdleTimeout * float64(time.Second)),
-			}
-
-			var p *pool.Pool
-			switch poolMode {
-			case PoolModeSession:
-				p = session.NewPool(poolOptions)
-			case PoolModeTransaction:
-				if T.PgBouncer.ServerResetQueryAlways == 0 {
-					poolOptions.ServerResetQuery = ""
-				}
-				p = transaction.NewPool(poolOptions)
-			default:
-				return errors.New("unsupported pool mode")
-			}
-
-			pools.Add(name, dbname, p)
-
-			if db.Host == "" {
-				// connect over unix socket
-				// TODO(garet)
-			} else {
-				var address string
-				if db.Port == 0 {
-					address = net.JoinHostPort(db.Host, "5432")
-				} else {
-					address = net.JoinHostPort(db.Host, strconv.Itoa(db.Port))
-				}
-
-				creds := creds
-				if db.Password != "" {
-					// lookup password
-					creds.Password = db.Password
-				}
-
-				// connect over tcp
-				dialer := pool.NetDialer{
-					Network: "tcp",
-					Address: address,
-					AcceptOptions: backends.AcceptOptions{
-						Credentials:       creds,
-						Database:          dbname,
-						StartupParameters: db.StartupParameters,
-					},
-				}
-				recipe := pool.Recipe{
-					Dialer:         dialer,
-					MinConnections: db.MinPoolSize,
-					MaxConnections: db.MaxDBConnections,
-				}
-				if recipe.MinConnections == 0 {
-					recipe.MinConnections = T.PgBouncer.MinPoolSize
-				}
-				if recipe.MaxConnections == 0 {
-					recipe.MaxConnections = T.PgBouncer.MaxDBConnections
-				}
-
-				p.AddRecipe("pgbouncer", recipe)
-			}
-		}
+	pools, err := NewPools(T)
+	if err != nil {
+		return err
 	}
 
 	var bank flip.Bank
