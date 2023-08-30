@@ -82,7 +82,7 @@ type PgBouncer struct {
 	StatsPeriod             int                `ini:"stats_period"`
 	AuthType                string             `ini:"auth_type"`
 	AuthHbaFile             string             `ini:"auth_hba_file"`
-	AuthFile                string             `ini:"auth_file"`
+	AuthFile                AuthFile           `ini:"auth_file"`
 	AuthUser                string             `ini:"auth_user"`
 	AuthQuery               string             `ini:"auth_query"`
 	AuthDbname              string             `ini:"auth_dbname"`

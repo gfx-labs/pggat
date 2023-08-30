@@ -50,7 +50,11 @@ func (T *Config) ListenAndServe() error {
 	pgb.PgBouncer.ListenPort = T.PoolerPort
 	pgb.PgBouncer.ListenAddr = "*"
 	pgb.PgBouncer.AuthType = "md5"
-	pgb.PgBouncer.AuthFile = "/etc/pgbouncer/auth_file.txt"
+	pgb.PgBouncer.AuthFile = pgbouncer.AuthFile{
+		Users: map[string]string{
+			T.PGUser: T.PGPassword,
+		},
+	}
 	pgb.PgBouncer.AdminUsers = []string{T.PGUser}
 	pgb.PgBouncer.AuthQuery = fmt.Sprintf("SELECT * FROM %s.user_lookup($1)", T.PGSchema)
 	pgb.PgBouncer.LogFile = "/var/olg/pgbouncer/pgbouncer.log"

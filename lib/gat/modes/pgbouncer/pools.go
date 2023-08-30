@@ -2,7 +2,6 @@ package pgbouncer
 
 import (
 	"net"
-	"os"
 	"strconv"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"pggat2/lib/gat/pool/pools/session"
 	"pggat2/lib/gat/pool/pools/transaction"
 	"pggat2/lib/psql"
-	"pggat2/lib/util/encoding/userlist"
 	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 )
@@ -33,8 +31,6 @@ type poolKey struct {
 type Pools struct {
 	Config *Config
 
-	AuthFile map[string]string
-
 	pools map[poolKey]*pool.Pool
 	keys  map[[8]byte]*pool.Pool
 }
@@ -42,18 +38,6 @@ type Pools struct {
 func NewPools(config *Config) (*Pools, error) {
 	pools := &Pools{
 		Config: config,
-	}
-
-	if config.PgBouncer.AuthFile != "" {
-		file, err := os.ReadFile(config.PgBouncer.AuthFile)
-		if err != nil {
-			return nil, err
-		}
-
-		pools.AuthFile, err = userlist.Unmarshal(file)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return pools, nil
@@ -79,7 +63,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		}
 	}
 
-	password, ok := T.AuthFile[user]
+	password, ok := T.Config.PgBouncer.AuthFile.Users[user]
 	if !ok {
 		// try auth query
 		authUser := db.AuthUser
