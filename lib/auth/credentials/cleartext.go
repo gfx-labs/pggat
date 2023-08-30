@@ -33,8 +33,8 @@ func (T Cleartext) VerifyCleartext(value string) error {
 
 func (T Cleartext) EncodeMD5(salt [4]byte) string {
 	hash := md5.New()
-	hash.Write([]byte(T.Username))
 	hash.Write([]byte(T.Password))
+	hash.Write([]byte(T.Username))
 	sum1 := hash.Sum(nil)
 	hexEncoded := make([]byte, hex.EncodedLen(len(sum1)))
 	hex.Encode(hexEncoded, sum1)
@@ -83,11 +83,6 @@ func MakeCleartextScramEncoder(username, password string, hashGenerator scram.Ha
 }
 
 func (T CleartextScramEncoder) Write(bytes []byte) ([]byte, error) {
-	if bytes == nil {
-		// initial response
-		return nil, nil
-	}
-
 	msg, err := T.conversation.Step(string(bytes))
 	if err != nil {
 		return nil, err

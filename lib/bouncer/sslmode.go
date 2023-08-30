@@ -22,7 +22,7 @@ func (T SSLMode) ShouldAttempt() bool {
 
 func (T SSLMode) IsRequired() bool {
 	switch T {
-	case SSLModeDisable, SSLModeAllow, SSLModeRequire, "":
+	case SSLModeDisable, SSLModeAllow, SSLModePrefer, "":
 		return false
 	default:
 		return true

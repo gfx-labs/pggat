@@ -146,6 +146,7 @@ func startup0(server zap.Conn, creds auth.Credentials) (done bool, err error) {
 				err = ErrBadFormat
 				return
 			}
+
 			c, ok := creds.(auth.MD5)
 			if !ok {
 				return false, auth.ErrMethodNotSupported

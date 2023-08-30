@@ -261,6 +261,8 @@ func (T *Config) ListenAndServe() error {
 	allowedStartupParameters := append(trackedParameters, T.PgBouncer.IgnoreStartupParameters...)
 
 	acceptOptions := frontends.AcceptOptions{
+		SSLRequired: T.PgBouncer.ClientTLSSSLMode.IsRequired(),
+		// TODO(garet) SSL Certificates
 		AllowedStartupOptions: allowedStartupParameters,
 	}
 

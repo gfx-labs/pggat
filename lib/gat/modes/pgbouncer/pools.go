@@ -1,6 +1,7 @@
 package pgbouncer
 
 import (
+	"crypto/tls"
 	"net"
 	"strconv"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"pggat2/lib/gat/pool/pools/session"
 	"pggat2/lib/gat/pool/pools/transaction"
 	"pggat2/lib/psql"
+	"pggat2/lib/util/maps"
 	"pggat2/lib/util/strutil"
 	"pggat2/lib/zap"
 )
@@ -31,8 +33,8 @@ type poolKey struct {
 type Pools struct {
 	Config *Config
 
-	pools map[poolKey]*pool.Pool
-	keys  map[[8]byte]*pool.Pool
+	pools maps.RWLocked[poolKey, *pool.Pool]
+	keys  maps.RWLocked[[8]byte, *pool.Pool]
 }
 
 func NewPools(config *Config) (*Pools, error) {
@@ -48,7 +50,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		User:     user,
 		Database: database,
 	}
-	p := T.pools[key]
+	p, _ := T.pools.Load(key)
 	if p != nil {
 		return p
 	}
@@ -110,9 +112,9 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		Password: password, // TODO(garet) md5 and sasl
 	}
 
-	backendDatabase := database
-	if db.DBName != "" {
-		backendDatabase = db.DBName
+	backendDatabase := db.DBName
+	if backendDatabase == "" {
+		backendDatabase = database
 	}
 
 	configUser := T.Config.Users[user]
@@ -152,13 +154,10 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		return nil
 	}
 
-	if T.pools == nil {
-		T.pools = make(map[poolKey]*pool.Pool)
-	}
-	T.pools[poolKey{
+	T.pools.Store(poolKey{
 		User:     user,
 		Database: database,
-	}] = p
+	}, p)
 
 	if db.Host == "" {
 		// connect over unix socket
@@ -182,6 +181,10 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 			Network: "tcp",
 			Address: address,
 			AcceptOptions: backends.AcceptOptions{
+				SSLMode: T.Config.PgBouncer.ServerTLSSSLMode,
+				SSLConfig: &tls.Config{
+					InsecureSkipVerify: true, // TODO(garet)
+				},
 				Credentials:       creds,
 				Database:          backendDatabase,
 				StartupParameters: db.StartupParameters,
@@ -210,18 +213,16 @@ func (T *Pools) RegisterKey(key [8]byte, user, database string) {
 	if p == nil {
 		return
 	}
-	if T.keys == nil {
-		T.keys = make(map[[8]byte]*pool.Pool)
-	}
-	T.keys[key] = p
+	T.keys.Store(key, p)
 }
 
 func (T *Pools) UnregisterKey(key [8]byte) {
-	delete(T.keys, key)
+	T.keys.Delete(key)
 }
 
 func (T *Pools) LookupKey(key [8]byte) *pool.Pool {
-	return T.keys[key]
+	p, _ := T.keys.Load(key)
+	return p
 }
 
 var _ gat.Pools = (*Pools)(nil)

@@ -57,7 +57,7 @@ func (T *Config) ListenAndServe() error {
 	}
 	pgb.PgBouncer.AdminUsers = []string{T.PGUser}
 	pgb.PgBouncer.AuthQuery = fmt.Sprintf("SELECT * FROM %s.user_lookup($1)", T.PGSchema)
-	pgb.PgBouncer.LogFile = "/var/olg/pgbouncer/pgbouncer.log"
+	pgb.PgBouncer.LogFile = "/var/log/pgbouncer/pgbouncer.log"
 	pgb.PgBouncer.PidFile = "/var/run/pgbouncer/pgbouncer.pid"
 
 	pgb.PgBouncer.ServerTLSSSLMode = bouncer.SSLModeRequire
