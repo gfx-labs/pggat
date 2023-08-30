@@ -16,7 +16,6 @@ Send each session to a new node. This mode supports all postgres features, but w
 
 ## Unsupported features
 One day these will maybe be supported
-- Cancelling in flight queries
 - Reserve pool (for serving long-stalled clients)
 - Auth methods other than plaintext, MD5, and SASL-SCRAM-SHA256
 - GSSAPI

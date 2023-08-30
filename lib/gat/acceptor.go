@@ -48,6 +48,7 @@ func serve(client zap.Conn, acceptParams frontends.AcceptParams, pools Pools) er
 		if p == nil {
 			return nil
 		}
+
 		return p.Cancel(acceptParams.CancelKey)
 	}
 

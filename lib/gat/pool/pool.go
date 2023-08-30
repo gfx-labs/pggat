@@ -44,12 +44,17 @@ type poolRecipe struct {
 	count  atomic.Int64
 }
 
+type poolClient struct {
+	conn zap.Conn
+	key  [8]byte
+}
+
 type Pool struct {
 	options Options
 
 	recipes map[string]*poolRecipe
 	servers map[uuid.UUID]*poolServer
-	clients map[uuid.UUID]zap.Conn
+	clients map[uuid.UUID]poolClient
 	mu      sync.Mutex
 }
 
@@ -287,7 +292,7 @@ func (T *Pool) Serve(
 		middlewares...,
 	)
 
-	clientID := T.addClient(client)
+	clientID := T.addClient(client, auth.BackendKey)
 
 	var serverID uuid.UUID
 	var server *poolServer
@@ -341,16 +346,19 @@ func (T *Pool) Serve(
 	}
 }
 
-func (T *Pool) addClient(client zap.Conn) uuid.UUID {
+func (T *Pool) addClient(client zap.Conn, key [8]byte) uuid.UUID {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
 	clientID := uuid.New()
 
 	if T.clients == nil {
-		T.clients = make(map[uuid.UUID]zap.Conn)
+		T.clients = make(map[uuid.UUID]poolClient)
 	}
-	T.clients[clientID] = client
+	T.clients[clientID] = poolClient{
+		conn: client,
+		key:  key,
+	}
 	T.options.Pooler.AddClient(clientID)
 	return clientID
 }
@@ -420,6 +428,50 @@ func (T *Pool) removeServer(serverID uuid.UUID) {
 }
 
 func (T *Pool) Cancel(key [8]byte) error {
-	// TODO(garet) implement cancel
-	return nil
+	dialer, backendKey := func() (Dialer, [8]byte) {
+		T.mu.Lock()
+		defer T.mu.Unlock()
+
+		var clientID uuid.UUID
+		for id, client := range T.clients {
+			if client.key == key {
+				clientID = id
+				break
+			}
+		}
+
+		if clientID == uuid.Nil {
+			return nil, [8]byte{}
+		}
+
+		// get peer
+		var recipe string
+		var serverKey [8]byte
+		var ok bool
+		for _, server := range T.servers {
+			if server.peer == clientID {
+				recipe = server.recipe
+				serverKey = server.accept.BackendKey
+				ok = true
+				break
+			}
+		}
+
+		if !ok {
+			return nil, [8]byte{}
+		}
+
+		r, ok := T.recipes[recipe]
+		if !ok {
+			return nil, [8]byte{}
+		}
+
+		return r.recipe.Dialer, serverKey
+	}()
+
+	if dialer == nil {
+		return nil
+	}
+
+	return dialer.Cancel(backendKey)
 }

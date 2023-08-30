@@ -9,6 +9,7 @@ import (
 
 type Dialer interface {
 	Dial() (zap.Conn, backends.AcceptParams, error)
+	Cancel(cancelKey [8]byte) error
 }
 
 type NetDialer struct {
@@ -30,4 +31,16 @@ func (T NetDialer) Dial() (zap.Conn, backends.AcceptParams, error) {
 	}
 
 	return conn, params, nil
+}
+
+func (T NetDialer) Cancel(cancelKey [8]byte) error {
+	c, err := net.Dial(T.Network, T.Address)
+	if err != nil {
+		return err
+	}
+	conn := zap.WrapNetConn(c)
+	defer func() {
+		_ = conn.Close()
+	}()
+	return backends.Cancel(conn, cancelKey)
 }
