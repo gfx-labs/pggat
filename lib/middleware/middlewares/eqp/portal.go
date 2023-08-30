@@ -22,5 +22,6 @@ func ReadBind(in zap.Packet) (destination string, portal Portal, ok bool) {
 
 	portal.packet = in
 	portal.hash = maphash.Bytes(seed, portal.packet.Payload())
+	ok = true
 	return
 }

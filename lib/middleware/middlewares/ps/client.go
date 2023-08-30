@@ -27,7 +27,7 @@ func (T *Client) Write(ctx middleware.Context, packet zap.Packet) error {
 	case packets.TypeParameterStatus:
 		var ps packets.ParameterStatus
 		if !ps.ReadFromPacket(packet) {
-			return errors.New("bad packet format")
+			return errors.New("bad packet format i")
 		}
 		ikey := strutil.MakeCIString(ps.Key)
 		if T.parameters[ikey] == ps.Value {

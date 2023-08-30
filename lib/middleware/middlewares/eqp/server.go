@@ -279,7 +279,7 @@ func (T *Server) Read(ctx middleware.Context, packet zap.Packet) error {
 	case packets.TypeReadyForQuery:
 		var state packets.ReadyForQuery
 		if !state.ReadFromPacket(packet) {
-			return errors.New("bad packet format")
+			return errors.New("bad packet format h")
 		}
 		if state == 'I' {
 			// clobber all portals

@@ -145,6 +145,13 @@ func (T *Pool) _scaleUpRecipe(name string) {
 		middlewares = append(middlewares, eqpServer)
 	}
 
+	if len(middlewares) > 0 {
+		server = interceptor.NewInterceptor(
+			server,
+			middlewares...,
+		)
+	}
+
 	T.servers[serverID] = &poolServer{
 		conn:   server,
 		accept: params,

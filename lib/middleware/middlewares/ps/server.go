@@ -26,7 +26,7 @@ func (T *Server) Read(_ middleware.Context, packet zap.Packet) error {
 	case packets.TypeParameterStatus:
 		var ps packets.ParameterStatus
 		if !ps.ReadFromPacket(packet) {
-			return errors.New("bad packet format")
+			return errors.New("bad packet format j")
 		}
 		ikey := strutil.MakeCIString(ps.Key)
 		if T.parameters == nil {

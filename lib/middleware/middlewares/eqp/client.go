@@ -44,7 +44,7 @@ func (T *Client) Write(_ middleware.Context, packet zap.Packet) error {
 	case packets.TypeReadyForQuery:
 		var readyForQuery packets.ReadyForQuery
 		if !readyForQuery.ReadFromPacket(packet) {
-			return errors.New("bad packet format")
+			return errors.New("bad packet format a")
 		}
 		if readyForQuery == 'I' {
 			// clobber all named portals
@@ -70,7 +70,7 @@ func (T *Client) Read(ctx middleware.Context, packet zap.Packet) error {
 
 		destination, preparedStatement, ok := ReadParse(packet)
 		if !ok {
-			return errors.New("bad packet format")
+			return errors.New("bad packet format b")
 		}
 
 		T.preparedStatements[destination] = preparedStatement
@@ -86,7 +86,7 @@ func (T *Client) Read(ctx middleware.Context, packet zap.Packet) error {
 
 		destination, portal, ok := ReadBind(packet)
 		if !ok {
-			return errors.New("bad packet format")
+			return errors.New("bad packet format c")
 		}
 
 		T.portals[destination] = portal
@@ -102,7 +102,7 @@ func (T *Client) Read(ctx middleware.Context, packet zap.Packet) error {
 
 		var p packets.Close
 		if !p.ReadFromPacket(packet) {
-			return errors.New("bad packet format")
+			return errors.New("bad packet format d")
 		}
 		switch p.Which {
 		case 'S':
@@ -110,7 +110,7 @@ func (T *Client) Read(ctx middleware.Context, packet zap.Packet) error {
 		case 'P':
 			T.deletePortal(p.Target)
 		default:
-			return errors.New("bad packet format")
+			return errors.New("bad packet format e")
 		}
 
 		// send close complete
@@ -123,7 +123,7 @@ func (T *Client) Read(ctx middleware.Context, packet zap.Packet) error {
 		// ensure target exists
 		var describe packets.Describe
 		if !describe.ReadFromPacket(packet) {
-			return errors.New("bad packet format")
+			return errors.New("bad packet format f")
 		}
 		switch describe.Which {
 		case 'S', 'P':
@@ -134,7 +134,7 @@ func (T *Client) Read(ctx middleware.Context, packet zap.Packet) error {
 	case packets.TypeExecute:
 		var execute packets.Execute
 		if !execute.ReadFromPacket(packet) {
-			return errors.New("bad packet format")
+			return errors.New("bad packet format g")
 		}
 	}
 	return nil

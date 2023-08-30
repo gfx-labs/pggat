@@ -21,5 +21,6 @@ func ReadParse(packet zap.Packet) (destination string, preparedStatement Prepare
 
 	preparedStatement.packet = packet
 	preparedStatement.hash = maphash.Bytes(seed, preparedStatement.packet.Payload())
+	ok = true
 	return
 }
