@@ -1,19 +1,31 @@
 package rob
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 )
 
 type Scheduler interface {
-	AddWorker(constraints Constraints, worker Worker) uuid.UUID
-	GetWorker(id uuid.UUID) Worker
-	GetIdleWorker() (uuid.UUID, time.Time)
-	RemoveWorker(id uuid.UUID) Worker
-	WorkerCount() int
+	AddWorker(worker uuid.UUID)
+	RemoveWorker(worker uuid.UUID)
 
-	NewSource() Worker
+	AddUser(user uuid.UUID)
+	RemoveUser(user uuid.UUID)
 
-	ReadMetrics(metrics *Metrics)
+	// AcquireConcurrent tries to acquire a peer for the user without stalling.
+	// Returns uuid.Nil if no peer can be acquired
+	AcquireConcurrent(user uuid.UUID) uuid.UUID
+	// AcquireAsync will stall until a peer is available
+	AcquireAsync(user uuid.UUID) uuid.UUID
+
+	// Release will release a worker.
+	// This should be called after acquire unless the worker is removed with RemoveWorker
+	Release(worker uuid.UUID)
+}
+
+func Acquire(scheduler Scheduler, user uuid.UUID) uuid.UUID {
+	if s := scheduler.AcquireConcurrent(user); s != uuid.Nil {
+		return s
+	}
+
+	return scheduler.AcquireAsync(user)
 }
