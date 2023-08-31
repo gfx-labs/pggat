@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"io"
-	"log"
 	"net"
 )
 
@@ -50,7 +49,6 @@ func (T *netConn) EnableSSLServer(config *tls.Config) error {
 	if err := T.flush(); err != nil {
 		return err
 	}
-	defer log.Println("done enabling ssl")
 	sslConn := tls.Server(T.conn, config)
 	T.conn = sslConn
 	T.w = sslConn
