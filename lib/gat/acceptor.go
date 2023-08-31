@@ -80,10 +80,12 @@ func Serve(acceptor Acceptor, pools Pools) error {
 	for {
 		conn, acceptParams, err := acceptor.Accept()
 		if err != nil {
+			// log.Println("error accepting", err)
 			continue
 		}
 		go func() {
 			_ = serve(conn, acceptParams, pools)
+			// log.Println("error serving", err)
 		}()
 	}
 }

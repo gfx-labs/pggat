@@ -1,6 +1,7 @@
 package pgbouncer
 
 import (
+	"crypto/tls"
 	"net"
 	"strconv"
 	"strings"
@@ -260,9 +261,22 @@ func (T *Config) ListenAndServe() error {
 
 	allowedStartupParameters := append(trackedParameters, T.PgBouncer.IgnoreStartupParameters...)
 
+	var sslConfig *tls.Config
+	if T.PgBouncer.ClientTLSCertFile != "" && T.PgBouncer.ClientTLSKeyFile != "" {
+		certificate, err := tls.LoadX509KeyPair(T.PgBouncer.ClientTLSCertFile, T.PgBouncer.ClientTLSKeyFile)
+		if err != nil {
+			return err
+		}
+		sslConfig = &tls.Config{
+			Certificates: []tls.Certificate{
+				certificate,
+			},
+		}
+	}
+
 	acceptOptions := frontends.AcceptOptions{
-		SSLRequired: T.PgBouncer.ClientTLSSSLMode.IsRequired(),
-		// TODO(garet) SSL Certificates
+		SSLRequired:           T.PgBouncer.ClientTLSSSLMode.IsRequired(),
+		SSLConfig:             sslConfig,
 		AllowedStartupOptions: allowedStartupParameters,
 	}
 

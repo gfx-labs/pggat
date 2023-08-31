@@ -5,10 +5,15 @@ WORKDIR /src
 COPY . .
 
 RUN go mod tidy
-RUN go build -o pggat ./cmd/cgat
+RUN go build -o cgat ./cmd/cgat
 
 FROM alpine:latest
 WORKDIR /bin
-COPY --from=GOBUILDER /src/pggat pggat
+RUN addgroup -S pgbouncer && adduser -S pgbouncer && mkdir -p /etc/pgbouncer /var/log/pgbouncer /var/run/pgbouncer
+COPY --from=GOBUILDER /src/cgat.sh run.sh
+COPY --from=GOBUILDER /src/cgat pggat
+RUN apk add openssl
+RUN chown -R pgbouncer:pgbouncer /var/log/pgbouncer /var/run/pgbouncer /etc/pgbouncer /etc/ssl/certs
+USER pgbouncer:pgbouncer
 
-ENTRYPOINT ["/bin/pggat"]
+ENTRYPOINT ["/bin/run.sh"]
