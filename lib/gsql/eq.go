@@ -1,45 +1,27 @@
-package psql
+package gsql
 
 import (
 	"reflect"
 	"strconv"
 
-	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/fed"
 	packets "pggat2/lib/fed/packets/v3.0"
 )
 
-func Query(server fed.ReadWriter, result any, query string, args ...any) error {
-	res := reflect.ValueOf(result)
-
+func (T *Client) ExtendedQuery(result any, query string, args ...any) error {
 	if len(args) == 0 {
-		// simple query
-
-		w := resultWriter{
-			result: res,
-		}
-		ctx := backends.Context{
-			Peer: fed.CombinedReadWriter{
-				Reader: eofReader{},
-				Writer: &w,
-			},
-		}
-		if err := backends.QueryString(&ctx, server, query); err != nil {
-			return err
-		}
-		if w.err != nil {
-			return w.err
-		}
-
+		T.Query(query, result)
 		return nil
 	}
 
-	// must use eqp
+	T.mu.Lock()
+	defer T.mu.Unlock()
 
 	// parse
 	parse := packets.Parse{
 		Query: query,
 	}
+	T.queuePackets(parse.IntoPacket())
 
 	// bind
 	params := make([][]byte, 0, len(args))
@@ -69,6 +51,8 @@ outer:
 			} else {
 				value = []byte{'f'}
 			}
+		case reflect.Invalid:
+			value = nil
 		default:
 			return ErrUnexpectedType
 		}
@@ -77,42 +61,23 @@ outer:
 	bind := packets.Bind{
 		ParameterValues: params,
 	}
+	T.queuePackets(bind.IntoPacket())
 
 	// describe
 	describe := packets.Describe{
 		Which: 'P',
 	}
+	T.queuePackets(describe.IntoPacket())
 
 	// execute
 	execute := packets.Execute{}
+	T.queuePackets(execute.IntoPacket())
 
 	// sync
 	sync := fed.NewPacket(packets.TypeSync)
+	T.queuePackets(sync)
 
-	w := resultWriter{
-		result: res,
-	}
-	r := packetReader{
-		packets: []fed.Packet{
-			bind.IntoPacket(),
-			describe.IntoPacket(),
-			execute.IntoPacket(),
-			sync,
-		},
-	}
-	ctx := backends.Context{
-		Peer: fed.CombinedReadWriter{
-			Reader: &r,
-			Writer: &w,
-		},
-	}
-
-	if err := backends.Transaction(&ctx, server, parse.IntoPacket()); err != nil {
-		return err
-	}
-	if w.err != nil {
-		return w.err
-	}
-
+	// result
+	T.queueResults(NewQueryWriter(result))
 	return nil
 }

@@ -1,4 +1,4 @@
-package psql
+package gsql
 
 import (
 	"errors"
@@ -9,18 +9,25 @@ import (
 	packets "pggat2/lib/fed/packets/v3.0"
 )
 
-type resultWriter struct {
+type RowWriter struct {
 	result reflect.Value
 	rd     packets.RowDescription
-	err    error
 	row    int
+	done   bool
 }
 
-func (T *resultWriter) WriteByte(_ byte) error {
-	return nil
+func MakeRowWriter(result any) RowWriter {
+	return RowWriter{
+		result: reflect.ValueOf(result),
+	}
 }
 
-func (T *resultWriter) set(i int, row []byte) error {
+func NewRowWriter(result any) *RowWriter {
+	w := MakeRowWriter(result)
+	return &w
+}
+
+func (T *RowWriter) set(i int, col []byte) error {
 	if i >= len(T.rd.Fields) {
 		return ErrExtraFields
 	}
@@ -136,7 +143,7 @@ outer2:
 		return ErrUnexpectedType
 	}
 
-	if row == nil {
+	if col == nil {
 		if result.Kind() == reflect.Pointer {
 			if result.IsNil() {
 				return nil
@@ -166,35 +173,35 @@ outer2:
 	typ = result.Type()
 	switch kind {
 	case reflect.String:
-		result.SetString(string(row))
+		result.SetString(string(col))
 		return nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		x, err := strconv.ParseUint(string(row), 10, 64)
+		x, err := strconv.ParseUint(string(col), 10, 64)
 		if err != nil {
 			return err
 		}
 		result.SetUint(x)
 		return nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		x, err := strconv.ParseInt(string(row), 10, 64)
+		x, err := strconv.ParseInt(string(col), 10, 64)
 		if err != nil {
 			return err
 		}
 		result.SetInt(x)
 		return nil
 	case reflect.Float32, reflect.Float64:
-		x, err := strconv.ParseFloat(string(row), 64)
+		x, err := strconv.ParseFloat(string(col), 64)
 		if err != nil {
 			return err
 		}
 		result.SetFloat(x)
 		return nil
 	case reflect.Bool:
-		if len(row) != 1 {
+		if len(col) != 1 {
 			return ErrUnexpectedType
 		}
 		var x bool
-		switch row[0] {
+		switch col[0] {
 		case 'f':
 			x = false
 		case 't':
@@ -209,10 +216,7 @@ outer2:
 	}
 }
 
-func (T *resultWriter) WritePacket(packet fed.Packet) error {
-	if T.err != nil {
-		return ErrFailed
-	}
+func (T *RowWriter) WritePacket(packet fed.Packet) error {
 	switch packet.Type() {
 	case packets.TypeRowDescription:
 		if !T.rd.ReadFromPacket(packet) {
@@ -223,9 +227,8 @@ func (T *resultWriter) WritePacket(packet fed.Packet) error {
 		if !dr.ReadFromPacket(packet) {
 			return errors.New("invalid format")
 		}
-		for i, row := range dr.Columns {
-			if err := T.set(i, row); err != nil {
-				T.err = err
+		for i, col := range dr.Columns {
+			if err := T.set(i, col); err != nil {
 				return err
 			}
 		}
@@ -235,9 +238,16 @@ func (T *resultWriter) WritePacket(packet fed.Packet) error {
 		if !err.ReadFromPacket(packet) {
 			return errors.New("invalid format")
 		}
-		T.err = errors.New(err.Error.String())
+		return err.Error
+	case packets.TypeCommandComplete:
+		T.done = true
+		return nil
 	}
 	return nil
 }
 
-var _ fed.Writer = (*resultWriter)(nil)
+func (T *RowWriter) Done() bool {
+	return T.done
+}
+
+var _ ResultWriter = (*RowWriter)(nil)

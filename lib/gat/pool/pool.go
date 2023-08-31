@@ -267,16 +267,6 @@ func (T *Pool) syncInitialParameters(
 	return
 }
 
-func (T *Pool) Do(fn func(fed.Conn) error) error {
-	id := T.addClient(nil, [8]byte{})
-	defer T.removeClient(id)
-
-	serverID, server := T.acquireServer(id)
-	defer T.releaseServer(serverID)
-
-	return fn(server.conn)
-}
-
 func (T *Pool) Serve(
 	client fed.Conn,
 	accept frontends.AcceptParams,

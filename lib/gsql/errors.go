@@ -1,4 +1,4 @@
-package psql
+package gsql
 
 import "errors"
 
@@ -7,5 +7,4 @@ var (
 	ErrExtraFields        = errors.New("received unexpected fields")
 	ErrResultMustBeNonNil = errors.New("result must be non nil")
 	ErrUnexpectedType     = errors.New("unexpected result type")
-	ErrFailed             = errors.New("failed")
 )

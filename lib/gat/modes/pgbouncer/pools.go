@@ -10,12 +10,12 @@ import (
 
 	"pggat2/lib/auth/credentials"
 	"pggat2/lib/bouncer/backends/v0"
-	"pggat2/lib/fed"
+	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/gat"
 	"pggat2/lib/gat/pool"
 	"pggat2/lib/gat/pool/pools/session"
 	"pggat2/lib/gat/pool/pools/transaction"
-	"pggat2/lib/psql"
+	"pggat2/lib/gsql"
 	"pggat2/lib/util/maps"
 	"pggat2/lib/util/strutil"
 )
@@ -94,9 +94,18 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		}
 
 		var result authQueryResult
-		err := authPool.Do(func(server fed.Conn) error {
-			return psql.Query(server, &result, T.Config.PgBouncer.AuthQuery, user)
-		})
+		client := new(gsql.Client)
+		err := client.ExtendedQuery(&result, T.Config.PgBouncer.AuthQuery, user)
+		if err != nil {
+			log.Println("auth query failed:", err)
+			return nil
+		}
+		err = client.Close()
+		if err != nil {
+			log.Println("auth query failed:", err)
+			return nil
+		}
+		err = authPool.Serve(client, frontends.AcceptParams{}, frontends.AuthenticateParams{})
 		if err != nil {
 			log.Println("auth query failed:", err)
 			return nil
