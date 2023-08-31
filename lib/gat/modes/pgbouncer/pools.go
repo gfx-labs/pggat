@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"tuxpa.in/a/zlog/log"
@@ -172,9 +173,43 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		Database: database,
 	}, p)
 
-	if db.Host == "" {
+	var dialer pool.Dialer
+
+	dbCreds := creds
+	if db.Password != "" {
+		// lookup password
+		dbCreds = credentials.FromString(user, db.Password)
+	}
+
+	acceptOptions := backends.AcceptOptions{
+		SSLMode: T.Config.PgBouncer.ServerTLSSSLMode,
+		SSLConfig: &tls.Config{
+			InsecureSkipVerify: true, // TODO(garet)
+		},
+		Credentials:       dbCreds,
+		Database:          backendDatabase,
+		StartupParameters: db.StartupParameters,
+	}
+
+	if db.Host == "" || strings.HasPrefix(db.Host, "/") {
 		// connect over unix socket
-		// TODO(garet)
+		dir := db.Host
+		port := db.Port
+		if !strings.HasPrefix(dir, "/") {
+			dir = dir + "/"
+		}
+
+		if port == 0 {
+			port = 5432
+		}
+
+		dir = dir + ".s.PGSQL." + strconv.Itoa(port)
+
+		dialer = pool.NetDialer{
+			Network:       "unix",
+			Address:       dir,
+			AcceptOptions: acceptOptions,
+		}
 	} else {
 		var address string
 		if db.Port == 0 {
@@ -183,40 +218,27 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 			address = net.JoinHostPort(db.Host, strconv.Itoa(db.Port))
 		}
 
-		creds := creds
-		if db.Password != "" {
-			// lookup password
-			creds = credentials.FromString(user, db.Password)
-		}
-
 		// connect over tcp
-		dialer := pool.NetDialer{
-			Network: "tcp",
-			Address: address,
-			AcceptOptions: backends.AcceptOptions{
-				SSLMode: T.Config.PgBouncer.ServerTLSSSLMode,
-				SSLConfig: &tls.Config{
-					InsecureSkipVerify: true, // TODO(garet)
-				},
-				Credentials:       creds,
-				Database:          backendDatabase,
-				StartupParameters: db.StartupParameters,
-			},
+		dialer = pool.NetDialer{
+			Network:       "tcp",
+			Address:       address,
+			AcceptOptions: acceptOptions,
 		}
-		recipe := pool.Recipe{
-			Dialer:         dialer,
-			MinConnections: db.MinPoolSize,
-			MaxConnections: db.MaxDBConnections,
-		}
-		if recipe.MinConnections == 0 {
-			recipe.MinConnections = T.Config.PgBouncer.MinPoolSize
-		}
-		if recipe.MaxConnections == 0 {
-			recipe.MaxConnections = T.Config.PgBouncer.MaxDBConnections
-		}
-
-		p.AddRecipe("pgbouncer", recipe)
 	}
+
+	recipe := pool.Recipe{
+		Dialer:         dialer,
+		MinConnections: db.MinPoolSize,
+		MaxConnections: db.MaxDBConnections,
+	}
+	if recipe.MinConnections == 0 {
+		recipe.MinConnections = T.Config.PgBouncer.MinPoolSize
+	}
+	if recipe.MaxConnections == 0 {
+		recipe.MaxConnections = T.Config.PgBouncer.MaxDBConnections
+	}
+
+	p.AddRecipe("pgbouncer", recipe)
 
 	return p
 }
