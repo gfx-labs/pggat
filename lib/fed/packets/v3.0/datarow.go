@@ -1,15 +1,15 @@
 package packets
 
 import (
+	"pggat2/lib/fed"
 	"pggat2/lib/util/slices"
-	"pggat2/lib/zap"
 )
 
 type DataRow struct {
 	Columns [][]byte
 }
 
-func (T *DataRow) ReadFromPacket(packet zap.Packet) bool {
+func (T *DataRow) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeDataRow {
 		return false
 	}
@@ -30,13 +30,13 @@ func (T *DataRow) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *DataRow) IntoPacket() zap.Packet {
+func (T *DataRow) IntoPacket() fed.Packet {
 	size := 2
 	for _, v := range T.Columns {
 		size += len(v) + 4
 	}
 
-	packet := zap.NewPacket(TypeDataRow, size)
+	packet := fed.NewPacket(TypeDataRow, size)
 	packet = packet.AppendUint16(uint16(len(T.Columns)))
 	for _, v := range T.Columns {
 		if v == nil {

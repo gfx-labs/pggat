@@ -1,8 +1,8 @@
 package packets
 
 import (
+	"pggat2/lib/fed"
 	"pggat2/lib/util/slices"
-	"pggat2/lib/zap"
 )
 
 type Parse struct {
@@ -11,7 +11,7 @@ type Parse struct {
 	ParameterDataTypes []int32
 }
 
-func (T *Parse) ReadFromPacket(packet zap.Packet) bool {
+func (T *Parse) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeParse {
 		return false
 	}
@@ -26,8 +26,8 @@ func (T *Parse) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *Parse) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeParse, len(T.Destination)+len(T.Query)+4+len(T.ParameterDataTypes)*4)
+func (T *Parse) IntoPacket() fed.Packet {
+	packet := fed.NewPacket(TypeParse, len(T.Destination)+len(T.Query)+4+len(T.ParameterDataTypes)*4)
 	packet = packet.AppendString(T.Destination)
 	packet = packet.AppendString(T.Query)
 	packet = packet.AppendInt16(int16(len(T.ParameterDataTypes)))

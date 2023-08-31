@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"strconv"
 
-	"pggat2/lib/zap"
-	packets "pggat2/lib/zap/packets/v3.0"
+	"pggat2/lib/fed"
+	packets "pggat2/lib/fed/packets/v3.0"
 )
 
 type resultWriter struct {
@@ -209,7 +209,7 @@ outer2:
 	}
 }
 
-func (T *resultWriter) WritePacket(packet zap.Packet) error {
+func (T *resultWriter) WritePacket(packet fed.Packet) error {
 	if T.err != nil {
 		return ErrFailed
 	}
@@ -240,4 +240,4 @@ func (T *resultWriter) WritePacket(packet zap.Packet) error {
 	return nil
 }
 
-var _ zap.Writer = (*resultWriter)(nil)
+var _ fed.Writer = (*resultWriter)(nil)

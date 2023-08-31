@@ -5,13 +5,13 @@ import (
 	"errors"
 
 	"pggat2/lib/auth"
+	"pggat2/lib/fed"
+	packets "pggat2/lib/fed/packets/v3.0"
 	"pggat2/lib/util/strutil"
-	"pggat2/lib/zap"
-	packets "pggat2/lib/zap/packets/v3.0"
 )
 
-func authenticationSASLChallenge(server zap.Conn, encoder auth.SASLEncoder) (done bool, err error) {
-	var packet zap.Packet
+func authenticationSASLChallenge(server fed.Conn, encoder auth.SASLEncoder) (done bool, err error) {
+	var packet fed.Packet
 	packet, err = server.ReadPacket(true)
 	if err != nil {
 		return
@@ -51,7 +51,7 @@ func authenticationSASLChallenge(server zap.Conn, encoder auth.SASLEncoder) (don
 	}
 }
 
-func authenticationSASL(server zap.Conn, mechanisms []string, creds auth.SASL) error {
+func authenticationSASL(server fed.Conn, mechanisms []string, creds auth.SASL) error {
 	mechanism, encoder, err := creds.EncodeSASL(mechanisms)
 	if err != nil {
 		return err
@@ -85,7 +85,7 @@ func authenticationSASL(server zap.Conn, mechanisms []string, creds auth.SASL) e
 	return nil
 }
 
-func authenticationMD5(server zap.Conn, salt [4]byte, creds auth.MD5) error {
+func authenticationMD5(server fed.Conn, salt [4]byte, creds auth.MD5) error {
 	pw := packets.PasswordMessage{
 		Password: creds.EncodeMD5(salt),
 	}
@@ -96,7 +96,7 @@ func authenticationMD5(server zap.Conn, salt [4]byte, creds auth.MD5) error {
 	return nil
 }
 
-func authenticationCleartext(server zap.Conn, creds auth.Cleartext) error {
+func authenticationCleartext(server fed.Conn, creds auth.Cleartext) error {
 	pw := packets.PasswordMessage{
 		Password: creds.EncodeCleartext(),
 	}
@@ -107,8 +107,8 @@ func authenticationCleartext(server zap.Conn, creds auth.Cleartext) error {
 	return nil
 }
 
-func startup0(server zap.Conn, creds auth.Credentials) (done bool, err error) {
-	var packet zap.Packet
+func startup0(server fed.Conn, creds auth.Credentials) (done bool, err error) {
+	var packet fed.Packet
 	packet, err = server.ReadPacket(true)
 	if err != nil {
 		return
@@ -188,8 +188,8 @@ func startup0(server zap.Conn, creds auth.Credentials) (done bool, err error) {
 	}
 }
 
-func startup1(conn zap.Conn, params *AcceptParams) (done bool, err error) {
-	var packet zap.Packet
+func startup1(conn fed.Conn, params *AcceptParams) (done bool, err error) {
+	var packet fed.Packet
 	packet, err = conn.ReadPacket(true)
 	if err != nil {
 		return
@@ -230,8 +230,8 @@ func startup1(conn zap.Conn, params *AcceptParams) (done bool, err error) {
 	}
 }
 
-func enableSSL(server zap.Conn, config *tls.Config) (bool, error) {
-	packet := zap.NewPacket(0, 4)
+func enableSSL(server fed.Conn, config *tls.Config) (bool, error) {
+	packet := fed.NewPacket(0, 4)
 	packet = packet.AppendUint16(1234)
 	packet = packet.AppendUint16(5679)
 	if err := server.WritePacket(packet); err != nil {
@@ -256,7 +256,7 @@ func enableSSL(server zap.Conn, config *tls.Config) (bool, error) {
 	return true, nil
 }
 
-func Accept(server zap.Conn, options AcceptOptions) (AcceptParams, error) {
+func Accept(server fed.Conn, options AcceptOptions) (AcceptParams, error) {
 	username := options.Credentials.GetUsername()
 
 	if options.Database == "" {
@@ -282,7 +282,7 @@ func Accept(server zap.Conn, options AcceptOptions) (AcceptParams, error) {
 	}
 	size += 1
 
-	packet := zap.NewPacket(0, size)
+	packet := fed.NewPacket(0, size)
 	packet = packet.AppendUint16(3)
 	packet = packet.AppendUint16(0)
 	packet = packet.AppendString("user")

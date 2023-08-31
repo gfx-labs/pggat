@@ -3,9 +3,9 @@ package eqp
 import (
 	"errors"
 
+	"pggat2/lib/fed"
+	packets "pggat2/lib/fed/packets/v3.0"
 	"pggat2/lib/middleware"
-	"pggat2/lib/zap"
-	packets "pggat2/lib/zap/packets/v3.0"
 )
 
 type Client struct {
@@ -39,7 +39,7 @@ func (T *Client) Done() {
 	}
 }
 
-func (T *Client) Write(_ middleware.Context, packet zap.Packet) error {
+func (T *Client) Write(_ middleware.Context, packet fed.Packet) error {
 	switch packet.Type() {
 	case packets.TypeReadyForQuery:
 		var readyForQuery packets.ReadyForQuery
@@ -59,7 +59,7 @@ func (T *Client) Write(_ middleware.Context, packet zap.Packet) error {
 	return nil
 }
 
-func (T *Client) Read(ctx middleware.Context, packet zap.Packet) error {
+func (T *Client) Read(ctx middleware.Context, packet fed.Packet) error {
 	switch packet.Type() {
 	case packets.TypeQuery:
 		// clobber unnamed portal and unnamed prepared statement
@@ -76,7 +76,7 @@ func (T *Client) Read(ctx middleware.Context, packet zap.Packet) error {
 		T.preparedStatements[destination] = preparedStatement
 
 		// send parse complete
-		packet = zap.NewPacket(packets.TypeParseComplete)
+		packet = fed.NewPacket(packets.TypeParseComplete)
 		err := ctx.Write(packet)
 		if err != nil {
 			return err
@@ -92,7 +92,7 @@ func (T *Client) Read(ctx middleware.Context, packet zap.Packet) error {
 		T.portals[destination] = portal
 
 		// send bind complete
-		packet = zap.NewPacket(packets.TypeParseComplete)
+		packet = fed.NewPacket(packets.TypeParseComplete)
 		err := ctx.Write(packet)
 		if err != nil {
 			return err
@@ -114,7 +114,7 @@ func (T *Client) Read(ctx middleware.Context, packet zap.Packet) error {
 		}
 
 		// send close complete
-		packet = zap.NewPacket(packets.TypeCloseComplete)
+		packet = fed.NewPacket(packets.TypeCloseComplete)
 		err := ctx.Write(packet)
 		if err != nil {
 			return err

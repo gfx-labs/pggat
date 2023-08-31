@@ -1,9 +1,9 @@
 package interceptor
 
 import (
+	"pggat2/lib/fed"
 	"pggat2/lib/middleware"
 	"pggat2/lib/util/decorator"
-	"pggat2/lib/zap"
 )
 
 type Context struct {
@@ -12,10 +12,10 @@ type Context struct {
 	cancelled bool
 
 	// for normal Write / WriteUntyped
-	rw zap.ReadWriter
+	rw fed.ReadWriter
 }
 
-func makeContext(rw zap.ReadWriter) Context {
+func makeContext(rw fed.ReadWriter) Context {
 	return Context{
 		rw: rw,
 	}
@@ -29,7 +29,7 @@ func (T *Context) Cancel() {
 	T.cancelled = true
 }
 
-func (T *Context) Write(packet zap.Packet) error {
+func (T *Context) Write(packet fed.Packet) error {
 	return T.rw.WritePacket(packet)
 }
 

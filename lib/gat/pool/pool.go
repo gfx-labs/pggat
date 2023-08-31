@@ -12,6 +12,8 @@ import (
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/bouncers/v2"
 	"pggat2/lib/bouncer/frontends/v0"
+	"pggat2/lib/fed"
+	packets "pggat2/lib/fed/packets/v3.0"
 	"pggat2/lib/middleware"
 	"pggat2/lib/middleware/interceptor"
 	"pggat2/lib/middleware/middlewares/eqp"
@@ -19,12 +21,10 @@ import (
 	"pggat2/lib/middleware/middlewares/unterminate"
 	"pggat2/lib/util/slices"
 	"pggat2/lib/util/strutil"
-	"pggat2/lib/zap"
-	packets "pggat2/lib/zap/packets/v3.0"
 )
 
 type poolServer struct {
-	conn   zap.Conn
+	conn   fed.Conn
 	accept backends.AcceptParams
 	recipe string
 
@@ -45,7 +45,7 @@ type poolRecipe struct {
 }
 
 type poolClient struct {
-	conn zap.Conn
+	conn fed.Conn
 	key  [8]byte
 }
 
@@ -212,9 +212,9 @@ func (T *Pool) scaleUp() {
 }
 
 func (T *Pool) syncInitialParameters(
-	client zap.Conn,
+	client fed.Conn,
 	clientParams map[strutil.CIString]string,
-	server zap.Conn,
+	server fed.Conn,
 	serverParams map[strutil.CIString]string,
 ) (clientErr, serverErr error) {
 	for key, value := range clientParams {
@@ -267,7 +267,7 @@ func (T *Pool) syncInitialParameters(
 	return
 }
 
-func (T *Pool) Do(fn func(zap.Conn) error) error {
+func (T *Pool) Do(fn func(fed.Conn) error) error {
 	id := T.addClient(nil, [8]byte{})
 	defer T.removeClient(id)
 
@@ -278,7 +278,7 @@ func (T *Pool) Do(fn func(zap.Conn) error) error {
 }
 
 func (T *Pool) Serve(
-	client zap.Conn,
+	client fed.Conn,
 	accept frontends.AcceptParams,
 	auth frontends.AuthenticateParams,
 ) error {
@@ -364,7 +364,7 @@ func (T *Pool) Serve(
 	}
 }
 
-func (T *Pool) addClient(client zap.Conn, key [8]byte) uuid.UUID {
+func (T *Pool) addClient(client fed.Conn, key [8]byte) uuid.UUID {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 

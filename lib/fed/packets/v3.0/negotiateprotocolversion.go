@@ -1,8 +1,8 @@
 package packets
 
 import (
+	"pggat2/lib/fed"
 	"pggat2/lib/util/slices"
-	"pggat2/lib/zap"
 )
 
 type NegotiateProtocolVersion struct {
@@ -10,7 +10,7 @@ type NegotiateProtocolVersion struct {
 	UnrecognizedOptions  []string
 }
 
-func (T *NegotiateProtocolVersion) ReadFromPacket(packet zap.Packet) bool {
+func (T *NegotiateProtocolVersion) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeNegotiateProtocolVersion {
 		return false
 	}
@@ -27,13 +27,13 @@ func (T *NegotiateProtocolVersion) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *NegotiateProtocolVersion) IntoPacket() zap.Packet {
+func (T *NegotiateProtocolVersion) IntoPacket() fed.Packet {
 	size := 8
 	for _, v := range T.UnrecognizedOptions {
 		size += len(v) + 1
 	}
 
-	packet := zap.NewPacket(TypeNegotiateProtocolVersion, size)
+	packet := fed.NewPacket(TypeNegotiateProtocolVersion, size)
 	packet = packet.AppendInt32(T.MinorProtocolVersion)
 	packet = packet.AppendInt32(int32(len(T.UnrecognizedOptions)))
 	for _, v := range T.UnrecognizedOptions {

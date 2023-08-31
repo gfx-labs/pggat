@@ -1,15 +1,15 @@
 package packets
 
 import (
+	"pggat2/lib/fed"
 	"pggat2/lib/perror"
-	"pggat2/lib/zap"
 )
 
 type ErrorResponse struct {
 	Error perror.Error
 }
 
-func (T *ErrorResponse) ReadFromPacket(packet zap.Packet) bool {
+func (T *ErrorResponse) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeErrorResponse {
 		return false
 	}
@@ -56,7 +56,7 @@ func (T *ErrorResponse) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *ErrorResponse) IntoPacket() zap.Packet {
+func (T *ErrorResponse) IntoPacket() fed.Packet {
 	size := 1
 	size += len(T.Error.Severity()) + 2
 	size += len(T.Error.Code()) + 2
@@ -65,7 +65,7 @@ func (T *ErrorResponse) IntoPacket() zap.Packet {
 		size += len(field.Value) + 2
 	}
 
-	packet := zap.NewPacket(TypeErrorResponse, size)
+	packet := fed.NewPacket(TypeErrorResponse, size)
 
 	packet = packet.AppendUint8('S')
 	packet = packet.AppendString(string(T.Error.Severity()))

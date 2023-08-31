@@ -8,7 +8,7 @@ import (
 
 	"pggat2/lib/auth/credentials"
 	"pggat2/lib/bouncer/backends/v0"
-	"pggat2/lib/zap"
+	"pggat2/lib/fed"
 )
 
 type Result struct {
@@ -23,7 +23,7 @@ func TestQuery(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	server := zap.WrapNetConn(s)
+	server := fed.WrapNetConn(s)
 	_, err = backends.Accept(server, backends.AcceptOptions{
 		Credentials: credentials.Cleartext{
 			Username: "postgres",

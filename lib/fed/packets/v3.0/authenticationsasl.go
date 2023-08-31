@@ -1,12 +1,12 @@
 package packets
 
-import "pggat2/lib/zap"
+import "pggat2/lib/fed"
 
 type AuthenticationSASL struct {
 	Mechanisms []string
 }
 
-func (T *AuthenticationSASL) ReadFromPacket(packet zap.Packet) bool {
+func (T *AuthenticationSASL) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeAuthentication {
 		return false
 	}
@@ -27,13 +27,13 @@ func (T *AuthenticationSASL) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *AuthenticationSASL) IntoPacket() zap.Packet {
+func (T *AuthenticationSASL) IntoPacket() fed.Packet {
 	size := 5
 	for _, mechanism := range T.Mechanisms {
 		size += len(mechanism) + 1
 	}
 
-	packet := zap.NewPacket(TypeAuthentication, size)
+	packet := fed.NewPacket(TypeAuthentication, size)
 
 	packet = packet.AppendInt32(10)
 	for _, mechanism := range T.Mechanisms {

@@ -1,12 +1,12 @@
 package packets
 
-import "pggat2/lib/zap"
+import "pggat2/lib/fed"
 
 type AuthenticationMD5 struct {
 	Salt [4]byte
 }
 
-func (T *AuthenticationMD5) ReadFromPacket(packet zap.Packet) bool {
+func (T *AuthenticationMD5) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeAuthentication {
 		return false
 	}
@@ -19,8 +19,8 @@ func (T *AuthenticationMD5) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *AuthenticationMD5) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeAuthentication, 8)
+func (T *AuthenticationMD5) IntoPacket() fed.Packet {
+	packet := fed.NewPacket(TypeAuthentication, 8)
 	packet = packet.AppendUint32(5)
 	packet = packet.AppendBytes(T.Salt[:])
 	return packet

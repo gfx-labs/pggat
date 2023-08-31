@@ -2,12 +2,12 @@ package bouncers
 
 import (
 	"pggat2/lib/bouncer/backends/v0"
+	"pggat2/lib/fed"
+	packets "pggat2/lib/fed/packets/v3.0"
 	"pggat2/lib/perror"
-	"pggat2/lib/zap"
-	packets "pggat2/lib/zap/packets/v3.0"
 )
 
-func clientFail(client zap.ReadWriter, err perror.Error) {
+func clientFail(client fed.ReadWriter, err perror.Error) {
 	// send fatal error to client
 	resp := packets.ErrorResponse{
 		Error: err,
@@ -15,7 +15,7 @@ func clientFail(client zap.ReadWriter, err perror.Error) {
 	_ = client.WritePacket(resp.IntoPacket())
 }
 
-func Bounce(client, server zap.ReadWriter, initialPacket zap.Packet) (clientError error, serverError error) {
+func Bounce(client, server fed.ReadWriter, initialPacket fed.Packet) (clientError error, serverError error) {
 	ctx := backends.Context{
 		Peer: client,
 	}

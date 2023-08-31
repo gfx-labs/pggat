@@ -1,13 +1,13 @@
 package packets
 
-import "pggat2/lib/zap"
+import "pggat2/lib/fed"
 
 type ParameterStatus struct {
 	Key   string
 	Value string
 }
 
-func (T *ParameterStatus) ReadFromPacket(packet zap.Packet) bool {
+func (T *ParameterStatus) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeParameterStatus {
 		return false
 	}
@@ -16,8 +16,8 @@ func (T *ParameterStatus) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *ParameterStatus) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeParameterStatus, len(T.Key)+len(T.Value)+2)
+func (T *ParameterStatus) IntoPacket() fed.Packet {
+	packet := fed.NewPacket(TypeParameterStatus, len(T.Key)+len(T.Value)+2)
 	packet = packet.AppendString(T.Key)
 	packet = packet.AppendString(T.Value)
 	return packet

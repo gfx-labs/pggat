@@ -3,16 +3,16 @@ package eqp
 import (
 	"hash/maphash"
 
-	"pggat2/lib/zap"
-	packets "pggat2/lib/zap/packets/v3.0"
+	"pggat2/lib/fed"
+	packets "pggat2/lib/fed/packets/v3.0"
 )
 
 type PreparedStatement struct {
-	packet zap.Packet
+	packet fed.Packet
 	hash   uint64
 }
 
-func ReadParse(packet zap.Packet) (destination string, preparedStatement PreparedStatement, ok bool) {
+func ReadParse(packet fed.Packet) (destination string, preparedStatement PreparedStatement, ok bool) {
 	if packet.Type() != packets.TypeParse {
 		return
 	}

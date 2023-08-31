@@ -1,13 +1,13 @@
 package packets
 
 import (
+	"pggat2/lib/fed"
 	"pggat2/lib/util/slices"
-	"pggat2/lib/zap"
 )
 
 type AuthenticationSASLContinue []byte
 
-func (T *AuthenticationSASLContinue) ReadFromPacket(packet zap.Packet) bool {
+func (T *AuthenticationSASLContinue) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeAuthentication {
 		return false
 	}
@@ -21,8 +21,8 @@ func (T *AuthenticationSASLContinue) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *AuthenticationSASLContinue) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeAuthentication, 4+len(*T))
+func (T *AuthenticationSASLContinue) IntoPacket() fed.Packet {
+	packet := fed.NewPacket(TypeAuthentication, 4+len(*T))
 	packet = packet.AppendUint32(11)
 	packet = packet.AppendBytes(*T)
 	return packet

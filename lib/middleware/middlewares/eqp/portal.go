@@ -3,17 +3,17 @@ package eqp
 import (
 	"hash/maphash"
 
-	"pggat2/lib/zap"
-	packets "pggat2/lib/zap/packets/v3.0"
+	"pggat2/lib/fed"
+	packets "pggat2/lib/fed/packets/v3.0"
 )
 
 type Portal struct {
 	source string
-	packet zap.Packet
+	packet fed.Packet
 	hash   uint64
 }
 
-func ReadBind(in zap.Packet) (destination string, portal Portal, ok bool) {
+func ReadBind(in fed.Packet) (destination string, portal Portal, ok bool) {
 	if in.Type() != packets.TypeBind {
 		return
 	}

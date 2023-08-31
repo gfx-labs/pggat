@@ -1,9 +1,9 @@
 package backends
 
-import "pggat2/lib/zap"
+import "pggat2/lib/fed"
 
 type Context struct {
-	Peer      zap.ReadWriter
+	Peer      fed.ReadWriter
 	PeerError error
 	TxState   byte
 }
@@ -23,7 +23,7 @@ func (T *Context) PeerFail(err error) {
 	T.PeerError = err
 }
 
-func (T *Context) PeerRead() zap.Packet {
+func (T *Context) PeerRead() fed.Packet {
 	if T == nil {
 		return nil
 	}
@@ -38,7 +38,7 @@ func (T *Context) PeerRead() zap.Packet {
 	return packet
 }
 
-func (T *Context) PeerWrite(packet zap.Packet) {
+func (T *Context) PeerWrite(packet fed.Packet) {
 	if T == nil {
 		return
 	}

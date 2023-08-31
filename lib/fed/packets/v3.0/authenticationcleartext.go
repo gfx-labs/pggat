@@ -1,10 +1,10 @@
 package packets
 
-import "pggat2/lib/zap"
+import "pggat2/lib/fed"
 
 type AuthenticationCleartext struct{}
 
-func (T *AuthenticationCleartext) ReadFromPacket(packet zap.Packet) bool {
+func (T *AuthenticationCleartext) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeAuthentication {
 		return false
 	}
@@ -16,8 +16,8 @@ func (T *AuthenticationCleartext) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *AuthenticationCleartext) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeAuthentication, 4)
+func (T *AuthenticationCleartext) IntoPacket() fed.Packet {
+	packet := fed.NewPacket(TypeAuthentication, 4)
 	packet = packet.AppendUint32(3)
 	return packet
 }

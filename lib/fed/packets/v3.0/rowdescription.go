@@ -1,8 +1,8 @@
 package packets
 
 import (
+	"pggat2/lib/fed"
 	"pggat2/lib/util/slices"
-	"pggat2/lib/zap"
 )
 
 type RowDescriptionField struct {
@@ -19,7 +19,7 @@ type RowDescription struct {
 	Fields []RowDescriptionField
 }
 
-func (T *RowDescription) ReadFromPacket(packet zap.Packet) bool {
+func (T *RowDescription) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeRowDescription {
 		return false
 	}
@@ -40,14 +40,14 @@ func (T *RowDescription) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *RowDescription) IntoPacket() zap.Packet {
+func (T *RowDescription) IntoPacket() fed.Packet {
 	size := 2
 	for _, v := range T.Fields {
 		size += len(v.Name) + 1
 		size += 4 + 2 + 4 + 2 + 4 + 2
 	}
 
-	packet := zap.NewPacket(TypeRowDescription, size)
+	packet := fed.NewPacket(TypeRowDescription, size)
 	packet = packet.AppendUint16(uint16(len(T.Fields)))
 	for _, v := range T.Fields {
 		packet = packet.AppendString(v.Name)

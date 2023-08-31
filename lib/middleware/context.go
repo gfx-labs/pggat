@@ -1,11 +1,11 @@
 package middleware
 
-import "pggat2/lib/zap"
+import "pggat2/lib/fed"
 
 type Context interface {
 	// Cancel the current packet
 	Cancel()
 
 	// Write packet to underlying connection
-	Write(packet zap.Packet) error
+	Write(packet fed.Packet) error
 }

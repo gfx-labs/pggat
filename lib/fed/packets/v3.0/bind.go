@@ -1,8 +1,8 @@
 package packets
 
 import (
+	"pggat2/lib/fed"
 	"pggat2/lib/util/slices"
-	"pggat2/lib/zap"
 )
 
 type Bind struct {
@@ -13,7 +13,7 @@ type Bind struct {
 	ResultFormatCodes    []int16
 }
 
-func (T *Bind) ReadFromPacket(packet zap.Packet) bool {
+func (T *Bind) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeBind {
 		return false
 	}
@@ -51,7 +51,7 @@ func (T *Bind) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *Bind) IntoPacket() zap.Packet {
+func (T *Bind) IntoPacket() fed.Packet {
 	size := 0
 	size += len(T.Destination) + 1
 	size += len(T.Source) + 1
@@ -64,7 +64,7 @@ func (T *Bind) IntoPacket() zap.Packet {
 	size += 2
 	size += len(T.ResultFormatCodes) * 2
 
-	packet := zap.NewPacket(TypeBind, size)
+	packet := fed.NewPacket(TypeBind, size)
 	packet = packet.AppendString(T.Destination)
 	packet = packet.AppendString(T.Source)
 	packet = packet.AppendUint16(uint16(len(T.ParameterFormatCodes)))

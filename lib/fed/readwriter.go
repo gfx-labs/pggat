@@ -1,4 +1,4 @@
-package zap
+package fed
 
 type Reader interface {
 	ReadByte() (byte, error)

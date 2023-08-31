@@ -10,6 +10,7 @@ import (
 
 	"pggat2/lib/auth/credentials"
 	"pggat2/lib/bouncer/backends/v0"
+	"pggat2/lib/fed"
 	"pggat2/lib/gat"
 	"pggat2/lib/gat/pool"
 	"pggat2/lib/gat/pool/pools/session"
@@ -17,7 +18,6 @@ import (
 	"pggat2/lib/psql"
 	"pggat2/lib/util/maps"
 	"pggat2/lib/util/strutil"
-	"pggat2/lib/zap"
 )
 
 type authQueryResult struct {
@@ -94,7 +94,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		}
 
 		var result authQueryResult
-		err := authPool.Do(func(server zap.Conn) error {
+		err := authPool.Do(func(server fed.Conn) error {
 			return psql.Query(server, &result, T.Config.PgBouncer.AuthQuery, user)
 		})
 		if err != nil {

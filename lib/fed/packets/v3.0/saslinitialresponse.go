@@ -1,8 +1,8 @@
 package packets
 
 import (
+	"pggat2/lib/fed"
 	"pggat2/lib/util/slices"
-	"pggat2/lib/zap"
 )
 
 type SASLInitialResponse struct {
@@ -10,7 +10,7 @@ type SASLInitialResponse struct {
 	InitialResponse []byte
 }
 
-func (T *SASLInitialResponse) ReadFromPacket(packet zap.Packet) bool {
+func (T *SASLInitialResponse) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeAuthenticationResponse {
 		return false
 	}
@@ -26,8 +26,8 @@ func (T *SASLInitialResponse) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *SASLInitialResponse) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeAuthenticationResponse, len(T.Mechanism)+5+len(T.InitialResponse))
+func (T *SASLInitialResponse) IntoPacket() fed.Packet {
+	packet := fed.NewPacket(TypeAuthenticationResponse, len(T.Mechanism)+5+len(T.InitialResponse))
 	packet = packet.AppendString(T.Mechanism)
 	packet = packet.AppendInt32(int32(len(T.InitialResponse)))
 	packet = packet.AppendBytes(T.InitialResponse)

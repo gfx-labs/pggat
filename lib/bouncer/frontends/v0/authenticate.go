@@ -5,12 +5,12 @@ import (
 	"errors"
 
 	"pggat2/lib/auth"
+	"pggat2/lib/fed"
+	packets "pggat2/lib/fed/packets/v3.0"
 	"pggat2/lib/perror"
-	"pggat2/lib/zap"
-	packets "pggat2/lib/zap/packets/v3.0"
 )
 
-func authenticationSASLInitial(client zap.Conn, creds auth.SASL) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {
+func authenticationSASLInitial(client fed.Conn, creds auth.SASL) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {
 	// check which authentication method the client wants
 	packet, err2 := client.ReadPacket(true)
 	if err2 != nil {
@@ -41,7 +41,7 @@ func authenticationSASLInitial(client zap.Conn, creds auth.SASL) (tool auth.SASL
 	return
 }
 
-func authenticationSASLContinue(client zap.Conn, tool auth.SASLVerifier) (resp []byte, done bool, err perror.Error) {
+func authenticationSASLContinue(client fed.Conn, tool auth.SASLVerifier) (resp []byte, done bool, err perror.Error) {
 	packet, err2 := client.ReadPacket(true)
 	if err2 != nil {
 		err = perror.Wrap(err2)
@@ -65,7 +65,7 @@ func authenticationSASLContinue(client zap.Conn, tool auth.SASLVerifier) (resp [
 	return
 }
 
-func authenticationSASL(client zap.Conn, creds auth.SASL) perror.Error {
+func authenticationSASL(client fed.Conn, creds auth.SASL) perror.Error {
 	saslInitial := packets.AuthenticationSASL{
 		Mechanisms: creds.SupportedSASLMechanisms(),
 	}
@@ -104,7 +104,7 @@ func authenticationSASL(client zap.Conn, creds auth.SASL) perror.Error {
 	return nil
 }
 
-func updateParameter(client zap.Conn, name, value string) perror.Error {
+func updateParameter(client fed.Conn, name, value string) perror.Error {
 	ps := packets.ParameterStatus{
 		Key:   name,
 		Value: value,
@@ -112,7 +112,7 @@ func updateParameter(client zap.Conn, name, value string) perror.Error {
 	return perror.Wrap(client.WritePacket(ps.IntoPacket()))
 }
 
-func authenticate(client zap.Conn, options AuthenticateOptions) (params AuthenticateParams, err perror.Error) {
+func authenticate(client fed.Conn, options AuthenticateOptions) (params AuthenticateParams, err perror.Error) {
 	if options.Credentials == nil {
 		err = perror.New(
 			perror.FATAL,
@@ -173,7 +173,7 @@ func authenticate(client zap.Conn, options AuthenticateOptions) (params Authenti
 	return
 }
 
-func Authenticate(client zap.Conn, options AuthenticateOptions) (AuthenticateParams, perror.Error) {
+func Authenticate(client fed.Conn, options AuthenticateOptions) (AuthenticateParams, perror.Error) {
 	params, err := authenticate(client, options)
 	if err != nil {
 		fail(client, err)

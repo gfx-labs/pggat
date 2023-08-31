@@ -3,10 +3,10 @@ package eqp
 import (
 	"errors"
 
+	"pggat2/lib/fed"
+	packets "pggat2/lib/fed/packets/v3.0"
 	"pggat2/lib/middleware"
 	"pggat2/lib/util/ring"
-	"pggat2/lib/zap"
-	packets "pggat2/lib/zap/packets/v3.0"
 )
 
 type HashedPortal struct {
@@ -214,7 +214,7 @@ func (T *Server) syncPortal(ctx middleware.Context, target string) error {
 	return T.bindPortal(ctx, target, expected)
 }
 
-func (T *Server) Write(ctx middleware.Context, packet zap.Packet) error {
+func (T *Server) Write(ctx middleware.Context, packet fed.Packet) error {
 	switch packet.Type() {
 	case packets.TypeQuery:
 		// clobber unnamed portal and unnamed prepared statement
@@ -262,7 +262,7 @@ func (T *Server) Write(ctx middleware.Context, packet zap.Packet) error {
 	return nil
 }
 
-func (T *Server) Read(ctx middleware.Context, packet zap.Packet) error {
+func (T *Server) Read(ctx middleware.Context, packet fed.Packet) error {
 	switch packet.Type() {
 	case packets.TypeParseComplete:
 		ctx.Cancel()

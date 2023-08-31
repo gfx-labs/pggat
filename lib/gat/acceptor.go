@@ -5,7 +5,7 @@ import (
 
 	"pggat2/lib/auth"
 	"pggat2/lib/bouncer/frontends/v0"
-	"pggat2/lib/zap"
+	"pggat2/lib/fed"
 )
 
 type Acceptor struct {
@@ -13,12 +13,12 @@ type Acceptor struct {
 	Options  frontends.AcceptOptions
 }
 
-func (T Acceptor) Accept() (zap.Conn, frontends.AcceptParams, error) {
+func (T Acceptor) Accept() (fed.Conn, frontends.AcceptParams, error) {
 	netConn, err := T.Listener.Accept()
 	if err != nil {
 		return nil, frontends.AcceptParams{}, err
 	}
-	conn := zap.WrapNetConn(netConn)
+	conn := fed.WrapNetConn(netConn)
 	params, err := frontends.Accept(conn, T.Options)
 	if err != nil {
 		_ = conn.Close()
@@ -38,7 +38,7 @@ func Listen(network, address string, options frontends.AcceptOptions) (Acceptor,
 	}, nil
 }
 
-func serve(client zap.Conn, acceptParams frontends.AcceptParams, pools Pools) error {
+func serve(client fed.Conn, acceptParams frontends.AcceptParams, pools Pools) error {
 	defer func() {
 		_ = client.Close()
 	}()

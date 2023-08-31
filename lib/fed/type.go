@@ -1,3 +1,3 @@
-package zap
+package fed
 
 type Type byte

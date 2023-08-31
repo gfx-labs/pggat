@@ -4,11 +4,11 @@ import (
 	"net"
 
 	"pggat2/lib/bouncer/backends/v0"
-	"pggat2/lib/zap"
+	"pggat2/lib/fed"
 )
 
 type Dialer interface {
-	Dial() (zap.Conn, backends.AcceptParams, error)
+	Dial() (fed.Conn, backends.AcceptParams, error)
 	Cancel(cancelKey [8]byte) error
 }
 
@@ -19,12 +19,12 @@ type NetDialer struct {
 	AcceptOptions backends.AcceptOptions
 }
 
-func (T NetDialer) Dial() (zap.Conn, backends.AcceptParams, error) {
+func (T NetDialer) Dial() (fed.Conn, backends.AcceptParams, error) {
 	c, err := net.Dial(T.Network, T.Address)
 	if err != nil {
 		return nil, backends.AcceptParams{}, err
 	}
-	conn := zap.WrapNetConn(c)
+	conn := fed.WrapNetConn(c)
 	params, err := backends.Accept(conn, T.AcceptOptions)
 	if err != nil {
 		return nil, backends.AcceptParams{}, err
@@ -38,7 +38,7 @@ func (T NetDialer) Cancel(cancelKey [8]byte) error {
 	if err != nil {
 		return err
 	}
-	conn := zap.WrapNetConn(c)
+	conn := fed.WrapNetConn(c)
 	defer func() {
 		_ = conn.Close()
 	}()

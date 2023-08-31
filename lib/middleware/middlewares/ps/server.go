@@ -3,10 +3,10 @@ package ps
 import (
 	"errors"
 
+	"pggat2/lib/fed"
+	packets "pggat2/lib/fed/packets/v3.0"
 	"pggat2/lib/middleware"
 	"pggat2/lib/util/strutil"
-	"pggat2/lib/zap"
-	packets "pggat2/lib/zap/packets/v3.0"
 )
 
 type Server struct {
@@ -21,7 +21,7 @@ func NewServer(parameters map[strutil.CIString]string) *Server {
 	}
 }
 
-func (T *Server) Read(_ middleware.Context, packet zap.Packet) error {
+func (T *Server) Read(_ middleware.Context, packet fed.Packet) error {
 	switch packet.Type() {
 	case packets.TypeParameterStatus:
 		var ps packets.ParameterStatus

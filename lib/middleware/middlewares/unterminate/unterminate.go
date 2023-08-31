@@ -3,9 +3,9 @@ package unterminate
 import (
 	"io"
 
+	"pggat2/lib/fed"
+	packets "pggat2/lib/fed/packets/v3.0"
 	"pggat2/lib/middleware"
-	"pggat2/lib/zap"
-	packets "pggat2/lib/zap/packets/v3.0"
 )
 
 // Unterminate catches the Terminate packet and returns io.EOF instead.
@@ -16,7 +16,7 @@ type unterm struct {
 	middleware.Nil
 }
 
-func (unterm) Read(_ middleware.Context, packet zap.Packet) error {
+func (unterm) Read(_ middleware.Context, packet fed.Packet) error {
 	if packet.Type() == packets.TypeTerminate {
 		return io.EOF
 	}

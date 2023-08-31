@@ -5,11 +5,11 @@ import (
 	"strconv"
 
 	"pggat2/lib/bouncer/backends/v0"
-	"pggat2/lib/zap"
-	packets "pggat2/lib/zap/packets/v3.0"
+	"pggat2/lib/fed"
+	packets "pggat2/lib/fed/packets/v3.0"
 )
 
-func Query(server zap.ReadWriter, result any, query string, args ...any) error {
+func Query(server fed.ReadWriter, result any, query string, args ...any) error {
 	res := reflect.ValueOf(result)
 
 	if len(args) == 0 {
@@ -19,7 +19,7 @@ func Query(server zap.ReadWriter, result any, query string, args ...any) error {
 			result: res,
 		}
 		ctx := backends.Context{
-			Peer: zap.CombinedReadWriter{
+			Peer: fed.CombinedReadWriter{
 				Reader: eofReader{},
 				Writer: &w,
 			},
@@ -87,13 +87,13 @@ outer:
 	execute := packets.Execute{}
 
 	// sync
-	sync := zap.NewPacket(packets.TypeSync)
+	sync := fed.NewPacket(packets.TypeSync)
 
 	w := resultWriter{
 		result: res,
 	}
 	r := packetReader{
-		packets: []zap.Packet{
+		packets: []fed.Packet{
 			bind.IntoPacket(),
 			describe.IntoPacket(),
 			execute.IntoPacket(),
@@ -101,7 +101,7 @@ outer:
 		},
 	}
 	ctx := backends.Context{
-		Peer: zap.CombinedReadWriter{
+		Peer: fed.CombinedReadWriter{
 			Reader: &r,
 			Writer: &w,
 		},

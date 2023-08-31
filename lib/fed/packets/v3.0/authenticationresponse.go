@@ -1,13 +1,13 @@
 package packets
 
 import (
+	"pggat2/lib/fed"
 	"pggat2/lib/util/slices"
-	"pggat2/lib/zap"
 )
 
 type AuthenticationResponse []byte
 
-func (T *AuthenticationResponse) ReadFromPacket(packet zap.Packet) bool {
+func (T *AuthenticationResponse) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeAuthenticationResponse {
 		return false
 	}
@@ -16,7 +16,7 @@ func (T *AuthenticationResponse) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *AuthenticationResponse) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeAuthenticationResponse, len(*T))
+func (T *AuthenticationResponse) IntoPacket() fed.Packet {
+	packet := fed.NewPacket(TypeAuthenticationResponse, len(*T))
 	return packet.AppendBytes(*T)
 }

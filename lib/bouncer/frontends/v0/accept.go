@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"strings"
 
+	"pggat2/lib/fed"
+	"pggat2/lib/fed/packets/v3.0"
 	"pggat2/lib/perror"
 	"pggat2/lib/util/slices"
 	"pggat2/lib/util/strutil"
-	"pggat2/lib/zap"
-	"pggat2/lib/zap/packets/v3.0"
 )
 
 func startup0(
-	conn zap.Conn,
+	conn fed.Conn,
 	params *AcceptParams,
 	options AcceptOptions,
 ) (done bool, err perror.Error) {
@@ -206,7 +206,7 @@ func startup0(
 }
 
 func accept(
-	client zap.Conn,
+	client fed.Conn,
 	options AcceptOptions,
 ) (params AcceptParams, err perror.Error) {
 	for {
@@ -236,14 +236,14 @@ func accept(
 	return
 }
 
-func fail(client zap.Conn, err perror.Error) {
+func fail(client fed.Conn, err perror.Error) {
 	resp := packets.ErrorResponse{
 		Error: err,
 	}
 	_ = client.WritePacket(resp.IntoPacket())
 }
 
-func Accept(client zap.Conn, options AcceptOptions) (AcceptParams, perror.Error) {
+func Accept(client fed.Conn, options AcceptOptions) (AcceptParams, perror.Error) {
 	params, err := accept(client, options)
 	if err != nil {
 		fail(client, err)

@@ -3,17 +3,17 @@ package interceptor
 import (
 	"crypto/tls"
 
+	"pggat2/lib/fed"
 	"pggat2/lib/middleware"
-	"pggat2/lib/zap"
 )
 
 type Interceptor struct {
 	middlewares []middleware.Middleware
 	context     Context
-	rw          zap.Conn
+	rw          fed.Conn
 }
 
-func NewInterceptor(rw zap.Conn, middlewares ...middleware.Middleware) *Interceptor {
+func NewInterceptor(rw fed.Conn, middlewares ...middleware.Middleware) *Interceptor {
 	if v, ok := rw.(*Interceptor); ok {
 		v.middlewares = append(v.middlewares, middlewares...)
 		return v
@@ -37,7 +37,7 @@ func (T *Interceptor) ReadByte() (byte, error) {
 	return T.rw.ReadByte()
 }
 
-func (T *Interceptor) ReadPacket(typed bool) (zap.Packet, error) {
+func (T *Interceptor) ReadPacket(typed bool) (fed.Packet, error) {
 outer:
 	for {
 		packet, err := T.rw.ReadPacket(typed)
@@ -64,7 +64,7 @@ func (T *Interceptor) WriteByte(b byte) error {
 	return T.rw.WriteByte(b)
 }
 
-func (T *Interceptor) WritePacket(packet zap.Packet) error {
+func (T *Interceptor) WritePacket(packet fed.Packet) error {
 	for _, mw := range T.middlewares {
 		T.context.reset()
 		err := mw.Write(&T.context, packet)
@@ -83,4 +83,4 @@ func (T *Interceptor) Close() error {
 	return T.rw.Close()
 }
 
-var _ zap.Conn = (*Interceptor)(nil)
+var _ fed.Conn = (*Interceptor)(nil)

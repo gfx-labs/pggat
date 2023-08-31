@@ -1,10 +1,10 @@
 package packets
 
-import "pggat2/lib/zap"
+import "pggat2/lib/fed"
 
 type Query string
 
-func (T *Query) ReadFromPacket(packet zap.Packet) bool {
+func (T *Query) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeQuery {
 		return false
 	}
@@ -12,8 +12,8 @@ func (T *Query) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *Query) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeQuery, len(*T)+1)
+func (T *Query) IntoPacket() fed.Packet {
+	packet := fed.NewPacket(TypeQuery, len(*T)+1)
 	packet = packet.AppendString(string(*T))
 	return packet
 }

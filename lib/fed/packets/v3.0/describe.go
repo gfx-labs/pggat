@@ -1,13 +1,13 @@
 package packets
 
-import "pggat2/lib/zap"
+import "pggat2/lib/fed"
 
 type Describe struct {
 	Which  byte
 	Target string
 }
 
-func (T *Describe) ReadFromPacket(packet zap.Packet) bool {
+func (T *Describe) ReadFromPacket(packet fed.Packet) bool {
 	if packet.Type() != TypeDescribe {
 		return false
 	}
@@ -16,8 +16,8 @@ func (T *Describe) ReadFromPacket(packet zap.Packet) bool {
 	return true
 }
 
-func (T *Describe) IntoPacket() zap.Packet {
-	packet := zap.NewPacket(TypeDescribe, len(T.Target)+2)
+func (T *Describe) IntoPacket() fed.Packet {
+	packet := fed.NewPacket(TypeDescribe, len(T.Target)+2)
 	packet = packet.AppendUint8(T.Which)
 	packet = packet.AppendString(T.Target)
 	return packet

@@ -1,12 +1,12 @@
 package backends
 
 import (
+	"pggat2/lib/fed"
+	packets "pggat2/lib/fed/packets/v3.0"
 	"pggat2/lib/util/strutil"
-	"pggat2/lib/zap"
-	packets "pggat2/lib/zap/packets/v3.0"
 )
 
-func CopyIn(ctx *Context, server zap.ReadWriter, packet zap.Packet) error {
+func CopyIn(ctx *Context, server fed.ReadWriter, packet fed.Packet) error {
 	ctx.PeerWrite(packet)
 
 	for {
@@ -31,7 +31,7 @@ func CopyIn(ctx *Context, server zap.ReadWriter, packet zap.Packet) error {
 	}
 }
 
-func CopyOut(ctx *Context, server zap.ReadWriter, packet zap.Packet) error {
+func CopyOut(ctx *Context, server fed.ReadWriter, packet fed.Packet) error {
 	ctx.PeerWrite(packet)
 
 	for {
@@ -56,7 +56,7 @@ func CopyOut(ctx *Context, server zap.ReadWriter, packet zap.Packet) error {
 	}
 }
 
-func Query(ctx *Context, server zap.ReadWriter, packet zap.Packet) error {
+func Query(ctx *Context, server fed.ReadWriter, packet fed.Packet) error {
 	if err := server.WritePacket(packet); err != nil {
 		return err
 	}
@@ -100,20 +100,20 @@ func Query(ctx *Context, server zap.ReadWriter, packet zap.Packet) error {
 	}
 }
 
-func QueryString(ctx *Context, server zap.ReadWriter, query string) error {
+func QueryString(ctx *Context, server fed.ReadWriter, query string) error {
 	q := packets.Query(query)
 	return Query(ctx, server, q.IntoPacket())
 }
 
-func SetParameter(ctx *Context, server zap.ReadWriter, name strutil.CIString, value string) error {
+func SetParameter(ctx *Context, server fed.ReadWriter, name strutil.CIString, value string) error {
 	return QueryString(ctx, server, `SET `+strutil.Escape(name.String(), `"`)+` = `+strutil.Escape(value, `'`))
 }
 
-func ResetParameter(ctx *Context, server zap.ReadWriter, name strutil.CIString) error {
+func ResetParameter(ctx *Context, server fed.ReadWriter, name strutil.CIString) error {
 	return QueryString(ctx, server, `RESET `+strutil.Escape(name.String(), `"`))
 }
 
-func FunctionCall(ctx *Context, server zap.ReadWriter, packet zap.Packet) error {
+func FunctionCall(ctx *Context, server fed.ReadWriter, packet fed.Packet) error {
 	if err := server.WritePacket(packet); err != nil {
 		return err
 	}
@@ -146,8 +146,8 @@ func FunctionCall(ctx *Context, server zap.ReadWriter, packet zap.Packet) error 
 	}
 }
 
-func Sync(ctx *Context, server zap.ReadWriter) error {
-	if err := server.WritePacket(zap.NewPacket(packets.TypeSync)); err != nil {
+func Sync(ctx *Context, server fed.ReadWriter) error {
+	if err := server.WritePacket(fed.NewPacket(packets.TypeSync)); err != nil {
 		return err
 	}
 
@@ -196,7 +196,7 @@ func Sync(ctx *Context, server zap.ReadWriter) error {
 	}
 }
 
-func EQP(ctx *Context, server zap.ReadWriter, packet zap.Packet) error {
+func EQP(ctx *Context, server fed.ReadWriter, packet fed.Packet) error {
 	if err := server.WritePacket(packet); err != nil {
 		return err
 	}
@@ -220,7 +220,7 @@ func EQP(ctx *Context, server zap.ReadWriter, packet zap.Packet) error {
 	}
 }
 
-func Transaction(ctx *Context, server zap.ReadWriter, packet zap.Packet) error {
+func Transaction(ctx *Context, server fed.ReadWriter, packet fed.Packet) error {
 	if ctx.TxState == '\x00' {
 		ctx.TxState = 'I'
 	}

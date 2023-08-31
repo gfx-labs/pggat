@@ -3,18 +3,18 @@ package psql
 import (
 	"io"
 
-	"pggat2/lib/zap"
+	"pggat2/lib/fed"
 )
 
 type packetReader struct {
-	packets []zap.Packet
+	packets []fed.Packet
 }
 
 func (T *packetReader) ReadByte() (byte, error) {
 	return 0, io.EOF
 }
 
-func (T *packetReader) ReadPacket(typed bool) (zap.Packet, error) {
+func (T *packetReader) ReadPacket(typed bool) (fed.Packet, error) {
 	if len(T.packets) == 0 {
 		return nil, io.EOF
 	}
@@ -30,7 +30,7 @@ func (T *packetReader) ReadPacket(typed bool) (zap.Packet, error) {
 	return packet, nil
 }
 
-var _ zap.Reader = (*packetReader)(nil)
+var _ fed.Reader = (*packetReader)(nil)
 
 type eofReader struct{}
 
@@ -38,8 +38,8 @@ func (eofReader) ReadByte() (byte, error) {
 	return 0, io.EOF
 }
 
-func (eofReader) ReadPacket(_ bool) (zap.Packet, error) {
+func (eofReader) ReadPacket(_ bool) (fed.Packet, error) {
 	return nil, io.EOF
 }
 
-var _ zap.Reader = eofReader{}
+var _ fed.Reader = eofReader{}
