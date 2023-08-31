@@ -9,6 +9,7 @@ RUN go build -o cgat ./cmd/cgat
 
 FROM alpine:latest
 WORKDIR /bin
+RUN mkdir /var/run/pgbouncer
 RUN addgroup -S pgbouncer && adduser -S pgbouncer && mkdir -p /etc/pgbouncer /var/log/pgbouncer /var/run/pgbouncer
 COPY --from=GOBUILDER /src/cgat.sh run.sh
 COPY --from=GOBUILDER /src/cgat pggat
