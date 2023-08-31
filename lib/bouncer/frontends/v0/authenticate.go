@@ -104,6 +104,38 @@ func authenticationSASL(client fed.Conn, creds auth.SASL) perror.Error {
 	return nil
 }
 
+func authenticationMD5(client fed.Conn, creds auth.MD5) perror.Error {
+	var salt [4]byte
+	_, err := rand.Read(salt[:])
+	if err != nil {
+		return perror.Wrap(err)
+	}
+	md5Initial := packets.AuthenticationMD5{
+		Salt: salt,
+	}
+	err = client.WritePacket(md5Initial.IntoPacket())
+	if err != nil {
+		return perror.Wrap(err)
+	}
+
+	var packet fed.Packet
+	packet, err = client.ReadPacket(true)
+	if err != nil {
+		return perror.Wrap(err)
+	}
+
+	var pw packets.PasswordMessage
+	if !pw.ReadFromPacket(packet) {
+		return packets.ErrUnexpectedPacket
+	}
+
+	if err = creds.VerifyMD5(salt, pw.Password); err != nil {
+		return perror.Wrap(err)
+	}
+
+	return nil
+}
+
 func updateParameter(client fed.Conn, name, value string) perror.Error {
 	ps := packets.ParameterStatus{
 		Key:   name,
@@ -123,6 +155,8 @@ func authenticate(client fed.Conn, options AuthenticateOptions) (params Authenti
 	}
 	if credsSASL, ok := options.Credentials.(auth.SASL); ok {
 		err = authenticationSASL(client, credsSASL)
+	} else if credsMD5, ok := options.Credentials.(auth.MD5); ok {
+		err = authenticationMD5(client, credsMD5)
 	} else {
 		err = perror.New(
 			perror.FATAL,

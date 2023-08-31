@@ -108,6 +108,15 @@ outer2:
 				result = result.Field(j)
 				break outer2
 			}
+
+			// handle `sql:"3"`
+			sqlNameIndex, err := strconv.Atoi(sqlName)
+			if err == nil {
+				if sqlNameIndex == i {
+					result = result.Field(j)
+					break outer2
+				}
+			}
 		}
 
 		// ignore field

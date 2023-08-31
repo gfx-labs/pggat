@@ -3,7 +3,6 @@ package gat
 import (
 	"net"
 
-	"pggat2/lib/auth"
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/fed"
 )
@@ -54,20 +53,15 @@ func serve(client fed.Conn, acceptParams frontends.AcceptParams, pools Pools) er
 
 	p := pools.Lookup(acceptParams.User, acceptParams.Database)
 
-	var credentials auth.Credentials
-	if p != nil {
-		credentials = p.GetCredentials()
+	if p == nil {
+		return nil
 	}
 
 	authParams, err := frontends.Authenticate(client, frontends.AuthenticateOptions{
-		Credentials: credentials,
+		Credentials: p.GetCredentials(),
 	})
 	if err != nil {
 		return err
-	}
-
-	if p == nil {
-		return nil
 	}
 
 	pools.RegisterKey(authParams.BackendKey, acceptParams.User, acceptParams.Database)

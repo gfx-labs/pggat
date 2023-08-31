@@ -2,6 +2,7 @@ package pgbouncer
 
 import (
 	"crypto/tls"
+	"errors"
 	"net"
 	"strconv"
 	"time"
@@ -21,8 +22,8 @@ import (
 )
 
 type authQueryResult struct {
-	Username string  `ini:"usename"`
-	Password *string `ini:"passwd"`
+	Username string  `sql:"0"`
+	Password *string `sql:"1"`
 }
 
 type poolKey struct {
@@ -106,20 +107,23 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 			return nil
 		}
 		err = authPool.Serve(client, frontends.AcceptParams{}, frontends.AuthenticateParams{})
-		if err != nil {
+		if err != nil && !errors.Is(err, net.ErrClosed) {
 			log.Println("auth query failed:", err)
+			return nil
+		}
+
+		if result.Username != user {
+			// user not found
 			return nil
 		}
 
 		if result.Password != nil {
 			password = *result.Password
+			ok = true
 		}
 	}
 
-	creds := credentials.Cleartext{
-		Username: user,
-		Password: password, // TODO(garet) md5 and sasl
-	}
+	creds := credentials.FromString(user, password)
 
 	backendDatabase := db.DBName
 	if backendDatabase == "" {
@@ -182,7 +186,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		creds := creds
 		if db.Password != "" {
 			// lookup password
-			creds.Password = db.Password
+			creds = credentials.FromString(user, db.Password)
 		}
 
 		// connect over tcp
