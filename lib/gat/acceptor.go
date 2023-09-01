@@ -5,6 +5,7 @@ import (
 
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/fed"
+	"pggat2/lib/util/beforeexit"
 )
 
 type Acceptor struct {
@@ -30,6 +31,12 @@ func Listen(network, address string, options frontends.AcceptOptions) (Acceptor,
 	listener, err := net.Listen(network, address)
 	if err != nil {
 		return Acceptor{}, err
+	}
+	if network == "unix" {
+		// unix sockets are not cleaned up if process is stopped but i really wish they were
+		beforeexit.Run(func() {
+			_ = listener.Close()
+		})
 	}
 	return Acceptor{
 		Listener: listener,
