@@ -1,5 +1,8 @@
 # pggat
-pggat is a Postgres pooler similar to PgBouncer
+pggat is a Postgres pooler similar to PgBouncer. It is different in that it supports load balancing to rdwr/rd replicas.
+
+the name is because [this song is a banger](https://www.youtube.com/watch?v=-DqCc2DJ0sg)
+
 
 ## Pooling Modes
 There are currently two pooling modes which compromise between balancing and feature support. Most apps should work out of the box with transaction pooling.
