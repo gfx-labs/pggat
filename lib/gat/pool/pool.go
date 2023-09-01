@@ -32,11 +32,8 @@ type poolServer struct {
 	psServer  *ps.Server
 	eqpServer *eqp.Server
 
-	// peer is uuid.Nil if idle, and the client id otherwise
-	peer uuid.UUID
-	// since is when the current state started
-	since time.Time
-	mu    sync.Mutex
+	metrics ServerMetrics
+	mu      sync.Mutex
 }
 
 type poolRecipe struct {
@@ -47,6 +44,9 @@ type poolRecipe struct {
 type poolClient struct {
 	conn fed.Conn
 	key  [8]byte
+
+	metrics ClientMetrics
+	mu      sync.Mutex
 }
 
 type Pool struct {
@@ -54,7 +54,7 @@ type Pool struct {
 
 	recipes map[string]*poolRecipe
 	servers map[uuid.UUID]*poolServer
-	clients map[uuid.UUID]poolClient
+	clients map[uuid.UUID]*poolClient
 	mu      sync.Mutex
 }
 
@@ -75,16 +75,21 @@ func (T *Pool) idlest() (idlest uuid.UUID, idle time.Time) {
 	defer T.mu.Unlock()
 
 	for serverID, server := range T.servers {
-		if server.peer != uuid.Nil {
-			continue
-		}
+		func() {
+			server.mu.Lock()
+			defer server.mu.Unlock()
 
-		if idle != (time.Time{}) && server.since.After(idle) {
-			continue
-		}
+			if server.metrics.Peer != uuid.Nil {
+				return
+			}
 
-		idlest = serverID
-		idle = server.since
+			if idle != (time.Time{}) && server.metrics.Since.After(idle) {
+				return
+			}
+
+			idlest = serverID
+			idle = server.metrics.Since
+		}()
 	}
 
 	return
@@ -160,7 +165,7 @@ func (T *Pool) _scaleUpRecipe(name string) {
 		psServer:  psServer,
 		eqpServer: eqpServer,
 
-		since: time.Now(),
+		metrics: MakeServerMetrics(),
 	}
 	T.options.Pooler.AddServer(serverID)
 }
@@ -361,11 +366,13 @@ func (T *Pool) addClient(client fed.Conn, key [8]byte) uuid.UUID {
 	clientID := uuid.New()
 
 	if T.clients == nil {
-		T.clients = make(map[uuid.UUID]poolClient)
+		T.clients = make(map[uuid.UUID]*poolClient)
 	}
-	T.clients[clientID] = poolClient{
+	T.clients[clientID] = &poolClient{
 		conn: client,
 		key:  key,
+
+		metrics: MakeClientMetrics(),
 	}
 	T.options.Pooler.AddClient(clientID)
 	return clientID
@@ -389,11 +396,16 @@ func (T *Pool) acquireServer(clientID uuid.UUID) (serverID uuid.UUID, server *po
 	T.mu.Lock()
 	defer T.mu.Unlock()
 	server = T.servers[serverID]
+	client := T.clients[clientID]
 	if server != nil {
 		server.mu.Lock()
 		defer server.mu.Unlock()
-		server.peer = clientID
-		server.since = time.Now()
+		server.metrics.SetPeer(clientID)
+	}
+	if client != nil {
+		client.mu.Lock()
+		defer client.mu.Unlock()
+		client.metrics.SetPeer(serverID)
 	}
 	return
 }
@@ -407,12 +419,25 @@ func (T *Pool) releaseServer(serverID uuid.UUID) {
 		return
 	}
 
+	var clientID uuid.UUID
+
 	func() {
 		server.mu.Lock()
 		defer server.mu.Unlock()
-		server.peer = uuid.Nil
-		server.since = time.Now()
+		clientID = server.metrics.Peer
+		server.metrics.SetPeer(uuid.Nil)
 	}()
+
+	if clientID != uuid.Nil {
+		client := T.clients[clientID]
+		if client != nil {
+			func() {
+				client.mu.Lock()
+				defer client.mu.Unlock()
+				client.metrics.SetPeer(uuid.Nil)
+			}()
+		}
+	}
 
 	if T.options.ServerResetQuery != "" {
 		err := backends.QueryString(new(backends.Context), server.conn, T.options.ServerResetQuery)
@@ -465,10 +490,18 @@ func (T *Pool) Cancel(key [8]byte) error {
 		var serverKey [8]byte
 		var ok bool
 		for _, server := range T.servers {
-			if server.peer == clientID {
-				recipe = server.recipe
-				serverKey = server.accept.BackendKey
-				ok = true
+			func() {
+				server.mu.Lock()
+				defer server.mu.Unlock()
+
+				if server.metrics.Peer == clientID {
+					recipe = server.recipe
+					serverKey = server.accept.BackendKey
+					ok = true
+					return
+				}
+			}()
+			if ok {
 				break
 			}
 		}
