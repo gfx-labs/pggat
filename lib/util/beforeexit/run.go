@@ -3,35 +3,26 @@ package beforeexit
 import (
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
-
-	"github.com/google/uuid"
-
-	"pggat2/lib/util/maps"
 )
 
-var toRun maps.RWLocked[uuid.UUID, func()]
+var (
+	q      []func()
+	active bool
+	mu     sync.Mutex
+)
 
-// Run will register a func to run before exit on receiving an interrupt
-// The order that tasks are run is undefined.
-func Run(fn func()) uuid.UUID {
-	id := uuid.New()
-	toRun.Store(id, fn)
-	return id
-}
-
-func Cancel(id uuid.UUID) {
-	toRun.Delete(id)
-}
-
-func init() {
+func registerHandler() {
 	c := make(chan os.Signal, 2)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
 		<-c
 
-		toRun.Range(func(_ uuid.UUID, fn func()) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, fn := range q {
 			// ignore any panics in funcs
 			func() {
 				defer func() {
@@ -39,10 +30,21 @@ func init() {
 				}()
 				fn()
 			}()
-
-			return true
-		})
+		}
 
 		os.Exit(1)
 	}()
+}
+
+// Run will register a func to run before exit on receiving an interrupt
+// Tasks will run in the order that they are added
+func Run(fn func()) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	q = append(q, fn)
+	if !active {
+		active = true
+		registerHandler()
+	}
 }
