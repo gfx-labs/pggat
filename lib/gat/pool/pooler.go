@@ -1,6 +1,17 @@
 package pool
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
+)
+
+type SyncMode int
+
+const (
+	// SyncModeNonBlocking will obtain a server without blocking
+	SyncModeNonBlocking SyncMode = iota
+	// SyncModeBlocking will obtain a server by stalling
+	SyncModeBlocking
+)
 
 type Pooler interface {
 	AddClient(client uuid.UUID)
@@ -9,12 +20,8 @@ type Pooler interface {
 	AddServer(server uuid.UUID)
 	RemoveServer(server uuid.UUID)
 
-	// AcquireConcurrent tries to acquire a peer for the client without stalling.
-	// Returns uuid.Nil if no peer can be acquired
-	AcquireConcurrent(client uuid.UUID) uuid.UUID
-
-	// AcquireAsync will stall until a peer is available.
-	AcquireAsync(client uuid.UUID) uuid.UUID
+	// Acquire a peer with SyncMode
+	Acquire(client uuid.UUID, sync SyncMode) uuid.UUID
 
 	// ReleaseAfterTransaction queries whether servers should be immediately released after a transaction is completed.
 	ReleaseAfterTransaction() bool

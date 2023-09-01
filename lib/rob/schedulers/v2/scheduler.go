@@ -90,7 +90,7 @@ func (T *Scheduler) RemoveUser(user uuid.UUID) {
 	}
 }
 
-func (T *Scheduler) Acquire(j job.Concurrent) uuid.UUID {
+func (T *Scheduler) TryAcquire(j job.Concurrent) uuid.UUID {
 	affinity, _ := T.affinity.Load(j.User)
 
 	// these can be unlocked and locked a bunch here because it is less bad if ExecuteConcurrent misses a sink
@@ -123,12 +123,6 @@ func (T *Scheduler) Acquire(j job.Concurrent) uuid.UUID {
 	return uuid.Nil
 }
 
-func (T *Scheduler) AcquireConcurrent(user uuid.UUID) uuid.UUID {
-	return T.Acquire(job.Concurrent{
-		User: user,
-	})
-}
-
 func (T *Scheduler) Enqueue(j job.Stalled) {
 	affinity, _ := T.affinity.Load(j.User)
 
@@ -157,21 +151,35 @@ func (T *Scheduler) Enqueue(j job.Stalled) {
 	T.backlog = append(T.backlog, j)
 }
 
-func (T *Scheduler) AcquireAsync(user uuid.UUID) uuid.UUID {
-	ready, ok := T.ready.Get()
-	if !ok {
-		ready = make(chan uuid.UUID, 1)
-	}
-	defer T.ready.Put(ready)
-
-	j := job.Stalled{
-		Concurrent: job.Concurrent{
+func (T *Scheduler) Acquire(user uuid.UUID, mode rob.SyncMode) uuid.UUID {
+	switch mode {
+	case rob.SyncModeNonBlocking:
+		return T.TryAcquire(job.Concurrent{
 			User: user,
-		},
-		Ready: ready,
+		})
+	case rob.SyncModeBlocking:
+		ready, ok := T.ready.Get()
+		if !ok {
+			ready = make(chan uuid.UUID, 1)
+		}
+		defer T.ready.Put(ready)
+
+		j := job.Stalled{
+			Concurrent: job.Concurrent{
+				User: user,
+			},
+			Ready: ready,
+		}
+		T.Enqueue(j)
+		return <-ready
+	case rob.SyncModeTryNonBlocking:
+		if id := T.Acquire(user, rob.SyncModeNonBlocking); id != uuid.Nil {
+			return id
+		}
+		return T.Acquire(user, rob.SyncModeBlocking)
+	default:
+		return uuid.Nil
 	}
-	T.Enqueue(j)
-	return <-ready
 }
 
 func (T *Scheduler) Release(worker uuid.UUID) {

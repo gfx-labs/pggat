@@ -50,7 +50,7 @@ func (T *Pooler) RemoveServer(server uuid.UUID) {
 	delete(T.servers, server)
 }
 
-func (T *Pooler) AcquireConcurrent(_ uuid.UUID) uuid.UUID {
+func (T *Pooler) TryAcquire() uuid.UUID {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -63,7 +63,7 @@ func (T *Pooler) AcquireConcurrent(_ uuid.UUID) uuid.UUID {
 	return server
 }
 
-func (T *Pooler) AcquireAsync(_ uuid.UUID) uuid.UUID {
+func (T *Pooler) AcquireBlocking() uuid.UUID {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -77,6 +77,17 @@ func (T *Pooler) AcquireAsync(_ uuid.UUID) uuid.UUID {
 	server := T.queue[len(T.queue)-1]
 	T.queue = T.queue[:len(T.queue)-1]
 	return server
+}
+
+func (T *Pooler) Acquire(_ uuid.UUID, mode pool.SyncMode) uuid.UUID {
+	switch mode {
+	case pool.SyncModeBlocking:
+		return T.TryAcquire()
+	case pool.SyncModeNonBlocking:
+		return T.AcquireBlocking()
+	default:
+		return uuid.Nil
+	}
 }
 
 func (*Pooler) ReleaseAfterTransaction() bool {

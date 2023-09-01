@@ -44,7 +44,7 @@ func testSource(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
 	source := uuid.New()
 	sched.AddUser(source)
 	for {
-		sink := rob.Acquire(sched, source)
+		sink := sched.Acquire(source, rob.SyncModeTryNonBlocking)
 		start := time.Now()
 		for time.Since(start) < dur {
 		}
@@ -59,7 +59,7 @@ func testMultiSource(sched *Scheduler, tab *ShareTable, id int, dur time.Duratio
 	for i := 0; i < num; i++ {
 		go func() {
 			for {
-				sink := rob.Acquire(sched, source)
+				sink := sched.Acquire(source, rob.SyncModeTryNonBlocking)
 				start := time.Now()
 				for time.Since(start) < dur {
 				}
@@ -77,7 +77,7 @@ func testStarver(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
 			sched.AddUser(source)
 			defer sched.RemoveUser(source)
 
-			sink := rob.Acquire(sched, source)
+			sink := sched.Acquire(source, rob.SyncModeTryNonBlocking)
 			defer sched.Release(sink)
 			start := time.Now()
 			for time.Since(start) < dur {

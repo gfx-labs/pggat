@@ -380,10 +380,10 @@ func (T *Pool) removeClient(clientID uuid.UUID) {
 }
 
 func (T *Pool) acquireServer(clientID uuid.UUID) (serverID uuid.UUID, server *poolServer) {
-	serverID = T.options.Pooler.AcquireConcurrent(clientID)
+	serverID = T.options.Pooler.Acquire(clientID, SyncModeNonBlocking)
 	if serverID == uuid.Nil {
 		go T.scaleUp()
-		serverID = T.options.Pooler.AcquireAsync(clientID)
+		serverID = T.options.Pooler.Acquire(clientID, SyncModeBlocking)
 	}
 
 	T.mu.Lock()

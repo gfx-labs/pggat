@@ -21,7 +21,7 @@ func (T *SASLInitialResponse) ReadFromPacket(packet fed.Packet) bool {
 	p = p.ReadInt32(&initialResponseSize)
 
 	T.InitialResponse = slices.Resize(T.InitialResponse, int(initialResponseSize))
-	p = p.ReadBytes(T.InitialResponse[:])
+	p = p.ReadBytes(T.InitialResponse)
 
 	return true
 }

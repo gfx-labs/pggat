@@ -120,7 +120,6 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 
 		if result.Password != nil {
 			password = *result.Password
-			ok = true
 		}
 	}
 
