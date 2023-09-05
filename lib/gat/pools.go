@@ -8,6 +8,8 @@ import (
 type Pools interface {
 	Lookup(user, database string) *pool.Pool
 
+	ReadMetrics(metrics *pool.Metrics)
+
 	// Key based lookup functions (for cancellation)
 
 	RegisterKey(key [8]byte, user, database string)
@@ -46,6 +48,13 @@ func (T *PoolsMap) Lookup(user, database string) *pool.Pool {
 		Database: database,
 	})
 	return p
+}
+
+func (T *PoolsMap) ReadMetrics(metrics *pool.Metrics) {
+	T.pools.Range(func(_ mapKey, p *pool.Pool) bool {
+		p.ReadMetrics(metrics)
+		return true
+	})
 }
 
 // key based lookup funcs

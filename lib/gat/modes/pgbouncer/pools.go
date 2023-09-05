@@ -168,16 +168,6 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		return nil
 	}
 
-	go func() {
-		var metrics pool.Metrics
-		for {
-			time.Sleep(1 * time.Second)
-			metrics.Clear()
-			p.ReadMetrics(&metrics)
-			log.Println(metrics.String())
-		}
-	}()
-
 	T.pools.Store(poolKey{
 		User:     user,
 		Database: database,
@@ -251,6 +241,13 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 	p.AddRecipe("pgbouncer", recipe)
 
 	return p
+}
+
+func (T *Pools) ReadMetrics(metrics *pool.Metrics) {
+	T.pools.Range(func(_ poolKey, p *pool.Pool) bool {
+		p.ReadMetrics(metrics)
+		return true
+	})
 }
 
 func (T *Pools) RegisterKey(key [8]byte, user, database string) {

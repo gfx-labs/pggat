@@ -263,7 +263,7 @@ func (T *Pool) RemoveRecipe(name string) {
 }
 
 func (T *Pool) ScaleUp() {
-	T.recipes.Range(func(_ string, r *poolRecipe) bool {
+	failed := T.recipes.Range(func(_ string, r *poolRecipe) bool {
 		// this can race, but it will just dial an extra server and disconnect it in worst case
 		if r.recipe.MaxConnections == 0 || r.Size() < r.recipe.MaxConnections {
 			T.scaleUpRecipe(r)
@@ -272,6 +272,9 @@ func (T *Pool) ScaleUp() {
 
 		return true
 	})
+	if failed {
+		log.Println("No available recipe found to scale up")
+	}
 }
 
 func syncInitialParameters(

@@ -16,6 +16,24 @@ type Metrics struct {
 	Clients map[uuid.UUID]ItemMetrics
 }
 
+func (T *Metrics) TransactionCount() int {
+	var serverTransactions int
+	var clientTransactions int
+
+	for _, server := range T.Servers {
+		serverTransactions += server.Transactions
+	}
+
+	for _, client := range T.Clients {
+		clientTransactions += client.Transactions
+	}
+
+	if clientTransactions > serverTransactions {
+		return clientTransactions
+	}
+	return serverTransactions
+}
+
 func (T *Metrics) ServerStateCount() (active, idle, stalling int) {
 	for _, server := range T.Servers {
 		switch server.Peer {
@@ -90,7 +108,8 @@ func (T *Metrics) String() string {
 	serverActiveUtil, serverIdleUtil, serverStallingUtil := T.ServerStateUtil()
 	clientActive, clientIdle, clientStalling := T.ClientStateCount()
 	clientActiveUtil, clientIdleUtil, clientStallingUtil := T.ClientStateUtil()
-	return fmt.Sprintf("%d servers (%d (%.2f%%) active, %d (%.2f%%) idle, %d (%.2f%%) stalling) | %d clients (%d (%.2f%%) active, %d (%.2f%%) idle, %d (%.2f%%) stalling)",
+	return fmt.Sprintf("%d transactions | %d servers (%d (%.2f%%) active, %d (%.2f%%) idle, %d (%.2f%%) stalling) | %d clients (%d (%.2f%%) active, %d (%.2f%%) idle, %d (%.2f%%) stalling)",
+		T.TransactionCount(),
 		len(T.Servers),
 		serverActive,
 		serverActiveUtil*100,

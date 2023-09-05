@@ -5,12 +5,14 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"tuxpa.in/a/zlog/log"
 
 	"pggat2/lib/bouncer"
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/gat"
+	"pggat2/lib/gat/pool"
 	"pggat2/lib/util/encoding/ini"
 	"pggat2/lib/util/flip"
 	"pggat2/lib/util/strutil"
@@ -284,6 +286,16 @@ func (T *Config) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
+
+	go func() {
+		var metrics pool.Metrics
+		for {
+			metrics.Clear()
+			time.Sleep(1 * time.Second)
+			pools.ReadMetrics(&metrics)
+			log.Print(metrics.String())
+		}
+	}()
 
 	var bank flip.Bank
 

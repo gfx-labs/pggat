@@ -85,9 +85,9 @@ func (T *Pooler) AcquireBlocking() uuid.UUID {
 
 func (T *Pooler) Acquire(_ uuid.UUID, mode pool.SyncMode) uuid.UUID {
 	switch mode {
-	case pool.SyncModeBlocking:
-		return T.TryAcquire()
 	case pool.SyncModeNonBlocking:
+		return T.TryAcquire()
+	case pool.SyncModeBlocking:
 		return T.AcquireBlocking()
 	default:
 		return uuid.Nil
