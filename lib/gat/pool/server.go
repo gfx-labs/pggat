@@ -1,20 +1,21 @@
 package pool
 
 import (
+	"sync"
+	"time"
+
 	"github.com/google/uuid"
+
 	"pggat2/lib/fed"
 	"pggat2/lib/middleware/middlewares/eqp"
 	"pggat2/lib/middleware/middlewares/ps"
 	"pggat2/lib/util/strutil"
-	"sync"
-	"time"
 )
 
 type Server struct {
 	conn              fed.Conn
 	backendKey        [8]byte
 	initialParameters map[strutil.CIString]string
-	recipe            string
 
 	psServer  *ps.Server
 	eqpServer *eqp.Server
@@ -27,7 +28,6 @@ func NewServer(
 	conn fed.Conn,
 	backendKey [8]byte,
 	initialParameters map[strutil.CIString]string,
-	recipe string,
 
 	psServer *ps.Server,
 	eqpServer *eqp.Server,
@@ -36,7 +36,6 @@ func NewServer(
 		conn:              conn,
 		backendKey:        backendKey,
 		initialParameters: initialParameters,
-		recipe:            recipe,
 
 		psServer:  psServer,
 		eqpServer: eqpServer,
@@ -55,10 +54,6 @@ func (T *Server) GetBackendKey() [8]byte {
 
 func (T *Server) GetInitialParameters() map[strutil.CIString]string {
 	return T.initialParameters
-}
-
-func (T *Server) GetRecipe() string {
-	return T.recipe
 }
 
 func (T *Server) GetPSServer() *ps.Server {

@@ -1,4 +1,4 @@
-package pool
+package dialer
 
 import (
 	"net"
@@ -7,19 +7,14 @@ import (
 	"pggat2/lib/fed"
 )
 
-type Dialer interface {
-	Dial() (fed.Conn, backends.AcceptParams, error)
-	Cancel(cancelKey [8]byte) error
-}
-
-type NetDialer struct {
+type Net struct {
 	Network string
 	Address string
 
 	AcceptOptions backends.AcceptOptions
 }
 
-func (T NetDialer) Dial() (fed.Conn, backends.AcceptParams, error) {
+func (T Net) Dial() (fed.Conn, backends.AcceptParams, error) {
 	c, err := net.Dial(T.Network, T.Address)
 	if err != nil {
 		return nil, backends.AcceptParams{}, err
@@ -33,7 +28,7 @@ func (T NetDialer) Dial() (fed.Conn, backends.AcceptParams, error) {
 	return conn, params, nil
 }
 
-func (T NetDialer) Cancel(cancelKey [8]byte) error {
+func (T Net) Cancel(cancelKey [8]byte) error {
 	c, err := net.Dial(T.Network, T.Address)
 	if err != nil {
 		return err

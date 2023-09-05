@@ -75,3 +75,19 @@ func (T *RWLocked[K, V]) Range(fn func(key K, value V) bool) bool {
 	T.mu.RUnlock()
 	return true
 }
+
+func (T *RWLocked[K, V]) Clear() {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	for k := range T.inner {
+		delete(T.inner, k)
+	}
+}
+
+func (T *RWLocked[K, V]) Len() int {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+
+	return len(T.inner)
+}

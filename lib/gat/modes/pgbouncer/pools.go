@@ -15,6 +15,7 @@ import (
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/gat"
 	"pggat2/lib/gat/pool"
+	"pggat2/lib/gat/pool/dialer"
 	"pggat2/lib/gat/pool/pools/session"
 	"pggat2/lib/gat/pool/pools/transaction"
 	"pggat2/lib/gsql"
@@ -172,7 +173,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		Database: database,
 	}, p)
 
-	var dialer pool.Dialer
+	var d dialer.Dialer
 
 	dbCreds := creds
 	if db.Password != "" {
@@ -204,7 +205,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 
 		dir = dir + ".s.PGSQL." + strconv.Itoa(port)
 
-		dialer = pool.NetDialer{
+		d = dialer.Net{
 			Network:       "unix",
 			Address:       dir,
 			AcceptOptions: acceptOptions,
@@ -218,7 +219,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		}
 
 		// connect over tcp
-		dialer = pool.NetDialer{
+		d = dialer.Net{
 			Network:       "tcp",
 			Address:       address,
 			AcceptOptions: acceptOptions,
@@ -226,7 +227,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 	}
 
 	recipe := pool.Recipe{
-		Dialer:         dialer,
+		Dialer:         d,
 		MinConnections: db.MinPoolSize,
 		MaxConnections: db.MaxDBConnections,
 	}

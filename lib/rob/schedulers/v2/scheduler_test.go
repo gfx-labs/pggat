@@ -35,14 +35,11 @@ func (T *ShareTable) Get(user int) int {
 }
 
 func testSink(sched *Scheduler) uuid.UUID {
-	id := uuid.New()
-	sched.AddWorker(id)
-	return id
+	return sched.NewWorker()
 }
 
 func testSource(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
-	source := uuid.New()
-	sched.AddUser(source)
+	source := sched.NewUser()
 	for {
 		sink := sched.Acquire(source, rob.SyncModeTryNonBlocking)
 		start := time.Now()
@@ -54,8 +51,7 @@ func testSource(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
 }
 
 func testMultiSource(sched *Scheduler, tab *ShareTable, id int, dur time.Duration, num int) {
-	source := uuid.New()
-	sched.AddUser(source)
+	source := sched.NewUser()
 	for i := 0; i < num; i++ {
 		go func() {
 			for {
@@ -73,9 +69,8 @@ func testMultiSource(sched *Scheduler, tab *ShareTable, id int, dur time.Duratio
 func testStarver(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
 	for {
 		func() {
-			source := uuid.New()
-			sched.AddUser(source)
-			defer sched.RemoveUser(source)
+			source := sched.NewUser()
+			defer sched.DeleteUser(source)
 
 			sink := sched.Acquire(source, rob.SyncModeTryNonBlocking)
 			defer sched.Release(sink)
@@ -376,7 +371,7 @@ func TestScheduler_RemoveSinkOuter(t *testing.T) {
 
 	time.Sleep(10 * time.Second)
 
-	sched.RemoveWorker(toRemove)
+	sched.DeleteWorker(toRemove)
 
 	time.Sleep(10 * time.Second)
 

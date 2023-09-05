@@ -25,7 +25,9 @@ type Scheduler struct {
 	mu      sync.RWMutex
 }
 
-func (T *Scheduler) AddWorker(worker uuid.UUID) {
+func (T *Scheduler) NewWorker() uuid.UUID {
+	worker := uuid.New()
+
 	s := sink.NewSink(worker)
 
 	if func() bool {
@@ -47,15 +49,16 @@ func (T *Scheduler) AddWorker(worker uuid.UUID) {
 		T.backlog = T.backlog[:0]
 		return true
 	}() {
-		return
+		return worker
 	}
 
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 	T.stealFor(worker)
+	return worker
 }
 
-func (T *Scheduler) RemoveWorker(worker uuid.UUID) {
+func (T *Scheduler) DeleteWorker(worker uuid.UUID) {
 	var s *sink.Sink
 	var ok bool
 	func() {
@@ -76,11 +79,11 @@ func (T *Scheduler) RemoveWorker(worker uuid.UUID) {
 	}
 }
 
-func (*Scheduler) AddUser(_ uuid.UUID) {
-	// nothing to do, users are added lazily
+func (*Scheduler) NewUser() uuid.UUID {
+	return uuid.New()
 }
 
-func (T *Scheduler) RemoveUser(user uuid.UUID) {
+func (T *Scheduler) DeleteUser(user uuid.UUID) {
 	T.affinity.Delete(user)
 
 	T.mu.RLock()

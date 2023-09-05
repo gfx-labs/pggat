@@ -16,11 +16,11 @@ const (
 )
 
 type Scheduler interface {
-	AddWorker(worker uuid.UUID)
-	RemoveWorker(worker uuid.UUID)
+	NewWorker() uuid.UUID
+	DeleteWorker(worker uuid.UUID)
 
-	AddUser(user uuid.UUID)
-	RemoveUser(user uuid.UUID)
+	NewUser() uuid.UUID
+	DeleteUser(user uuid.UUID)
 
 	// Acquire will acquire a worker with the desired SyncMode
 	Acquire(user uuid.UUID, sync SyncMode) uuid.UUID
