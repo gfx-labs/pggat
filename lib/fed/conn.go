@@ -5,8 +5,6 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
-
-	"pggat2/lib/util/pools"
 )
 
 type Conn interface {
@@ -18,8 +16,6 @@ type Conn interface {
 	Close() error
 }
 
-var buffers = pools.Locked[net.Buffers]{}
-
 const pktBufSize = 4096
 
 type netConn struct {
@@ -30,15 +26,14 @@ type netConn struct {
 
 	pktBuf  [pktBufSize]byte
 	readBuf []byte
+
+	headerBuf [5]byte
 }
 
 func WrapNetConn(conn net.Conn) Conn {
-	bufs, _ := buffers.Get()
 	return &netConn{
 		conn: conn,
 		w:    conn,
-
-		writeBuf: bufs[0:],
 	}
 }
 
@@ -120,21 +115,24 @@ func (T *netConn) ReadPacket(typed bool) (Packet, error) {
 	if err := T.flush(); err != nil {
 		return nil, err
 	}
-	packet := NewPacket(0)
 	if typed {
-		_, err := T.read(packet)
+		_, err := T.read(T.headerBuf[:])
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		_, err := T.read(packet[1:])
+		_, err := T.read(T.headerBuf[1:])
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	length := binary.BigEndian.Uint32(packet[1:])
-	packet = packet.Grow(int(length) - 4)
+	length := binary.BigEndian.Uint32(T.headerBuf[1:])
+
+	p := make([]byte, length+1)
+	copy(p, T.headerBuf[:])
+
+	packet := Packet(p)
 	_, err := T.read(packet.Payload())
 	if err != nil {
 		return nil, err
@@ -153,9 +151,8 @@ func (T *netConn) WritePacket(packet Packet) error {
 }
 
 func (T *netConn) Close() error {
-	if T.writeBuf != nil {
-		buffers.Put(T.writeBuf)
-		T.writeBuf = nil
+	if err := T.flush(); err != nil {
+		return err
 	}
 	return T.conn.Close()
 }

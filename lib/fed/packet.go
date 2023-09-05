@@ -30,31 +30,6 @@ func (T Packet) Bytes() []byte {
 	return T
 }
 
-func (T Packet) Grow(n int) Packet {
-	if len(T)+n > cap(T) {
-		p := make([]byte, len(T)+n)
-		copy(p, T)
-		return p
-	}
-
-	var p = T
-	for i := 0; i < n; i++ {
-		p = append(p, 0)
-	}
-
-	return p
-}
-
-func (T Packet) Reserve(n int) Packet {
-	if len(T)+n > cap(T) {
-		p := make([]byte, len(T), len(T)+n)
-		copy(p, T)
-		return p
-	}
-
-	return T
-}
-
 func (T Packet) Type() Type {
 	return Type(T[0])
 }
