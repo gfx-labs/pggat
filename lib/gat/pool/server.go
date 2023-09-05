@@ -64,13 +64,13 @@ func (T *Server) GetEQPServer() *eqp.Server {
 	return T.eqpServer
 }
 
-// SetPeer replaces the peer. Returns the old peer
-func (T *Server) SetPeer(peer uuid.UUID) uuid.UUID {
+// SetState replaces the peer. Returns the old peer
+func (T *Server) SetState(state State, peer uuid.UUID) uuid.UUID {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
 	old := T.metrics.Peer
-	T.metrics.SetPeer(peer)
+	T.metrics.SetState(state, peer)
 	return old
 }
 

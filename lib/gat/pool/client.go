@@ -37,13 +37,13 @@ func (T *Client) GetBackendKey() [8]byte {
 	return T.backendKey
 }
 
-// SetPeer replaces the peer. Returns the old peer
-func (T *Client) SetPeer(peer uuid.UUID) uuid.UUID {
+// SetState replaces the peer. Returns the old peer
+func (T *Client) SetState(state State, peer uuid.UUID) uuid.UUID {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
 	old := T.metrics.Peer
-	T.metrics.SetPeer(peer)
+	T.metrics.SetState(state, peer)
 	return old
 }
 

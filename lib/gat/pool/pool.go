@@ -440,7 +440,7 @@ func (T *Pool) removeClient(clientID uuid.UUID) {
 func (T *Pool) acquireServer(clientID uuid.UUID) (serverID uuid.UUID, server *Server) {
 	client, _ := T.clients.Load(clientID)
 	if client != nil {
-		client.SetPeer(Stalling)
+		client.SetState(StateAwaitingServer, uuid.Nil)
 	}
 
 	serverID = T.options.Pooler.Acquire(clientID, SyncModeNonBlocking)
@@ -451,10 +451,10 @@ func (T *Pool) acquireServer(clientID uuid.UUID) (serverID uuid.UUID, server *Se
 
 	server = T.GetServer(serverID)
 	if server != nil {
-		server.SetPeer(clientID)
+		server.SetState(StateActive, clientID)
 	}
 	if client != nil {
-		client.SetPeer(serverID)
+		client.SetState(StateActive, serverID)
 	}
 	return
 }
@@ -465,12 +465,12 @@ func (T *Pool) releaseServer(serverID uuid.UUID) {
 		return
 	}
 
-	clientID := server.SetPeer(Stalling)
+	clientID := server.SetState(StateRunningResetQuery, uuid.Nil)
 
 	if clientID != uuid.Nil {
 		client, _ := T.clients.Load(clientID)
 		if client != nil {
-			client.SetPeer(uuid.Nil)
+			client.SetState(StateIdle, uuid.Nil)
 		}
 	}
 
@@ -482,7 +482,7 @@ func (T *Pool) releaseServer(serverID uuid.UUID) {
 		}
 	}
 
-	server.SetPeer(uuid.Nil)
+	server.SetState(StateIdle, uuid.Nil)
 
 	T.options.Pooler.Release(serverID)
 }
