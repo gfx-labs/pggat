@@ -38,7 +38,7 @@ func WrapNetConn(conn net.Conn) Conn {
 		conn: conn,
 		w:    conn,
 
-		writeBuf: bufs,
+		writeBuf: bufs[0:],
 	}
 }
 
