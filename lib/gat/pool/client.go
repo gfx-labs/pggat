@@ -1,17 +1,19 @@
 package pool
 
 import (
-	"github.com/google/uuid"
-	"pggat2/lib/fed"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
+
+	"pggat2/lib/fed"
 )
 
 type Client struct {
 	conn       fed.Conn
 	backendKey [8]byte
 
-	metrics ClientMetrics
+	metrics ItemMetrics
 	mu      sync.RWMutex
 }
 
@@ -23,7 +25,7 @@ func NewClient(
 		conn:       conn,
 		backendKey: backendKey,
 
-		metrics: MakeClientMetrics(),
+		metrics: MakeItemMetrics(),
 	}
 }
 
@@ -59,9 +61,16 @@ func (T *Client) GetConnection() (uuid.UUID, time.Time) {
 	return T.metrics.Peer, T.metrics.Since
 }
 
-func (T *Client) ReadMetrics(metrics *ClientMetrics) {
-	T.mu.RLock()
-	defer T.mu.RUnlock()
+func (T *Client) TransactionComplete() {
+	T.mu.Lock()
+	defer T.mu.Unlock()
 
-	panic("TODO(garet)")
+	T.metrics.Transactions++
+}
+
+func (T *Client) ReadMetrics(metrics *ItemMetrics) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	T.metrics.Read(metrics)
 }

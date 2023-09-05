@@ -405,12 +405,11 @@ func (T *Pool) Serve(
 			server = nil
 			return serverErr
 		} else {
+			T.transactionComplete(clientID, serverID)
 			if T.options.Pooler.ReleaseAfterTransaction() {
 				T.releaseServer(serverID)
 				serverID = uuid.Nil
 				server = nil
-			} else {
-				T.transactionComplete(serverID)
 			}
 		}
 
@@ -436,6 +435,11 @@ func (T *Pool) removeClient(clientID uuid.UUID) {
 }
 
 func (T *Pool) acquireServer(clientID uuid.UUID) (serverID uuid.UUID, server *Server) {
+	client, _ := T.clients.Load(clientID)
+	if client != nil {
+		client.SetPeer(Stalling)
+	}
+
 	serverID = T.options.Pooler.Acquire(clientID, SyncModeNonBlocking)
 	if serverID == uuid.Nil {
 		go T.ScaleUp()
@@ -443,7 +447,6 @@ func (T *Pool) acquireServer(clientID uuid.UUID) (serverID uuid.UUID, server *Se
 	}
 
 	server = T.GetServer(serverID)
-	client, _ := T.clients.Load(clientID)
 	if server != nil {
 		server.SetPeer(clientID)
 	}
@@ -459,7 +462,7 @@ func (T *Pool) releaseServer(serverID uuid.UUID) {
 		return
 	}
 
-	clientID := server.SetPeer(uuid.Nil)
+	clientID := server.SetPeer(Stalling)
 
 	if clientID != uuid.Nil {
 		client, _ := T.clients.Load(clientID)
@@ -475,11 +478,28 @@ func (T *Pool) releaseServer(serverID uuid.UUID) {
 			return
 		}
 	}
+
+	server.SetPeer(uuid.Nil)
+
 	T.options.Pooler.Release(serverID)
 }
 
-func (T *Pool) transactionComplete(serverID uuid.UUID) {
+func (T *Pool) transactionComplete(clientID, serverID uuid.UUID) {
+	func() {
+		server := T.GetServer(serverID)
+		if server == nil {
+			return
+		}
 
+		server.TransactionComplete()
+	}()
+
+	client, _ := T.clients.Load(clientID)
+	if client == nil {
+		return
+	}
+
+	client.TransactionComplete()
 }
 
 func (T *Pool) removeServer(serverID uuid.UUID) {
@@ -529,12 +549,16 @@ func (T *Pool) Cancel(key [8]byte) error {
 }
 
 func (T *Pool) ReadMetrics(metrics *Metrics) {
-	maps.Clear(metrics.Servers)
-	maps.Clear(metrics.Clients)
+	if metrics.Servers == nil {
+		metrics.Servers = make(map[uuid.UUID]ItemMetrics)
+	}
+	if metrics.Clients == nil {
+		metrics.Clients = make(map[uuid.UUID]ItemMetrics)
+	}
 
 	T.recipes.Range(func(_ string, recipe *poolRecipe) bool {
 		recipe.RangeRLock(func(serverID uuid.UUID, server *Server) bool {
-			var m ServerMetrics
+			var m ItemMetrics
 			server.ReadMetrics(&m)
 			metrics.Servers[serverID] = m
 			return true
@@ -543,7 +567,7 @@ func (T *Pool) ReadMetrics(metrics *Metrics) {
 	})
 
 	T.clients.Range(func(clientID uuid.UUID, client *Client) bool {
-		var m ClientMetrics
+		var m ItemMetrics
 		client.ReadMetrics(&m)
 		metrics.Clients[clientID] = m
 		return true

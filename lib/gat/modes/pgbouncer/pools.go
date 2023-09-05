@@ -168,6 +168,16 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		return nil
 	}
 
+	go func() {
+		var metrics pool.Metrics
+		for {
+			time.Sleep(1 * time.Second)
+			metrics.Clear()
+			p.ReadMetrics(&metrics)
+			log.Println(metrics.String())
+		}
+	}()
+
 	T.pools.Store(poolKey{
 		User:     user,
 		Database: database,

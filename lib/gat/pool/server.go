@@ -20,7 +20,7 @@ type Server struct {
 	psServer  *ps.Server
 	eqpServer *eqp.Server
 
-	metrics ServerMetrics
+	metrics ItemMetrics
 	mu      sync.RWMutex
 }
 
@@ -40,7 +40,7 @@ func NewServer(
 		psServer:  psServer,
 		eqpServer: eqpServer,
 
-		metrics: MakeServerMetrics(),
+		metrics: MakeItemMetrics(),
 	}
 }
 
@@ -88,9 +88,16 @@ func (T *Server) GetConnection() (uuid.UUID, time.Time) {
 	return T.metrics.Peer, T.metrics.Since
 }
 
-func (T *Server) ReadMetrics(metrics *ServerMetrics) {
-	T.mu.RLock()
-	defer T.mu.RUnlock()
+func (T *Server) TransactionComplete() {
+	T.mu.Lock()
+	defer T.mu.Unlock()
 
-	panic("TODO(garet)")
+	T.metrics.Transactions++
+}
+
+func (T *Server) ReadMetrics(metrics *ItemMetrics) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	T.metrics.Read(metrics)
 }
