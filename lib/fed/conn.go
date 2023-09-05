@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
+
+	"pggat2/lib/util/pools"
 )
 
 type Conn interface {
@@ -15,6 +17,8 @@ type Conn interface {
 
 	Close() error
 }
+
+var buffers = pools.Locked[net.Buffers]{}
 
 const pktBufSize = 4096
 
@@ -29,9 +33,12 @@ type netConn struct {
 }
 
 func WrapNetConn(conn net.Conn) Conn {
+	bufs, _ := buffers.Get()
 	return &netConn{
 		conn: conn,
 		w:    conn,
+
+		writeBuf: bufs,
 	}
 }
 
@@ -146,6 +153,10 @@ func (T *netConn) WritePacket(packet Packet) error {
 }
 
 func (T *netConn) Close() error {
+	if T.writeBuf != nil {
+		buffers.Put(T.writeBuf)
+		T.writeBuf = nil
+	}
 	return T.conn.Close()
 }
 

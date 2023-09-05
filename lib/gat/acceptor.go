@@ -1,7 +1,11 @@
 package gat
 
 import (
+	"errors"
+	"io"
 	"net"
+
+	"tuxpa.in/a/zlog/log"
 
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/fed"
@@ -61,6 +65,7 @@ func serve(client fed.Conn, acceptParams frontends.AcceptParams, pools Pools) er
 	p := pools.Lookup(acceptParams.User, acceptParams.Database)
 
 	if p == nil {
+		log.Printf("pool not found: user=%s database=%s", acceptParams.User, acceptParams.Database)
 		return nil
 	}
 
@@ -81,12 +86,17 @@ func Serve(acceptor Acceptor, pools Pools) error {
 	for {
 		conn, acceptParams, err := acceptor.Accept()
 		if err != nil {
-			// log.Println("error accepting", err)
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			}
+			log.Print("error accepting client: ", err)
 			continue
 		}
 		go func() {
-			_ = serve(conn, acceptParams, pools)
-			// log.Println("error serving", err)
+			err := serve(conn, acceptParams, pools)
+			if err != nil && !errors.Is(err, io.EOF) {
+				log.Print("error serving client: ", err)
+			}
 		}()
 	}
 }
