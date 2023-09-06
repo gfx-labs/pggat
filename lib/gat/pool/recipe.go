@@ -1,6 +1,8 @@
 package pool
 
-import "pggat2/lib/gat/pool/dialer"
+import (
+	"pggat2/lib/gat/pool/recipe/dialer"
+)
 
 type Recipe struct {
 	Dialer         dialer.Dialer
