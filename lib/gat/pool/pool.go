@@ -45,7 +45,7 @@ func (T *Pool) idlest() (server *Server, at time.Time) {
 
 	for _, s := range T.servers {
 		state, _, since := s.GetState()
-		if state != StateIdle {
+		if state != metrics.ConnStateIdle {
 			continue
 		}
 
@@ -199,7 +199,7 @@ func (T *Pool) removeServerL1(server *Server) {
 }
 
 func (T *Pool) acquireServer(client *Client) *Server {
-	client.SetState(StateAwaitingServer, uuid.Nil)
+	client.SetState(metrics.ConnStateAwaitingServer, uuid.Nil)
 
 	serverID := T.options.Pooler.Acquire(client.GetID(), SyncModeNonBlocking)
 	if serverID == uuid.Nil {
@@ -214,7 +214,7 @@ func (T *Pool) acquireServer(client *Client) *Server {
 }
 
 func (T *Pool) releaseServer(server *Server) {
-	server.SetState(StateRunningResetQuery, uuid.Nil)
+	server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
 
 	if T.options.ServerResetQuery != "" {
 		err := backends.QueryString(new(backends.Context), server.GetConn(), T.options.ServerResetQuery)
@@ -224,7 +224,7 @@ func (T *Pool) releaseServer(server *Server) {
 		}
 	}
 
-	server.SetState(StateIdle, uuid.Nil)
+	server.SetState(metrics.ConnStateIdle, uuid.Nil)
 
 	T.options.Pooler.Release(server.GetID())
 }
@@ -278,7 +278,7 @@ func (T *Pool) serve(client *Client) error {
 		} else {
 			TransactionComplete(client, server)
 			if T.options.ReleaseAfterTransaction {
-				client.SetState(StateIdle, uuid.Nil)
+				client.SetState(metrics.ConnStateIdle, uuid.Nil)
 				go T.releaseServer(server) // TODO(garet) does this need to be a goroutine
 				server = nil
 			}
@@ -325,7 +325,7 @@ func (T *Pool) Cancel(key [8]byte) error {
 	}
 
 	state, peer, _ := client.GetState()
-	if state != StateActive {
+	if state != metrics.ConnStateActive {
 		return nil
 	}
 

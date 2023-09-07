@@ -3,13 +3,14 @@ package pool
 import (
 	"pggat2/lib/bouncer/backends/v0"
 	packets "pggat2/lib/fed/packets/v3.0"
+	"pggat2/lib/gat/metrics"
 	"pggat2/lib/middleware/middlewares/ps"
 	"pggat2/lib/util/slices"
 )
 
 func Pair(options Options, client *Client, server *Server) (clientErr, serverErr error) {
-	client.SetState(StateActive, server.GetID())
-	server.SetState(StateActive, client.GetID())
+	client.SetState(metrics.ConnStateActive, server.GetID())
+	server.SetState(metrics.ConnStateActive, client.GetID())
 
 	switch options.ParameterStatusSync {
 	case ParameterStatusSyncDynamic:

@@ -24,10 +24,15 @@ type Conn struct {
 
 	transactionCount atomic.Int64
 
-	state State
+	lastMetricsRead time.Time
+
+	state metrics.ConnState
 	peer  uuid.UUID
 	since time.Time
-	mu    sync.RWMutex
+
+	util [metrics.ConnStateCount]time.Duration
+
+	mu sync.RWMutex
 }
 
 func MakeConn(
@@ -66,15 +71,26 @@ func (T *Conn) TransactionComplete() {
 	T.transactionCount.Add(1)
 }
 
-func (T *Conn) SetState(state State, peer uuid.UUID) {
+func (T *Conn) SetState(state metrics.ConnState, peer uuid.UUID) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
+
+	now := time.Now()
+
+	var since time.Duration
+	if T.since.Before(T.lastMetricsRead) {
+		since = now.Sub(T.lastMetricsRead)
+	} else {
+		since = now.Sub(T.since)
+	}
+	T.util[T.state] += since
+
 	T.state = state
 	T.peer = peer
-	T.since = time.Now()
+	T.since = now
 }
 
-func (T *Conn) GetState() (state State, peer uuid.UUID, since time.Time) {
+func (T *Conn) GetState() (state metrics.ConnState, peer uuid.UUID, since time.Time) {
 	T.mu.RLock()
 	defer T.mu.Unlock()
 	state = T.state
@@ -84,5 +100,29 @@ func (T *Conn) GetState() (state State, peer uuid.UUID, since time.Time) {
 }
 
 func (T *Conn) ReadMetrics(m *metrics.Conn) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
 
+	now := time.Now()
+
+	m.Time = now
+
+	m.State = T.state
+	m.Peer = T.peer
+	m.Since = T.since
+
+	m.Utilization = T.util
+	T.util = [metrics.ConnStateCount]time.Duration{}
+
+	var since time.Duration
+	if m.Since.Before(T.lastMetricsRead) {
+		since = now.Sub(T.lastMetricsRead)
+	} else {
+		since = now.Sub(m.Since)
+	}
+	m.Utilization[m.State] += since
+
+	m.TransactionCount = int(T.transactionCount.Swap(0))
+
+	T.lastMetricsRead = now
 }
