@@ -3,8 +3,8 @@ package pool
 type State int
 
 const (
-	StateActive State = iota
-	StateIdle
+	StateIdle State = iota
+	StateActive
 	StateAwaitingServer
 	StateRunningResetQuery
 )

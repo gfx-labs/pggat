@@ -1,8 +1,6 @@
 package pool
 
 import (
-	"sync/atomic"
-
 	"github.com/google/uuid"
 
 	"pggat2/lib/fed"
@@ -14,18 +12,12 @@ import (
 )
 
 type Server struct {
-	id     uuid.UUID
-	recipe string
+	Conn
 
-	conn fed.Conn
+	recipe string
 
 	ps  *ps.Server
 	eqp *eqp.Server
-
-	initialParameters map[strutil.CIString]string
-	backendKey        [8]byte
-
-	transactionCount atomic.Int64
 }
 
 func NewServer(
@@ -60,25 +52,20 @@ func NewServer(
 	}
 
 	return &Server{
-		id:         id,
-		recipe:     recipe,
-		conn:       conn,
-		ps:         psServer,
-		eqp:        eqpServer,
-		backendKey: backendKey,
+		Conn: MakeConn(
+			id,
+			conn,
+			initialParameters,
+			backendKey,
+		),
+		recipe: recipe,
+		ps:     psServer,
+		eqp:    eqpServer,
 	}
-}
-
-func (T *Server) GetID() uuid.UUID {
-	return T.id
 }
 
 func (T *Server) GetRecipe() string {
 	return T.recipe
-}
-
-func (T *Server) GetConn() fed.Conn {
-	return T.conn
 }
 
 func (T *Server) GetEQP() *eqp.Server {
@@ -87,16 +74,4 @@ func (T *Server) GetEQP() *eqp.Server {
 
 func (T *Server) GetPS() *ps.Server {
 	return T.ps
-}
-
-func (T *Server) TransactionComplete() {
-	T.transactionCount.Add(1)
-}
-
-func (T *Server) GetInitialParameters() map[strutil.CIString]string {
-	return T.initialParameters
-}
-
-func (T *Server) SetState(state State, peer uuid.UUID) {
-
 }

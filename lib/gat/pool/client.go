@@ -1,8 +1,6 @@
 package pool
 
 import (
-	"sync/atomic"
-
 	"github.com/google/uuid"
 
 	"pggat2/lib/fed"
@@ -15,17 +13,10 @@ import (
 )
 
 type Client struct {
-	id uuid.UUID
-
-	conn fed.Conn
+	Conn
 
 	ps  *ps.Client
 	eqp *eqp.Client
-
-	initialParameters map[strutil.CIString]string
-	backendKey        [8]byte
-
-	transactionCount atomic.Int64
 }
 
 func NewClient(
@@ -58,20 +49,15 @@ func NewClient(
 	)
 
 	return &Client{
-		id:         uuid.New(),
-		conn:       conn,
-		ps:         psClient,
-		eqp:        eqpClient,
-		backendKey: backendKey,
+		Conn: MakeConn(
+			uuid.New(),
+			conn,
+			initialParameters,
+			backendKey,
+		),
+		ps:  psClient,
+		eqp: eqpClient,
 	}
-}
-
-func (T *Client) GetID() uuid.UUID {
-	return T.id
-}
-
-func (T *Client) GetConn() fed.Conn {
-	return T.conn
 }
 
 func (T *Client) GetEQP() *eqp.Client {
@@ -80,16 +66,4 @@ func (T *Client) GetEQP() *eqp.Client {
 
 func (T *Client) GetPS() *ps.Client {
 	return T.ps
-}
-
-func (T *Client) TransactionComplete() {
-	T.transactionCount.Add(1)
-}
-
-func (T *Client) GetInitialParameters() map[strutil.CIString]string {
-	return T.initialParameters
-}
-
-func (T *Client) SetState(state State, peer uuid.UUID) {
-
 }

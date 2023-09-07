@@ -20,6 +20,20 @@ func NewRecipe(options Options) *Recipe {
 	}
 }
 
+func (T *Recipe) AllocateInitial() int {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	if T.count >= T.options.MinConnections {
+		return 0
+	}
+
+	amount := T.options.MinConnections - T.count
+	T.count = T.options.MinConnections
+
+	return amount
+}
+
 func (T *Recipe) Allocate() bool {
 	T.mu.Lock()
 	defer T.mu.Unlock()
@@ -55,4 +69,8 @@ func (T *Recipe) Free() {
 
 func (T *Recipe) Dial() (fed.Conn, backends.AcceptParams, error) {
 	return T.options.Dialer.Dial()
+}
+
+func (T *Recipe) Cancel(key [8]byte) error {
+	return T.options.Dialer.Cancel(key)
 }

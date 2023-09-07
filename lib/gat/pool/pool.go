@@ -2,6 +2,7 @@ package pool
 
 import (
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -20,14 +21,61 @@ type Pool struct {
 
 	recipes         map[string]*recipe.Recipe
 	clients         map[uuid.UUID]*Client
+	clientsByKey    map[[8]byte]*Client
 	servers         map[uuid.UUID]*Server
 	serversByRecipe map[string][]*Server
 	mu              sync.RWMutex
 }
 
 func NewPool(options Options) *Pool {
-	return &Pool{
+	p := &Pool{
 		options: options,
+	}
+
+	if options.ServerIdleTimeout != 0 {
+		go p.idleLoop()
+	}
+
+	return p
+}
+
+func (T *Pool) idlest() (server *Server, at time.Time) {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+
+	for _, s := range T.servers {
+		state, _, since := s.GetState()
+		if state != StateIdle {
+			continue
+		}
+
+		if at == (time.Time{}) || since.Before(at) {
+			server = s
+			at = since
+		}
+	}
+
+	return
+}
+
+func (T *Pool) idleLoop() {
+	for {
+		var wait time.Duration
+
+		now := time.Now()
+		var idlest *Server
+		var idle time.Time
+		for idlest, idle = T.idlest(); idlest != nil && now.Sub(idle) > T.options.ServerIdleTimeout; idlest, idle = T.idlest() {
+			T.removeServer(idlest)
+		}
+
+		if idlest == nil {
+			wait = T.options.ServerIdleTimeout
+		} else {
+			wait = idle.Add(T.options.ServerIdleTimeout).Sub(now)
+		}
+
+		time.Sleep(wait)
 	}
 }
 
@@ -36,17 +84,22 @@ func (T *Pool) GetCredentials() auth.Credentials {
 }
 
 func (T *Pool) AddRecipe(name string, r *recipe.Recipe) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
+	func() {
+		T.mu.Lock()
+		defer T.mu.Unlock()
 
-	T.removeRecipe(name)
+		T.removeRecipe(name)
 
-	if T.recipes == nil {
-		T.recipes = make(map[string]*recipe.Recipe)
+		if T.recipes == nil {
+			T.recipes = make(map[string]*recipe.Recipe)
+		}
+		T.recipes[name] = r
+	}()
+
+	count := r.AllocateInitial()
+	for i := 0; i < count; i++ {
+		T.scaleUpL1(name, r)
 	}
-	T.recipes[name] = r
-
-	// TODO(garet) allocate servers until at the min
 }
 
 func (T *Pool) RemoveRecipe(name string) {
@@ -89,6 +142,10 @@ func (T *Pool) scaleUp() {
 		return
 	}
 
+	T.scaleUpL1(name, r)
+}
+
+func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) {
 	conn, params, err := r.Dial()
 	if err != nil {
 		// failed to dial
@@ -244,6 +301,10 @@ func (T *Pool) addClient(client *Client) {
 		T.clients = make(map[uuid.UUID]*Client)
 	}
 	T.clients[client.GetID()] = client
+	if T.clientsByKey == nil {
+		T.clientsByKey = make(map[[8]byte]*Client)
+	}
+	T.clientsByKey[client.GetBackendKey()] = client
 }
 
 func (T *Pool) removeClient(client *Client) {
@@ -251,12 +312,56 @@ func (T *Pool) removeClient(client *Client) {
 	defer T.mu.Unlock()
 
 	delete(T.clients, client.GetID())
+	delete(T.clientsByKey, client.GetBackendKey())
 }
 
 func (T *Pool) Cancel(key [8]byte) error {
-	return nil // TODO(garet)
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+
+	client, ok := T.clientsByKey[key]
+	if !ok {
+		return nil
+	}
+
+	state, peer, _ := client.GetState()
+	if state != StateActive {
+		return nil
+	}
+
+	server, ok := T.servers[peer]
+	if !ok {
+		return nil
+	}
+
+	r, ok := T.recipes[server.GetRecipe()]
+	if !ok {
+		return nil
+	}
+
+	return r.Cancel(server.GetBackendKey())
 }
 
-func (T *Pool) ReadMetrics(metrics *metrics.Pool) {
-	// TODO(garet)
+func (T *Pool) ReadMetrics(m *metrics.Pool) {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+
+	if len(T.clients) != 0 && m.Clients == nil {
+		m.Clients = make(map[uuid.UUID]metrics.Conn)
+	}
+	if len(T.servers) != 0 && m.Servers == nil {
+		m.Servers = make(map[uuid.UUID]metrics.Conn)
+	}
+
+	for id, client := range T.clients {
+		var mc metrics.Conn
+		client.ReadMetrics(&mc)
+		m.Clients[id] = mc
+	}
+
+	for id, server := range T.servers {
+		var mc metrics.Conn
+		server.ReadMetrics(&mc)
+		m.Servers[id] = mc
+	}
 }
