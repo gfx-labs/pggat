@@ -79,7 +79,7 @@ func serve(client fed.Conn, acceptParams frontends.AcceptParams, pools Pools) er
 	pools.RegisterKey(authParams.BackendKey, acceptParams.User, acceptParams.Database)
 	defer pools.UnregisterKey(authParams.BackendKey)
 
-	return p.Serve(client, acceptParams, authParams)
+	return p.Serve(client, acceptParams.InitialParameters, authParams.BackendKey)
 }
 
 func Serve(acceptor Acceptor, pools Pools) error {

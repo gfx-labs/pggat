@@ -9,7 +9,3 @@ func NewRecipe(options Options) *Recipe {
 		options: options,
 	}
 }
-
-func (T *Recipe) Dial() {
-
-}

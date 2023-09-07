@@ -1,76 +1,95 @@
 package pool
 
 import (
-	"sync"
-	"time"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 
 	"pggat2/lib/fed"
+	"pggat2/lib/middleware"
+	"pggat2/lib/middleware/interceptor"
+	"pggat2/lib/middleware/middlewares/eqp"
+	"pggat2/lib/middleware/middlewares/ps"
+	"pggat2/lib/middleware/middlewares/unterminate"
+	"pggat2/lib/util/strutil"
 )
 
 type Client struct {
-	conn       fed.Conn
-	backendKey [8]byte
+	id uuid.UUID
 
-	metrics ItemMetrics
-	mu      sync.RWMutex
+	conn fed.Conn
+
+	ps  *ps.Client
+	eqp *eqp.Client
+
+	initialParameters map[strutil.CIString]string
+	backendKey        [8]byte
+
+	transactionCount atomic.Int64
 }
 
 func NewClient(
+	options Options,
 	conn fed.Conn,
+	initialParameters map[strutil.CIString]string,
 	backendKey [8]byte,
 ) *Client {
-	return &Client{
-		conn:       conn,
-		backendKey: backendKey,
-
-		metrics: MakeItemMetrics(),
+	middlewares := []middleware.Middleware{
+		unterminate.Unterminate,
 	}
+
+	var psClient *ps.Client
+	if options.ParameterStatusSync == ParameterStatusSyncDynamic {
+		// add ps middleware
+		psClient = ps.NewClient(initialParameters)
+		middlewares = append(middlewares, psClient)
+	}
+
+	var eqpClient *eqp.Client
+	if options.ExtendedQuerySync {
+		// add eqp middleware
+		eqpClient = eqp.NewClient()
+		middlewares = append(middlewares, eqpClient)
+	}
+
+	conn = interceptor.NewInterceptor(
+		conn,
+		middlewares...,
+	)
+
+	return &Client{
+		id:         uuid.New(),
+		conn:       conn,
+		ps:         psClient,
+		eqp:        eqpClient,
+		backendKey: backendKey,
+	}
+}
+
+func (T *Client) GetID() uuid.UUID {
+	return T.id
 }
 
 func (T *Client) GetConn() fed.Conn {
 	return T.conn
 }
 
-func (T *Client) GetBackendKey() [8]byte {
-	return T.backendKey
+func (T *Client) GetEQP() *eqp.Client {
+	return T.eqp
 }
 
-// SetState replaces the peer. Returns the old peer
-func (T *Client) SetState(state State, peer uuid.UUID) uuid.UUID {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	old := T.metrics.Peer
-	T.metrics.SetState(state, peer)
-	return old
-}
-
-func (T *Client) GetPeer() uuid.UUID {
-	T.mu.RLock()
-	defer T.mu.RUnlock()
-
-	return T.metrics.Peer
-}
-
-func (T *Client) GetConnection() (uuid.UUID, time.Time) {
-	T.mu.RLock()
-	defer T.mu.RUnlock()
-
-	return T.metrics.Peer, T.metrics.Since
+func (T *Client) GetPS() *ps.Client {
+	return T.ps
 }
 
 func (T *Client) TransactionComplete() {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	T.metrics.Transactions++
+	T.transactionCount.Add(1)
 }
 
-func (T *Client) ReadMetrics(metrics *ItemMetrics) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
+func (T *Client) GetInitialParameters() map[strutil.CIString]string {
+	return T.initialParameters
+}
 
-	T.metrics.Read(metrics)
+func (T *Client) SetState(state State, peer uuid.UUID) {
+
 }

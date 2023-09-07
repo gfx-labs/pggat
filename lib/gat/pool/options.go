@@ -21,8 +21,14 @@ const (
 )
 
 type Options struct {
-	Credentials      auth.Credentials
-	Pooler           Pooler
+	Credentials auth.Credentials
+
+	Pooler Pooler
+	// ReleaseAfterTransaction toggles whether servers should be released and re acquired after each transaction.
+	// Use false for lower latency
+	// Use true for better balancing
+	ReleaseAfterTransaction bool
+
 	ServerResetQuery string
 	// ServerIdleTimeout defines how long a server may be idle before it is disconnected
 	ServerIdleTimeout time.Duration

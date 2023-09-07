@@ -7,5 +7,5 @@ import (
 
 type Dialer interface {
 	Dial() (fed.Conn, backends.AcceptParams, error)
-	Cancel(cancelKey [8]byte) error
+	Cancel(key [8]byte) error
 }

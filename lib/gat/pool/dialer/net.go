@@ -24,11 +24,10 @@ func (T Net) Dial() (fed.Conn, backends.AcceptParams, error) {
 	if err != nil {
 		return nil, backends.AcceptParams{}, err
 	}
-
 	return conn, params, nil
 }
 
-func (T Net) Cancel(cancelKey [8]byte) error {
+func (T Net) Cancel(key [8]byte) error {
 	c, err := net.Dial(T.Network, T.Address)
 	if err != nil {
 		return err
@@ -37,5 +36,7 @@ func (T Net) Cancel(cancelKey [8]byte) error {
 	defer func() {
 		_ = conn.Close()
 	}()
-	return backends.Cancel(conn, cancelKey)
+	return backends.Cancel(conn, key)
 }
+
+var _ Dialer = Net{}
