@@ -1,6 +1,7 @@
 package gat
 
 import (
+	"pggat2/lib/gat/metrics"
 	"pggat2/lib/gat/pool"
 	"pggat2/lib/util/maps"
 )
@@ -8,7 +9,7 @@ import (
 type Pools interface {
 	Lookup(user, database string) *pool.Pool
 
-	ReadMetrics(metrics *pool.Metrics)
+	ReadMetrics(metrics *metrics.Pools)
 
 	// Key based lookup functions (for cancellation)
 
@@ -50,9 +51,9 @@ func (T *PoolsMap) Lookup(user, database string) *pool.Pool {
 	return p
 }
 
-func (T *PoolsMap) ReadMetrics(metrics *pool.Metrics) {
+func (T *PoolsMap) ReadMetrics(metrics *metrics.Pools) {
 	T.pools.Range(func(_ mapKey, p *pool.Pool) bool {
-		p.ReadMetrics(metrics)
+		p.ReadMetrics(&metrics.Pool)
 		return true
 	})
 }

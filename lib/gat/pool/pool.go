@@ -9,18 +9,20 @@ import (
 	"pggat2/lib/bouncer/backends/v0"
 	"pggat2/lib/bouncer/bouncers/v2"
 	"pggat2/lib/fed"
-	"pggat2/lib/gat/pool/metrics"
+	"pggat2/lib/gat/metrics"
 	"pggat2/lib/gat/pool/recipe"
+	"pggat2/lib/util/slices"
 	"pggat2/lib/util/strutil"
 )
 
 type Pool struct {
 	options Options
 
-	recipes map[string]*recipe.Recipe
-	clients map[uuid.UUID]*Client
-	servers map[uuid.UUID]*Server
-	mu      sync.RWMutex
+	recipes         map[string]*recipe.Recipe
+	clients         map[uuid.UUID]*Client
+	servers         map[uuid.UUID]*Server
+	serversByRecipe map[string][]*Server
+	mu              sync.RWMutex
 }
 
 func NewPool(options Options) *Pool {
@@ -61,20 +63,82 @@ func (T *Pool) removeRecipe(name string) {
 	}
 	delete(T.recipes, name)
 
-	// TODO(garet) deallocate all servers created by recipe
+	servers := T.serversByRecipe[name]
+	delete(T.serversByRecipe, name)
+
+	for _, server := range servers {
+		r.Free()
+		T.removeServerL1(server)
+	}
 }
 
 func (T *Pool) scaleUp() {
-	// TODO(garet)
+	name, r := func() (string, *recipe.Recipe) {
+		T.mu.RLock()
+		defer T.mu.RUnlock()
+		for name, r := range T.recipes {
+			if r.Allocate() {
+				return name, r
+			}
+		}
+
+		return "", nil
+	}()
+	if r == nil {
+		// no recipe to scale
+		return
+	}
+
+	conn, params, err := r.Dial()
+	if err != nil {
+		// failed to dial
+		r.Free()
+		return
+	}
+
+	T.mu.Lock()
+	defer T.mu.Unlock()
+	if T.recipes[name] != r {
+		// recipe was removed
+		r.Free()
+		return
+	}
+
+	id := T.options.Pooler.NewServer()
+	server := NewServer(
+		T.options,
+		id,
+		name,
+		conn,
+		params.InitialParameters,
+		params.BackendKey,
+	)
+
+	if T.servers == nil {
+		T.servers = make(map[uuid.UUID]*Server)
+	}
+	T.servers[id] = server
+
+	if T.serversByRecipe == nil {
+		T.serversByRecipe = make(map[string][]*Server)
+	}
+	T.serversByRecipe[name] = append(T.serversByRecipe[name], server)
 }
 
 func (T *Pool) removeServer(server *Server) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
+	T.removeServerL1(server)
+}
+
+func (T *Pool) removeServerL1(server *Server) {
 	delete(T.servers, server.GetID())
 	T.options.Pooler.DeleteServer(server.GetID())
 	_ = server.GetConn().Close()
+	if T.serversByRecipe != nil {
+		T.serversByRecipe[server.GetRecipe()] = slices.Remove(T.serversByRecipe[server.GetRecipe()], server)
+	}
 }
 
 func (T *Pool) acquireServer(client *Client) *Server {
@@ -190,9 +254,9 @@ func (T *Pool) removeClient(client *Client) {
 }
 
 func (T *Pool) Cancel(key [8]byte) error {
-
+	return nil // TODO(garet)
 }
 
 func (T *Pool) ReadMetrics(metrics *metrics.Pool) {
-
+	// TODO(garet)
 }

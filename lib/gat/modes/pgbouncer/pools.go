@@ -12,12 +12,13 @@ import (
 
 	"pggat2/lib/auth/credentials"
 	"pggat2/lib/bouncer/backends/v0"
-	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/gat"
+	"pggat2/lib/gat/metrics"
 	"pggat2/lib/gat/pool"
+	"pggat2/lib/gat/pool/dialer"
 	"pggat2/lib/gat/pool/pools/session"
 	"pggat2/lib/gat/pool/pools/transaction"
-	dialer2 "pggat2/lib/gat/pool/recipe/dialer"
+	"pggat2/lib/gat/pool/recipe"
 	"pggat2/lib/gsql"
 	"pggat2/lib/util/maps"
 	"pggat2/lib/util/strutil"
@@ -108,7 +109,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 			log.Println("auth query failed:", err)
 			return nil
 		}
-		err = authPool.Serve(client, frontends.AcceptParams{}, frontends.AuthenticateParams{})
+		err = authPool.Serve(client, nil, [8]byte{})
 		if err != nil && !errors.Is(err, net.ErrClosed) {
 			log.Println("auth query failed:", err)
 			return nil
@@ -173,7 +174,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		Database: database,
 	}, p)
 
-	var d dialer2.Dialer
+	var d dialer.Dialer
 
 	dbCreds := creds
 	if db.Password != "" {
@@ -205,7 +206,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 
 		dir = dir + ".s.PGSQL." + strconv.Itoa(port)
 
-		d = dialer2.Net{
+		d = dialer.Net{
 			Network:       "unix",
 			Address:       dir,
 			AcceptOptions: acceptOptions,
@@ -219,33 +220,34 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		}
 
 		// connect over tcp
-		d = dialer2.Net{
+		d = dialer.Net{
 			Network:       "tcp",
 			Address:       address,
 			AcceptOptions: acceptOptions,
 		}
 	}
 
-	recipe := pool.Recipe{
+	recipeOptions := recipe.Options{
 		Dialer:         d,
 		MinConnections: db.MinPoolSize,
 		MaxConnections: db.MaxDBConnections,
 	}
-	if recipe.MinConnections == 0 {
-		recipe.MinConnections = T.Config.PgBouncer.MinPoolSize
+	if recipeOptions.MinConnections == 0 {
+		recipeOptions.MinConnections = T.Config.PgBouncer.MinPoolSize
 	}
-	if recipe.MaxConnections == 0 {
-		recipe.MaxConnections = T.Config.PgBouncer.MaxDBConnections
+	if recipeOptions.MaxConnections == 0 {
+		recipeOptions.MaxConnections = T.Config.PgBouncer.MaxDBConnections
 	}
+	r := recipe.NewRecipe(recipeOptions)
 
-	p.AddRecipe("pgbouncer", recipe)
+	p.AddRecipe("pgbouncer", r)
 
 	return p
 }
 
-func (T *Pools) ReadMetrics(metrics *pool.Metrics) {
+func (T *Pools) ReadMetrics(metrics *metrics.Pools) {
 	T.pools.Range(func(_ poolKey, p *pool.Pool) bool {
-		p.ReadMetrics(metrics)
+		p.ReadMetrics(&metrics.Pool)
 		return true
 	})
 }

@@ -12,7 +12,7 @@ import (
 	"pggat2/lib/bouncer"
 	"pggat2/lib/bouncer/frontends/v0"
 	"pggat2/lib/gat"
-	"pggat2/lib/gat/pool"
+	"pggat2/lib/gat/metrics"
 	"pggat2/lib/util/encoding/ini"
 	"pggat2/lib/util/flip"
 	"pggat2/lib/util/strutil"
@@ -288,12 +288,12 @@ func (T *Config) ListenAndServe() error {
 	}
 
 	go func() {
-		var metrics pool.Metrics
+		var m metrics.Pools
 		for {
-			metrics.Clear()
+			m.Clear()
 			time.Sleep(1 * time.Second)
-			pools.ReadMetrics(&metrics)
-			log.Print(metrics.String())
+			pools.ReadMetrics(&m)
+			log.Print(m.String())
 		}
 	}()
 
