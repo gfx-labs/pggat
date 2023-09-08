@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"tuxpa.in/a/zlog/log"
 
+	"pggat/lib/auth"
 	"pggat/lib/auth/credentials"
 	"pggat/lib/bouncer"
 	"pggat/lib/bouncer/backends/v0"
@@ -102,6 +103,35 @@ func (T *Server) addPostgresql(psql *v1acid.Postgresql) {
 	T.updatePostgresql(nil, psql)
 }
 
+func (T *Server) addPool(name string, creds auth.Credentials, user, database string) {
+	d := dialer.Net{
+		Network: "tcp",
+		Address: name + "." + T.config.Namespace + ".svc.cluster.local:5432", // TODO(garet) lookup port from config map
+		AcceptOptions: backends.AcceptOptions{
+			SSLMode: bouncer.SSLModePrefer,
+			SSLConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+			Credentials: creds,
+			Database:    database,
+		},
+	}
+
+	poolOptions := pool.Options{
+		Credentials: creds,
+	}
+	p := transaction.NewPool(poolOptions)
+
+	recipeOptions := recipe.Options{
+		Dialer: d,
+	}
+	r := recipe.NewRecipe(recipeOptions)
+
+	p.AddRecipe("service", r)
+
+	T.pools.Add(user, database, p)
+}
+
 func (T *Server) updatePostgresql(oldPsql *v1acid.Postgresql, newPsql *v1acid.Postgresql) {
 	if oldPsql != nil {
 		log.Print("removed databases: ", oldPsql.Spec.Databases)
@@ -111,6 +141,13 @@ func (T *Server) updatePostgresql(oldPsql *v1acid.Postgresql, newPsql *v1acid.Po
 				p := T.pools.Remove(user, database)
 				if p != nil {
 					p.Close()
+				}
+				if oldPsql.Spec.NumberOfInstances > 1 {
+					// there are replicas, delete them
+					p = T.pools.Remove(user+"_ro", database)
+					if p != nil {
+						p.Close()
+					}
 				}
 			}
 		}
@@ -140,32 +177,11 @@ func (T *Server) updatePostgresql(oldPsql *v1acid.Postgresql, newPsql *v1acid.Po
 			}
 
 			for database := range newPsql.Spec.Databases {
-				d := dialer.Net{
-					Network: "tcp",
-					Address: newPsql.Name + "." + T.config.Namespace + ".svc.cluster.local:5432", // TODO(garet) lookup port from config map
-					AcceptOptions: backends.AcceptOptions{
-						SSLMode: bouncer.SSLModePrefer,
-						SSLConfig: &tls.Config{
-							InsecureSkipVerify: true,
-						},
-						Credentials: creds,
-						Database:    database,
-					},
+				T.addPool(newPsql.Name, creds, user, database)
+
+				if newPsql.Spec.NumberOfInstances > 1 {
+					T.addPool(newPsql.Name+"-repl", creds, user+"_ro", database)
 				}
-
-				poolOptions := pool.Options{
-					Credentials: creds,
-				}
-				p := transaction.NewPool(poolOptions)
-
-				recipeOptions := recipe.Options{
-					Dialer: d,
-				}
-				r := recipe.NewRecipe(recipeOptions)
-
-				p.AddRecipe("service", r)
-
-				T.pools.Add(user, database, p)
 			}
 		}
 	}
