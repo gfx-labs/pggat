@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"strings"
 
-	"pggat2/lib/auth"
-	"pggat2/lib/util/slices"
+	"pggat/lib/auth"
+	"pggat/lib/util/slices"
 )
 
 type MD5 struct {

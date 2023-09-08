@@ -1,6 +1,6 @@
 package packets
 
-import "pggat2/lib/fed"
+import "pggat/lib/fed"
 
 const (
 	TypeAuthentication           fed.Type = 'R'

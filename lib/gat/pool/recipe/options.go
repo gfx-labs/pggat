@@ -1,6 +1,6 @@
 package recipe
 
-import "pggat2/lib/gat/pool/dialer"
+import "pggat/lib/gat/pool/dialer"
 
 type Options struct {
 	Dialer dialer.Dialer

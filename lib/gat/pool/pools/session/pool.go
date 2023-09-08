@@ -1,7 +1,7 @@
 package session
 
 import (
-	"pggat2/lib/gat/pool"
+	"pggat/lib/gat/pool"
 )
 
 func NewPool(options pool.Options) *pool.Pool {

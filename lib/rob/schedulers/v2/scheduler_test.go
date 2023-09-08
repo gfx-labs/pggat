@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"pggat2/lib/rob"
+	"pggat/lib/rob"
 )
 
 type ShareTable struct {

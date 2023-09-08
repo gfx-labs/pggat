@@ -6,10 +6,8 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
-	"pggat2/lib/auth/credentials"
-	"pggat2/lib/bouncer/backends/v0"
-	"pggat2/lib/bouncer/bouncers/v2"
-	"pggat2/lib/fed"
+	"pggat/lib/auth/credentials"
+	"pggat/lib/fed"
 )
 
 type Result struct {

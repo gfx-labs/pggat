@@ -3,8 +3,7 @@ package recipe
 import (
 	"sync"
 
-	"pggat2/lib/bouncer/backends/v0"
-	"pggat2/lib/fed"
+	"pggat/lib/fed"
 )
 
 type Recipe struct {

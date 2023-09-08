@@ -1,7 +1,7 @@
 package packets
 
 import (
-	"pggat2/lib/fed"
+	"pggat/lib/fed"
 )
 
 type ReadyForQuery byte

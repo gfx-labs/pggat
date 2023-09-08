@@ -1,11 +1,10 @@
 package pool
 
 import (
-	"pggat2/lib/bouncer/backends/v0"
-	packets "pggat2/lib/fed/packets/v3.0"
-	"pggat2/lib/gat/metrics"
-	"pggat2/lib/middleware/middlewares/ps"
-	"pggat2/lib/util/slices"
+	packets "pggat/lib/fed/packets/v3.0"
+	"pggat/lib/gat/metrics"
+	"pggat/lib/middleware/middlewares/ps"
+	"pggat/lib/util/slices"
 )
 
 func Pair(options Options, client *Client, server *Server) (clientErr, serverErr error) {

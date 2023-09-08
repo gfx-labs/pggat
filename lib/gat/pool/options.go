@@ -3,8 +3,8 @@ package pool
 import (
 	"time"
 
-	"pggat2/lib/auth"
-	"pggat2/lib/util/strutil"
+	"pggat/lib/auth"
+	"pggat/lib/util/strutil"
 )
 
 type ParameterStatusSync int

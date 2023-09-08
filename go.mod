@@ -1,4 +1,4 @@
-module pggat2
+module pggat
 
 go 1.20
 

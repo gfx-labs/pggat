@@ -1,8 +1,8 @@
 package gsql
 
 import (
-	"pggat2/lib/fed"
-	packets "pggat2/lib/fed/packets/v3.0"
+	"pggat/lib/fed"
+	packets "pggat/lib/fed/packets/v3.0"
 )
 
 func (T *Client) Query(query string, results ...any) {

@@ -7,8 +7,8 @@ import (
 
 	"github.com/xdg-go/scram"
 
-	"pggat2/lib/auth"
-	"pggat2/lib/util/slices"
+	"pggat/lib/auth"
+	"pggat/lib/util/slices"
 )
 
 type Cleartext struct {

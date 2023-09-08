@@ -1,6 +1,6 @@
 package middleware
 
-import "pggat2/lib/fed"
+import "pggat/lib/fed"
 
 type Nil struct{}
 

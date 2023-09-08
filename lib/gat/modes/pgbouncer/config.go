@@ -9,13 +9,12 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
-	"pggat2/lib/bouncer"
-	"pggat2/lib/bouncer/frontends/v0"
-	"pggat2/lib/gat"
-	"pggat2/lib/gat/metrics"
-	"pggat2/lib/util/encoding/ini"
-	"pggat2/lib/util/flip"
-	"pggat2/lib/util/strutil"
+	"pggat/lib/bouncer"
+	"pggat/lib/gat"
+	"pggat/lib/gat/metrics"
+	"pggat/lib/util/encoding/ini"
+	"pggat/lib/util/flip"
+	"pggat/lib/util/strutil"
 )
 
 type PoolMode string

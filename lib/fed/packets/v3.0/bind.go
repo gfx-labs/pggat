@@ -1,8 +1,8 @@
 package packets
 
 import (
-	"pggat2/lib/fed"
-	"pggat2/lib/util/slices"
+	"pggat/lib/fed"
+	"pggat/lib/util/slices"
 )
 
 type Bind struct {

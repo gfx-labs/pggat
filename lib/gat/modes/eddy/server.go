@@ -12,7 +12,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"tuxpa.in/a/zlog/log"
 
-	"pggat2/lib/util/flip"
+	"pggat/lib/util/flip"
 )
 
 type Server struct {

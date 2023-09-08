@@ -1,8 +1,8 @@
 package packets
 
 import (
-	"pggat2/lib/fed"
-	"pggat2/lib/perror"
+	"pggat/lib/fed"
+	"pggat/lib/perror"
 )
 
 type ErrorResponse struct {

@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"pggat2/lib/auth"
+	"pggat/lib/auth"
 )
 
 func TestMD5(t *testing.T) {

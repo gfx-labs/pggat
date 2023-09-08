@@ -3,8 +3,8 @@ package interceptor
 import (
 	"crypto/tls"
 
-	"pggat2/lib/fed"
-	"pggat2/lib/middleware"
+	"pggat/lib/fed"
+	"pggat/lib/middleware"
 )
 
 type Interceptor struct {

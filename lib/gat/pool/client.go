@@ -3,13 +3,13 @@ package pool
 import (
 	"github.com/google/uuid"
 
-	"pggat2/lib/fed"
-	"pggat2/lib/middleware"
-	"pggat2/lib/middleware/interceptor"
-	"pggat2/lib/middleware/middlewares/eqp"
-	"pggat2/lib/middleware/middlewares/ps"
-	"pggat2/lib/middleware/middlewares/unterminate"
-	"pggat2/lib/util/strutil"
+	"pggat/lib/fed"
+	"pggat/lib/middleware"
+	"pggat/lib/middleware/interceptor"
+	"pggat/lib/middleware/middlewares/eqp"
+	"pggat/lib/middleware/middlewares/ps"
+	"pggat/lib/middleware/middlewares/unterminate"
+	"pggat/lib/util/strutil"
 )
 
 type Client struct {

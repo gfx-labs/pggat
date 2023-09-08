@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"pggat2/lib/rob/schedulers/v2/job"
-	"pggat2/lib/util/rbtree"
-	"pggat2/lib/util/ring"
+	"pggat/lib/rob/schedulers/v2/job"
+	"pggat/lib/util/rbtree"
+	"pggat/lib/util/ring"
 )
 
 type Sink struct {

@@ -1,6 +1,6 @@
 package transaction
 
-import "pggat2/lib/gat/pool"
+import "pggat/lib/gat/pool"
 
 func NewPool(options pool.Options) *pool.Pool {
 	options.Pooler = new(Pooler)

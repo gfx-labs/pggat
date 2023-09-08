@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"pggat2/lib/util/maps"
+	"pggat/lib/util/maps"
 )
 
 type Pool struct {

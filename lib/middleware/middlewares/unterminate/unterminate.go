@@ -3,9 +3,9 @@ package unterminate
 import (
 	"io"
 
-	"pggat2/lib/fed"
-	packets "pggat2/lib/fed/packets/v3.0"
-	"pggat2/lib/middleware"
+	"pggat/lib/fed"
+	packets "pggat/lib/fed/packets/v3.0"
+	"pggat/lib/middleware"
 )
 
 // Unterminate catches the Terminate packet and returns io.EOF instead.

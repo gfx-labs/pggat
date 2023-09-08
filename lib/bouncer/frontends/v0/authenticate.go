@@ -4,10 +4,10 @@ import (
 	"crypto/rand"
 	"errors"
 
-	"pggat2/lib/auth"
-	"pggat2/lib/fed"
-	packets "pggat2/lib/fed/packets/v3.0"
-	"pggat2/lib/perror"
+	"pggat/lib/auth"
+	"pggat/lib/fed"
+	packets "pggat/lib/fed/packets/v3.0"
+	"pggat/lib/perror"
 )
 
 func authenticationSASLInitial(client fed.Conn, creds auth.SASL) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {

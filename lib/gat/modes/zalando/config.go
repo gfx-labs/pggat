@@ -6,9 +6,9 @@ import (
 
 	"gfx.cafe/util/go/gun"
 
-	"pggat2/lib/bouncer"
-	"pggat2/lib/gat/modes/pgbouncer"
-	"pggat2/lib/util/strutil"
+	"pggat/lib/bouncer"
+	"pggat/lib/gat/modes/pgbouncer"
+	"pggat/lib/util/strutil"
 )
 
 type Config struct {

@@ -6,14 +6,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"pggat2/lib/auth"
-	"pggat2/lib/bouncer/backends/v0"
-	"pggat2/lib/bouncer/bouncers/v2"
-	"pggat2/lib/fed"
-	"pggat2/lib/gat/metrics"
-	"pggat2/lib/gat/pool/recipe"
-	"pggat2/lib/util/slices"
-	"pggat2/lib/util/strutil"
+	"pggat/lib/auth"
+	"pggat/lib/fed"
+	"pggat/lib/gat/metrics"
+	"pggat/lib/gat/pool/recipe"
+	"pggat/lib/util/slices"
+	"pggat/lib/util/strutil"
 )
 
 type Pool struct {

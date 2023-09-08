@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"pggat2/lib/fed"
-	"pggat2/lib/gat/metrics"
-	"pggat2/lib/util/strutil"
+	"pggat/lib/fed"
+	"pggat/lib/gat/metrics"
+	"pggat/lib/util/strutil"
 )
 
 type Conn struct {

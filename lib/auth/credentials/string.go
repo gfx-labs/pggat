@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"strings"
 
-	"pggat2/lib/auth"
+	"pggat/lib/auth"
 )
 
 func FromString(user, password string) auth.Credentials {

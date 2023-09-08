@@ -1,6 +1,6 @@
 package packets
 
-import "pggat2/lib/perror"
+import "pggat/lib/perror"
 
 var (
 	ErrBadFormat = perror.New(

@@ -6,7 +6,7 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
-	"pggat2/lib/gat/modes/eddy"
+	"pggat/lib/gat/modes/eddy"
 )
 
 func main() {

@@ -1,6 +1,6 @@
 package backends
 
-import "pggat2/lib/fed"
+import "pggat/lib/fed"
 
 func Cancel(server fed.ReadWriter, key [8]byte) error {
 	packet := fed.NewPacket(0, 12)

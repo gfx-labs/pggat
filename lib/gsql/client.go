@@ -5,8 +5,8 @@ import (
 	"net"
 	"sync"
 
-	"pggat2/lib/fed"
-	"pggat2/lib/util/ring"
+	"pggat/lib/fed"
+	"pggat/lib/util/ring"
 )
 
 type Client struct {

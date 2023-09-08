@@ -3,8 +3,8 @@ package frontends
 import (
 	"crypto/tls"
 
-	"pggat2/lib/auth"
-	"pggat2/lib/util/strutil"
+	"pggat/lib/auth"
+	"pggat/lib/util/strutil"
 )
 
 type AcceptOptions struct {

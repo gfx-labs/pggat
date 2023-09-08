@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"pggat2/lib/fed"
-	"pggat2/lib/fed/packets/v3.0"
-	"pggat2/lib/perror"
-	"pggat2/lib/util/slices"
-	"pggat2/lib/util/strutil"
+	"pggat/lib/fed"
+	packets "pggat/lib/fed/packets/v3.0"
+	"pggat/lib/perror"
+	"pggat/lib/util/slices"
+	"pggat/lib/util/strutil"
 )
 
 func startup0(

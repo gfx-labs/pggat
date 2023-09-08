@@ -4,10 +4,10 @@ import (
 	"crypto/tls"
 	"errors"
 
-	"pggat2/lib/auth"
-	"pggat2/lib/fed"
-	packets "pggat2/lib/fed/packets/v3.0"
-	"pggat2/lib/util/strutil"
+	"pggat/lib/auth"
+	"pggat/lib/fed"
+	packets "pggat/lib/fed/packets/v3.0"
+	"pggat/lib/util/strutil"
 )
 
 func authenticationSASLChallenge(server fed.Conn, encoder auth.SASLEncoder) (done bool, err error) {

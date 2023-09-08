@@ -10,18 +10,17 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
-	"pggat2/lib/auth/credentials"
-	"pggat2/lib/bouncer/backends/v0"
-	"pggat2/lib/gat"
-	"pggat2/lib/gat/metrics"
-	"pggat2/lib/gat/pool"
-	"pggat2/lib/gat/pool/dialer"
-	"pggat2/lib/gat/pool/pools/session"
-	"pggat2/lib/gat/pool/pools/transaction"
-	"pggat2/lib/gat/pool/recipe"
-	"pggat2/lib/gsql"
-	"pggat2/lib/util/maps"
-	"pggat2/lib/util/strutil"
+	"pggat/lib/auth/credentials"
+	"pggat/lib/gat"
+	"pggat/lib/gat/metrics"
+	"pggat/lib/gat/pool"
+	"pggat/lib/gat/pool/dialer"
+	"pggat/lib/gat/pool/pools/session"
+	"pggat/lib/gat/pool/pools/transaction"
+	"pggat/lib/gat/pool/recipe"
+	"pggat/lib/gsql"
+	"pggat/lib/util/maps"
+	"pggat/lib/util/strutil"
 )
 
 type authQueryResult struct {

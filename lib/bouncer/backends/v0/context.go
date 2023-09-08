@@ -1,6 +1,6 @@
 package backends
 
-import "pggat2/lib/fed"
+import "pggat/lib/fed"
 
 type Context struct {
 	Peer      fed.ReadWriter

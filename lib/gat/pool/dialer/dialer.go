@@ -1,8 +1,7 @@
 package dialer
 
 import (
-	"pggat2/lib/bouncer/backends/v0"
-	"pggat2/lib/fed"
+	"pggat/lib/fed"
 )
 
 type Dialer interface {

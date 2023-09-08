@@ -1,6 +1,6 @@
 package packets
 
-import "pggat2/lib/fed"
+import "pggat/lib/fed"
 
 type BackendKeyData struct {
 	CancellationKey [8]byte

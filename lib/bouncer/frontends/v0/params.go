@@ -1,6 +1,6 @@
 package frontends
 
-import "pggat2/lib/util/strutil"
+import "pggat/lib/util/strutil"
 
 type AcceptParams struct {
 	CancelKey [8]byte

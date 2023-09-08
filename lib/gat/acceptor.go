@@ -7,9 +7,9 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
-	"pggat2/lib/bouncer/frontends/v0"
-	"pggat2/lib/fed"
-	"pggat2/lib/util/beforeexit"
+	"pggat/lib/bouncer/frontends/v0"
+	"pggat/lib/fed"
+	"pggat/lib/util/beforeexit"
 )
 
 type Acceptor struct {

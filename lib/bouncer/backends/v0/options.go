@@ -3,9 +3,9 @@ package backends
 import (
 	"crypto/tls"
 
-	"pggat2/lib/auth"
-	"pggat2/lib/bouncer"
-	"pggat2/lib/util/strutil"
+	"pggat/lib/auth"
+	"pggat/lib/bouncer"
+	"pggat/lib/util/strutil"
 )
 
 type AcceptOptions struct {

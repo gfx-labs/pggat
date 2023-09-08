@@ -1,10 +1,9 @@
 package bouncers
 
 import (
-	"pggat2/lib/bouncer/backends/v0"
-	"pggat2/lib/fed"
-	packets "pggat2/lib/fed/packets/v3.0"
-	"pggat2/lib/perror"
+	"pggat/lib/fed"
+	packets "pggat/lib/fed/packets/v3.0"
+	"pggat/lib/perror"
 )
 
 func clientFail(client fed.ReadWriter, err perror.Error) {

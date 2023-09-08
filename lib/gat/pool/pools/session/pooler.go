@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"pggat2/lib/gat/pool"
-	"pggat2/lib/util/slices"
+	"pggat/lib/gat/pool"
+	"pggat/lib/util/slices"
 )
 
 type Pooler struct {

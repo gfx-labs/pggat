@@ -3,9 +3,8 @@ package transaction
 import (
 	"github.com/google/uuid"
 
-	"pggat2/lib/gat/pool"
-	"pggat2/lib/rob"
-	"pggat2/lib/rob/schedulers/v2"
+	"pggat/lib/gat/pool"
+	"pggat/lib/rob"
 )
 
 type Pooler struct {

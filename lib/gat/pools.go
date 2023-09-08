@@ -1,9 +1,9 @@
 package gat
 
 import (
-	"pggat2/lib/gat/metrics"
-	"pggat2/lib/gat/pool"
-	"pggat2/lib/util/maps"
+	"pggat/lib/gat/metrics"
+	"pggat/lib/gat/pool"
+	"pggat/lib/util/maps"
 )
 
 type Pools interface {

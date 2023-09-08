@@ -3,8 +3,8 @@ package pgbouncer
 import (
 	"os"
 
-	"pggat2/lib/util/encoding/ini"
-	"pggat2/lib/util/encoding/userlist"
+	"pggat/lib/util/encoding/ini"
+	"pggat/lib/util/encoding/userlist"
 )
 
 type AuthFile struct {

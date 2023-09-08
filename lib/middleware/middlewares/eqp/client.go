@@ -3,9 +3,9 @@ package eqp
 import (
 	"errors"
 
-	"pggat2/lib/fed"
-	packets "pggat2/lib/fed/packets/v3.0"
-	"pggat2/lib/middleware"
+	"pggat/lib/fed"
+	packets "pggat/lib/fed/packets/v3.0"
+	"pggat/lib/middleware"
 )
 
 type Client struct {

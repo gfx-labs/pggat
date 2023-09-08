@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"pggat2/lib/gat"
+	"pggat/lib/gat"
 
 	"tuxpa.in/a/zlog/log"
 

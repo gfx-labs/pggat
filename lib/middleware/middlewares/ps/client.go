@@ -3,10 +3,10 @@ package ps
 import (
 	"errors"
 
-	"pggat2/lib/fed"
-	packets "pggat2/lib/fed/packets/v3.0"
-	"pggat2/lib/middleware"
-	"pggat2/lib/util/strutil"
+	"pggat/lib/fed"
+	packets "pggat/lib/fed/packets/v3.0"
+	"pggat/lib/middleware"
+	"pggat/lib/util/strutil"
 )
 
 type Client struct {

@@ -5,11 +5,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"pggat2/lib/rob"
-	"pggat2/lib/rob/schedulers/v2/job"
-	"pggat2/lib/rob/schedulers/v2/sink"
-	"pggat2/lib/util/maps"
-	"pggat2/lib/util/pools"
+	"pggat/lib/rob"
+	"pggat/lib/rob/schedulers/v2/job"
+	"pggat/lib/rob/schedulers/v2/sink"
+	"pggat/lib/util/maps"
+	"pggat/lib/util/pools"
 )
 
 type Scheduler struct {

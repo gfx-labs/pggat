@@ -1,6 +1,6 @@
 package backends
 
-import "pggat2/lib/util/strutil"
+import "pggat/lib/util/strutil"
 
 type AcceptParams struct {
 	SSLEnabled        bool
