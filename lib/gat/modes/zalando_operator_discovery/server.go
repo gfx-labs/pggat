@@ -3,13 +3,15 @@ package zalando_operator_discovery
 import (
 	"context"
 	"crypto/tls"
+	"strings"
 
 	acidzalando "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do"
-	v1acid "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do/v1"
+	acidv1 "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do/v1"
 	acidv1informer "github.com/zalando/postgres-operator/pkg/generated/informers/externalversions/acid.zalan.do/v1"
+	"github.com/zalando/postgres-operator/pkg/util/config"
 	"github.com/zalando/postgres-operator/pkg/util/constants"
 	"github.com/zalando/postgres-operator/pkg/util/k8sutil"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	"tuxpa.in/a/zlog/log"
 
@@ -21,6 +23,7 @@ import (
 	"pggat/lib/gat"
 	"pggat/lib/gat/pool"
 	"pggat/lib/gat/pool/dialer"
+	"pggat/lib/gat/pool/pools/session"
 	"pggat/lib/gat/pool/pools/transaction"
 	"pggat/lib/gat/pool/recipe"
 	"pggat/lib/util/flip"
@@ -39,6 +42,8 @@ type toAddDetails struct {
 
 type Server struct {
 	config *Config
+
+	opConfig *config.Config
 
 	k8s k8sutil.KubernetesClient
 
@@ -64,6 +69,13 @@ func (T *Server) init() error {
 		return err
 	}
 
+	operatorConfig, err := T.k8s.ConfigMaps(T.config.Namespace).Get(context.Background(), T.config.ConfigName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	T.opConfig = config.NewFromMap(operatorConfig.Data)
+
 	T.postgresqlInformer = acidv1informer.NewPostgresqlInformer(
 		T.k8s.AcidV1ClientSet,
 		T.config.Namespace,
@@ -72,25 +84,25 @@ func (T *Server) init() error {
 
 	_, err = T.postgresqlInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			psql, ok := obj.(*v1acid.Postgresql)
+			psql, ok := obj.(*acidv1.Postgresql)
 			if !ok {
 				return
 			}
 			T.addPostgresql(psql)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldPsql, ok := oldObj.(*v1acid.Postgresql)
+			oldPsql, ok := oldObj.(*acidv1.Postgresql)
 			if !ok {
 				return
 			}
-			newPsql, ok := newObj.(*v1acid.Postgresql)
+			newPsql, ok := newObj.(*acidv1.Postgresql)
 			if !ok {
 				return
 			}
 			T.updatePostgresql(oldPsql, newPsql)
 		},
 		DeleteFunc: func(obj interface{}) {
-			psql, ok := obj.(*v1acid.Postgresql)
+			psql, ok := obj.(*acidv1.Postgresql)
 			if !ok {
 				return
 			}
@@ -104,14 +116,14 @@ func (T *Server) init() error {
 	return nil
 }
 
-func (T *Server) addPostgresql(psql *v1acid.Postgresql) {
+func (T *Server) addPostgresql(psql *acidv1.Postgresql) {
 	T.updatePostgresql(nil, psql)
 }
 
 func (T *Server) addPool(name string, userCreds, serverCreds auth.Credentials, database string) {
 	d := dialer.Net{
 		Network: "tcp",
-		Address: name + "." + T.config.Namespace + ".svc.cluster.local:5432", // TODO(garet) lookup port from config map
+		Address: name + "." + T.config.Namespace + ".svc.cluster.local:5432",
 		AcceptOptions: backends.AcceptOptions{
 			SSLMode: bouncer.SSLModePrefer,
 			SSLConfig: &tls.Config{
@@ -125,7 +137,16 @@ func (T *Server) addPool(name string, userCreds, serverCreds auth.Credentials, d
 	poolOptions := pool.Options{
 		Credentials: userCreds,
 	}
-	p := transaction.NewPool(poolOptions)
+	var p *pool.Pool
+	switch T.opConfig.Mode {
+	case "transaction":
+		p = transaction.NewPool(poolOptions)
+	case "session":
+		p = session.NewPool(poolOptions)
+	default:
+		log.Printf(`unknown pool mode "%s"`, T.opConfig.Mode)
+		return
+	}
 
 	recipeOptions := recipe.Options{
 		Dialer: d,
@@ -137,7 +158,7 @@ func (T *Server) addPool(name string, userCreds, serverCreds auth.Credentials, d
 	T.pools.Add(userCreds.GetUsername(), database, p)
 }
 
-func (T *Server) updatePostgresql(oldPsql *v1acid.Postgresql, newPsql *v1acid.Postgresql) {
+func (T *Server) updatePostgresql(oldPsql *acidv1.Postgresql, newPsql *acidv1.Postgresql) {
 	toRemove := make(map[mapKey]struct{})
 	toAdd := make(map[mapKey]toAddDetails)
 
@@ -206,10 +227,14 @@ func (T *Server) updatePostgresql(oldPsql *v1acid.Postgresql, newPsql *v1acid.Po
 	for pair, details := range toAdd {
 		creds, ok := credentialsCache[details.SecretUser]
 		if !ok {
-			// TODO(garet) lookup config map to get this format (what a pain)
-			secretName := details.SecretUser + "." + newPsql.Name + ".credentials." + v1acid.PostgresCRDResourceKind + "." + acidzalando.GroupName
+			secretName := T.opConfig.SecretNameTemplate.Format(
+				"username", strings.Replace(details.SecretUser, "_", "-", -1),
+				"cluster", newPsql.Name,
+				"tprkind", acidv1.PostgresCRDResourceKind,
+				"tprgroup", acidzalando.GroupName,
+			)
 
-			secret, err := T.k8s.Secrets(T.config.Namespace).Get(context.Background(), secretName, v1.GetOptions{})
+			secret, err := T.k8s.Secrets(T.config.Namespace).Get(context.Background(), secretName, metav1.GetOptions{})
 			if err != nil {
 				log.Printf("error getting secret: %v", err)
 				return
@@ -235,7 +260,7 @@ func (T *Server) updatePostgresql(oldPsql *v1acid.Postgresql, newPsql *v1acid.Po
 	}
 }
 
-func (T *Server) deletePostgresql(psql *v1acid.Postgresql) {
+func (T *Server) deletePostgresql(psql *acidv1.Postgresql) {
 	T.updatePostgresql(psql, nil)
 }
 

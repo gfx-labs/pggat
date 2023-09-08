@@ -5,7 +5,8 @@ import (
 )
 
 type Config struct {
-	Namespace string
+	Namespace  string
+	ConfigName string
 
 	Rest *rest.Config
 }
@@ -16,7 +17,8 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	return &Config{
-		Namespace: "default",
+		Namespace:  "default",
+		ConfigName: "postgres-operator",
 
 		Rest: restConfig,
 	}, nil
