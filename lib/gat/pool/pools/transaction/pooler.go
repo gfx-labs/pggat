@@ -5,6 +5,7 @@ import (
 
 	"pggat/lib/gat/pool"
 	"pggat/lib/rob"
+	"pggat/lib/rob/schedulers/v2"
 )
 
 type Pooler struct {

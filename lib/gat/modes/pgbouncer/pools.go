@@ -11,6 +11,7 @@ import (
 	"tuxpa.in/a/zlog/log"
 
 	"pggat/lib/auth/credentials"
+	"pggat/lib/bouncer/backends/v0"
 	"pggat/lib/gat"
 	"pggat/lib/gat/metrics"
 	"pggat/lib/gat/pool"

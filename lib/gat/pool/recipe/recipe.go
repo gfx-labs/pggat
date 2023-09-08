@@ -3,6 +3,7 @@ package recipe
 import (
 	"sync"
 
+	"pggat/lib/bouncer/backends/v0"
 	"pggat/lib/fed"
 )
 

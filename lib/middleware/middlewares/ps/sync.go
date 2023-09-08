@@ -1,6 +1,7 @@
 package ps
 
 import (
+	"pggat/lib/bouncer/backends/v0"
 	"pggat/lib/fed"
 	packets "pggat/lib/fed/packets/v3.0"
 	"pggat/lib/util/slices"

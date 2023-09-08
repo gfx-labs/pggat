@@ -10,6 +10,7 @@ import (
 	"tuxpa.in/a/zlog/log"
 
 	"pggat/lib/bouncer"
+	"pggat/lib/bouncer/frontends/v0"
 	"pggat/lib/gat"
 	"pggat/lib/gat/metrics"
 	"pggat/lib/util/encoding/ini"

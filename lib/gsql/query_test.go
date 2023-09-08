@@ -7,6 +7,8 @@ import (
 	"tuxpa.in/a/zlog/log"
 
 	"pggat/lib/auth/credentials"
+	"pggat/lib/bouncer/backends/v0"
+	"pggat/lib/bouncer/bouncers/v2"
 	"pggat/lib/fed"
 )
 

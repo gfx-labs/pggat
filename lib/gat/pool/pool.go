@@ -7,6 +7,8 @@ import (
 	"github.com/google/uuid"
 
 	"pggat/lib/auth"
+	"pggat/lib/bouncer/backends/v0"
+	"pggat/lib/bouncer/bouncers/v2"
 	"pggat/lib/fed"
 	"pggat/lib/gat/metrics"
 	"pggat/lib/gat/pool/recipe"

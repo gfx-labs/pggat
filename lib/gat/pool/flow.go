@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"pggat/lib/bouncer/backends/v0"
 	packets "pggat/lib/fed/packets/v3.0"
 	"pggat/lib/gat/metrics"
 	"pggat/lib/middleware/middlewares/ps"

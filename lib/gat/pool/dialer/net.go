@@ -3,6 +3,7 @@ package dialer
 import (
 	"net"
 
+	"pggat/lib/bouncer/backends/v0"
 	"pggat/lib/fed"
 )
 
