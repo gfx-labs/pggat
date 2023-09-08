@@ -224,7 +224,7 @@ func (T *Sink) StealFor(rhs *Sink) uuid.UUID {
 
 	user := j.User
 
-	pending, _ := T.pending[user]
+	pending := T.pending[user]
 	delete(T.pending, user)
 
 	T.mu.Unlock()

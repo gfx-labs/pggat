@@ -30,8 +30,7 @@ func (T *ShareTable) Get(user int) int {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 
-	v, _ := T.table[user]
-	return v
+	return T.table[user]
 }
 
 func testSink(sched *Scheduler) uuid.UUID {

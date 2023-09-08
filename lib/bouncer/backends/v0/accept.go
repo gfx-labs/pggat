@@ -107,6 +107,63 @@ func authenticationCleartext(server fed.Conn, creds auth.Cleartext) error {
 	return nil
 }
 
+func authentication(server fed.Conn, creds auth.Credentials, packet fed.Packet) (done bool, err error) {
+	var method int32
+	packet.ReadInt32(&method)
+	// they have more authentication methods than there are pokemon
+	switch method {
+	case 0:
+		// we're good to go, that was easy
+		return true, nil
+	case 2:
+		err = errors.New("kerberos v5 is not supported")
+		return
+	case 3:
+		c, ok := creds.(auth.Cleartext)
+		if !ok {
+			return false, auth.ErrMethodNotSupported
+		}
+		return false, authenticationCleartext(server, c)
+	case 5:
+		var md5 packets.AuthenticationMD5
+		if !md5.ReadFromPacket(packet) {
+			err = ErrBadFormat
+			return
+		}
+
+		c, ok := creds.(auth.MD5)
+		if !ok {
+			return false, auth.ErrMethodNotSupported
+		}
+		return false, authenticationMD5(server, md5.Salt, c)
+	case 6:
+		err = errors.New("scm credential is not supported")
+		return
+	case 7:
+		err = errors.New("gss is not supported")
+		return
+	case 9:
+		err = errors.New("sspi is not supported")
+		return
+	case 10:
+		// read list of mechanisms
+		var sasl packets.AuthenticationSASL
+		if !sasl.ReadFromPacket(packet) {
+			err = ErrBadFormat
+			return
+		}
+
+		c, ok := creds.(auth.SASL)
+		if !ok {
+			return false, auth.ErrMethodNotSupported
+		}
+		return false, authenticationSASL(server, sasl.Mechanisms, c)
+	default:
+		err = errors.New("unknown authentication method")
+		return
+	}
+}
+
 func startup0(server fed.Conn, creds auth.Credentials) (done bool, err error) {
 	var packet fed.Packet
 	packet, err = server.ReadPacket(true)
@@ -124,60 +181,7 @@ func startup0(server fed.Conn, creds auth.Credentials) (done bool, err error) {
 		}
 		return
 	case packets.TypeAuthentication:
-		var method int32
-		packet.ReadInt32(&method)
-		// they have more authentication methods than there are pokemon
-		switch method {
-		case 0:
-			// we're good to go, that was easy
-			return true, nil
-		case 2:
-			err = errors.New("kerberos v5 is not supported")
-			return
-		case 3:
-			c, ok := creds.(auth.Cleartext)
-			if !ok {
-				return false, auth.ErrMethodNotSupported
-			}
-			return false, authenticationCleartext(server, c)
-		case 5:
-			var md5 packets.AuthenticationMD5
-			if !md5.ReadFromPacket(packet) {
-				err = ErrBadFormat
-				return
-			}
-
-			c, ok := creds.(auth.MD5)
-			if !ok {
-				return false, auth.ErrMethodNotSupported
-			}
-			return false, authenticationMD5(server, md5.Salt, c)
-		case 6:
-			err = errors.New("scm credential is not supported")
-			return
-		case 7:
-			err = errors.New("gss is not supported")
-			return
-		case 9:
-			err = errors.New("sspi is not supported")
-			return
-		case 10:
-			// read list of mechanisms
-			var sasl packets.AuthenticationSASL
-			if !sasl.ReadFromPacket(packet) {
-				err = ErrBadFormat
-				return
-			}
-
-			c, ok := creds.(auth.SASL)
-			if !ok {
-				return false, auth.ErrMethodNotSupported
-			}
-			return false, authenticationSASL(server, sasl.Mechanisms, c)
-		default:
-			err = errors.New("unknown authentication method")
-			return
-		}
+		return authentication(server, creds, packet)
 	case packets.TypeNegotiateProtocolVersion:
 		// we only support protocol 3.0 for now
 		err = errors.New("server wanted to negotiate protocol version")
