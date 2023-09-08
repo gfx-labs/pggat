@@ -142,8 +142,6 @@ func (T *Server) updatePostgresql(oldPsql *v1acid.Postgresql, newPsql *v1acid.Po
 	toAdd := make(map[mapKey]toAddDetails)
 
 	if oldPsql != nil {
-		log.Print("removed databases: ", oldPsql.Spec.Databases)
-		log.Print("removed users: ", oldPsql.Spec.Users)
 		for user := range oldPsql.Spec.Users {
 			for database := range oldPsql.Spec.Databases {
 				toRemove[mapKey{
@@ -162,8 +160,6 @@ func (T *Server) updatePostgresql(oldPsql *v1acid.Postgresql, newPsql *v1acid.Po
 		}
 	}
 	if newPsql != nil {
-		log.Print("added databases: ", newPsql.Spec.Databases)
-		log.Print("added users: ", newPsql.Spec.Users)
 		for user := range newPsql.Spec.Users {
 			for database := range newPsql.Spec.Databases {
 				key := mapKey{
