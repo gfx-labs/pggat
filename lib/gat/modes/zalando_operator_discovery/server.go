@@ -32,6 +32,11 @@ type mapKey struct {
 	Database string
 }
 
+type toAddDetails struct {
+	SecretUser string
+	Name       string
+}
+
 type Server struct {
 	config *Config
 
@@ -103,7 +108,7 @@ func (T *Server) addPostgresql(psql *v1acid.Postgresql) {
 	T.updatePostgresql(nil, psql)
 }
 
-func (T *Server) addPool(name string, creds auth.Credentials, user, database string) {
+func (T *Server) addPool(name string, userCreds, serverCreds auth.Credentials, database string) {
 	d := dialer.Net{
 		Network: "tcp",
 		Address: name + "." + T.config.Namespace + ".svc.cluster.local:5432", // TODO(garet) lookup port from config map
@@ -112,13 +117,13 @@ func (T *Server) addPool(name string, creds auth.Credentials, user, database str
 			SSLConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			},
-			Credentials: creds,
+			Credentials: serverCreds,
 			Database:    database,
 		},
 	}
 
 	poolOptions := pool.Options{
-		Credentials: creds,
+		Credentials: userCreds,
 	}
 	p := transaction.NewPool(poolOptions)
 
@@ -129,25 +134,29 @@ func (T *Server) addPool(name string, creds auth.Credentials, user, database str
 
 	p.AddRecipe("service", r)
 
-	T.pools.Add(user, database, p)
+	T.pools.Add(userCreds.GetUsername(), database, p)
 }
 
 func (T *Server) updatePostgresql(oldPsql *v1acid.Postgresql, newPsql *v1acid.Postgresql) {
+	toRemove := make(map[mapKey]struct{})
+	toAdd := make(map[mapKey]toAddDetails)
+
 	if oldPsql != nil {
 		log.Print("removed databases: ", oldPsql.Spec.Databases)
 		log.Print("removed users: ", oldPsql.Spec.Users)
 		for user := range oldPsql.Spec.Users {
 			for database := range oldPsql.Spec.Databases {
-				p := T.pools.Remove(user, database)
-				if p != nil {
-					p.Close()
-				}
+				toRemove[mapKey{
+					User:     user,
+					Database: database,
+				}] = struct{}{}
+
 				if oldPsql.Spec.NumberOfInstances > 1 {
 					// there are replicas, delete them
-					p = T.pools.Remove(user+"_ro", database)
-					if p != nil {
-						p.Close()
-					}
+					toRemove[mapKey{
+						User:     user + "_ro",
+						Database: database,
+					}] = struct{}{}
 				}
 			}
 		}
@@ -156,8 +165,53 @@ func (T *Server) updatePostgresql(oldPsql *v1acid.Postgresql, newPsql *v1acid.Po
 		log.Print("added databases: ", newPsql.Spec.Databases)
 		log.Print("added users: ", newPsql.Spec.Users)
 		for user := range newPsql.Spec.Users {
+			for database := range newPsql.Spec.Databases {
+				key := mapKey{
+					User:     user,
+					Database: database,
+				}
+				if _, ok := toRemove[key]; ok {
+					delete(toRemove, key)
+				} else {
+					toAdd[key] = toAddDetails{
+						SecretUser: user,
+						Name:       newPsql.Name,
+					}
+				}
+
+				if newPsql.Spec.NumberOfInstances > 1 {
+					key = mapKey{
+						User:     user + "_ro",
+						Database: database,
+					}
+					if _, ok := toRemove[key]; ok {
+						delete(toRemove, key)
+					} else {
+						toAdd[key] = toAddDetails{
+							SecretUser: user,
+							Name:       newPsql.Name + "-repl",
+						}
+					}
+				}
+			}
+		}
+	}
+
+	for pair := range toRemove {
+		p := T.pools.Remove(pair.User, pair.Database)
+		if p != nil {
+			p.Close()
+		}
+		log.Print("removed pool username=", pair.User, " database=", pair.Database)
+	}
+
+	credentialsCache := make(map[string]credentials.Cleartext)
+
+	for pair, details := range toAdd {
+		creds, ok := credentialsCache[details.SecretUser]
+		if !ok {
 			// TODO(garet) lookup config map to get this format (what a pain)
-			secretName := user + "." + newPsql.Name + ".credentials." + v1acid.PostgresCRDResourceKind + "." + acidzalando.GroupName
+			secretName := details.SecretUser + "." + newPsql.Name + ".credentials." + v1acid.PostgresCRDResourceKind + "." + acidzalando.GroupName
 
 			secret, err := T.k8s.Secrets(T.config.Namespace).Get(context.Background(), secretName, v1.GetOptions{})
 			if err != nil {
@@ -171,19 +225,17 @@ func (T *Server) updatePostgresql(oldPsql *v1acid.Postgresql, newPsql *v1acid.Po
 				return
 			}
 
-			creds := credentials.Cleartext{
-				Username: user,
+			creds = credentials.Cleartext{
+				Username: details.SecretUser,
 				Password: string(password),
 			}
-
-			for database := range newPsql.Spec.Databases {
-				T.addPool(newPsql.Name, creds, user, database)
-
-				if newPsql.Spec.NumberOfInstances > 1 {
-					T.addPool(newPsql.Name+"-repl", creds, user+"_ro", database)
-				}
-			}
 		}
+		userCreds := credentials.Cleartext{
+			Username: pair.User,
+			Password: creds.Password,
+		}
+		T.addPool(details.Name, userCreds, creds, pair.Database)
+		log.Print("added pool username=", pair.User, " database=", pair.Database)
 	}
 }
 
