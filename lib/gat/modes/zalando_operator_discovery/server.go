@@ -106,6 +106,14 @@ func (T *Server) updatePostgresql(oldPsql *v1acid.Postgresql, newPsql *v1acid.Po
 	if oldPsql != nil {
 		log.Print("removed databases: ", oldPsql.Spec.Databases)
 		log.Print("removed users: ", oldPsql.Spec.Users)
+		for user := range oldPsql.Spec.Users {
+			for database := range oldPsql.Spec.Databases {
+				p := T.pools.Remove(user, database)
+				if p != nil {
+					p.Close()
+				}
+			}
+		}
 	}
 	if newPsql != nil {
 		log.Print("added databases: ", newPsql.Spec.Databases)

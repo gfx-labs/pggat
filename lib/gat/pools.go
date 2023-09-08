@@ -36,11 +36,12 @@ func (T *PoolsMap) Add(user, database string, pool *pool.Pool) {
 	}, pool)
 }
 
-func (T *PoolsMap) Remove(user, database string) {
-	T.pools.Delete(mapKey{
+func (T *PoolsMap) Remove(user, database string) *pool.Pool {
+	p, _ := T.pools.LoadAndDelete(mapKey{
 		User:     user,
 		Database: database,
 	})
+	return p
 }
 
 func (T *PoolsMap) Lookup(user, database string) *pool.Pool {

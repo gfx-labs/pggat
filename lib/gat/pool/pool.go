@@ -19,6 +19,8 @@ import (
 type Pool struct {
 	options Options
 
+	closed chan struct{}
+
 	recipes         map[string]*recipe.Recipe
 	clients         map[uuid.UUID]*Client
 	clientsByKey    map[[8]byte]*Client
@@ -29,6 +31,7 @@ type Pool struct {
 
 func NewPool(options Options) *Pool {
 	p := &Pool{
+		closed:  make(chan struct{}),
 		options: options,
 	}
 
@@ -60,6 +63,12 @@ func (T *Pool) idlest() (server *Server, at time.Time) {
 
 func (T *Pool) idleLoop() {
 	for {
+		select {
+		case <-T.closed:
+			return
+		default:
+		}
+
 		var wait time.Duration
 
 		now := time.Now()
@@ -311,6 +320,11 @@ func (T *Pool) removeClient(client *Client) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
+	T.removeClientL1(client)
+}
+
+func (T *Pool) removeClientL1(client *Client) {
+	_ = client.conn.Close()
 	delete(T.clients, client.GetID())
 	delete(T.clientsByKey, client.GetBackendKey())
 }
@@ -363,5 +377,22 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 		var mc metrics.Conn
 		server.ReadMetrics(&mc)
 		m.Servers[id] = mc
+	}
+}
+
+func (T *Pool) Close() {
+	close(T.closed)
+
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	// remove clients
+	for _, client := range T.clients {
+		T.removeClient(client)
+	}
+
+	// remove recipes
+	for name := range T.recipes {
+		T.removeRecipe(name)
 	}
 }
