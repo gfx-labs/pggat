@@ -5,7 +5,9 @@ import (
 )
 
 type Config struct {
-	rest *rest.Config
+	Namespace string
+
+	Rest *rest.Config
 }
 
 func Load() (*Config, error) {
@@ -14,7 +16,9 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	return &Config{
-		rest: restConfig,
+		Namespace: "default",
+
+		Rest: restConfig,
 	}, nil
 }
 
