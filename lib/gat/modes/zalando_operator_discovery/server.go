@@ -1,4 +1,4 @@
-package eddy
+package zalando_operator_discovery
 
 import (
 	"context"

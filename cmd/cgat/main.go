@@ -6,7 +6,7 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
-	"pggat/lib/gat/modes/eddy"
+	"pggat/lib/gat/modes/zalando_operator_discovery"
 )
 
 func main() {
@@ -16,7 +16,7 @@ func main() {
 
 	log.Printf("Starting pggat...")
 
-	conf, err := eddy.Load()
+	conf, err := zalando_operator_discovery.Load()
 	if err != nil {
 		panic(err)
 	}
