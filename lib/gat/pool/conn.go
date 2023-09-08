@@ -92,7 +92,7 @@ func (T *Conn) SetState(state metrics.ConnState, peer uuid.UUID) {
 
 func (T *Conn) GetState() (state metrics.ConnState, peer uuid.UUID, since time.Time) {
 	T.mu.RLock()
-	defer T.mu.Unlock()
+	defer T.mu.RUnlock()
 	state = T.state
 	peer = T.peer
 	since = T.since

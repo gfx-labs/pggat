@@ -39,10 +39,6 @@ func (T *Pooler) Acquire(client uuid.UUID, sync pool.SyncMode) uuid.UUID {
 	}
 }
 
-func (*Pooler) ReleaseAfterTransaction() bool {
-	return true
-}
-
 func (T *Pooler) Release(server uuid.UUID) {
 	T.s.Release(server)
 }

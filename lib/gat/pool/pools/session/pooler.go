@@ -94,12 +94,10 @@ func (T *Pooler) Acquire(_ uuid.UUID, mode pool.SyncMode) uuid.UUID {
 	}
 }
 
-func (*Pooler) ReleaseAfterTransaction() bool {
-	// servers are released when the client is removed
-	return false
-}
-
 func (T *Pooler) Release(server uuid.UUID) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
 	// check if server was removed
 	if _, ok := T.servers[server]; !ok {
 		return
