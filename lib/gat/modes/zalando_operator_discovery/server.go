@@ -3,6 +3,7 @@ package zalando_operator_discovery
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"strings"
 
 	acidzalando "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do"
@@ -123,7 +124,7 @@ func (T *Server) addPostgresql(psql *acidv1.Postgresql) {
 func (T *Server) addPool(name string, userCreds, serverCreds auth.Credentials, database string) {
 	d := dialer.Net{
 		Network: "tcp",
-		Address: name + "." + T.config.Namespace + ".svc.cluster.local:5432",
+		Address: fmt.Sprintf("%s.%s.svc.%s:5432", name, T.config.Namespace, T.opConfig.ClusterDomain),
 		AcceptOptions: backends.AcceptOptions{
 			SSLMode: bouncer.SSLModePrefer,
 			SSLConfig: &tls.Config{
