@@ -8,5 +8,7 @@ import (
 var SimpleQuery = test.Test{
 	Instructions: []inst.Instruction{
 		inst.SimpleQuery("select 1;"),
+		inst.SimpleQuery("SELECT 2, 3, 4;"),
+		inst.SimpleQuery("akfdfsjkfds;"),
 	},
 }

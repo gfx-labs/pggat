@@ -10,7 +10,6 @@ import (
 	"pggat/lib/gat/pool"
 	"pggat/lib/gat/pool/recipe"
 	"pggat/lib/gsql"
-	"pggat/lib/util/maps"
 	"pggat/test/inst"
 )
 
@@ -18,7 +17,8 @@ type Runner struct {
 	config Config
 	test   Test
 
-	pools map[string]*pool.Pool
+	pools   map[string]*pool.Pool
+	control fed.Conn
 }
 
 func MakeRunner(config Config, test Test) Runner {
@@ -30,7 +30,19 @@ func MakeRunner(config Config, test Test) Runner {
 
 func (T *Runner) setup() error {
 	// get pools ready
-	maps.Clear(T.pools)
+	if T.control != nil {
+		_ = T.control.Close()
+	}
+	var err error
+	T.control, _, err = T.config.Peer.Dial()
+	if err != nil {
+		return err
+	}
+
+	for name, p := range T.pools {
+		delete(T.pools, name)
+		p.Close()
+	}
 	if T.pools == nil {
 		T.pools = make(map[string]*pool.Pool)
 	}
@@ -62,11 +74,6 @@ func (T *Runner) run(pkts ...fed.Packet) error {
 			return err
 		}
 
-		server, _, err := T.config.Peer.Dial()
-		if err != nil {
-			return err
-		}
-
 		for {
 			p, err := client.ReadPacket(true)
 			if err != nil {
@@ -76,7 +83,7 @@ func (T *Runner) run(pkts ...fed.Packet) error {
 				return err
 			}
 
-			clientErr, serverErr := bouncers.Bounce(&client, server, p)
+			clientErr, serverErr := bouncers.Bounce(&client, T.control, p)
 			if clientErr != nil {
 				return clientErr
 			}
