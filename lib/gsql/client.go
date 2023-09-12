@@ -41,6 +41,22 @@ func (T *Client) Do(result ResultWriter, packets ...fed.Packet) {
 	}
 }
 
+func (T *Client) queueNext() bool {
+	b, ok := T.queue.PopFront()
+	if ok {
+		for _, packet := range b.packets {
+			T.read.PushBack(packet)
+		}
+		T.write = b.result
+		if T.writeC != nil {
+			T.writeC.Broadcast()
+		}
+		return true
+	}
+
+	return false
+}
+
 func (T *Client) ReadPacket(typed bool) (fed.Packet, error) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
@@ -54,15 +70,7 @@ func (T *Client) ReadPacket(typed bool) (fed.Packet, error) {
 		}
 
 		// try to add next in queue
-		b, ok := T.queue.PopFront()
-		if ok {
-			for _, packet := range b.packets {
-				T.read.PushBack(packet)
-			}
-			T.write = b.result
-			if T.writeC != nil {
-				T.writeC.Broadcast()
-			}
+		if T.queueNext() {
 			continue
 		}
 
@@ -88,6 +96,10 @@ func (T *Client) WritePacket(packet fed.Packet) error {
 	defer T.mu.Unlock()
 
 	for T.write == nil {
+		if T.read.Length() == 0 && T.queueNext() {
+			continue
+		}
+
 		if T.closed {
 			return io.EOF
 		}

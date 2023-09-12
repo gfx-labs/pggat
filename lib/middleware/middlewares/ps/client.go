@@ -30,7 +30,7 @@ func (T *Client) Write(ctx middleware.Context, packet fed.Packet) error {
 			return errors.New("bad packet format i")
 		}
 		ikey := strutil.MakeCIString(ps.Key)
-		if T.parameters[ikey] == ps.Value {
+		if T.synced && T.parameters[ikey] == ps.Value {
 			// already set
 			ctx.Cancel()
 			break

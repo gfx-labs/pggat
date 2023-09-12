@@ -6,6 +6,7 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
+	"pggat/lib/bouncer/bouncers/v2"
 	"pggat/lib/fed"
 	packets "pggat/lib/fed/packets/v3.0"
 	"pggat/lib/gat/pool"
@@ -37,7 +38,10 @@ func (T *Runner) setup() error {
 	}
 
 	for name, options := range T.config.Modes {
-		p := pool.NewPool(options)
+		opts := options
+		// allowing ps sync would mess up testing
+		opts.ParameterStatusSync = pool.ParameterStatusSyncNone
+		p := pool.NewPool(opts)
 		p.AddRecipe("server", recipe.NewRecipe(
 			recipe.Options{
 				Dialer: T.config.Peer,
@@ -57,7 +61,45 @@ func (logWriter) WritePacket(pkt fed.Packet) error {
 }
 
 func (T *Runner) run(pkts ...fed.Packet) error {
+	// expected
+	{
+		log.Print("expected packets")
+
+		var client gsql.Client
+		client.Do(logWriter{}, pkts...)
+		if err := client.Close(); err != nil {
+			return err
+		}
+
+		server, _, err := T.config.Peer.Dial()
+		if err != nil {
+			return err
+		}
+
+		for {
+			p, err := client.ReadPacket(true)
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				return err
+			}
+
+			clientErr, serverErr := bouncers.Bounce(&client, server, p)
+			if clientErr != nil {
+				return clientErr
+			}
+			if serverErr != nil {
+				return serverErr
+			}
+		}
+	}
+
+	// actual
 	for name, p := range T.pools {
+		log.Print()
+		log.Print("pool ", name)
+
 		var client gsql.Client
 		client.Do(logWriter{}, pkts...)
 		if err := client.Close(); err != nil {
