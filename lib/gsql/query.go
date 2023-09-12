@@ -5,20 +5,15 @@ import (
 	packets "pggat/lib/fed/packets/v3.0"
 )
 
-func (T *Client) Query(query string, results ...any) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
+func Query(client *Client, results []any, query string) {
 	var q = packets.Query(query)
 
-	T.queueResults(NewQueryWriter(results...))
-	T.queuePackets(q.IntoPacket())
+	client.Do(NewQueryWriter(results...), q.IntoPacket())
 }
 
 type QueryWriter struct {
 	writers   []RowWriter
 	writerNum int
-	done      bool
 }
 
 func NewQueryWriter(results ...any) *QueryWriter {
@@ -33,11 +28,6 @@ func NewQueryWriter(results ...any) *QueryWriter {
 }
 
 func (T *QueryWriter) WritePacket(packet fed.Packet) error {
-	if packet.Type() == packets.TypeReadyForQuery {
-		T.done = true
-		return nil
-	}
-
 	if T.writerNum >= len(T.writers) {
 		// ignore
 		return nil
@@ -53,10 +43,6 @@ func (T *QueryWriter) WritePacket(packet fed.Packet) error {
 	}
 
 	return nil
-}
-
-func (T *QueryWriter) Done() bool {
-	return T.done
 }
 
 var _ ResultWriter = (*QueryWriter)(nil)

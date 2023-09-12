@@ -8,20 +8,19 @@ import (
 	packets "pggat/lib/fed/packets/v3.0"
 )
 
-func (T *Client) ExtendedQuery(result any, query string, args ...any) error {
+func ExtendedQuery(client *Client, result any, query string, args ...any) error {
 	if len(args) == 0 {
-		T.Query(query, result)
+		Query(client, []any{result}, query)
 		return nil
 	}
 
-	T.mu.Lock()
-	defer T.mu.Unlock()
+	var pkts []fed.Packet
 
 	// parse
 	parse := packets.Parse{
 		Query: query,
 	}
-	T.queuePackets(parse.IntoPacket())
+	pkts = append(pkts, parse.IntoPacket())
 
 	// bind
 	params := make([][]byte, 0, len(args))
@@ -61,23 +60,23 @@ outer:
 	bind := packets.Bind{
 		ParameterValues: params,
 	}
-	T.queuePackets(bind.IntoPacket())
+	pkts = append(pkts, bind.IntoPacket())
 
 	// describe
 	describe := packets.Describe{
 		Which: 'P',
 	}
-	T.queuePackets(describe.IntoPacket())
+	pkts = append(pkts, describe.IntoPacket())
 
 	// execute
 	execute := packets.Execute{}
-	T.queuePackets(execute.IntoPacket())
+	pkts = append(pkts, execute.IntoPacket())
 
 	// sync
 	sync := fed.NewPacket(packets.TypeSync)
-	T.queuePackets(sync)
+	pkts = append(pkts, sync)
 
 	// result
-	T.queueResults(NewQueryWriter(result))
+	client.Do(NewQueryWriter(result), pkts...)
 	return nil
 }

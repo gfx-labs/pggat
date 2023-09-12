@@ -39,7 +39,7 @@ func TestQuery(t *testing.T) {
 
 	var res Result
 	client := new(Client)
-	err = client.ExtendedQuery(&res, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", "bob")
+	err = ExtendedQuery(client, &res, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", "bob")
 	if err != nil {
 		t.Error(err)
 		return

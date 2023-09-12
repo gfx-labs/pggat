@@ -99,7 +99,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 
 		var result authQueryResult
 		client := new(gsql.Client)
-		err := client.ExtendedQuery(&result, T.Config.PgBouncer.AuthQuery, user)
+		err := gsql.ExtendedQuery(client, &result, T.Config.PgBouncer.AuthQuery, user)
 		if err != nil {
 			log.Println("auth query failed:", err)
 			return nil
