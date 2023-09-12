@@ -10,14 +10,3 @@ database.
 # Test format
 The tests are formatted as a set of "instructions". Each instruction corresponds to zero or more packets
 to be sent to the server.
-
-## Instructions
-| Instruction | Arguments      | Description                                                                      |
-|-------------|----------------|----------------------------------------------------------------------------------|
-| PX          | bool           | Controls whether the next instructions can be run in parallel                    |
-| SQ          | string         | Runs a simple query                                                              |
-| QA          | string, ...any | Runs a query with arguments. This will run a prepare, bind, explain, and execute |
-
-## Parallel tests
-By default, many instances of a single test will be run at the same time. If the test or parts of the test
-cannot be run in parallel, prepend `PX false`.
