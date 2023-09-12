@@ -2,9 +2,9 @@ package transaction
 
 import "pggat/lib/gat/pool"
 
-func NewPool(options pool.Options) *pool.Pool {
+func Apply(options pool.Options) pool.Options {
 	options.Pooler = new(Pooler)
 	options.ParameterStatusSync = pool.ParameterStatusSyncDynamic
 	options.ExtendedQuerySync = true
-	return pool.NewPool(options)
+	return options
 }

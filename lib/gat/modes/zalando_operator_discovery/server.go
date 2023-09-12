@@ -138,16 +138,16 @@ func (T *Server) addPool(name string, userCreds, serverCreds auth.Credentials, d
 	poolOptions := pool.Options{
 		Credentials: userCreds,
 	}
-	var p *pool.Pool
 	switch T.opConfig.Mode {
 	case "transaction":
-		p = transaction.NewPool(poolOptions)
+		poolOptions = transaction.Apply(poolOptions)
 	case "session":
-		p = session.NewPool(poolOptions)
+		poolOptions = session.Apply(poolOptions)
 	default:
 		log.Printf(`unknown pool mode "%s"`, T.opConfig.Mode)
 		return
 	}
+	p := pool.NewPool(poolOptions)
 
 	recipeOptions := recipe.Options{
 		Dialer: d,

@@ -4,9 +4,9 @@ import (
 	"pggat/lib/gat/pool"
 )
 
-func NewPool(options pool.Options) *pool.Pool {
+func Apply(options pool.Options) pool.Options {
 	options.Pooler = new(Pooler)
 	options.ParameterStatusSync = pool.ParameterStatusSyncInitial
 	options.ExtendedQuerySync = false
-	return pool.NewPool(options)
+	return options
 }

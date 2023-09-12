@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"log"
 	"sync"
 	"time"
 
@@ -157,6 +158,7 @@ func (T *Pool) scaleUp() {
 func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) {
 	conn, params, err := r.Dial()
 	if err != nil {
+		log.Print("failed to dial server: ", err)
 		// failed to dial
 		r.Free()
 		return

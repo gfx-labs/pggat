@@ -159,15 +159,16 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 
 	switch poolMode {
 	case PoolModeSession:
-		p = session.NewPool(poolOptions)
+		poolOptions = session.Apply(poolOptions)
 	case PoolModeTransaction:
 		if T.Config.PgBouncer.ServerResetQueryAlways == 0 {
 			poolOptions.ServerResetQuery = ""
 		}
-		p = transaction.NewPool(poolOptions)
+		poolOptions = transaction.Apply(poolOptions)
 	default:
 		return nil
 	}
+	p = pool.NewPool(poolOptions)
 
 	T.pools.Store(poolKey{
 		User:     user,
