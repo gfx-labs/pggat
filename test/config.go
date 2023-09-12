@@ -1,13 +1,9 @@
 package test
 
+import (
+	"pggat/lib/gat/pool/dialer"
+)
+
 type Config struct {
-	TestsPath string
-
-	Offline bool
-
-	Host     string
-	Port     int
-	Database string
-	User     string
-	Password string
+	Peer dialer.Dialer
 }

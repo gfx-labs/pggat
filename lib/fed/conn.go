@@ -10,9 +10,6 @@ import (
 type Conn interface {
 	ReadWriter
 
-	EnableSSLClient(config *tls.Config) error
-	EnableSSLServer(config *tls.Config) error
-
 	Close() error
 }
 
@@ -158,3 +155,7 @@ func (T *netConn) Close() error {
 }
 
 var _ Conn = (*netConn)(nil)
+var _ SSLServer = (*netConn)(nil)
+var _ SSLClient = (*netConn)(nil)
+var _ io.ByteReader = (*netConn)(nil)
+var _ io.ByteWriter = (*netConn)(nil)

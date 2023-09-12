@@ -1,8 +1,6 @@
 package interceptor
 
 import (
-	"crypto/tls"
-
 	"pggat/lib/fed"
 	"pggat/lib/middleware"
 )
@@ -23,18 +21,6 @@ func NewInterceptor(rw fed.Conn, middlewares ...middleware.Middleware) *Intercep
 		context:     makeContext(rw),
 		rw:          rw,
 	}
-}
-
-func (T *Interceptor) EnableSSLClient(config *tls.Config) error {
-	return T.rw.EnableSSLClient(config)
-}
-
-func (T *Interceptor) EnableSSLServer(config *tls.Config) error {
-	return T.rw.EnableSSLServer(config)
-}
-
-func (T *Interceptor) ReadByte() (byte, error) {
-	return T.rw.ReadByte()
 }
 
 func (T *Interceptor) ReadPacket(typed bool) (fed.Packet, error) {
@@ -58,10 +44,6 @@ outer:
 
 		return packet, nil
 	}
-}
-
-func (T *Interceptor) WriteByte(b byte) error {
-	return T.rw.WriteByte(b)
 }
 
 func (T *Interceptor) WritePacket(packet fed.Packet) error {

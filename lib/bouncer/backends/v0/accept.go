@@ -3,6 +3,7 @@ package backends
 import (
 	"crypto/tls"
 	"errors"
+	"io"
 
 	"pggat/lib/auth"
 	"pggat/lib/fed"
@@ -242,8 +243,13 @@ func enableSSL(server fed.Conn, config *tls.Config) (bool, error) {
 		return false, err
 	}
 
+	byteReader, ok := server.(io.ByteReader)
+	if !ok {
+		return false, errors.New("server must be io.ByteReader to enable ssl")
+	}
+
 	// read byte to see if ssl is allowed
-	yn, err := server.ReadByte()
+	yn, err := byteReader.ReadByte()
 	if err != nil {
 		return false, err
 	}
@@ -253,7 +259,12 @@ func enableSSL(server fed.Conn, config *tls.Config) (bool, error) {
 		return false, nil
 	}
 
-	if err = server.EnableSSLClient(config); err != nil {
+	sslClient, ok := server.(fed.SSLClient)
+	if !ok {
+		return false, errors.New("server must be fed.SSLClient to enable ssl")
+	}
+
+	if err = sslClient.EnableSSLClient(config); err != nil {
 		return false, err
 	}
 

@@ -2,6 +2,7 @@ package frontends
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"pggat/lib/fed"
@@ -48,24 +49,54 @@ func startup0(
 			done = true
 			return
 		case 5679:
+			byteWriter, ok := conn.(io.ByteWriter)
+			if !ok {
+				err = perror.New(
+					perror.FATAL,
+					perror.FeatureNotSupported,
+					"SSL is not supported",
+				)
+				return
+			}
+
 			// ssl is not enabled
 			if options.SSLConfig == nil {
-				err = perror.Wrap(conn.WriteByte('N'))
+				err = perror.Wrap(byteWriter.WriteByte('N'))
+				return
+			}
+
+			sslServer, ok := conn.(fed.SSLServer)
+			if !ok {
+				err = perror.New(
+					perror.FATAL,
+					perror.FeatureNotSupported,
+					"SSL is not supported",
+				)
 				return
 			}
 
 			// do ssl
-			if err = perror.Wrap(conn.WriteByte('S')); err != nil {
+			if err = perror.Wrap(byteWriter.WriteByte('S')); err != nil {
 				return
 			}
-			if err = perror.Wrap(conn.EnableSSLServer(options.SSLConfig)); err != nil {
+			if err = perror.Wrap(sslServer.EnableSSLServer(options.SSLConfig)); err != nil {
 				return
 			}
 			params.SSLEnabled = true
 			return
 		case 5680:
+			byteWriter, ok := conn.(io.ByteWriter)
+			if !ok {
+				err = perror.New(
+					perror.FATAL,
+					perror.FeatureNotSupported,
+					"GSSAPI is not supported",
+				)
+				return
+			}
+
 			// GSSAPI is not supported yet
-			err = perror.Wrap(conn.WriteByte('N'))
+			err = perror.Wrap(byteWriter.WriteByte('N'))
 			return
 		default:
 			err = perror.New(
