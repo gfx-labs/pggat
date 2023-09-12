@@ -4,8 +4,6 @@ import (
 	"errors"
 	"io"
 
-	"tuxpa.in/a/zlog/log"
-
 	"pggat/lib/bouncer/bouncers/v2"
 	"pggat/lib/fed"
 	packets "pggat/lib/fed/packets/v3.0"
@@ -53,20 +51,13 @@ func (T *Runner) setup() error {
 	return nil
 }
 
-type logWriter struct{}
-
-func (logWriter) WritePacket(pkt fed.Packet) error {
-	log.Print("got packet ", pkt)
-	return nil
-}
-
 func (T *Runner) run(pkts ...fed.Packet) error {
 	// expected
-	{
-		log.Print("expected packets")
+	var expected Capturer
 
+	{
 		var client gsql.Client
-		client.Do(logWriter{}, pkts...)
+		client.Do(&expected, pkts...)
 		if err := client.Close(); err != nil {
 			return err
 		}
@@ -97,11 +88,10 @@ func (T *Runner) run(pkts ...fed.Packet) error {
 
 	// actual
 	for name, p := range T.pools {
-		log.Print()
-		log.Print("pool ", name)
+		var result Capturer
 
 		var client gsql.Client
-		client.Do(logWriter{}, pkts...)
+		client.Do(&result, pkts...)
 		if err := client.Close(); err != nil {
 			return err
 		}
@@ -110,6 +100,9 @@ func (T *Runner) run(pkts ...fed.Packet) error {
 			return err
 		}
 
+		if err := expected.Check(&result); err != nil {
+			return err
+		}
 		_ = name
 	}
 

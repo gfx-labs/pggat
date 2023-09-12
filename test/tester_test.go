@@ -33,7 +33,9 @@ func TestTester(t *testing.T) {
 			},
 		},
 	})
-	if err := tester.Run(tests.SimpleQuery); err != nil {
+	if err := tester.Run(
+		tests.SimpleQuery,
+	); err != nil {
 		t.Error(err)
 	}
 }
