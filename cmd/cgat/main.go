@@ -3,9 +3,12 @@ package main
 import (
 	"net/http"
 	_ "net/http/pprof"
+	"os"
 
 	"tuxpa.in/a/zlog/log"
 
+	"pggat/lib/gat/modes/pgbouncer"
+	"pggat/lib/gat/modes/zalando"
 	"pggat/lib/gat/modes/zalando_operator_discovery"
 )
 
@@ -16,34 +19,9 @@ func main() {
 
 	log.Printf("Starting pggat...")
 
-	conf, err := zalando_operator_discovery.Load()
-	if err != nil {
-		panic(err)
-	}
-
-	err = conf.ListenAndServe()
-	if err != nil {
-		panic(err)
-	}
-
-	/*
-		if len(os.Args) == 2 {
-			log.Printf("running in pgbouncer compatibility mode")
-			conf, err := pgbouncer.Load(os.Args[1])
-			if err != nil {
-				panic(err)
-			}
-
-			err = conf.ListenAndServe()
-			if err != nil {
-				panic(err)
-			}
-			return
-		}
-
-		log.Printf("running in zalando compatibility mode")
-
-		conf, err := zalando.Load()
+	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" && os.Getenv("KUBERNETES_SERVICE_PORT") != "" {
+		log.Printf("Running in zalando operator discovery mode")
+		conf, err := zalando_operator_discovery.Load()
 		if err != nil {
 			panic(err)
 		}
@@ -52,5 +30,32 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-	*/
+		return
+	}
+
+	if len(os.Args) == 2 {
+		log.Printf("running in pgbouncer compatibility mode")
+		conf, err := pgbouncer.Load(os.Args[1])
+		if err != nil {
+			panic(err)
+		}
+
+		err = conf.ListenAndServe()
+		if err != nil {
+			panic(err)
+		}
+		return
+	}
+
+	log.Printf("running in zalando compatibility mode")
+
+	conf, err := zalando.Load()
+	if err != nil {
+		panic(err)
+	}
+
+	err = conf.ListenAndServe()
+	if err != nil {
+		panic(err)
+	}
 }
