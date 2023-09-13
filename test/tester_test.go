@@ -35,6 +35,8 @@ func TestTester(t *testing.T) {
 	})
 	if err := tester.Run(
 		tests.SimpleQuery,
+		tests.Transaction,
+		tests.Sync,
 	); err != nil {
 		t.Error(err)
 	}

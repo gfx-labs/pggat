@@ -2,6 +2,7 @@ package test
 
 import (
 	"errors"
+	"fmt"
 	"io"
 
 	"pggat/lib/bouncer/bouncers/v2"
@@ -16,9 +17,6 @@ import (
 type Runner struct {
 	config Config
 	test   Test
-
-	pools   map[string]*pool.Pool
-	control fed.Conn
 }
 
 func MakeRunner(config Config, test Test) Runner {
@@ -28,107 +26,111 @@ func MakeRunner(config Config, test Test) Runner {
 	}
 }
 
-func (T *Runner) setup() error {
-	// get pools ready
-	if T.control != nil {
-		_ = T.control.Close()
+func (T *Runner) prepare(client *gsql.Client) []Capturer {
+	results := make([]Capturer, len(T.test.Instructions))
+
+	for i, x := range T.test.Instructions {
+		switch v := x.(type) {
+		case inst.SimpleQuery:
+			q := packets.Query(v)
+			client.Do(&results[i], q.IntoPacket())
+		case inst.Sync:
+			client.Do(&results[i], fed.NewPacket(packets.TypeSync))
+		}
 	}
-	var err error
-	T.control, _, err = T.config.Peer.Dial()
+
+	return results
+}
+
+func (T *Runner) runControl() ([]Capturer, error) {
+	control, _, err := T.config.Peer.Dial()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = control.Close()
+	}()
+
+	var client gsql.Client
+	results := T.prepare(&client)
+	if err = client.Close(); err != nil {
+		return nil, err
+	}
+
+	for {
+		var p fed.Packet
+		p, err = client.ReadPacket(true)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, err
+		}
+
+		clientErr, serverErr := bouncers.Bounce(&client, control, p)
+		if clientErr != nil {
+			return nil, clientErr
+		}
+		if serverErr != nil {
+			return nil, serverErr
+		}
+	}
+
+	return results, nil
+}
+
+func (T *Runner) runMode(options pool.Options) ([]Capturer, error) {
+	opts := options
+	// allowing ps sync would mess up testing
+	opts.ParameterStatusSync = pool.ParameterStatusSyncNone
+	p := pool.NewPool(opts)
+	defer p.Close()
+	p.AddRecipe("server", recipe.NewRecipe(
+		recipe.Options{
+			Dialer: T.config.Peer,
+		},
+	))
+
+	var client gsql.Client
+	results := T.prepare(&client)
+	if err := client.Close(); err != nil {
+		return nil, err
+	}
+
+	if err := p.Serve(&client, nil, [8]byte{}); err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+
+	return results, nil
+}
+
+func (T *Runner) Run() error {
+	// control
+	expected, err := T.runControl()
 	if err != nil {
 		return err
 	}
 
-	for name, p := range T.pools {
-		delete(T.pools, name)
-		p.Close()
-	}
-	if T.pools == nil {
-		T.pools = make(map[string]*pool.Pool)
-	}
-
-	for name, options := range T.config.Modes {
-		opts := options
-		// allowing ps sync would mess up testing
-		opts.ParameterStatusSync = pool.ParameterStatusSyncNone
-		p := pool.NewPool(opts)
-		p.AddRecipe("server", recipe.NewRecipe(
-			recipe.Options{
-				Dialer: T.config.Peer,
-			},
-		))
-		T.pools[name] = p
-	}
-
-	return nil
-}
-
-func (T *Runner) run(pkts ...fed.Packet) error {
-	// expected
-	var expected Capturer
-
-	{
-		var client gsql.Client
-		client.Do(&expected, pkts...)
-		if err := client.Close(); err != nil {
+	// modes
+	for name, mode := range T.config.Modes {
+		actual, err := T.runMode(mode)
+		if err != nil {
 			return err
 		}
 
-		for {
-			p, err := client.ReadPacket(true)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
+		if len(expected) != len(actual) {
+			return fmt.Errorf("wrong number of results! expected %d but got %d", len(expected), len(actual))
+		}
+
+		for i, exp := range expected {
+			act := actual[i]
+
+			if err = exp.Check(&act); err != nil {
 				return err
 			}
-
-			clientErr, serverErr := bouncers.Bounce(&client, T.control, p)
-			if clientErr != nil {
-				return clientErr
-			}
-			if serverErr != nil {
-				return serverErr
-			}
-		}
-	}
-
-	// actual
-	for name, p := range T.pools {
-		var result Capturer
-
-		var client gsql.Client
-		client.Do(&result, pkts...)
-		if err := client.Close(); err != nil {
-			return err
 		}
 
-		if err := p.Serve(&client, nil, [8]byte{}); err != nil && !errors.Is(err, io.EOF) {
-			return err
-		}
-
-		if err := expected.Check(&result); err != nil {
-			return err
-		}
 		_ = name
-	}
-
-	return nil
-}
-
-func (T *Runner) Run() error {
-	if err := T.setup(); err != nil {
-		return err
-	}
-
-	for _, i := range T.test.Instructions {
-		switch v := i.(type) {
-		case inst.SimpleQuery:
-			q := packets.Query(v)
-			if err := T.run(q.IntoPacket()); err != nil {
-				return err
-			}
-		}
 	}
 
 	return nil
