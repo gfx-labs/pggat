@@ -65,6 +65,18 @@ func (T *Runner) prepare(client *gsql.Client) []Capturer {
 				Target: string(v),
 			}
 			client.Do(&results[i], p.IntoPacket())
+		case inst.ClosePortal:
+			p := packets.Close{
+				Which:  'P',
+				Target: string(v),
+			}
+			client.Do(&results[i], p.IntoPacket())
+		case inst.ClosePreparedStatement:
+			p := packets.Close{
+				Which:  'S',
+				Target: string(v),
+			}
+			client.Do(&results[i], p.IntoPacket())
 		}
 	}
 
@@ -170,7 +182,7 @@ func (T *Runner) Run() error {
 			act := actual[i]
 
 			if err = exp.Check(&act); err != nil {
-				modeErrs = append(modeErrs, fmt.Errorf("instruction %d: %v", i+1, err))
+				modeErrs = append(modeErrs, fmt.Errorf("instruction %d: %s", i+1, err.Error()))
 			}
 		}
 

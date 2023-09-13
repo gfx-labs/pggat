@@ -160,6 +160,7 @@ func Sync(ctx *Context, server fed.ReadWriter) error {
 		switch packet.Type() {
 		case packets.TypeParseComplete,
 			packets.TypeBindComplete,
+			packets.TypeCloseComplete,
 			packets.TypeErrorResponse,
 			packets.TypeRowDescription,
 			packets.TypeNoData,

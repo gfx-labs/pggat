@@ -38,7 +38,14 @@ func TestTester(t *testing.T) {
 		tests.SimpleQuery,
 		tests.Transaction,
 		tests.Sync,
-		tests.EQP,
+		tests.EQP0,
+		tests.EQP1,
+		tests.EQP2,
+		tests.EQP3,
+		tests.EQP4,
+		tests.EQP5,
+		tests.EQP6,
+		tests.EQP7,
 	); err != nil {
 		fmt.Print(err.Error())
 		t.Fail()
