@@ -11,8 +11,6 @@ import (
 
 type Server struct {
 	parameters map[strutil.CIString]string
-
-	middleware.Nil
 }
 
 func NewServer(parameters map[strutil.CIString]string) *Server {
@@ -34,6 +32,10 @@ func (T *Server) Read(_ middleware.Context, packet fed.Packet) error {
 		}
 		T.parameters[ikey] = ps.Value
 	}
+	return nil
+}
+
+func (T *Server) Write(_ middleware.Context, _ fed.Packet) error {
 	return nil
 }
 

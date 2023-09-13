@@ -12,14 +12,16 @@ import (
 type Client struct {
 	synced     bool
 	parameters map[strutil.CIString]string
-
-	middleware.Nil
 }
 
 func NewClient(parameters map[strutil.CIString]string) *Client {
 	return &Client{
 		parameters: parameters,
 	}
+}
+
+func (T *Client) Read(_ middleware.Context, _ fed.Packet) error {
+	return nil
 }
 
 func (T *Client) Write(ctx middleware.Context, packet fed.Packet) error {

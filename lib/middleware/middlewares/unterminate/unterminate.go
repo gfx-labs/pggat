@@ -12,14 +12,16 @@ import (
 // Useful if you don't want to forward to the server and close the connection.
 var Unterminate = unterm{}
 
-type unterm struct {
-	middleware.Nil
-}
+type unterm struct{}
 
 func (unterm) Read(_ middleware.Context, packet fed.Packet) error {
 	if packet.Type() == packets.TypeTerminate {
 		return io.EOF
 	}
+	return nil
+}
+
+func (unterm) Write(_ middleware.Context, _ fed.Packet) error {
 	return nil
 }
 

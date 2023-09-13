@@ -23,8 +23,6 @@ type Server struct {
 	pendingCloses             ring.Ring[Close]
 
 	peer *Client
-
-	middleware.Nil
 }
 
 func NewServer() *Server {

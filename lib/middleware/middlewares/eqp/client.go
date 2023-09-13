@@ -11,8 +11,6 @@ import (
 type Client struct {
 	preparedStatements map[string]PreparedStatement
 	portals            map[string]Portal
-
-	middleware.Nil
 }
 
 func NewClient() *Client {
