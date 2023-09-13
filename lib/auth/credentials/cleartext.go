@@ -118,7 +118,7 @@ func MakeCleartextScramVerifier(username, password string, hashGenerator scram.H
 	}
 
 	kf := scram.KeyFactors{
-		Iters: 1,
+		Iters: 4096,
 	}
 	stored := client.GetStoredCredentials(kf)
 

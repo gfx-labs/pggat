@@ -10,8 +10,15 @@ import (
 )
 
 func Pair(options Options, client *Client, server *Server) (clientErr, serverErr error) {
-	client.SetState(metrics.ConnStateActive, server.GetID())
-	server.SetState(metrics.ConnStateActive, client.GetID())
+	defer func() {
+		client.SetState(metrics.ConnStateActive, server.GetID())
+		server.SetState(metrics.ConnStateActive, client.GetID())
+	}()
+
+	if options.ParameterStatusSync != ParameterStatusSyncNone || options.ExtendedQuerySync {
+		client.SetState(metrics.ConnStatePairing, server.GetID())
+		server.SetState(metrics.ConnStatePairing, client.GetID())
+	}
 
 	switch options.ParameterStatusSync {
 	case ParameterStatusSyncDynamic:

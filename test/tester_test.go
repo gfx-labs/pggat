@@ -24,7 +24,7 @@ func TestTester(t *testing.T) {
 		},
 		Peer: dialer.Net{
 			Network: "tcp",
-			Address: "localhost:5432",
+			Address: "localhost:6432",
 			AcceptOptions: backends.AcceptOptions{
 				Credentials: credentials.Cleartext{
 					Username: "postgres",

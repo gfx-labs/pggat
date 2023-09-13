@@ -6,5 +6,6 @@ func Apply(options pool.Options) pool.Options {
 	options.Pooler = new(Pooler)
 	options.ParameterStatusSync = pool.ParameterStatusSyncDynamic
 	options.ExtendedQuerySync = true
+	options.ReleaseAfterTransaction = true
 	return options
 }
