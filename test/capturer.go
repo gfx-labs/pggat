@@ -19,7 +19,7 @@ func (T *Capturer) WritePacket(packet fed.Packet) error {
 
 func (T *Capturer) Check(other *Capturer) error {
 	if len(T.Packets) != len(other.Packets) {
-		return fmt.Errorf("not enough packets! got %d but expected %d", len(other.Packets), len(T.Packets))
+		return fmt.Errorf("wrong number of packets! got %d but expected %d", len(other.Packets), len(T.Packets))
 	}
 
 	for i := range T.Packets {

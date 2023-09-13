@@ -1,6 +1,7 @@
 package test_test
 
 import (
+	"fmt"
 	"testing"
 
 	"pggat/lib/auth/credentials"
@@ -37,7 +38,9 @@ func TestTester(t *testing.T) {
 		tests.SimpleQuery,
 		tests.Transaction,
 		tests.Sync,
+		tests.EQP,
 	); err != nil {
-		t.Error(err)
+		fmt.Print(err.Error())
+		t.Fail()
 	}
 }

@@ -6,6 +6,7 @@ import (
 )
 
 var Transaction = test.Test{
+	Name: "Transaction",
 	Instructions: []inst.Instruction{
 		inst.SimpleQuery("BEGIN;"),
 		inst.SimpleQuery("select 1;"),

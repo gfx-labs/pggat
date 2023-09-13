@@ -36,6 +36,35 @@ func (T *Runner) prepare(client *gsql.Client) []Capturer {
 			client.Do(&results[i], q.IntoPacket())
 		case inst.Sync:
 			client.Do(&results[i], fed.NewPacket(packets.TypeSync))
+		case inst.Parse:
+			p := packets.Parse{
+				Destination: v.Destination,
+				Query:       v.Query,
+			}
+			client.Do(&results[i], p.IntoPacket())
+		case inst.Bind:
+			p := packets.Bind{
+				Destination: v.Destination,
+				Source:      v.Source,
+			}
+			client.Do(&results[i], p.IntoPacket())
+		case inst.DescribePortal:
+			p := packets.Describe{
+				Which:  'P',
+				Target: string(v),
+			}
+			client.Do(&results[i], p.IntoPacket())
+		case inst.DescribePreparedStatement:
+			p := packets.Describe{
+				Which:  'S',
+				Target: string(v),
+			}
+			client.Do(&results[i], p.IntoPacket())
+		case inst.Execute:
+			p := packets.Execute{
+				Target: string(v),
+			}
+			client.Do(&results[i], p.IntoPacket())
 		}
 	}
 
@@ -108,30 +137,53 @@ func (T *Runner) Run() error {
 	// control
 	expected, err := T.runControl()
 	if err != nil {
-		return err
+		return ErrorIn{
+			Name: "Control",
+			Err:  err,
+		}
 	}
+
+	var errs []error
 
 	// modes
 	for name, mode := range T.config.Modes {
 		actual, err := T.runMode(mode)
 		if err != nil {
-			return err
+			errs = append(errs, ErrorIn{
+				Name: name,
+				Err:  err,
+			})
+			continue
 		}
 
 		if len(expected) != len(actual) {
-			return fmt.Errorf("wrong number of results! expected %d but got %d", len(expected), len(actual))
+			errs = append(errs, ErrorIn{
+				Name: name,
+				Err:  fmt.Errorf("wrong number of results! expected %d but got %d", len(expected), len(actual)),
+			})
+			continue
 		}
+
+		var modeErrs []error
 
 		for i, exp := range expected {
 			act := actual[i]
 
 			if err = exp.Check(&act); err != nil {
-				return err
+				modeErrs = append(modeErrs, fmt.Errorf("instruction %d: %v", i+1, err))
 			}
 		}
 
-		_ = name
+		if len(modeErrs) > 0 {
+			errs = append(errs, ErrorIn{
+				Name: name,
+				Err:  Errors(modeErrs),
+			})
+		}
 	}
 
+	if len(errs) > 0 {
+		return Errors(errs)
+	}
 	return nil
 }

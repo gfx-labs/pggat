@@ -6,6 +6,7 @@ import (
 )
 
 var Sync = test.Test{
+	Name: "Sync",
 	Instructions: []inst.Instruction{
 		inst.Sync{},
 		inst.SimpleQuery("BEGIN;"),

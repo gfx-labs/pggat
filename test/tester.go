@@ -11,11 +11,18 @@ func NewTester(config Config) *Tester {
 }
 
 func (T *Tester) Run(tests ...Test) error {
+	var errors []error
 	for _, test := range tests {
 		runner := MakeRunner(T.config, test)
 		if err := runner.Run(); err != nil {
-			return err
+			errors = append(errors, ErrorIn{
+				Name: test.Name,
+				Err:  err,
+			})
 		}
+	}
+	if len(errors) > 0 {
+		return Errors(errors)
 	}
 	return nil
 }
