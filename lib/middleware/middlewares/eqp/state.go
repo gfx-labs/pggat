@@ -1,20 +1,32 @@
-package eqp2
+package eqp
 
 import (
+	"hash/maphash"
+
 	"pggat/lib/fed"
 	packets "pggat/lib/fed/packets/v3.0"
 	"pggat/lib/util/ring"
 )
 
+var seed = maphash.MakeSeed()
+
 type PreparedStatement struct {
 	Packet fed.Packet
 	Target string
+	Hash   uint64
 }
 
 func MakePreparedStatement(packet fed.Packet) PreparedStatement {
 	if packet.Type() != packets.TypeParse {
 		panic("unreachable")
 	}
+
+	var res PreparedStatement
+	packet.ReadString(&res.Target)
+	res.Packet = packet
+	res.Hash = maphash.Bytes(seed, packet.Payload())
+
+	return res
 }
 
 type Portal struct {
@@ -26,6 +38,12 @@ func MakePortal(packet fed.Packet) Portal {
 	if packet.Type() != packets.TypeBind {
 		panic("unreachable")
 	}
+
+	var res Portal
+	packet.ReadString(&res.Target)
+	res.Packet = packet
+
+	return res
 }
 
 type CloseVariant int
@@ -40,7 +58,7 @@ type Close struct {
 	Target  string
 }
 
-type Sync struct {
+type State struct {
 	preparedStatements map[string]PreparedStatement
 	portals            map[string]Portal
 
@@ -49,8 +67,51 @@ type Sync struct {
 	pendingCloses             ring.Ring[Close]
 }
 
+// C2S is client to server packets
+func (T *State) C2S(packet fed.Packet) {
+	switch packet.Type() {
+	case packets.TypeClose:
+		T.Close(packet)
+	case packets.TypeParse:
+		T.Parse(packet)
+	case packets.TypeBind:
+		T.Bind(packet)
+	case packets.TypeQuery:
+		T.Query()
+	}
+}
+
+// S2C is server to client packets
+func (T *State) S2C(packet fed.Packet) {
+	switch packet.Type() {
+	case packets.TypeCloseComplete:
+		T.CloseComplete()
+	case packets.TypeParseComplete:
+		T.ParseComplete()
+	case packets.TypeBindComplete:
+		T.BindComplete()
+	case packets.TypeReadyForQuery:
+		T.ReadyForQuery(packet)
+	}
+}
+
 // Close is a pending close. Execute on Close C->S
-func (T *Sync) Close(variant CloseVariant, target string) {
+func (T *State) Close(packet fed.Packet) {
+	var which byte
+	p := packet.ReadUint8(&which)
+	var target string
+	p.ReadString(&target)
+
+	var variant CloseVariant
+	switch which {
+	case 'S':
+		variant = CloseVariantPreparedStatement
+	case 'P':
+		variant = CloseVariantPortal
+	default:
+		return
+	}
+
 	T.pendingCloses.PushBack(Close{
 		Variant: variant,
 		Target:  target,
@@ -58,7 +119,7 @@ func (T *Sync) Close(variant CloseVariant, target string) {
 }
 
 // CloseComplete notifies that a close was successful. Execute on CloseComplete S->C
-func (T *Sync) CloseComplete() {
+func (T *State) CloseComplete() {
 	c, ok := T.pendingCloses.PopFront()
 	if !ok {
 		return
@@ -75,13 +136,13 @@ func (T *Sync) CloseComplete() {
 }
 
 // Parse is a pending prepared statement. Execute on Parse C->S
-func (T *Sync) Parse(packet fed.Packet) {
+func (T *State) Parse(packet fed.Packet) {
 	preparedStatement := MakePreparedStatement(packet)
 	T.pendingPreparedStatements.PushBack(preparedStatement)
 }
 
 // ParseComplete notifies that a parse was successful. Execute on ParseComplete S->C
-func (T *Sync) ParseComplete() {
+func (T *State) ParseComplete() {
 	preparedStatement, ok := T.pendingPreparedStatements.PopFront()
 	if !ok {
 		return
@@ -94,13 +155,13 @@ func (T *Sync) ParseComplete() {
 }
 
 // Bind is a pending portal. Execute on Bind C->S
-func (T *Sync) Bind(packet fed.Packet) {
+func (T *State) Bind(packet fed.Packet) {
 	portal := MakePortal(packet)
 	T.pendingPortals.PushBack(portal)
 }
 
 // BindComplete notifies that a bind was successful. Execute on BindComplete S->C
-func (T *Sync) BindComplete() {
+func (T *State) BindComplete() {
 	portal, ok := T.pendingPortals.PopFront()
 	if !ok {
 		return
@@ -113,13 +174,16 @@ func (T *Sync) BindComplete() {
 }
 
 // Query clobbers the unnamed portal and unnamed prepared statement. Execute on Query C->S
-func (T *Sync) Query() {
+func (T *State) Query() {
 	delete(T.portals, "")
 	delete(T.preparedStatements, "")
 }
 
 // ReadyForQuery clobbers portals if state == 'I' and pending. Execute on ReadyForQuery S->C
-func (T *Sync) ReadyForQuery(state byte) {
+func (T *State) ReadyForQuery(packet fed.Packet) {
+	var state byte
+	packet.ReadUint8(&state)
+
 	if state == 'I' {
 		// clobber all portals
 		for name := range T.portals {
