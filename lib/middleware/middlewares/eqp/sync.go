@@ -64,5 +64,6 @@ func Sync(c *Client, server fed.ReadWriter, s *Server) error {
 		}
 	}
 
-	return backends.Sync(new(backends.Context), server)
+	_, err := backends.Sync(new(backends.Context), server)
+	return err
 }

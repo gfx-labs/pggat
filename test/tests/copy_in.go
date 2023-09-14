@@ -34,6 +34,7 @@ var CopyIn1 = test.Test{
 		inst.CopyData{49, 50, 51, 9, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 10},
 		inst.CopyData{45, 51, 50, 52, 9, 103, 97, 114, 101, 116, 32, 119, 97, 115, 32, 104, 101, 114, 101, 10},
 		inst.CopyDone{},
+		inst.Sync{},
 		inst.SimpleQuery("DROP TABLE test"),
 	},
 }

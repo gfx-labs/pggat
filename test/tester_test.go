@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	_ "net/http/pprof"
 	"strconv"
 	"testing"
 

@@ -142,15 +142,15 @@ func FunctionCall(ctx *Context, server fed.ReadWriter, packet fed.Packet) error 
 	}
 }
 
-func Sync(ctx *Context, server fed.ReadWriter) error {
+func Sync(ctx *Context, server fed.ReadWriter) (bool, error) {
 	if err := server.WritePacket(fed.NewPacket(packets.TypeSync)); err != nil {
-		return err
+		return false, err
 	}
 
 	for {
 		packet, err := server.ReadPacket(true)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		switch packet.Type() {
@@ -173,22 +173,24 @@ func Sync(ctx *Context, server fed.ReadWriter) error {
 			ctx.PeerWrite(packet)
 		case packets.TypeCopyInResponse:
 			if err = CopyIn(ctx, server, packet); err != nil {
-				return err
+				return false, err
 			}
+			// why
+			return false, nil
 		case packets.TypeCopyOutResponse:
 			if err = CopyOut(ctx, server, packet); err != nil {
-				return err
+				return false, err
 			}
 		case packets.TypeReadyForQuery:
 			var txState packets.ReadyForQuery
 			if !txState.ReadFromPacket(packet) {
-				return ErrBadFormat
+				return false, ErrBadFormat
 			}
 			ctx.TxState = byte(txState)
 			ctx.PeerWrite(packet)
-			return nil
+			return true, nil
 		default:
-			return ErrUnexpectedPacket
+			return false, ErrUnexpectedPacket
 		}
 	}
 }
@@ -201,12 +203,26 @@ func EQP(ctx *Context, server fed.ReadWriter, packet fed.Packet) error {
 	for {
 		packet = ctx.PeerRead()
 		if packet == nil {
-			return Sync(ctx, server)
+			for {
+				ok, err := Sync(ctx, server)
+				if err != nil {
+					return err
+				}
+				if ok {
+					return nil
+				}
+			}
 		}
 
 		switch packet.Type() {
 		case packets.TypeSync:
-			return Sync(ctx, server)
+			ok, err := Sync(ctx, server)
+			if err != nil {
+				return err
+			}
+			if ok {
+				return nil
+			}
 		case packets.TypeParse, packets.TypeBind, packets.TypeClose, packets.TypeDescribe, packets.TypeExecute, packets.TypeFlush:
 			if err := server.WritePacket(packet); err != nil {
 				return err
