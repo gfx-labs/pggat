@@ -136,14 +136,6 @@ func authenticationMD5(client fed.Conn, creds auth.MD5) perror.Error {
 	return nil
 }
 
-func updateParameter(client fed.Conn, name, value string) perror.Error {
-	ps := packets.ParameterStatus{
-		Key:   name,
-		Value: value,
-	}
-	return perror.Wrap(client.WritePacket(ps.IntoPacket()))
-}
-
 func authenticate(client fed.Conn, options AuthenticateOptions) (params AuthenticateParams, err perror.Error) {
 	if options.Credentials == nil {
 		err = perror.New(
@@ -185,22 +177,6 @@ func authenticate(client fed.Conn, options AuthenticateOptions) (params Authenti
 		CancellationKey: params.BackendKey,
 	}
 	if err = perror.Wrap(client.WritePacket(keyData.IntoPacket())); err != nil {
-		return
-	}
-
-	if err = updateParameter(client, "client_encoding", "UTF8"); err != nil {
-		return
-	}
-	if err = updateParameter(client, "server_encoding", "UTF8"); err != nil {
-		return
-	}
-	if err = updateParameter(client, "server_version", "14.5"); err != nil {
-		return
-	}
-
-	// send ready for query
-	rfq := packets.ReadyForQuery('I')
-	if err = perror.Wrap(client.WritePacket(rfq.IntoPacket())); err != nil {
 		return
 	}
 

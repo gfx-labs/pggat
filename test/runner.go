@@ -138,7 +138,7 @@ func (T *Runner) runMode(options pool.Options) ([]Capturer, error) {
 		return nil, err
 	}
 
-	if err := p.Serve(&client, nil, [8]byte{}); err != nil && !errors.Is(err, io.EOF) {
+	if err := p.ServeBot(&client); err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 

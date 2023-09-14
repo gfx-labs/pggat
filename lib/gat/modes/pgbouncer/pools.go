@@ -109,7 +109,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 			log.Println("auth query failed:", err)
 			return nil
 		}
-		err = authPool.Serve(client, nil, [8]byte{})
+		err = authPool.ServeBot(client)
 		if err != nil && !errors.Is(err, net.ErrClosed) {
 			log.Println("auth query failed:", err)
 			return nil

@@ -11,6 +11,7 @@ import (
 	"pggat/lib/bouncer/backends/v0"
 	"pggat/lib/bouncer/bouncers/v2"
 	"pggat/lib/fed"
+	packets "pggat/lib/fed/packets/v3.0"
 	"pggat/lib/gat/metrics"
 	"pggat/lib/gat/pool/recipe"
 	"pggat/lib/util/slices"
@@ -256,16 +257,61 @@ func (T *Pool) Serve(
 		backendKey,
 	)
 
-	return T.serve(client)
+	return T.serve(client, false)
 }
 
-func (T *Pool) serve(client *Client) error {
+// ServeBot is for clients that don't need initial parameters, cancelling queries, and are ready now. Use Serve for
+// real clients
+func (T *Pool) ServeBot(
+	conn fed.Conn,
+) error {
+	defer func() {
+		_ = conn.Close()
+	}()
+
+	client := NewClient(
+		T.options,
+		conn,
+		nil,
+		[8]byte{},
+	)
+
+	return T.serve(client, true)
+}
+
+func (T *Pool) serve(client *Client, initialize bool) error {
 	T.addClient(client)
 	defer T.removeClient(client)
 
 	var server *Server
+	if !initialize {
+		server = T.acquireServer(client)
+
+		err, serverErr := Pair(T.options, client, server)
+		if serverErr != nil {
+			T.removeServer(server)
+			return serverErr
+		}
+		if err != nil {
+			T.releaseServer(server)
+			return err
+		}
+
+		p := packets.ReadyForQuery('I')
+		err = client.GetConn().WritePacket(p.IntoPacket())
+		if err != nil {
+			T.releaseServer(server)
+			return err
+		}
+	}
 
 	for {
+		if server != nil && T.options.ReleaseAfterTransaction {
+			client.SetState(metrics.ConnStateIdle, uuid.Nil)
+			go T.releaseServer(server) // TODO(garet) does this need to be a goroutine
+			server = nil
+		}
+
 		packet, err := client.GetConn().ReadPacket(true)
 		if err != nil {
 			if server != nil {
@@ -288,17 +334,11 @@ func (T *Pool) serve(client *Client) error {
 			return serverErr
 		} else {
 			TransactionComplete(client, server)
-			if T.options.ReleaseAfterTransaction {
-				client.SetState(metrics.ConnStateIdle, uuid.Nil)
-				go T.releaseServer(server) // TODO(garet) does this need to be a goroutine
-				server = nil
-			}
+
 		}
 
 		if err != nil {
-			if server != nil {
-				T.releaseServer(server)
-			}
+			T.releaseServer(server)
 			return err
 		}
 	}

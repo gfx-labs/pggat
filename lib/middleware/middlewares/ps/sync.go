@@ -25,22 +25,23 @@ func sync(tracking []strutil.CIString, client fed.ReadWriter, c *Client, server 
 		return nil
 	}
 
-	if slices.Contains(tracking, name) {
-		if hasValue {
-			if err := backends.SetParameter(&backends.Context{}, server, name, value); err != nil {
-				return err
-			}
-			if s.parameters == nil {
-				s.parameters = make(map[strutil.CIString]string)
-			}
-			s.parameters[name] = value
-		} else {
-			if err := backends.ResetParameter(&backends.Context{}, server, name); err != nil {
-				return err
-			}
-			delete(s.parameters, name)
+	var doSet bool
+
+	if hasValue && slices.Contains(tracking, name) {
+		if err := backends.SetParameter(&backends.Context{}, server, name, value); err != nil {
+			return err
 		}
+		if s.parameters == nil {
+			s.parameters = make(map[strutil.CIString]string)
+		}
+		s.parameters[name] = value
+
+		doSet = true
 	} else if hasExpected {
+		doSet = true
+	}
+
+	if doSet {
 		ps := packets.ParameterStatus{
 			Key:   name.String(),
 			Value: expected,
