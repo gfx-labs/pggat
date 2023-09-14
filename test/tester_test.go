@@ -94,7 +94,7 @@ func TestTester(t *testing.T) {
 		Password: password,
 	}
 
-	control, err = daisyChain(creds, control, 16)
+	parent, err := daisyChain(creds, control, 16)
 	if err != nil {
 		t.Error(err)
 		return
@@ -106,7 +106,7 @@ func TestTester(t *testing.T) {
 		Credentials: creds,
 	}))
 	transactionPool.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
-		Dialer: control,
+		Dialer: parent,
 	}))
 	g.Add("runner", "transaction", transactionPool)
 
@@ -115,7 +115,7 @@ func TestTester(t *testing.T) {
 		ServerResetQuery: "discard all",
 	}))
 	sessionPool.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
-		Dialer: control,
+		Dialer: parent,
 	}))
 	g.Add("runner", "session", sessionPool)
 
