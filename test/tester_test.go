@@ -47,11 +47,20 @@ func TestTester(t *testing.T) {
 		Password: password,
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 70; i++ {
 		var g gat.PoolsMap
-		p := pool.NewPool(transaction.Apply(pool.Options{
+
+		var options = pool.Options{
 			Credentials: creds,
-		}))
+		}
+		if i%2 == 0 {
+			options = transaction.Apply(options)
+		} else {
+			options.ServerResetQuery = "DISCARD ALL"
+			options = session.Apply(options)
+		}
+
+		p := pool.NewPool(options)
 		p.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
 			Dialer: control,
 		}))
