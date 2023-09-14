@@ -5,6 +5,7 @@ import (
 
 	"pggat/lib/fed"
 	packets "pggat/lib/fed/packets/v3.0"
+	"pggat/lib/util/maps"
 	"pggat/lib/util/ring"
 )
 
@@ -90,6 +91,8 @@ func (T *State) S2C(packet fed.Packet) {
 		T.ParseComplete()
 	case packets.TypeBindComplete:
 		T.BindComplete()
+	case packets.TypeCommandComplete:
+		T.CommandComplete(packet)
 	case packets.TypeReadyForQuery:
 		T.ReadyForQuery(packet)
 	}
@@ -177,6 +180,22 @@ func (T *State) BindComplete() {
 func (T *State) Query() {
 	delete(T.portals, "")
 	delete(T.preparedStatements, "")
+}
+
+// CommandComplete clobbers everything if DISCARD ALL | DEALLOCATE | CLOSE
+func (T *State) CommandComplete(packet fed.Packet) {
+	var commandComplete packets.CommandComplete
+	if !commandComplete.ReadFromPacket(packet) {
+		return
+	}
+
+	if commandComplete == "DISCARD ALL" {
+		maps.Clear(T.preparedStatements)
+		maps.Clear(T.portals)
+		T.pendingPreparedStatements.Clear()
+		T.pendingPortals.Clear()
+		T.pendingCloses.Clear()
+	}
 }
 
 // ReadyForQuery clobbers portals if state == 'I' and pending. Execute on ReadyForQuery S->C

@@ -47,7 +47,7 @@ func TestTester(t *testing.T) {
 		Password: password,
 	}
 
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 10; i++ {
 		var g gat.PoolsMap
 		p := pool.NewPool(transaction.Apply(pool.Options{
 			Credentials: creds,
@@ -153,6 +153,7 @@ func TestTester(t *testing.T) {
 		tests.EQP8,
 		tests.CopyOut0,
 		tests.CopyOut1,
+		tests.DiscardAll,
 	); err != nil {
 		fmt.Print(err.Error())
 		t.Fail()
