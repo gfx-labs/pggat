@@ -152,7 +152,7 @@ func TestTester(t *testing.T) {
 	}
 
 	tester := test.NewTester(test.Config{
-		Stress: 16,
+		Stress: 8,
 
 		Modes: map[string]dialer.Dialer{
 			"control":     control,

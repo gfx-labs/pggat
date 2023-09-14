@@ -150,11 +150,14 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		strutil.MakeCIString("application_name"),
 	}, T.Config.PgBouncer.TrackExtraParameters...)
 
+	serverLoginRetry := time.Duration(T.Config.PgBouncer.ServerLoginRetry * float64(time.Second))
+
 	poolOptions := pool.Options{
-		Credentials:       creds,
-		TrackedParameters: trackedParameters,
-		ServerResetQuery:  T.Config.PgBouncer.ServerResetQuery,
-		ServerIdleTimeout: time.Duration(T.Config.PgBouncer.ServerIdleTimeout * float64(time.Second)),
+		Credentials:                creds,
+		TrackedParameters:          trackedParameters,
+		ServerResetQuery:           T.Config.PgBouncer.ServerResetQuery,
+		ServerIdleTimeout:          time.Duration(T.Config.PgBouncer.ServerIdleTimeout * float64(time.Second)),
+		ServerReconnectInitialTime: serverLoginRetry,
 	}
 
 	switch poolMode {

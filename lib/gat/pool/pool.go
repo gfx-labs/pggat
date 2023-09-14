@@ -1,11 +1,13 @@
 package pool
 
 import (
-	"log"
+	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
+	"tuxpa.in/a/zlog/log"
 
 	"pggat/lib/auth"
 	"pggat/lib/bouncer/backends/v0"
@@ -22,6 +24,8 @@ type Pool struct {
 	options Options
 
 	closed chan struct{}
+
+	isRetrying atomic.Bool
 
 	recipes         map[string]*recipe.Recipe
 	clients         map[uuid.UUID]*Client
@@ -109,7 +113,13 @@ func (T *Pool) AddRecipe(name string, r *recipe.Recipe) {
 
 	count := r.AllocateInitial()
 	for i := 0; i < count; i++ {
-		T.scaleUpL1(name, r)
+		if err := T.scaleUpL1(name, r); err != nil {
+			log.Printf("failed to dial server: %v", err)
+			for j := i; j < count; j++ {
+				r.Free()
+			}
+			break
+		}
 	}
 }
 
@@ -137,32 +147,75 @@ func (T *Pool) removeRecipe(name string) {
 }
 
 func (T *Pool) scaleUp() {
-	name, r := func() (string, *recipe.Recipe) {
-		T.mu.RLock()
-		defer T.mu.RUnlock()
-		for name, r := range T.recipes {
-			if r.Allocate() {
-				return name, r
-			}
-		}
-
-		return "", nil
-	}()
-	if r == nil {
-		// no recipe to scale
+	if T.isRetrying.Load() {
+		// there is another goroutine trying to retry
 		return
 	}
 
-	T.scaleUpL1(name, r)
+	backoff := T.options.ServerReconnectInitialTime
+	retrying := false
+
+	for {
+		name, r := func() (string, *recipe.Recipe) {
+			T.mu.RLock()
+			defer T.mu.RUnlock()
+
+			for name, r := range T.recipes {
+				if r.Allocate() {
+					return name, r
+				}
+			}
+
+			if len(T.servers) > 0 {
+				// don't retry this, there are other servers available
+				backoff = 0
+			}
+			return "", nil
+		}()
+
+		if r != nil {
+			err := T.scaleUpL1(name, r)
+			if err == nil {
+				if retrying {
+					T.isRetrying.Store(false)
+				}
+				return
+			}
+
+			log.Printf("failed to dial server: %v", err)
+		}
+
+		if backoff == 0 {
+			// no backoff
+			if retrying {
+				T.isRetrying.Store(false)
+			}
+			return
+		}
+
+		if !retrying {
+			if T.isRetrying.Swap(true) {
+				// another goroutine beat us
+				return
+			}
+			retrying = true
+		}
+		log.Println("backing off for", backoff)
+		time.Sleep(backoff)
+
+		backoff *= 2
+		if T.options.ServerReconnectMaxTime != 0 && backoff > T.options.ServerReconnectMaxTime {
+			backoff = T.options.ServerReconnectMaxTime
+		}
+	}
 }
 
-func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) {
+func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) error {
 	conn, params, err := r.Dial()
 	if err != nil {
-		log.Print("failed to dial server: ", err)
 		// failed to dial
 		r.Free()
-		return
+		return err
 	}
 
 	T.mu.Lock()
@@ -170,7 +223,7 @@ func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) {
 	if T.recipes[name] != r {
 		// recipe was removed
 		r.Free()
-		return
+		return errors.New("recipe was removed")
 	}
 
 	id := T.options.Pooler.NewServer()
@@ -192,6 +245,7 @@ func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) {
 		T.serversByRecipe = make(map[string][]*Server)
 	}
 	T.serversByRecipe[name] = append(T.serversByRecipe[name], server)
+	return nil
 }
 
 func (T *Pool) removeServer(server *Server) {
