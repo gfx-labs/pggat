@@ -1,7 +1,8 @@
 package ring
 
 type Ring[T any] struct {
-	buffer []T
+	buf []T
+	// real head is head-1, like this so nil ring is valid
 	head   int
 	tail   int
 	length int
@@ -9,128 +10,138 @@ type Ring[T any] struct {
 
 func MakeRing[T any](length, capacity int) Ring[T] {
 	if length > capacity {
-		// programmer error, panic
-		panic("length must be < capacity")
-	}
-	if capacity < 0 {
-		panic("capacity must be >= 0")
-	}
-	tail := length + 1
-	if tail >= capacity {
-		tail -= capacity
+		panic("length must be less than capacity")
 	}
 	return Ring[T]{
-		buffer: make([]T, capacity),
-		head:   0,
+		buf:    make([]T, capacity),
+		tail:   length,
 		length: length,
-		tail:   tail,
 	}
 }
 
 func NewRing[T any](length, capacity int) *Ring[T] {
-	ring := MakeRing[T](length, capacity)
-	return &ring
+	r := MakeRing[T](length, capacity)
+	return &r
 }
 
 func (r *Ring[T]) grow() {
-	if cap(r.buffer) == 0 {
-		// special case, uninitialized
-		r.buffer = make([]T, 2)
-		r.head = 0
-		r.tail = 1
-		return
+	size := len(r.buf) * 2
+	if size == 0 {
+		size = 2
 	}
 
-	// make new buffer with twice as much space
-	buf := make([]T, cap(r.buffer)*2)
-
-	// copy from [head, end of buffer] into new buffer
-	copy(buf, r.buffer[r.head:])
-	// copy from [beginning of buffer, tail) into new buffer
-	copy(buf[len(r.buffer)-r.head:], r.buffer[:r.tail])
-
-	r.tail = len(r.buffer) - r.head + r.tail
+	buf := make([]T, size)
+	copy(buf, r.buf[r.head:])
+	copy(buf[len(r.buf[r.head:]):], r.buf[:r.head])
 	r.head = 0
-	r.buffer = buf
+	r.tail = r.length
+	r.buf = buf
 }
 
-func (r *Ring[T]) PushBack(value T) {
-	if r == nil {
-		panic("PushBack() on nil Ring")
+func (r *Ring[T]) incHead() {
+	// resize
+	if r.length == 0 {
+		panic("smashing detected")
 	}
-	if r.length == cap(r.buffer) {
-		r.grow()
-	}
-	r.buffer[r.tail] = value
-	r.tail++
-	if r.tail >= len(r.buffer) {
-		r.tail -= len(r.buffer)
-	}
-	r.length++
-}
-
-func (r *Ring[T]) PushFront(value T) {
-	if r == nil {
-		panic("PushFront() on nil Ring")
-	}
-	if r.length == cap(r.buffer) {
-		r.grow()
-	}
-	r.buffer[r.head] = value
-	r.head--
-	if r.head < 0 {
-		r.head += len(r.buffer)
-	}
-	r.length++
-}
-
-func (r *Ring[T]) PopBack() (T, bool) {
-	if r == nil || r.length == 0 {
-		return *new(T), false
-	}
-	tail := r.tail - 1
-	if tail < 0 {
-		tail += len(r.buffer)
-	}
-	r.tail = tail
 	r.length--
-	return r.buffer[tail], true
+
+	r.head++
+	if r.head == len(r.buf) {
+		r.head = 0
+	}
+}
+
+func (r *Ring[T]) decHead() {
+	// resize
+	if r.length == len(r.buf) {
+		r.grow()
+	}
+	r.length++
+
+	r.head--
+	if r.head == -1 {
+		r.head = len(r.buf) - 1
+	}
+}
+
+func (r *Ring[T]) incTail() {
+	// resize
+	if r.length == len(r.buf) {
+		r.grow()
+	}
+	r.length++
+
+	r.tail++
+	if r.tail == len(r.buf) {
+		r.tail = 0
+	}
+}
+
+func (r *Ring[T]) decTail() {
+	// resize
+	if r.length == 0 {
+		panic("smashing detected")
+	}
+	r.length--
+
+	r.tail--
+	if r.tail == -1 {
+		r.tail = len(r.buf) - 1
+	}
+}
+
+func (r *Ring[T]) tailSub1() int {
+	tail := r.tail - 1
+	if tail == -1 {
+		tail = len(r.buf) - 1
+	}
+	return tail
 }
 
 func (r *Ring[T]) PopFront() (T, bool) {
-	if r == nil || r.length == 0 {
+	if r.length == 0 {
 		return *new(T), false
 	}
-	head := r.head + 1
-	if head >= len(r.buffer) {
-		head -= len(r.buffer)
-	}
-	r.head = head
-	r.length--
-	return r.buffer[head], true
+
+	front := r.buf[r.head]
+	r.incHead()
+	return front, true
 }
 
-func (r *Ring[T]) Get(i int) (T, bool) {
-	if r == nil || i >= r.length || i < 0 {
+func (r *Ring[T]) PopBack() (T, bool) {
+	if r.length == 0 {
 		return *new(T), false
 	}
-	ptr := r.head + 1 + i
-	if ptr >= len(r.buffer) {
-		ptr -= len(r.buffer)
-	}
-	return r.buffer[ptr], true
+
+	r.decTail()
+	return r.buf[r.tail], true
+}
+
+func (r *Ring[T]) PushFront(value T) {
+	r.decHead()
+	r.buf[r.head] = value
+}
+
+func (r *Ring[T]) PushBack(value T) {
+	r.incTail()
+	r.buf[r.tailSub1()] = value
 }
 
 func (r *Ring[T]) Length() int {
-	if r == nil {
-		return 0
-	}
 	return r.length
 }
 
 func (r *Ring[T]) Capacity() int {
-	if r == nil {
-		return 0
+	return len(r.buf)
+}
+
+func (r *Ring[T]) Get(n int) T {
+	if n >= r.length {
+		panic("index out of range")
 	}
-	return cap(r.buffer)
+	ptr := r.head + n
+	if ptr >= len(r.buf) {
+		ptr -= len(r.buf)
+	}
+	return r.buf[ptr]
 }

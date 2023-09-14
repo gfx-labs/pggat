@@ -22,10 +22,16 @@ func Sync(c *Client, server fed.ReadWriter, s *Server) error {
 
 	// close all prepared statements that don't match client
 	for name, preparedStatement := range s.state.preparedStatements {
-		clientPreparedStatement, ok := c.state.preparedStatements[name]
-		if ok && (name == "" || preparedStatement.Hash == clientPreparedStatement.Hash) {
-			// match or unnamed prepared statement that will be bound over
-			continue
+		if clientPreparedStatement, ok := c.state.preparedStatements[name]; ok {
+			if preparedStatement.Hash == clientPreparedStatement.Hash {
+				// the same
+				continue
+			}
+
+			if name == "" {
+				// will be overwritten
+				continue
+			}
 		}
 
 		p := packets.Close{
@@ -39,10 +45,11 @@ func Sync(c *Client, server fed.ReadWriter, s *Server) error {
 
 	// parse all prepared statements that aren't on server
 	for name, preparedStatement := range c.state.preparedStatements {
-		serverPreparedStatement, ok := s.state.preparedStatements[name]
-		if ok && preparedStatement.Hash == serverPreparedStatement.Hash {
-			// matched, don't need to set
-			continue
+		if serverPreparedStatement, ok := s.state.preparedStatements[name]; ok {
+			if preparedStatement.Hash == serverPreparedStatement.Hash {
+				// the same
+				continue
+			}
 		}
 
 		if err := server.WritePacket(preparedStatement.Packet); err != nil {

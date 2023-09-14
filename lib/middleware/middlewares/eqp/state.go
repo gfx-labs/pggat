@@ -192,10 +192,10 @@ func (T *State) ReadyForQuery(packet fed.Packet) {
 	}
 
 	// all pending has failed
-	for _, ok := T.pendingPreparedStatements.PopBack(); ok; _, ok = T.pendingPortals.PopBack() {
+	for _, ok := T.pendingPreparedStatements.PopBack(); ok; _, ok = T.pendingPreparedStatements.PopBack() {
 	}
 	for _, ok := T.pendingPortals.PopBack(); ok; _, ok = T.pendingPortals.PopBack() {
 	}
-	for _, ok := T.pendingCloses.PopBack(); ok; _, ok = T.pendingPortals.PopBack() {
+	for _, ok := T.pendingCloses.PopBack(); ok; _, ok = T.pendingCloses.PopBack() {
 	}
 }
