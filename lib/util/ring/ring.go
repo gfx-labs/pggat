@@ -117,6 +117,12 @@ func (r *Ring[T]) PopBack() (T, bool) {
 	return r.buf[r.tail], true
 }
 
+func (r *Ring[T]) Clear() {
+	r.head = 0
+	r.tail = 0
+	r.length = 0
+}
+
 func (r *Ring[T]) PushFront(value T) {
 	r.decHead()
 	r.buf[r.head] = value

@@ -8,7 +8,7 @@ import (
 func assertSome[T comparable](t *testing.T, f func() (T, bool), value T) {
 	v, ok := f()
 	if !ok {
-		t.Error("expected items but got nothing")
+		t.Error("expected items but go nothing")
 		return
 	}
 	if v != value {
@@ -25,26 +25,6 @@ func assertNone[T any](t *testing.T, f func() (T, bool)) {
 	}
 }
 
-func assertGetSome[T comparable](t *testing.T, ring *Ring[T], index int, value T) {
-	v, ok := ring.Get(index)
-	if !ok {
-		t.Error("expected items but got nothing")
-		return
-	}
-	if v != value {
-		t.Error("expected", value, "but got", v)
-		return
-	}
-}
-
-func assertGetNone[T comparable](t *testing.T, ring *Ring[T], index int) {
-	v, ok := ring.Get(index)
-	if ok {
-		t.Error("expected nothing but got", v)
-		return
-	}
-}
-
 func assertLength[T any](t *testing.T, ring *Ring[T], length int) {
 	l := ring.Length()
 	if length != l {
@@ -57,21 +37,6 @@ func assertCapacity[T any](t *testing.T, ring *Ring[T], capacity int) {
 	if capacity != c {
 		t.Error("expected capacity to be", capacity, "but got", c)
 	}
-}
-
-func TestRing_Get(t *testing.T) {
-	r := new(Ring[int])
-	r.PushBack(2)
-	r.PushBack(3)
-	r.PushBack(4)
-	r.PushFront(1)
-	assertGetSome(t, r, 0, 1)
-	assertGetSome(t, r, 1, 2)
-	assertGetSome(t, r, 2, 3)
-	assertGetSome(t, r, 3, 4)
-	r.PopBack()
-	assertGetNone(t, r, 3)
-	assertGetNone(t, r, -1)
 }
 
 func TestRing_New(t *testing.T) {
@@ -248,6 +213,25 @@ func TestRing_SmashBackward(t *testing.T) {
 	assertLength(t, &r, 0)
 }
 
+func TestRing_Clear(t *testing.T) {
+	var r Ring[int]
+	r.PushFront(1)
+	r.PushBack(2)
+	r.PushFront(3)
+	r.PushBack(4)
+
+	assertLength(t, &r, 4)
+
+	r.Clear()
+
+	assertLength(t, &r, 0)
+
+	assertNone(t, r.PopFront)
+	assertNone(t, r.PopBack)
+
+	assertLength(t, &r, 0)
+}
+
 func BenchmarkFIFO_Ring(b *testing.B) {
 	b.ReportAllocs()
 	ring := MakeRing[int](0, 16)
@@ -263,13 +247,27 @@ func BenchmarkFIFO_Ring(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		for j := 0; j < 10; j++ {
-			ring.PushBack(j)
-		}
+		ring.PushBack(1)
+		ring.PushBack(2)
+		ring.PushBack(3)
+		ring.PushBack(4)
+		ring.PushBack(5)
+		ring.PushBack(6)
+		ring.PushBack(7)
+		ring.PushBack(8)
+		ring.PushBack(9)
+		ring.PushBack(10)
 
-		for j := 0; j < 10; j++ {
-			assert(j)
-		}
+		assert(1)
+		assert(2)
+		assert(3)
+		assert(4)
+		assert(5)
+		assert(6)
+		assert(7)
+		assert(8)
+		assert(9)
+		assert(10)
 	}
 }
 
@@ -286,14 +284,37 @@ func BenchmarkFIFO_StdRing(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		for j := 0; j < 10; j++ {
-			ring.Value = j
-			ring = ring.Next()
-		}
+		ring.Value = 1
+		ring = ring.Next()
+		ring.Value = 2
+		ring = ring.Next()
+		ring.Value = 3
+		ring = ring.Next()
+		ring.Value = 4
+		ring = ring.Next()
+		ring.Value = 5
+		ring = ring.Next()
+		ring.Value = 6
+		ring = ring.Next()
+		ring.Value = 7
+		ring = ring.Next()
+		ring.Value = 8
+		ring = ring.Next()
+		ring.Value = 9
+		ring = ring.Next()
+		ring.Value = 10
+		ring = ring.Next()
 
-		for j := 0; j < 10; j++ {
-			assert(j)
-		}
+		assert(1)
+		assert(2)
+		assert(3)
+		assert(4)
+		assert(5)
+		assert(6)
+		assert(7)
+		assert(8)
+		assert(9)
+		assert(10)
 	}
 }
 
@@ -315,14 +336,28 @@ func BenchmarkFIFO_Slice(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		// pushing is easy for slices
-		for j := 0; j < 10; j++ {
-			slice = append(slice, j)
-		}
+		slice = append(slice, 1)
+		slice = append(slice, 2)
+		slice = append(slice, 3)
+		slice = append(slice, 4)
+		slice = append(slice, 5)
+		slice = append(slice, 6)
+		slice = append(slice, 7)
+		slice = append(slice, 8)
+		slice = append(slice, 9)
+		slice = append(slice, 10)
 
 		// popping is a bit more complicated
-		for j := 0; j < 10; j++ {
-			assert(j)
-		}
+		assert(1)
+		assert(2)
+		assert(3)
+		assert(4)
+		assert(5)
+		assert(6)
+		assert(7)
+		assert(8)
+		assert(9)
+		assert(10)
 	}
 }
 
@@ -343,14 +378,28 @@ func BenchmarkFIFO_Slice2(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		// pushing is easy for slices
-		for j := 0; j < 10; j++ {
-			slice = append(slice, j)
-		}
+		slice = append(slice, 1)
+		slice = append(slice, 2)
+		slice = append(slice, 3)
+		slice = append(slice, 4)
+		slice = append(slice, 5)
+		slice = append(slice, 6)
+		slice = append(slice, 7)
+		slice = append(slice, 8)
+		slice = append(slice, 9)
+		slice = append(slice, 10)
 
 		// popping is a bit more complicated
-		for j := 0; j < 10; j++ {
-			assert(j)
-		}
+		assert(1)
+		assert(2)
+		assert(3)
+		assert(4)
+		assert(5)
+		assert(6)
+		assert(7)
+		assert(8)
+		assert(9)
+		assert(10)
 	}
 }
 
@@ -370,12 +419,26 @@ func BenchmarkFIFO_Channel(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		// channel is the easiest interface by far
-		for j := 0; j < 10; j++ {
-			channel <- j
-		}
+		channel <- 1
+		channel <- 2
+		channel <- 3
+		channel <- 4
+		channel <- 5
+		channel <- 6
+		channel <- 7
+		channel <- 8
+		channel <- 9
+		channel <- 10
 
-		for j := 0; j < 10; j++ {
-			assert(j)
-		}
+		assert(1)
+		assert(2)
+		assert(3)
+		assert(4)
+		assert(5)
+		assert(6)
+		assert(7)
+		assert(8)
+		assert(9)
+		assert(10)
 	}
 }

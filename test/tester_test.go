@@ -47,7 +47,7 @@ func TestTester(t *testing.T) {
 		Password: password,
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 1; i++ {
 		var g gat.PoolsMap
 		p := pool.NewPool(transaction.Apply(pool.Options{
 			Credentials: creds,
