@@ -162,3 +162,26 @@ var EQP7 = test.Test{
 		inst.SimpleQuery("END"),
 	},
 }
+
+var EQP8 = test.Test{
+	Name: "EQP8",
+	Instructions: []inst.Instruction{
+		inst.SimpleQuery("BEGIN"),
+		inst.Parse{
+			Destination: "a",
+			Query:       "select 0",
+		},
+		inst.Bind{
+			Destination: "a",
+			Source:      "a",
+		},
+		inst.Sync{},
+		inst.DescribePortal("a"),
+		inst.ClosePortal("a"),
+		inst.DescribePortal("a"),
+		inst.Sync{},
+		inst.DescribePortal("a"),
+		inst.Sync{},
+		inst.SimpleQuery("END"),
+	},
+}

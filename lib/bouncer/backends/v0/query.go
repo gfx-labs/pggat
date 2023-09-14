@@ -109,10 +109,6 @@ func SetParameter(ctx *Context, server fed.ReadWriter, name strutil.CIString, va
 	return QueryString(ctx, server, `SET `+strutil.Escape(name.String(), `"`)+` = `+strutil.Escape(value, `'`))
 }
 
-func ResetParameter(ctx *Context, server fed.ReadWriter, name strutil.CIString) error {
-	return QueryString(ctx, server, `RESET `+strutil.Escape(name.String(), `"`))
-}
-
 func FunctionCall(ctx *Context, server fed.ReadWriter, packet fed.Packet) error {
 	if err := server.WritePacket(packet); err != nil {
 		return err

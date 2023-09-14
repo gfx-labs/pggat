@@ -46,6 +46,7 @@ func TestTester(t *testing.T) {
 		tests.EQP5,
 		tests.EQP6,
 		tests.EQP7,
+		tests.EQP8,
 	); err != nil {
 		fmt.Print(err.Error())
 		t.Fail()
