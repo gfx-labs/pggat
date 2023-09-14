@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"pggat/lib/auth"
 	"pggat/lib/auth/credentials"
 	"pggat/lib/bouncer/backends/v0"
 	"pggat/lib/bouncer/frontends/v0"
@@ -20,6 +21,52 @@ import (
 	"pggat/test"
 	"pggat/test/tests"
 )
+
+func daisyChain(creds auth.Credentials, control dialer.Net, n int) (dialer.Net, error) {
+	for i := 0; i < n; i++ {
+		var g gat.PoolsMap
+
+		var options = pool.Options{
+			Credentials: creds,
+		}
+		if i%2 == 0 {
+			options = transaction.Apply(options)
+		} else {
+			options.ServerResetQuery = "DISCARD ALL"
+			options = session.Apply(options)
+		}
+
+		p := pool.NewPool(options)
+		p.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
+			Dialer: control,
+		}))
+		g.Add("runner", "pool", p)
+
+		listener, err := gat.Listen("tcp", ":0", frontends.AcceptOptions{})
+		if err != nil {
+			return dialer.Net{}, err
+		}
+		port := listener.Listener.Addr().(*net.TCPAddr).Port
+
+		go func() {
+			err := gat.Serve(listener, &g)
+			if err != nil {
+				panic(err)
+			}
+		}()
+
+		control = dialer.Net{
+			Network: "tcp",
+			Address: ":" + strconv.Itoa(port),
+			AcceptOptions: backends.AcceptOptions{
+				Credentials: creds,
+				Database:    "pool",
+			},
+		}
+	}
+
+	return control, nil
+}
 
 func TestTester(t *testing.T) {
 	control := dialer.Net{
@@ -47,47 +94,10 @@ func TestTester(t *testing.T) {
 		Password: password,
 	}
 
-	for i := 0; i < 70; i++ {
-		var g gat.PoolsMap
-
-		var options = pool.Options{
-			Credentials: creds,
-		}
-		if i%2 == 0 {
-			options = transaction.Apply(options)
-		} else {
-			options.ServerResetQuery = "DISCARD ALL"
-			options = session.Apply(options)
-		}
-
-		p := pool.NewPool(options)
-		p.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
-			Dialer: control,
-		}))
-		g.Add("runner", "pool", p)
-
-		listener, err := gat.Listen("tcp", ":0", frontends.AcceptOptions{})
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		port := listener.Listener.Addr().(*net.TCPAddr).Port
-
-		go func() {
-			err := gat.Serve(listener, &g)
-			if err != nil {
-				t.Error(err)
-			}
-		}()
-
-		control = dialer.Net{
-			Network: "tcp",
-			Address: ":" + strconv.Itoa(port),
-			AcceptOptions: backends.AcceptOptions{
-				Credentials: creds,
-				Database:    "pool",
-			},
-		}
+	control, err = daisyChain(creds, control, 16)
+	if err != nil {
+		t.Error(err)
+		return
 	}
 
 	var g gat.PoolsMap

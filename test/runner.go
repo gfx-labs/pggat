@@ -26,10 +26,11 @@ func MakeRunner(config Config, test Test) Runner {
 	}
 }
 
-func (T *Runner) prepare(client *gsql.Client) []Capturer {
-	results := make([]Capturer, len(T.test.Instructions))
+func (T *Runner) prepare(client *gsql.Client, until int) []Capturer {
+	results := make([]Capturer, until)
 
-	for i, x := range T.test.Instructions {
+	for i := 0; i < until; i++ {
+		x := T.test.Instructions[i]
 		switch v := x.(type) {
 		case inst.SimpleQuery:
 			q := packets.Query(v)
@@ -83,20 +84,14 @@ func (T *Runner) prepare(client *gsql.Client) []Capturer {
 	return results
 }
 
-func (T *Runner) runModeOnce(dialer dialer.Dialer) ([]Capturer, error) {
+func (T *Runner) runModeL1(dialer dialer.Dialer, client *gsql.Client) error {
 	server, _, err := dialer.Dial()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer func() {
 		_ = server.Close()
 	}()
-
-	var client gsql.Client
-	results := T.prepare(&client)
-	if err = client.Close(); err != nil {
-		return nil, err
-	}
 
 	for {
 		var p fed.Packet
@@ -105,25 +100,55 @@ func (T *Runner) runModeOnce(dialer dialer.Dialer) ([]Capturer, error) {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return nil, err
+			return err
 		}
 
-		clientErr, serverErr := bouncers.Bounce(&client, server, p)
+		clientErr, serverErr := bouncers.Bounce(client, server, p)
 		if clientErr != nil {
-			return nil, clientErr
+			return clientErr
 		}
 		if serverErr != nil {
-			return nil, serverErr
+			return serverErr
 		}
+	}
+
+	return nil
+}
+
+func (T *Runner) runModeOnce(dialer dialer.Dialer) ([]Capturer, error) {
+	var client gsql.Client
+	results := T.prepare(&client, len(T.test.Instructions))
+	if err := client.Close(); err != nil {
+		return nil, err
+	}
+
+	if err := T.runModeL1(dialer, &client); err != nil {
+		return nil, err
 	}
 
 	return results, nil
 }
 
+func (T *Runner) runModeFail(dialer dialer.Dialer) error {
+	for i := 1; i < len(T.test.Instructions)+1; i++ {
+		var client gsql.Client
+		T.prepare(&client, i)
+		if err := client.Close(); err != nil {
+			return err
+		}
+
+		if err := T.runModeL1(dialer, &client); err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (T *Runner) runMode(dialer dialer.Dialer) ([]Capturer, error) {
 	instances := T.config.Stress
 	if instances < 1 || T.test.SideEffects {
-		instances = 1
+		return T.runModeOnce(dialer)
 	}
 
 	expected, err := T.runModeOnce(dialer)
@@ -131,6 +156,12 @@ func (T *Runner) runMode(dialer dialer.Dialer) ([]Capturer, error) {
 		return nil, err
 	}
 
+	// fail testing
+	if err = T.runModeFail(dialer); err != nil {
+		return nil, err
+	}
+
+	// stress test
 	var b flip.Bank
 
 	for i := 0; i < instances-1; i++ {
@@ -152,7 +183,11 @@ func (T *Runner) runMode(dialer dialer.Dialer) ([]Capturer, error) {
 		})
 	}
 
-	return expected, b.Wait()
+	if err = b.Wait(); err != nil {
+		return nil, err
+	}
+
+	return expected, nil
 }
 
 func (T *Runner) Run() error {
