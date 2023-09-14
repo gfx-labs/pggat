@@ -231,8 +231,10 @@ func (T *Sink) StealFor(rhs *Sink) uuid.UUID {
 
 	rhs.Enqueue(j)
 
-	for j, ok = pending.PopFront(); ok; j, ok = pending.PopFront() {
-		rhs.Enqueue(j)
+	if pending != nil {
+		for j, ok = pending.PopFront(); ok; j, ok = pending.PopFront() {
+			rhs.Enqueue(j)
+		}
 	}
 
 	return user

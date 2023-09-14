@@ -47,6 +47,40 @@ func TestTester(t *testing.T) {
 		Password: password,
 	}
 
+	for i := 0; i < 10; i++ {
+		var g gat.PoolsMap
+		p := pool.NewPool(transaction.Apply(pool.Options{
+			Credentials: creds,
+		}))
+		p.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
+			Dialer: control,
+		}))
+		g.Add("runner", "pool", p)
+
+		listener, err := gat.Listen("tcp", ":0", frontends.AcceptOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		port := listener.Listener.Addr().(*net.TCPAddr).Port
+
+		go func() {
+			err := gat.Serve(listener, &g)
+			if err != nil {
+				t.Error(err)
+			}
+		}()
+
+		control = dialer.Net{
+			Network: "tcp",
+			Address: ":" + strconv.Itoa(port),
+			AcceptOptions: backends.AcceptOptions{
+				Credentials: creds,
+				Database:    "pool",
+			},
+		}
+	}
+
 	var g gat.PoolsMap
 
 	transactionPool := pool.NewPool(transaction.Apply(pool.Options{
