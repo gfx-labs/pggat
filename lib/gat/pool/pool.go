@@ -200,7 +200,7 @@ func (T *Pool) scaleUp() {
 			}
 			retrying = true
 		}
-		log.Println("backing off for", backoff)
+
 		time.Sleep(backoff)
 
 		backoff *= 2
