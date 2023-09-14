@@ -8,8 +8,7 @@ import (
 	"pggat/lib/bouncer/bouncers/v2"
 	"pggat/lib/fed"
 	packets "pggat/lib/fed/packets/v3.0"
-	"pggat/lib/gat/pool"
-	"pggat/lib/gat/pool/recipe"
+	"pggat/lib/gat/pool/dialer"
 	"pggat/lib/gsql"
 	"pggat/test/inst"
 )
@@ -83,13 +82,13 @@ func (T *Runner) prepare(client *gsql.Client) []Capturer {
 	return results
 }
 
-func (T *Runner) runControl() ([]Capturer, error) {
-	control, _, err := T.config.Peer.Dial()
+func (T *Runner) runMode(dialer dialer.Dialer) ([]Capturer, error) {
+	server, _, err := dialer.Dial()
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		_ = control.Close()
+		_ = server.Close()
 	}()
 
 	var client gsql.Client
@@ -108,7 +107,7 @@ func (T *Runner) runControl() ([]Capturer, error) {
 			return nil, err
 		}
 
-		clientErr, serverErr := bouncers.Bounce(&client, control, p)
+		clientErr, serverErr := bouncers.Bounce(&client, server, p)
 		if clientErr != nil {
 			return nil, clientErr
 		}
@@ -120,42 +119,10 @@ func (T *Runner) runControl() ([]Capturer, error) {
 	return results, nil
 }
 
-func (T *Runner) runMode(options pool.Options) ([]Capturer, error) {
-	opts := options
-	// allowing ps sync would mess up testing
-	opts.ParameterStatusSync = pool.ParameterStatusSyncNone
-	p := pool.NewPool(opts)
-	defer p.Close()
-	p.AddRecipe("server", recipe.NewRecipe(
-		recipe.Options{
-			Dialer: T.config.Peer,
-		},
-	))
-
-	var client gsql.Client
-	results := T.prepare(&client)
-	if err := client.Close(); err != nil {
-		return nil, err
-	}
-
-	if err := p.ServeBot(&client); err != nil && !errors.Is(err, io.EOF) {
-		return nil, err
-	}
-
-	return results, nil
-}
-
 func (T *Runner) Run() error {
-	// control
-	expected, err := T.runControl()
-	if err != nil {
-		return ErrorIn{
-			Name: "Control",
-			Err:  err,
-		}
-	}
-
 	var errs []error
+
+	var expected []Capturer
 
 	// modes
 	for name, mode := range T.config.Modes {
@@ -165,6 +132,11 @@ func (T *Runner) Run() error {
 				Name: name,
 				Err:  err,
 			})
+			continue
+		}
+
+		if expected == nil {
+			expected = actual
 			continue
 		}
 
