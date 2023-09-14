@@ -47,6 +47,8 @@ func TestTester(t *testing.T) {
 		tests.EQP6,
 		tests.EQP7,
 		tests.EQP8,
+		tests.CopyOut0,
+		tests.CopyOut1,
 	); err != nil {
 		fmt.Print(err.Error())
 		t.Fail()
