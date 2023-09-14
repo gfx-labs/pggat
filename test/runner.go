@@ -10,6 +10,7 @@ import (
 	packets "pggat/lib/fed/packets/v3.0"
 	"pggat/lib/gat/pool/dialer"
 	"pggat/lib/gsql"
+	"pggat/lib/util/flip"
 	"pggat/test/inst"
 )
 
@@ -82,7 +83,7 @@ func (T *Runner) prepare(client *gsql.Client) []Capturer {
 	return results
 }
 
-func (T *Runner) runMode(dialer dialer.Dialer) ([]Capturer, error) {
+func (T *Runner) runModeOnce(dialer dialer.Dialer) ([]Capturer, error) {
 	server, _, err := dialer.Dial()
 	if err != nil {
 		return nil, err
@@ -117,6 +118,41 @@ func (T *Runner) runMode(dialer dialer.Dialer) ([]Capturer, error) {
 	}
 
 	return results, nil
+}
+
+func (T *Runner) runMode(dialer dialer.Dialer) ([]Capturer, error) {
+	instances := T.config.Stress
+	if instances < 1 || T.test.SideEffects {
+		instances = 1
+	}
+
+	expected, err := T.runModeOnce(dialer)
+	if err != nil {
+		return nil, err
+	}
+
+	var b flip.Bank
+
+	for i := 0; i < instances-1; i++ {
+		b.Queue(func() error {
+			actual, err := T.runModeOnce(dialer)
+			if err != nil {
+				return err
+			}
+			if len(expected) != len(actual) {
+				return fmt.Errorf("wrong number of results! expected %d but got %d", len(expected), len(actual))
+			}
+			for i, exp := range expected {
+				act := actual[i]
+				if err = exp.Check(&act); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+	}
+
+	return expected, b.Wait()
 }
 
 func (T *Runner) Run() error {

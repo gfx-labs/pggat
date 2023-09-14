@@ -141,6 +141,8 @@ func TestTester(t *testing.T) {
 	}
 
 	tester := test.NewTester(test.Config{
+		Stress: 16,
+
 		Modes: map[string]dialer.Dialer{
 			"control":     control,
 			"transaction": transactionDialer,
