@@ -78,6 +78,11 @@ func (T *Runner) prepare(client *gsql.Client, until int) []Capturer {
 				Target: string(v),
 			}
 			client.Do(&results[i], p.IntoPacket())
+		case inst.CopyData:
+			p := packets.CopyData(v)
+			client.Do(&results[i], p.IntoPacket())
+		case inst.CopyDone:
+			client.Do(&results[i], fed.NewPacket(packets.TypeCopyDone))
 		}
 	}
 

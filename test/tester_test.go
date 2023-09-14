@@ -174,6 +174,8 @@ func TestTester(t *testing.T) {
 		tests.EQP8,
 		tests.CopyOut0,
 		tests.CopyOut1,
+		tests.CopyIn0,
+		tests.CopyIn1,
 		tests.DiscardAll,
 	); err != nil {
 		fmt.Print(err.Error())
