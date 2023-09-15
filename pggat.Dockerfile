@@ -13,7 +13,8 @@ RUN mkdir /var/run/pgbouncer && addgroup -S pgbouncer && adduser -S pgbouncer &&
 COPY --from=GOBUILDER /src/cgat.sh run.sh
 COPY --from=GOBUILDER /src/cgat pggat
 RUN apk add openssl
-RUN chown -R pgbouncer:pgbouncer /var/log/pgbouncer /var/run/pgbouncer /etc/pgbouncer /etc/ssl/certs
+RUN chown -R pgbouncer:pgbouncer /var/log/pgbouncer /var/run/pgbouncer /etc/pgbouncer /etc/ssl/certs /bin/run.sh
 USER pgbouncer:pgbouncer
+RUN chmod +x /bin/run.sh
 
 ENTRYPOINT ["/bin/run.sh"]
