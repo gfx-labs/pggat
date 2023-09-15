@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"strings"
+	"time"
 
 	acidzalando "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do"
 	acidv1 "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do/v1"
@@ -22,6 +23,7 @@ import (
 	"pggat/lib/bouncer/backends/v0"
 	"pggat/lib/bouncer/frontends/v0"
 	"pggat/lib/gat"
+	"pggat/lib/gat/metrics"
 	"pggat/lib/gat/pool"
 	"pggat/lib/gat/pool/dialer"
 	"pggat/lib/gat/pool/pools/session"
@@ -266,6 +268,16 @@ func (T *Server) deletePostgresql(psql *acidv1.Postgresql) {
 }
 
 func (T *Server) ListenAndServe() error {
+	go func() {
+		var m metrics.Pools
+		for {
+			m.Clear()
+			time.Sleep(1 * time.Minute)
+			T.pools.ReadMetrics(&m)
+			log.Print(m.String())
+		}
+	}()
+
 	var bank flip.Bank
 
 	bank.Queue(func() error {
