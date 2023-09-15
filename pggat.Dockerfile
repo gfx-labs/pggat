@@ -15,6 +15,5 @@ COPY --from=GOBUILDER /src/cgat pggat
 RUN apk add openssl
 RUN chown -R pgbouncer:pgbouncer /var/log/pgbouncer /var/run/pgbouncer /etc/pgbouncer /etc/ssl/certs /bin/run.sh
 USER pgbouncer:pgbouncer
-RUN chmod +x /bin/run.sh
 
 ENTRYPOINT ["/bin/run.sh"]
