@@ -313,6 +313,8 @@ func (T *Server) ListenAndServe() error {
 				strutil.MakeCIString("timezone"),
 				strutil.MakeCIString("standard_conforming_strings"),
 				strutil.MakeCIString("application_name"),
+				strutil.MakeCIString("extra_float_digits"),
+				strutil.MakeCIString("options"),
 			},
 			// TODO(garet)
 		}, &T.pools)
