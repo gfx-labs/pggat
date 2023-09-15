@@ -3,7 +3,6 @@ package zalando_operator_discovery
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +10,7 @@ import (
 	acidzalando "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do"
 	acidv1 "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do/v1"
 	acidv1informer "github.com/zalando/postgres-operator/pkg/generated/informers/externalversions/acid.zalan.do/v1"
+	"github.com/zalando/postgres-operator/pkg/util"
 	"github.com/zalando/postgres-operator/pkg/util/config"
 	"github.com/zalando/postgres-operator/pkg/util/constants"
 	"github.com/zalando/postgres-operator/pkg/util/k8sutil"
@@ -81,12 +81,32 @@ func (T *Server) init() error {
 
 		T.opConfig = config.NewFromMap(operatorConfig.Data)
 	} else if T.config.OperatorConfigurationObject != "" {
-		T.opConfig, err = T.k8s.OperatorConfigurations(T.config.Namespace).Get(context.Background(), T.config.OperatorConfigurationObject, metav1.GetOptions{})
+		operatorConfig, err := T.k8s.OperatorConfigurations(T.config.Namespace).Get(context.Background(), T.config.OperatorConfigurationObject, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
+
+		T.opConfig = new(config.Config)
+
+		// why did they do this to me
+		T.opConfig.ClusterDomain = util.Coalesce(operatorConfig.Configuration.Kubernetes.ClusterDomain, "cluster.local")
+
+		T.opConfig.SecretNameTemplate = operatorConfig.Configuration.Kubernetes.SecretNameTemplate
+
+		T.opConfig.ConnectionPooler.NumberOfInstances = util.CoalesceInt32(
+			operatorConfig.Configuration.ConnectionPooler.NumberOfInstances,
+			k8sutil.Int32ToPointer(2))
+
+		T.opConfig.ConnectionPooler.Mode = util.Coalesce(
+			operatorConfig.Configuration.ConnectionPooler.Mode,
+			constants.ConnectionPoolerDefaultMode)
+
+		T.opConfig.ConnectionPooler.MaxDBConnections = util.CoalesceInt32(
+			operatorConfig.Configuration.ConnectionPooler.MaxDBConnections,
+			k8sutil.Int32ToPointer(constants.ConnectionPoolerMaxDBConnections))
 	} else {
-		return errors.New("please define a config map or a postgres operator configuration object")
+		// defaults
+		T.opConfig = config.NewFromMap(make(map[string]string))
 	}
 
 	T.postgresqlInformer = acidv1informer.NewPostgresqlInformer(
