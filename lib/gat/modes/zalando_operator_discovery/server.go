@@ -3,6 +3,7 @@ package zalando_operator_discovery
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -72,12 +73,21 @@ func (T *Server) init() error {
 		return err
 	}
 
-	operatorConfig, err := T.k8s.ConfigMaps(T.config.Namespace).Get(context.Background(), T.config.ConfigName, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
+	if T.config.ConfigMapName != "" {
+		operatorConfig, err := T.k8s.ConfigMaps(T.config.Namespace).Get(context.Background(), T.config.ConfigMapName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
 
-	T.opConfig = config.NewFromMap(operatorConfig.Data)
+		T.opConfig = config.NewFromMap(operatorConfig.Data)
+	} else if T.config.OperatorConfigurationObject != "" {
+		T.opConfig, err = T.k8s.OperatorConfigurations(T.config.Namespace).Get(context.Background(), T.config.OperatorConfigurationObject, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+	} else {
+		return errors.New("please define a config map or a postgres operator configuration object")
+	}
 
 	T.postgresqlInformer = acidv1informer.NewPostgresqlInformer(
 		T.k8s.AcidV1ClientSet,
