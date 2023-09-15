@@ -8,6 +8,7 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
+	"pggat/lib/gat/modes/digitalocean_discovery"
 	"pggat/lib/gat/modes/pgbouncer"
 	"pggat/lib/gat/modes/zalando"
 	"pggat/lib/gat/modes/zalando_operator_discovery"
@@ -49,8 +50,23 @@ func main() {
 		return
 	}
 
+	if os.Getenv("PGGAT_DO_API_KEY") != "" {
+		log.Printf("running in digitalocean discovery mode")
+
+		conf, err := digitalocean_discovery.Load()
+		if err != nil {
+			panic(err)
+		}
+
+		err = conf.ListenAndServe()
+		if err != nil {
+			panic(err)
+		}
+		return
+	}
+
 	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" && os.Getenv("KUBERNETES_SERVICE_PORT") != "" {
-		log.Printf("Running in zalando operator discovery mode")
+		log.Printf("running in zalando operator discovery mode")
 		conf, err := zalando_operator_discovery.Load()
 		if err != nil {
 			panic(err)

@@ -52,3 +52,7 @@ type Database struct {
 type ListClustersResponse struct {
 	Databases []Database `json:"databases"`
 }
+
+type ListReplicasResponse struct {
+	Replicas []Database `json:"replicas"`
+}

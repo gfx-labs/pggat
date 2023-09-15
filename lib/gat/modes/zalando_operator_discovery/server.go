@@ -171,6 +171,7 @@ func (T *Server) addPool(name string, userCreds, serverCreds auth.Credentials, d
 		Credentials:                userCreds,
 		ServerReconnectInitialTime: 5 * time.Second,
 		ServerReconnectMaxTime:     5 * time.Second,
+		ServerIdleTimeout:          5 * time.Minute,
 		TrackedParameters: []strutil.CIString{
 			strutil.MakeCIString("client_encoding"),
 			strutil.MakeCIString("datestyle"),
