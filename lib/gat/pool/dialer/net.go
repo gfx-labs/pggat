@@ -1,6 +1,8 @@
 package dialer
 
 import (
+	"errors"
+	"io"
 	"net"
 
 	"pggat/lib/bouncer/backends/v0"
@@ -36,7 +38,16 @@ func (T Net) Cancel(key [8]byte) error {
 	defer func() {
 		_ = conn.Close()
 	}()
-	return backends.Cancel(conn, key)
+	if err = backends.Cancel(conn, key); err != nil {
+		return err
+	}
+
+	// wait for server to close the connection, this means that the server received it ok
+	_, err = conn.ReadPacket(true)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
 }
 
 var _ Dialer = Net{}

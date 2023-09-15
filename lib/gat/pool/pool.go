@@ -444,12 +444,21 @@ func (T *Pool) Cancel(key [8]byte) error {
 		return nil
 	}
 
-	r, ok := T.recipes[server.GetRecipe()]
+	// prevent state from changing by RLocking the server
+	server.mu.RLock()
+	defer server.mu.RUnlock()
+
+	// make sure peer is still set
+	if server.peer != peer {
+		return nil
+	}
+
+	r, ok := T.recipes[server.recipe]
 	if !ok {
 		return nil
 	}
 
-	return r.Cancel(server.GetBackendKey())
+	return r.Cancel(server.backendKey)
 }
 
 func (T *Pool) ReadMetrics(m *metrics.Pool) {
