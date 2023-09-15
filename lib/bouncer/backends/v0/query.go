@@ -1,6 +1,8 @@
 package backends
 
 import (
+	"fmt"
+
 	"pggat/lib/fed"
 	packets "pggat/lib/fed/packets/v3.0"
 	"pggat/lib/util/strutil"
@@ -106,7 +108,11 @@ func QueryString(ctx *Context, server fed.ReadWriter, query string) error {
 }
 
 func SetParameter(ctx *Context, server fed.ReadWriter, name strutil.CIString, value string) error {
-	return QueryString(ctx, server, `SET `+strutil.Escape(name.String(), `"`)+` = `+strutil.Escape(value, `'`))
+	return QueryString(
+		ctx,
+		server,
+		fmt.Sprintf(`SET "%s" = '%s'`, strutil.Escape(name.String(), '"'), strutil.Escape(value, '\'')),
+	)
 }
 
 func FunctionCall(ctx *Context, server fed.ReadWriter, packet fed.Packet) error {

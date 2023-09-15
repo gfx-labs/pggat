@@ -16,6 +16,8 @@ type Conn struct {
 	id uuid.UUID
 
 	conn fed.Conn
+	// please someone fix runtime.convI2I
+	rw fed.ReadWriter
 
 	initialParameters map[strutil.CIString]string
 	backendKey        [8]byte
@@ -44,6 +46,7 @@ func MakeConn(
 	return Conn{
 		id:                id,
 		conn:              conn,
+		rw:                conn,
 		initialParameters: initialParameters,
 		backendKey:        backendKey,
 
@@ -57,6 +60,11 @@ func (T *Conn) GetID() uuid.UUID {
 
 func (T *Conn) GetConn() fed.Conn {
 	return T.conn
+}
+
+// GetReadWriter is the exact same as GetConn but bypasses the runtime.convI2I
+func (T *Conn) GetReadWriter() fed.ReadWriter {
+	return T.rw
 }
 
 func (T *Conn) GetInitialParameters() map[strutil.CIString]string {

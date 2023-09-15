@@ -22,7 +22,7 @@ func Pair(options Options, client *Client, server *Server) (clientErr, serverErr
 
 	switch options.ParameterStatusSync {
 	case ParameterStatusSyncDynamic:
-		clientErr, serverErr = ps.Sync(options.TrackedParameters, client.GetConn(), client.GetPS(), server.GetConn(), server.GetPS())
+		clientErr, serverErr = ps.Sync(options.TrackedParameters, client.GetReadWriter(), client.GetPS(), server.GetReadWriter(), server.GetPS())
 	case ParameterStatusSyncInitial:
 		clientErr, serverErr = SyncInitialParameters(options, client, server)
 	}
@@ -32,7 +32,7 @@ func Pair(options Options, client *Client, server *Server) (clientErr, serverErr
 	}
 
 	if options.ExtendedQuerySync {
-		serverErr = eqp.Sync(client.GetEQP(), server.GetConn(), server.GetEQP())
+		serverErr = eqp.Sync(client.GetEQP(), server.GetReadWriter(), server.GetEQP())
 	}
 
 	return
@@ -65,7 +65,7 @@ func SyncInitialParameters(options Options, client *Client, server *Server) (cli
 			continue
 		}
 
-		serverErr = backends.SetParameter(new(backends.Context), server.GetConn(), key, value)
+		serverErr = backends.SetParameter(new(backends.Context), server.GetReadWriter(), key, value)
 		if serverErr != nil {
 			return
 		}
