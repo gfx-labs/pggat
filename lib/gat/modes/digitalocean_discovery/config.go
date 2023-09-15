@@ -1,18 +1,15 @@
 package digitalocean_discovery
 
 import (
+	"context"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net"
-	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
 	"gfx.cafe/util/go/gun"
-	"github.com/google/uuid"
+	"github.com/digitalocean/godo"
 	"tuxpa.in/a/zlog/log"
 
 	"pggat/lib/auth/credentials"
@@ -45,52 +42,10 @@ func Load() (Config, error) {
 	return conf, nil
 }
 
-func (T *Config) do(endpoint string, resp any) error {
-	dest, err := url.Parse(endpoint)
-	if err != nil {
-		return err
-	}
-
-	req := http.Request{
-		Method: http.MethodGet,
-		URL:    dest,
-		Header: http.Header{
-			"Content-Type":  []string{"application/json"},
-			"Authorization": []string{"Bearer " + T.APIKey},
-		},
-	}
-
-	res, err := http.DefaultClient.Do(&req)
-	if err != nil {
-		return err
-	}
-
-	err = json.NewDecoder(res.Body).Decode(resp)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (T *Config) ListClusters() ([]Database, error) {
-	var res ListClustersResponse
-	if err := T.do("https://api.digitalocean.com/v2/databases", &res); err != nil {
-		return nil, err
-	}
-	return res.Databases, nil
-}
-
-func (T *Config) ListReplicas(cluster uuid.UUID) ([]Database, error) {
-	var res ListReplicasResponse
-	if err := T.do(fmt.Sprintf("https://api.digitalocean.com/v2/databases/%s/replicas", cluster.String()), &res); err != nil {
-		return nil, err
-	}
-	return res.Replicas, nil
-}
-
 func (T *Config) ListenAndServe() error {
-	clusters, err := T.ListClusters()
+	client := godo.NewFromToken(T.APIKey)
+	clusters, _, err := client.Databases.List(context.Background(), nil)
+
 	if err != nil {
 		return err
 	}
@@ -108,11 +63,11 @@ func (T *Config) ListenAndServe() error {
 	}()
 
 	for _, cluster := range clusters {
-		if cluster.Engine != "pg" {
+		if cluster.EngineSlug != "pg" {
 			continue
 		}
 
-		replicas, err := T.ListReplicas(cluster.ID)
+		replicas, _, err := client.Databases.ListReplicas(context.Background(), cluster.ID, nil)
 		if err != nil {
 			return err
 		}
