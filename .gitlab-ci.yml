@@ -9,13 +9,7 @@
 
 stages:
   - test
-
-test:
-  image: golang:1.21-alpine
-  stage: test
-  extends: .go-cache
-  script:
-    - CGO_ENABLED=1 go test -race ./...
+  - build
 
 lint:
   image: registry.gitlab.com/gitlab-org/gitlab-build-images:golangci-lint-alpine
@@ -35,18 +29,22 @@ lint:
     paths:
       - gl-code-quality-report.json
 
-coverage:
-  stage: test
-  image: golang:1.21-alpine
-  coverage: '/\(statements\)(?:\s+)?(\d+(?:\.\d+)?%)/'
-  extends: .go-cache
+jsonnet:
+  stage: build
+  image: alpine:latest
   script:
-    - go run gotest.tools/gotestsum@latest --junitfile report.xml --format testname -- -coverprofile=coverage.txt -covermode count ./...
-    - go tool cover -func=coverage.txt
-    - go run github.com/boumenot/gocover-cobertura@master < coverage.txt > coverage.xml
+    - apk add -U jsonnet
+    - jsonnet .gitlab-ci.jsonnet > generated-config.yml
   artifacts:
-    reports:
-      junit: report.xml
-      coverage_report:
-        coverage_format: cobertura
-        path: coverage.xml
+    paths:
+      - generated-config.yml
+
+trigger-builds:
+  stage: build
+  needs:
+    - jsonnet
+  trigger:
+    include:
+      - artifact: generated-config.yml
+        job: jsonnet
+    strategy: depend
