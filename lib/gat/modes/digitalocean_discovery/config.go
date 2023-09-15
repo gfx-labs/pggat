@@ -23,6 +23,7 @@ import (
 	"pggat/lib/gat/metrics"
 	"pggat/lib/gat/pool"
 	"pggat/lib/gat/pool/dialer"
+	"pggat/lib/gat/pool/pools/session"
 	"pggat/lib/gat/pool/pools/transaction"
 	"pggat/lib/gat/pool/recipe"
 	"pggat/lib/util/flip"
@@ -30,7 +31,8 @@ import (
 )
 
 type Config struct {
-	APIKey string `env:"PGGAT_DO_API_KEY"`
+	APIKey   string `env:"PGGAT_DO_API_KEY"`
+	PoolMode string `env:"PGGAT_POOL_MODE"`
 }
 
 func Load() (Config, error) {
@@ -122,7 +124,7 @@ func (T *Config) ListenAndServe() error {
 			}
 
 			for _, dbname := range cluster.DBNames {
-				poolOptions := transaction.Apply(pool.Options{
+				poolOptions := pool.Options{
 					Credentials:                creds,
 					ServerReconnectInitialTime: 5 * time.Second,
 					ServerReconnectMaxTime:     5 * time.Second,
@@ -134,7 +136,13 @@ func (T *Config) ListenAndServe() error {
 						strutil.MakeCIString("standard_conforming_strings"),
 						strutil.MakeCIString("application_name"),
 					},
-				})
+				}
+				if T.PoolMode == "session" {
+					poolOptions.ServerResetQuery = "DISCARD ALL"
+					poolOptions = session.Apply(poolOptions)
+				} else {
+					poolOptions = transaction.Apply(poolOptions)
+				}
 
 				p := pool.NewPool(poolOptions)
 

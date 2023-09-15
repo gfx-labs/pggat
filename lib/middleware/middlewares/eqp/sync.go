@@ -7,9 +7,15 @@ import (
 )
 
 func Sync(c *Client, server fed.ReadWriter, s *Server) error {
+	var needsBackendSync bool
+
 	// close all portals on server
 	// we close all because there won't be any for the normal case anyway, and it's hard to tell
 	// if a portal is accurate because the underlying prepared statement could have changed.
+	if len(s.state.portals) > 0 {
+		needsBackendSync = true
+	}
+
 	for name := range s.state.portals {
 		p := packets.Close{
 			Which:  'P',
@@ -41,6 +47,8 @@ func Sync(c *Client, server fed.ReadWriter, s *Server) error {
 		if err := server.WritePacket(p.IntoPacket()); err != nil {
 			return err
 		}
+
+		needsBackendSync = true
 	}
 
 	// parse all prepared statements that aren't on server
@@ -55,15 +63,25 @@ func Sync(c *Client, server fed.ReadWriter, s *Server) error {
 		if err := server.WritePacket(preparedStatement.Packet); err != nil {
 			return err
 		}
+
+		needsBackendSync = true
 	}
 
 	// bind all portals
+	if len(c.state.portals) > 0 {
+		needsBackendSync = true
+	}
+
 	for _, portal := range c.state.portals {
 		if err := server.WritePacket(portal.Packet); err != nil {
 			return err
 		}
 	}
 
-	_, err := backends.Sync(new(backends.Context), server)
-	return err
+	if needsBackendSync {
+		_, err := backends.Sync(new(backends.Context), server)
+		return err
+	}
+
+	return nil
 }
