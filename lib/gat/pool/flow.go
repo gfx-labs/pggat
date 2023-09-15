@@ -43,18 +43,28 @@ func SyncInitialParameters(options Options, client *Client, server *Server) (cli
 	serverParams := server.GetInitialParameters()
 
 	for key, value := range clientParams {
-		setServer := slices.Contains(options.TrackedParameters, key)
-
 		// skip already set params
 		if serverParams[key] == value {
-			setServer = false
-		} else if !setServer {
+			p := packets.ParameterStatus{
+				Key:   key.String(),
+				Value: serverParams[key],
+			}
+			clientErr = client.GetConn().WritePacket(p.IntoPacket())
+			if clientErr != nil {
+				return
+			}
+			continue
+		}
+
+		setServer := slices.Contains(options.TrackedParameters, key)
+
+		if !setServer {
 			value = serverParams[key]
 		}
 
 		p := packets.ParameterStatus{
 			Key:   key.String(),
-			Value: serverParams[key],
+			Value: value,
 		}
 		clientErr = client.GetConn().WritePacket(p.IntoPacket())
 		if clientErr != nil {
