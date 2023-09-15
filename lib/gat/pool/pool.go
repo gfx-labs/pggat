@@ -280,9 +280,9 @@ func (T *Pool) acquireServer(client *Client) *Server {
 }
 
 func (T *Pool) releaseServer(server *Server) {
-	server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
-
 	if T.options.ServerResetQuery != "" {
+		server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
+
 		err := backends.QueryString(new(backends.Context), server.GetReadWriter(), T.options.ServerResetQuery)
 		if err != nil {
 			T.removeServer(server)

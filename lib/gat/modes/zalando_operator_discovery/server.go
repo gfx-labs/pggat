@@ -138,12 +138,22 @@ func (T *Server) addPool(name string, userCreds, serverCreds auth.Credentials, d
 	}
 
 	poolOptions := pool.Options{
-		Credentials: userCreds,
+		Credentials:                userCreds,
+		ServerReconnectInitialTime: 5 * time.Second,
+		ServerReconnectMaxTime:     5 * time.Second,
+		TrackedParameters: []strutil.CIString{
+			strutil.MakeCIString("client_encoding"),
+			strutil.MakeCIString("datestyle"),
+			strutil.MakeCIString("timezone"),
+			strutil.MakeCIString("standard_conforming_strings"),
+			strutil.MakeCIString("application_name"),
+		},
 	}
 	switch T.opConfig.Mode {
 	case "transaction":
 		poolOptions = transaction.Apply(poolOptions)
 	case "session":
+		poolOptions.ServerResetQuery = "discard all"
 		poolOptions = session.Apply(poolOptions)
 	default:
 		log.Printf(`unknown pool mode "%s"`, T.opConfig.Mode)
@@ -151,8 +161,14 @@ func (T *Server) addPool(name string, userCreds, serverCreds auth.Credentials, d
 	}
 	p := pool.NewPool(poolOptions)
 
+	var maxConnections int
+	if T.opConfig.MaxDBConnections != nil {
+		maxConnections = int(*T.opConfig.MaxDBConnections)
+	}
+
 	recipeOptions := recipe.Options{
-		Dialer: d,
+		Dialer:         d,
+		MaxConnections: maxConnections,
 	}
 	r := recipe.NewRecipe(recipeOptions)
 
