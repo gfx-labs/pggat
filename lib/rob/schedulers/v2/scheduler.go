@@ -199,6 +199,7 @@ func (T *Scheduler) Acquire(user uuid.UUID, mode rob.SyncMode) uuid.UUID {
 			log.Printf("NOWHERE TO BE FOUND")
 		}()
 
+		defer close(done)
 		return <-ready
 	case rob.SyncModeTryNonBlocking:
 		if id := T.Acquire(user, rob.SyncModeNonBlocking); id != uuid.Nil {
