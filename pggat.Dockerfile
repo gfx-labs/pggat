@@ -9,11 +9,12 @@ RUN go build -o cgat ./cmd/cgat
 
 FROM alpine:latest
 WORKDIR /bin
-RUN addgroup -S pgbouncer && adduser -S pgbouncer && mkdir -p /etc/pgbouncer /var/log/pgbouncer /var/run/pgbouncer
+RUN addgroup -S pgbouncer && adduser -S pgbouncer
 COPY --from=GOBUILDER /src/cgat.sh run.sh
 COPY --from=GOBUILDER /src/cgat pggat
 RUN apk add openssl
-RUN chown -R pgbouncer:pgbouncer /var/log/pgbouncer /var/run/pgbouncer /etc/pgbouncer /etc/ssl/certs /bin/run.sh
+RUN install -d -m 0755 -o pgbouncer -g pgbouncer /etc/pgbouncer /var/log/pgbouncer /var/run/pgbouncer /etc/ssl/certs
+RUN chown -R pgbouncer:pgbouncer /bin/run.sh
 USER pgbouncer:pgbouncer
 
 ENTRYPOINT ["/bin/run.sh"]
