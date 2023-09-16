@@ -2,7 +2,6 @@ package sink
 
 import (
 	"github.com/google/uuid"
-	"log"
 	"sync"
 	"time"
 
@@ -34,7 +33,6 @@ func NewSink(id uuid.UUID) *Sink {
 
 func (T *Sink) schedule(j job.Stalled) bool {
 	if T.active == j.User {
-		log.Printf("couldn't schedule because user %v is active", j.User)
 		return false
 	}
 
@@ -62,7 +60,6 @@ func (T *Sink) schedule(j job.Stalled) bool {
 		}
 
 		if s.User == j.User {
-			log.Println("couldn't schedule because user is scheduled")
 			return false
 		}
 		stride += 1
@@ -215,21 +212,30 @@ func (T *Sink) StealFor(rhs *Sink) uuid.UUID {
 		return uuid.Nil
 	}
 
-	T.mu.Lock()
+	var j job.Stalled
+	var ok bool
+	var pending *ring.Ring[job.Stalled]
+	func() {
+		T.mu.Lock()
+		defer T.mu.Unlock()
 
-	stride, j, ok := T.scheduled.Min()
+		var stride time.Duration
+		stride, j, ok = T.scheduled.Min()
+		if !ok {
+			return
+		}
+		T.scheduled.Delete(stride)
+
+		user := j.User
+
+		pending = T.pending[user]
+		delete(T.pending, user)
+	}()
 	if !ok {
-		T.mu.Unlock()
 		return uuid.Nil
 	}
-	T.scheduled.Delete(stride)
 
 	user := j.User
-
-	pending := T.pending[user]
-	delete(T.pending, user)
-
-	T.mu.Unlock()
 
 	rhs.mu.Lock()
 	defer rhs.mu.Unlock()
@@ -250,29 +256,4 @@ func (T *Sink) RemoveUser(user uuid.UUID) {
 
 	delete(T.pending, user)
 	delete(T.stride, user)
-}
-
-func (T *Sink) IsScheduled(user uuid.UUID) bool {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	for s, j, ok := T.scheduled.Min(); ok; s, j, ok = T.scheduled.Next(s) {
-		if j.User == user {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (T *Sink) IsPending(user uuid.UUID) bool {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	p, ok := T.pending[user]
-	if !ok {
-		return false
-	}
-
-	return p.Length() > 0
 }

@@ -2,14 +2,12 @@ package schedulers
 
 import (
 	"github.com/google/uuid"
-	"log"
 	"pggat/lib/rob"
 	"pggat/lib/rob/schedulers/v2/job"
 	"pggat/lib/rob/schedulers/v2/sink"
 	"pggat/lib/util/maps"
 	"pggat/lib/util/pools"
 	"sync"
-	"time"
 )
 
 type Scheduler struct {
@@ -162,44 +160,6 @@ func (T *Scheduler) Acquire(user uuid.UUID, mode rob.SyncMode) uuid.UUID {
 		}
 		T.Enqueue(j)
 
-		done := make(chan struct{})
-		go func() {
-			time.Sleep(10 * time.Second)
-			select {
-			case <-done:
-				return
-			default:
-			}
-
-			// try to find where this job ended up
-			T.mu.Lock()
-			defer T.mu.Unlock()
-
-			for id, s := range T.sinks {
-				if s.IsScheduled(j.User) {
-					log.Printf("in %v scheduled", id)
-					return
-				}
-				if s.IsPending(j.User) {
-					log.Printf("in %v pending", id)
-					return
-				}
-			}
-
-			T.bmu.Lock()
-			defer T.bmu.Unlock()
-
-			for _, b := range T.backlog {
-				if b.User == j.User {
-					log.Printf("in backlog")
-					return
-				}
-			}
-
-			log.Printf("NOWHERE TO BE FOUND")
-		}()
-
-		defer close(done)
 		return <-ready
 	case rob.SyncModeTryNonBlocking:
 		if id := T.Acquire(user, rob.SyncModeNonBlocking); id != uuid.Nil {
