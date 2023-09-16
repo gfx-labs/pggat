@@ -29,6 +29,7 @@ import (
 
 type Config struct {
 	APIKey   string `env:"PGGAT_DO_API_KEY"`
+	Private  string `env:"PGGAT_DO_PRIVATE"`
 	PoolMode string `env:"PGGAT_POOL_MODE"`
 }
 
@@ -110,10 +111,18 @@ func (T *Config) ListenAndServe() error {
 					Database:    dbname,
 				}
 
+				var addr string
+				if T.Private != "" {
+					// private
+					addr = net.JoinHostPort(cluster.PrivateConnection.Host, strconv.Itoa(cluster.PrivateConnection.Port))
+				} else {
+					addr = net.JoinHostPort(cluster.Connection.Host, strconv.Itoa(cluster.Connection.Port))
+				}
+
 				p.AddRecipe("do", recipe.NewRecipe(recipe.Options{
 					Dialer: dialer.Net{
 						Network:       "tcp",
-						Address:       net.JoinHostPort(cluster.Connection.Host, strconv.Itoa(cluster.Connection.Port)),
+						Address:       addr,
 						AcceptOptions: acceptOptions,
 					},
 				}))
@@ -131,10 +140,18 @@ func (T *Config) ListenAndServe() error {
 					p2 := pool.NewPool(poolOptions2)
 
 					for _, replica := range replicas {
+						var replicaAddr string
+						if T.Private != "" {
+							// private
+							replicaAddr = net.JoinHostPort(replica.PrivateConnection.Host, strconv.Itoa(replica.PrivateConnection.Port))
+						} else {
+							replicaAddr = net.JoinHostPort(replica.Connection.Host, strconv.Itoa(replica.Connection.Port))
+						}
+
 						p2.AddRecipe("do", recipe.NewRecipe(recipe.Options{
 							Dialer: dialer.Net{
 								Network:       "tcp",
-								Address:       net.JoinHostPort(replica.Connection.Host, strconv.Itoa(replica.Connection.Port)),
+								Address:       replicaAddr,
 								AcceptOptions: acceptOptions,
 							},
 						}))
