@@ -147,9 +147,6 @@ func (T *Pool) removeRecipe(name string) {
 }
 
 func (T *Pool) scaleUp() {
-	log.Printf("scaling up")
-	defer log.Printf("finished scaling up")
-
 	backoff := T.options.ServerReconnectInitialTime
 	backingOff := false
 
