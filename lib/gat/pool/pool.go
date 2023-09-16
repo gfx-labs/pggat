@@ -354,6 +354,7 @@ func (T *Pool) serve(client *Client, initialize bool) error {
 			} else {
 				T.releaseServer(server)
 			}
+			server = nil
 		}
 	}()
 

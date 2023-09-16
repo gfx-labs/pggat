@@ -3,8 +3,8 @@ package metrics
 type ConnState int
 
 const (
-	ConnStateActive ConnState = iota
-	ConnStateIdle
+	ConnStateIdle ConnState = iota
+	ConnStateActive
 	ConnStateAwaitingServer
 	ConnStatePairing
 	ConnStateRunningResetQuery
@@ -13,8 +13,8 @@ const (
 )
 
 var connStateString = [ConnStateCount]string{
-	ConnStateActive:            "active",
 	ConnStateIdle:              "idle",
+	ConnStateActive:            "active",
 	ConnStateAwaitingServer:    "awaiting server",
 	ConnStatePairing:           "pairing",
 	ConnStateRunningResetQuery: "running reset query",
