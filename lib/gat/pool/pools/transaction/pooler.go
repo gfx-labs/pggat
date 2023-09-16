@@ -12,12 +12,6 @@ type Pooler struct {
 	s schedulers.Scheduler
 }
 
-func NewPooler() *Pooler {
-	p := new(Pooler)
-	schedulers.Test(&p.s)
-	return p
-}
-
 func (T *Pooler) NewClient() uuid.UUID {
 	return T.s.NewUser()
 }
