@@ -233,6 +233,8 @@ func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) error {
 		return errors.New("recipe was removed")
 	}
 
+	log.Printf("added server to %p", T)
+
 	id := T.options.Pooler.NewServer()
 	server := NewServer(
 		T.options,
