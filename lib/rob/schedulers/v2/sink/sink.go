@@ -248,3 +248,28 @@ func (T *Sink) RemoveUser(user uuid.UUID) {
 	delete(T.pending, user)
 	delete(T.stride, user)
 }
+
+func (T *Sink) IsScheduled(user uuid.UUID) bool {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	for s, j, ok := T.scheduled.Min(); ok; s, j, ok = T.scheduled.Next(s) {
+		if j.User == user {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (T *Sink) IsPending(user uuid.UUID) bool {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	p, ok := T.pending[user]
+	if !ok {
+		return false
+	}
+
+	return p.Length() > 0
+}
