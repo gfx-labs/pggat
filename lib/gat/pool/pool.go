@@ -292,7 +292,7 @@ func (T *Pool) acquireServer(client *Client) *Server {
 	}
 }
 
-func (T *Pool) releaseServerSlow(server *Server) {
+func (T *Pool) releaseServer(server *Server) {
 	if T.options.ServerResetQuery != "" {
 		server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
 
@@ -301,18 +301,6 @@ func (T *Pool) releaseServerSlow(server *Server) {
 			T.removeServer(server)
 			return
 		}
-	}
-
-	server.SetState(metrics.ConnStateIdle, uuid.Nil)
-
-	T.options.Pooler.Release(server.GetID())
-}
-
-func (T *Pool) releaseServer(server *Server) {
-	if T.options.ServerResetQuery != "" {
-		// we will have to query server, fallback to slow path
-		go T.releaseServerSlow(server)
-		return
 	}
 
 	server.SetState(metrics.ConnStateIdle, uuid.Nil)
@@ -371,7 +359,7 @@ func (T *Pool) serve(client *Client, initialized bool) error {
 			if serverErr != nil {
 				T.removeServer(server)
 			} else {
-				T.releaseServerSlow(server)
+				T.releaseServer(server)
 			}
 			server = nil
 		}
