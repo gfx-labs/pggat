@@ -3,7 +3,6 @@ package pool
 import (
 	"errors"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,8 +23,6 @@ type Pool struct {
 	options Options
 
 	closed chan struct{}
-
-	isRetrying atomic.Bool
 
 	recipes         map[string]*recipe.Recipe
 	clients         map[uuid.UUID]*Client
@@ -147,15 +144,15 @@ func (T *Pool) removeRecipe(name string) {
 }
 
 func (T *Pool) scaleUp() {
-	if T.isRetrying.Load() {
-		// there is another goroutine trying to retry
-		return
-	}
-
 	backoff := T.options.ServerReconnectInitialTime
-	retrying := false
 
 	for {
+		select {
+		case <-T.closed:
+			return
+		default:
+		}
+
 		name, r := func() (string, *recipe.Recipe) {
 			T.mu.RLock()
 			defer T.mu.RUnlock()
@@ -176,9 +173,6 @@ func (T *Pool) scaleUp() {
 		if r != nil {
 			err := T.scaleUpL1(name, r)
 			if err == nil {
-				if retrying {
-					T.isRetrying.Store(false)
-				}
 				return
 			}
 
@@ -187,18 +181,7 @@ func (T *Pool) scaleUp() {
 
 		if backoff == 0 {
 			// no backoff
-			if retrying {
-				T.isRetrying.Store(false)
-			}
 			return
-		}
-
-		if !retrying {
-			if T.isRetrying.Swap(true) {
-				// another goroutine beat us
-				return
-			}
-			retrying = true
 		}
 
 		time.Sleep(backoff)
