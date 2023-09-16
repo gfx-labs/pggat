@@ -36,11 +36,16 @@ func (T *Scheduler) NewWorker() uuid.UUID {
 	}
 	T.sinks[worker] = s
 
-	if len(T.backlog) > 0 {
-		for _, v := range T.backlog {
-			s.Enqueue(v)
+	if func() bool {
+		T.bmu.Lock()
+		defer T.bmu.Unlock()
+		if len(T.backlog) > 0 {
+			s.Enqueue(T.backlog...)
+			T.backlog = T.backlog[:0]
+			return true
 		}
-		T.backlog = T.backlog[:0]
+		return false
+	}() {
 		return worker
 	}
 

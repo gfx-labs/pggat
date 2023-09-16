@@ -50,28 +50,35 @@ func (T *Sink) schedule(j job.Stalled) bool {
 		T.stride[j.User] = stride
 	} else if stride < T.floor {
 		stride = T.floor
-		if T.stride == nil {
-			T.stride = make(map[uuid.UUID]time.Duration)
-		}
 		T.stride[j.User] = stride
 	}
 
 	for {
 		// find unique stride to schedule on
-		if s, ok := T.scheduled.Get(stride); ok {
-			if s.User == j.User {
-				return false
-			}
-			stride += 1
-			continue
+		s, ok := T.scheduled.Get(stride)
+		if !ok {
+			break
 		}
 
-		T.scheduled.Set(stride, j)
-		return true
+		if s.User == j.User {
+			return false
+		}
+		stride += 1
+		continue
 	}
+
+	T.scheduled.Set(stride, j)
+	return true
 }
 
 func (T *Sink) enqueue(j job.Stalled) {
+	if T.active == uuid.Nil {
+		// run it now
+		T.acquire(j.User)
+		j.Ready <- T.id
+		return
+	}
+
 	if T.schedule(j) {
 		return
 	}
@@ -90,20 +97,14 @@ func (T *Sink) enqueue(j job.Stalled) {
 	p.PushBack(j)
 }
 
-func (T *Sink) Enqueue(j job.Stalled) {
+func (T *Sink) Enqueue(j ...job.Stalled) {
 	// enqueue job
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	if T.active == uuid.Nil {
-		// run it now
-		T.acquire(j.User)
-		j.Ready <- T.id
-		return
+	for _, jj := range j {
+		T.enqueue(jj)
 	}
-
-	// enqueue for later
-	T.enqueue(j)
 }
 
 func (T *Sink) acquire(user uuid.UUID) {
@@ -229,11 +230,13 @@ func (T *Sink) StealFor(rhs *Sink) uuid.UUID {
 
 	T.mu.Unlock()
 
-	rhs.Enqueue(j)
+	rhs.mu.Lock()
+	defer rhs.mu.Unlock()
+	rhs.enqueue(j)
 
 	if pending != nil {
 		for j, ok = pending.PopFront(); ok; j, ok = pending.PopFront() {
-			rhs.Enqueue(j)
+			rhs.enqueue(j)
 		}
 	}
 

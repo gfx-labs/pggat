@@ -289,7 +289,7 @@ func (T *Pool) acquireServer(client *Client) *Server {
 						return
 					default:
 					}
-					log.Printf("still waiting after %d in pool %p", start, T)
+					log.Printf("still waiting after %d in pool %p", time.Since(start), T)
 				}
 			}()
 			serverID = T.options.Pooler.Acquire(client.GetID(), SyncModeBlocking)
