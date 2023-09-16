@@ -25,7 +25,7 @@ type Pool struct {
 
 	closed chan struct{}
 
-	backingOff atomic.Bool
+	scalingUp atomic.Bool
 
 	recipes         map[string]*recipe.Recipe
 	clients         map[uuid.UUID]*Client
@@ -147,25 +147,19 @@ func (T *Pool) removeRecipe(name string) {
 }
 
 func (T *Pool) scaleUp() {
-	backoff := T.options.ServerReconnectInitialTime
-	backingOff := false
+	if T.scalingUp.Swap(true) {
+		// another person is trying to scale up this pool already
+		return
+	}
+	defer T.scalingUp.Store(false)
 
-	defer func() {
-		if backingOff {
-			T.backingOff.Store(false)
-		}
-	}()
+	backoff := T.options.ServerReconnectInitialTime
 
 	for {
 		select {
 		case <-T.closed:
 			return
 		default:
-		}
-
-		if !backingOff && T.backingOff.Load() {
-			// already in backoff
-			return
 		}
 
 		name, r := func() (string, *recipe.Recipe) {
@@ -197,13 +191,6 @@ func (T *Pool) scaleUp() {
 		if backoff == 0 {
 			// no backoff
 			return
-		}
-
-		if !backingOff {
-			if T.backingOff.Swap(true) {
-				return
-			}
-			backingOff = true
 		}
 
 		log.Printf("failed to dial server. trying again in %v", backoff)
