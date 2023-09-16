@@ -147,6 +147,9 @@ func (T *Pool) removeRecipe(name string) {
 }
 
 func (T *Pool) scaleUp() {
+	log.Printf("scaling up")
+	defer log.Printf("finished scaling up")
+
 	backoff := T.options.ServerReconnectInitialTime
 	backingOff := false
 
@@ -205,6 +208,8 @@ func (T *Pool) scaleUp() {
 			}
 			backingOff = true
 		}
+
+		log.Printf("failed to dial server. trying again in %v", backoff)
 
 		time.Sleep(backoff)
 
@@ -356,7 +361,7 @@ func (T *Pool) ServeBot(
 	return T.serve(client, true)
 }
 
-func (T *Pool) serve(client *Client, initialize bool) error {
+func (T *Pool) serve(client *Client, initialized bool) error {
 	T.addClient(client)
 	defer T.removeClient(client)
 
@@ -375,7 +380,7 @@ func (T *Pool) serve(client *Client, initialize bool) error {
 		}
 	}()
 
-	if !initialize {
+	if !initialized {
 		server = T.acquireServer(client)
 
 		err, serverErr = Pair(T.options, client, server)
@@ -396,7 +401,7 @@ func (T *Pool) serve(client *Client, initialize bool) error {
 	for {
 		if server != nil && T.options.ReleaseAfterTransaction {
 			client.SetState(metrics.ConnStateIdle, uuid.Nil)
-			T.releaseServer(server) // TODO(garet) does this need to be a goroutine
+			T.releaseServer(server)
 			server = nil
 		}
 

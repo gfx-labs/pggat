@@ -134,7 +134,7 @@ func (T *Config) ListenAndServe() error {
 					addr = net.JoinHostPort(cluster.Connection.Host, strconv.Itoa(cluster.Connection.Port))
 				}
 
-				p.AddRecipe("do", recipe.NewRecipe(recipe.Options{
+				p.AddRecipe(cluster.Name, recipe.NewRecipe(recipe.Options{
 					Dialer: dialer.Net{
 						Network:       "tcp",
 						Address:       addr,
@@ -163,7 +163,7 @@ func (T *Config) ListenAndServe() error {
 							replicaAddr = net.JoinHostPort(replica.Connection.Host, strconv.Itoa(replica.Connection.Port))
 						}
 
-						p2.AddRecipe("do", recipe.NewRecipe(recipe.Options{
+						p2.AddRecipe(replica.Name, recipe.NewRecipe(recipe.Options{
 							Dialer: dialer.Net{
 								Network:       "tcp",
 								Address:       replicaAddr,
@@ -172,8 +172,8 @@ func (T *Config) ListenAndServe() error {
 						}))
 					}
 
-					pools.Add(user.Name+"_ro", dbname, p2)
-					log.Printf("registered database user=%s database=%s", user.Name+"_ro", dbname)
+					pools.Add(creds2.Username, dbname, p2)
+					log.Printf("registered database user=%s database=%s", creds2.Username, dbname)
 				}
 			}
 		}
