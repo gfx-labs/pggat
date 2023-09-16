@@ -10,6 +10,7 @@
 stages:
   - test
   - build
+  - deploy
 
 lint:
   image: registry.gitlab.com/gitlab-org/gitlab-build-images:golangci-lint-alpine
@@ -48,3 +49,18 @@ trigger-builds:
       - artifact: generated-config.yml
         job: jsonnet
     strategy: depend
+
+trigger-master-deploy:
+  stage: deploy
+  needs:
+    - trigger-builds
+  image:
+    name: bitnami/kubectl:latest
+    entrypoint: [""]
+  only:
+    variables:
+      - $CI_COMMIT_BRANCH == "master"
+  script:
+    - kubectl config get-contexts
+    - kubectl config use-context gfx/gitlab-agents:gfxlabs-dev
+    - kubectl rollout restart deployment gfx-pggat
