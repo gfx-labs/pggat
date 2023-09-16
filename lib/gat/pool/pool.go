@@ -146,7 +146,25 @@ func (T *Pool) removeRecipe(name string) {
 	}
 }
 
+var (
+	numStarted    atomic.Int64
+	numSuccessful atomic.Int64
+	numCancelled  atomic.Int64
+	numFailed     atomic.Int64
+)
+
+func init() {
+	go func() {
+		for {
+			time.Sleep(1 * time.Second)
+			log.Printf("%d started, %d successful, %d cancelled, %d failed", numStarted.Load(), numSuccessful.Load(), numCancelled.Load(), numFailed.Load())
+		}
+	}()
+}
+
 func (T *Pool) scaleUp() {
+	numStarted.Add(1)
+
 	backoff := T.options.ServerReconnectInitialTime
 	backingOff := false
 
@@ -159,12 +177,14 @@ func (T *Pool) scaleUp() {
 	for {
 		select {
 		case <-T.closed:
+			numCancelled.Add(1)
 			return
 		default:
 		}
 
 		if !backingOff && T.backingOff.Load() {
 			// already in backoff
+			numCancelled.Add(1)
 			return
 		}
 
@@ -188,6 +208,7 @@ func (T *Pool) scaleUp() {
 		if r != nil {
 			err := T.scaleUpL1(name, r)
 			if err == nil {
+				numSuccessful.Add(1)
 				return
 			}
 
@@ -196,11 +217,13 @@ func (T *Pool) scaleUp() {
 
 		if backoff == 0 {
 			// no backoff
+			numFailed.Add(1)
 			return
 		}
 
 		if !backingOff {
 			if T.backingOff.Swap(true) {
+				numCancelled.Add(1)
 				return
 			}
 			backingOff = true

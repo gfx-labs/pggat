@@ -5,7 +5,7 @@ WORKDIR /src
 COPY . .
 
 RUN go mod tidy
-RUN go build -race -o cgat ./cmd/cgat
+RUN go build -o cgat ./cmd/cgat
 
 FROM alpine:latest
 WORKDIR /bin
