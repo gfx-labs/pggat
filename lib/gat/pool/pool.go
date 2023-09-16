@@ -286,6 +286,7 @@ func (T *Pool) acquireServer(client *Client) *Server {
 		server, ok := T.servers[serverID]
 		T.mu.RUnlock()
 		if !ok {
+			T.options.Pooler.Release(serverID)
 			continue
 		}
 		return server

@@ -35,7 +35,6 @@ func NewSink(id uuid.UUID) *Sink {
 func (T *Sink) schedule(j job.Stalled) bool {
 	if T.active == j.User {
 		log.Printf("couldn't schedule because user %v is active", j.User)
-		panic("hmmmm")
 		return false
 	}
 
