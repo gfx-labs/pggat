@@ -1,11 +1,9 @@
 package sink
 
 import (
+	"github.com/google/uuid"
 	"sync"
 	"time"
-	"tuxpa.in/a/zlog/log"
-
-	"github.com/google/uuid"
 
 	"pggat/lib/rob/schedulers/v2/job"
 	"pggat/lib/util/rbtree"
@@ -19,11 +17,10 @@ type Sink struct {
 	active uuid.UUID
 	start  time.Time
 
-	floor        time.Duration
-	stride       map[uuid.UUID]time.Duration
-	pending      map[uuid.UUID]*ring.Ring[job.Stalled]
-	scheduled    rbtree.RBTree[time.Duration, job.Stalled]
-	scheduledLen int
+	floor     time.Duration
+	stride    map[uuid.UUID]time.Duration
+	pending   map[uuid.UUID]*ring.Ring[job.Stalled]
+	scheduled rbtree.RBTree[time.Duration, job.Stalled]
 
 	mu sync.Mutex
 }
@@ -69,7 +66,6 @@ func (T *Sink) schedule(j job.Stalled) bool {
 	}
 
 	T.scheduled.Set(stride, j)
-	T.scheduledLen++
 	return true
 }
 
@@ -164,13 +160,9 @@ func (T *Sink) next() bool {
 
 	stride, j, ok := T.scheduled.Min()
 	if !ok {
-		if T.scheduledLen != 0 {
-			log.Println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA SCHEDULED LEN WAS NOT ZERO BUT FOUND NO MORE JOBS")
-		}
 		return false
 	}
 	T.scheduled.Delete(stride)
-	T.scheduledLen--
 	if stride > T.floor {
 		T.floor = stride
 	}
@@ -201,7 +193,6 @@ func (T *Sink) StealAll() []job.Stalled {
 			break
 		}
 	}
-	T.scheduledLen = 0
 
 	for _, value := range T.pending {
 		for {
@@ -229,7 +220,6 @@ func (T *Sink) StealFor(rhs *Sink) uuid.UUID {
 		return uuid.Nil
 	}
 	T.scheduled.Delete(stride)
-	T.scheduledLen--
 
 	user := j.User
 

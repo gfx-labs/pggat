@@ -8,6 +8,7 @@ import (
 	"pggat/lib/util/maps"
 	"pggat/lib/util/pools"
 	"sync"
+	"tuxpa.in/a/zlog/log"
 )
 
 type Scheduler struct {
@@ -142,6 +143,7 @@ func (T *Scheduler) Enqueue(j ...job.Stalled) {
 func (T *Scheduler) Acquire(user uuid.UUID, mode rob.SyncMode) uuid.UUID {
 	switch mode {
 	case rob.SyncModeNonBlocking:
+		defer log.Printf("%p non blocking acquire completed", T)
 		return T.TryAcquire(job.Concurrent{
 			User: user,
 		})
@@ -159,6 +161,7 @@ func (T *Scheduler) Acquire(user uuid.UUID, mode rob.SyncMode) uuid.UUID {
 			Ready: ready,
 		}
 		T.Enqueue(j)
+		defer log.Printf("%p blocking acquire completed", T)
 		return <-ready
 	case rob.SyncModeTryNonBlocking:
 		if id := T.Acquire(user, rob.SyncModeNonBlocking); id != uuid.Nil {
