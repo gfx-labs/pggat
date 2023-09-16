@@ -30,30 +30,22 @@ func (T *Scheduler) NewWorker() uuid.UUID {
 
 	s := sink.NewSink(worker)
 
-	if func() bool {
-		T.mu.Lock()
-		defer T.mu.Unlock()
-		// if mu is locked, we don't need to lock bmu, because we are the only accessor
-		if T.sinks == nil {
-			T.sinks = make(map[uuid.UUID]*sink.Sink)
-		}
-		T.sinks[worker] = s
+	T.mu.Lock()
+	defer T.mu.Unlock()
+	// if mu is locked, we don't need to lock bmu, because we are the only accessor
+	if T.sinks == nil {
+		T.sinks = make(map[uuid.UUID]*sink.Sink)
+	}
+	T.sinks[worker] = s
 
-		if len(T.backlog) == 0 {
-			return false
-		}
-
+	if len(T.backlog) > 0 {
 		for _, v := range T.backlog {
 			s.Enqueue(v)
 		}
 		T.backlog = T.backlog[:0]
-		return true
-	}() {
 		return worker
 	}
 
-	T.mu.RLock()
-	defer T.mu.RUnlock()
 	T.stealFor(worker)
 	return worker
 }
@@ -96,33 +88,27 @@ func (T *Scheduler) DeleteUser(user uuid.UUID) {
 func (T *Scheduler) TryAcquire(j job.Concurrent) uuid.UUID {
 	affinity, _ := T.affinity.Load(j.User)
 
-	// these can be unlocked and locked a bunch here because it is less bad if ExecuteConcurrent misses a sink
-	// (it will just stall the job and try again)
 	T.mu.RLock()
+	defer T.mu.RUnlock()
 
 	// try affinity first
 	if v, ok := T.sinks[affinity]; ok {
-		T.mu.RUnlock()
 		if v.Acquire(j) {
 			return affinity
 		}
-		T.mu.RLock()
 	}
 
 	for id, v := range T.sinks {
 		if id == affinity {
 			continue
 		}
-		T.mu.RUnlock()
 		if v.Acquire(j) {
 			// set affinity
 			T.affinity.Store(j.User, id)
 			return id
 		}
-		T.mu.RLock()
 	}
 
-	T.mu.RUnlock()
 	return uuid.Nil
 }
 
@@ -200,7 +186,7 @@ func (T *Scheduler) Release(worker uuid.UUID) {
 	}
 }
 
-// stealFor will try to steal work for the specified worker. RLock Scheduler.mu before executing
+// stealFor will try to steal work for the specified worker. Lock Scheduler.mu before executing
 func (T *Scheduler) stealFor(worker uuid.UUID) {
 	s, ok := T.sinks[worker]
 	if !ok {
@@ -212,15 +198,8 @@ func (T *Scheduler) stealFor(worker uuid.UUID) {
 			continue
 		}
 
-		if func() bool {
-			T.mu.RUnlock()
-			defer T.mu.RLock()
-			if src := v.StealFor(s); src != uuid.Nil {
-				T.affinity.Store(src, worker)
-				return true
-			}
-			return false
-		}() {
+		if src := v.StealFor(s); src != uuid.Nil {
+			T.affinity.Store(src, worker)
 			return
 		}
 	}
