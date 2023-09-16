@@ -1,9 +1,10 @@
 package schedulers
 
 import (
-	"sync"
-
 	"github.com/google/uuid"
+	"sync"
+	"time"
+	"tuxpa.in/a/zlog/log"
 
 	"pggat/lib/rob"
 	"pggat/lib/rob/schedulers/v2/job"
@@ -23,6 +24,22 @@ type Scheduler struct {
 	bmu     sync.Mutex
 	sinks   map[uuid.UUID]*sink.Sink
 	mu      sync.RWMutex
+}
+
+func Test(s *Scheduler) {
+	go func() {
+		for {
+			time.Sleep(1 * time.Second)
+			func() {
+				s.mu.RLock()
+				defer s.mu.RUnlock()
+
+				s.bmu.Lock()
+				defer s.bmu.Unlock()
+				log.Printf("%d sinks | %d backlogged jobs", len(s.sinks), len(s.backlog))
+			}()
+		}
+	}()
 }
 
 func (T *Scheduler) NewWorker() uuid.UUID {
