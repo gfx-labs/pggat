@@ -163,7 +163,7 @@ func (T *Scheduler) Acquire(user uuid.UUID, mode rob.SyncMode) uuid.UUID {
 		T.Enqueue(j)
 
 		done := make(chan struct{})
-		defer func() {
+		go func() {
 			time.Sleep(10 * time.Second)
 			select {
 			case <-done:
