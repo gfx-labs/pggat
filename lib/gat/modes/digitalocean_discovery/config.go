@@ -58,11 +58,6 @@ func (T *Config) ListenAndServe() error {
 	} else {
 		log.Printf("failed to load certificate, ssl is disabled")
 	}
-	sslConfig = &tls.Config{
-		Certificates: []tls.Certificate{
-			certificate,
-		},
-	}
 
 	client := godo.NewFromToken(T.APIKey)
 	clusters, _, err := client.Databases.List(context.Background(), nil)
