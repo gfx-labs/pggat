@@ -55,7 +55,6 @@ func (T *Config) ListenAndServe() error {
 				certificate,
 			},
 		}
-		return err
 	} else {
 		log.Printf("failed to load certificate, ssl is disabled")
 	}
