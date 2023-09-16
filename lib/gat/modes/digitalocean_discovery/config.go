@@ -28,9 +28,11 @@ import (
 )
 
 type Config struct {
-	APIKey   string `env:"PGGAT_DO_API_KEY"`
-	Private  string `env:"PGGAT_DO_PRIVATE"`
-	PoolMode string `env:"PGGAT_POOL_MODE"`
+	APIKey     string `env:"PGGAT_DO_API_KEY"`
+	Private    string `env:"PGGAT_DO_PRIVATE"`
+	PoolMode   string `env:"PGGAT_POOL_MODE"`
+	TLSCrtFile string `env:"PGGAT_TLS_CRT_FILE" default:"/etc/ssl/certs/pgbouncer.crt"`
+	TLSKeyFile string `env:"PGGAT_TLS_KEY_FILE" default:"/etc/ssl/certs/pgbouncer.key"`
 }
 
 func Load() (Config, error) {
@@ -44,6 +46,25 @@ func Load() (Config, error) {
 }
 
 func (T *Config) ListenAndServe() error {
+	// load certificate
+	var sslConfig *tls.Config
+	certificate, err := tls.LoadX509KeyPair(T.TLSCrtFile, T.TLSKeyFile)
+	if err == nil {
+		sslConfig = &tls.Config{
+			Certificates: []tls.Certificate{
+				certificate,
+			},
+		}
+		return err
+	} else {
+		log.Printf("failed to load certificate, ssl is disabled")
+	}
+	sslConfig = &tls.Config{
+		Certificates: []tls.Certificate{
+			certificate,
+		},
+	}
+
 	client := godo.NewFromToken(T.APIKey)
 	clusters, _, err := client.Databases.List(context.Background(), nil)
 
@@ -169,6 +190,7 @@ func (T *Config) ListenAndServe() error {
 	b.Queue(func() error {
 		log.Print("listening on :5432")
 		return gat.ListenAndServe("tcp", ":5432", frontends.AcceptOptions{
+			SSLConfig: sslConfig,
 			AllowedStartupOptions: []strutil.CIString{
 				strutil.MakeCIString("client_encoding"),
 				strutil.MakeCIString("datestyle"),
