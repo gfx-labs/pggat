@@ -3,6 +3,7 @@ package pool
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,6 +24,8 @@ type Pool struct {
 	options Options
 
 	closed chan struct{}
+
+	backingOff atomic.Bool
 
 	recipes         map[string]*recipe.Recipe
 	clients         map[uuid.UUID]*Client
@@ -145,12 +148,24 @@ func (T *Pool) removeRecipe(name string) {
 
 func (T *Pool) scaleUp() {
 	backoff := T.options.ServerReconnectInitialTime
+	backingOff := false
+
+	defer func() {
+		if backingOff {
+			T.backingOff.Store(false)
+		}
+	}()
 
 	for {
 		select {
 		case <-T.closed:
 			return
 		default:
+		}
+
+		if !backingOff && T.backingOff.Load() {
+			// already in backoff
+			return
 		}
 
 		name, r := func() (string, *recipe.Recipe) {
@@ -182,6 +197,13 @@ func (T *Pool) scaleUp() {
 		if backoff == 0 {
 			// no backoff
 			return
+		}
+
+		if !backingOff {
+			if T.backingOff.Swap(true) {
+				return
+			}
+			backingOff = true
 		}
 
 		time.Sleep(backoff)
@@ -268,7 +290,7 @@ func (T *Pool) acquireServer(client *Client) *Server {
 	}
 }
 
-func (T *Pool) releaseServer(server *Server) {
+func (T *Pool) releaseServerSlow(server *Server) {
 	if T.options.ServerResetQuery != "" {
 		server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
 
@@ -277,6 +299,18 @@ func (T *Pool) releaseServer(server *Server) {
 			T.removeServer(server)
 			return
 		}
+	}
+
+	server.SetState(metrics.ConnStateIdle, uuid.Nil)
+
+	T.options.Pooler.Release(server.GetID())
+}
+
+func (T *Pool) releaseServer(server *Server) {
+	if T.options.ServerResetQuery != "" {
+		// we will have to query server, fallback to slow path
+		go T.releaseServerSlow(server)
+		return
 	}
 
 	server.SetState(metrics.ConnStateIdle, uuid.Nil)
@@ -335,7 +369,7 @@ func (T *Pool) serve(client *Client, initialize bool) error {
 			if serverErr != nil {
 				T.removeServer(server)
 			} else {
-				T.releaseServer(server)
+				T.releaseServerSlow(server)
 			}
 			server = nil
 		}
@@ -362,7 +396,7 @@ func (T *Pool) serve(client *Client, initialize bool) error {
 	for {
 		if server != nil && T.options.ReleaseAfterTransaction {
 			client.SetState(metrics.ConnStateIdle, uuid.Nil)
-			go T.releaseServer(server) // TODO(garet) does this need to be a goroutine
+			T.releaseServer(server) // TODO(garet) does this need to be a goroutine
 			server = nil
 		}
 
