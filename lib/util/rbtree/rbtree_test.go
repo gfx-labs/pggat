@@ -173,3 +173,33 @@ func TestRBTree_Stress(t *testing.T) {
 		_ = v
 	}
 }
+
+func TestRBTree_Min2(t *testing.T) {
+	tree := new(RBTree[int, struct{}])
+
+	const n = 100000
+
+	for i := 0; i < n; i++ {
+		tree.Set(i, struct{}{})
+	}
+
+	for i := 0; i < n; i++ {
+		k, _, ok := tree.Min()
+		if !ok {
+			t.Error("expected tree to have min value")
+			return
+		}
+
+		if k != i {
+			t.Error("out of order")
+			return
+		}
+
+		tree.Delete(k)
+	}
+
+	_, _, ok := tree.Min()
+	if ok {
+		t.Error("expected no more values")
+	}
+}

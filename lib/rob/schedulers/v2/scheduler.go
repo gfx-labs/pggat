@@ -8,7 +8,6 @@ import (
 	"pggat/lib/util/maps"
 	"pggat/lib/util/pools"
 	"sync"
-	"tuxpa.in/a/zlog/log"
 )
 
 type Scheduler struct {
@@ -38,7 +37,6 @@ func (T *Scheduler) NewWorker() uuid.UUID {
 	T.sinks[worker] = s
 
 	if len(T.backlog) > 0 {
-		log.Printf("%p adding %d jobs from backlog", T, len(T.backlog))
 		s.Enqueue(T.backlog...)
 		T.backlog = T.backlog[:0]
 		return worker
@@ -94,9 +92,6 @@ func (T *Scheduler) tryAcquire(j job.Concurrent) uuid.UUID {
 	}
 
 	for id, v := range T.sinks {
-		if id == affinity {
-			continue
-		}
 		if v.Acquire(j) {
 			// set affinity
 			T.affinity.Store(j.User, id)
@@ -124,10 +119,6 @@ func (T *Scheduler) enqueue(j job.Stalled) {
 	}
 
 	for id, v := range T.sinks {
-		if id == affinity {
-			continue
-		}
-
 		v.Enqueue(j)
 		T.affinity.Store(j.User, id)
 		return
@@ -136,7 +127,6 @@ func (T *Scheduler) enqueue(j job.Stalled) {
 	// add to backlog
 	T.bmu.Lock()
 	defer T.bmu.Unlock()
-	log.Printf("%p adding to backlog", T)
 	T.backlog = append(T.backlog, j)
 }
 
