@@ -281,21 +281,7 @@ func (T *Pool) acquireServer(client *Client) *Server {
 		if serverID == uuid.Nil {
 			// TODO(garet) can this be run on same thread and only create a goroutine if scaling is possible?
 			go T.scaleUp()
-			done := make(chan struct{})
-			go func() {
-				start := time.Now()
-				for {
-					time.Sleep(1 * time.Second)
-					select {
-					case <-done:
-						return
-					default:
-					}
-					log.Printf("still waiting after %d in pool %p", time.Since(start), T)
-				}
-			}()
 			serverID = T.options.Pooler.Acquire(client.GetID(), SyncModeBlocking)
-			close(done)
 		}
 
 		T.mu.RLock()

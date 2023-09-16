@@ -8,6 +8,7 @@ import (
 	"pggat/lib/util/maps"
 	"pggat/lib/util/pools"
 	"sync"
+	"tuxpa.in/a/zlog/log"
 )
 
 type Scheduler struct {
@@ -36,16 +37,10 @@ func (T *Scheduler) NewWorker() uuid.UUID {
 	}
 	T.sinks[worker] = s
 
-	if func() bool {
-		T.bmu.Lock()
-		defer T.bmu.Unlock()
-		if len(T.backlog) > 0 {
-			s.Enqueue(T.backlog...)
-			T.backlog = T.backlog[:0]
-			return true
-		}
-		return false
-	}() {
+	if len(T.backlog) > 0 {
+		log.Printf("%p adding %d jobs from backlog", T, len(T.backlog))
+		s.Enqueue(T.backlog...)
+		T.backlog = T.backlog[:0]
 		return worker
 	}
 
@@ -54,14 +49,10 @@ func (T *Scheduler) NewWorker() uuid.UUID {
 }
 
 func (T *Scheduler) DeleteWorker(worker uuid.UUID) {
-	var s *sink.Sink
-	var ok bool
-	func() {
-		T.mu.Lock()
-		defer T.mu.Unlock()
-		s, ok = T.sinks[worker]
-		delete(T.sinks, worker)
-	}()
+	T.mu.Lock()
+	defer T.mu.Unlock()
+	s, ok := T.sinks[worker]
+	delete(T.sinks, worker)
 	if !ok {
 		return
 	}
@@ -70,7 +61,11 @@ func (T *Scheduler) DeleteWorker(worker uuid.UUID) {
 	jobs := s.StealAll()
 
 	for _, j := range jobs {
-		T.Enqueue(j)
+		if id := T.tryAcquire(j.Concurrent); id != uuid.Nil {
+			j.Ready <- id
+			continue
+		}
+		T.enqueue(j)
 	}
 }
 
@@ -88,11 +83,8 @@ func (T *Scheduler) DeleteUser(user uuid.UUID) {
 	}
 }
 
-func (T *Scheduler) TryAcquire(j job.Concurrent) uuid.UUID {
+func (T *Scheduler) tryAcquire(j job.Concurrent) uuid.UUID {
 	affinity, _ := T.affinity.Load(j.User)
-
-	T.mu.RLock()
-	defer T.mu.RUnlock()
 
 	// try affinity first
 	if v, ok := T.sinks[affinity]; ok {
@@ -115,11 +107,15 @@ func (T *Scheduler) TryAcquire(j job.Concurrent) uuid.UUID {
 	return uuid.Nil
 }
 
-func (T *Scheduler) Enqueue(j job.Stalled) {
-	affinity, _ := T.affinity.Load(j.User)
-
+func (T *Scheduler) TryAcquire(j job.Concurrent) uuid.UUID {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
+
+	return T.tryAcquire(j)
+}
+
+func (T *Scheduler) enqueue(j job.Stalled) {
+	affinity, _ := T.affinity.Load(j.User)
 
 	// try affinity first
 	if v, ok := T.sinks[affinity]; ok {
@@ -140,7 +136,17 @@ func (T *Scheduler) Enqueue(j job.Stalled) {
 	// add to backlog
 	T.bmu.Lock()
 	defer T.bmu.Unlock()
+	log.Printf("%p adding to backlog", T)
 	T.backlog = append(T.backlog, j)
+}
+
+func (T *Scheduler) Enqueue(j ...job.Stalled) {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+
+	for _, jj := range j {
+		T.enqueue(jj)
+	}
 }
 
 func (T *Scheduler) Acquire(user uuid.UUID, mode rob.SyncMode) uuid.UUID {
