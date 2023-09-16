@@ -2,6 +2,7 @@ package sink
 
 import (
 	"github.com/google/uuid"
+	"log"
 	"sync"
 	"time"
 
@@ -33,6 +34,7 @@ func NewSink(id uuid.UUID) *Sink {
 
 func (T *Sink) schedule(j job.Stalled) bool {
 	if T.active == j.User {
+		log.Println("couldn't schedule because user is active")
 		return false
 	}
 
@@ -60,6 +62,7 @@ func (T *Sink) schedule(j job.Stalled) bool {
 		}
 
 		if s.User == j.User {
+			log.Println("couldn't schedule because user is scheduled")
 			return false
 		}
 		stride += 1
