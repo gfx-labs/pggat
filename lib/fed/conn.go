@@ -72,12 +72,12 @@ func (T *netConn) ReadPacket(typed bool) (Packet, error) {
 		return nil, err
 	}
 	if typed {
-		_, err := T.reader.Read(T.headerBuf[:])
+		_, err := io.ReadFull(&T.reader, T.headerBuf[:])
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		_, err := T.reader.Read(T.headerBuf[1:])
+		_, err := io.ReadFull(&T.reader, T.headerBuf[1:])
 		if err != nil {
 			return nil, err
 		}
@@ -89,7 +89,7 @@ func (T *netConn) ReadPacket(typed bool) (Packet, error) {
 	copy(p, T.headerBuf[:])
 
 	packet := Packet(p)
-	_, err := T.reader.Read(packet.Payload())
+	_, err := io.ReadFull(&T.reader, packet.Payload())
 	if err != nil {
 		return nil, err
 	}
