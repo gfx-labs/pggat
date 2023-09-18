@@ -3,6 +3,7 @@ package pool
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,6 +25,9 @@ type Pool struct {
 
 	closed chan struct{}
 
+	pendingCount atomic.Int64
+	pending      chan struct{}
+
 	recipes         map[string]*recipe.Recipe
 	clients         map[uuid.UUID]*Client
 	clientsByKey    map[[8]byte]*Client
@@ -35,12 +39,12 @@ type Pool struct {
 func NewPool(options Options) *Pool {
 	p := &Pool{
 		closed:  make(chan struct{}),
+		pending: make(chan struct{}, 1),
 		options: options,
 	}
 
-	if options.ServerIdleTimeout != 0 {
-		go p.idleLoop()
-	}
+	s := NewScaler(p)
+	go s.Run()
 
 	return p
 }
@@ -62,33 +66,6 @@ func (T *Pool) idlest() (server *Server, at time.Time) {
 	}
 
 	return
-}
-
-func (T *Pool) idleLoop() {
-	for {
-		select {
-		case <-T.closed:
-			return
-		default:
-		}
-
-		var wait time.Duration
-
-		now := time.Now()
-		var idlest *Server
-		var idle time.Time
-		for idlest, idle = T.idlest(); idlest != nil && now.Sub(idle) > T.options.ServerIdleTimeout; idlest, idle = T.idlest() {
-			T.removeServer(idlest)
-		}
-
-		if idlest == nil {
-			wait = T.options.ServerIdleTimeout
-		} else {
-			wait = idle.Add(T.options.ServerIdleTimeout).Sub(now)
-		}
-
-		time.Sleep(wait)
-	}
 }
 
 func (T *Pool) GetCredentials() auth.Credentials {
@@ -143,56 +120,20 @@ func (T *Pool) removeRecipe(name string) {
 	}
 }
 
-func (T *Pool) scaleUp() {
-	backoff := T.options.ServerReconnectInitialTime
+func (T *Pool) scaleUpL0() (string, *recipe.Recipe) {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
 
-	for {
-		select {
-		case <-T.closed:
-			return
-		default:
-		}
-
-		name, r := func() (string, *recipe.Recipe) {
-			T.mu.RLock()
-			defer T.mu.RUnlock()
-
-			for name, r := range T.recipes {
-				if r.Allocate() {
-					return name, r
-				}
-			}
-
-			if len(T.servers) > 0 {
-				// don't retry this, there are other servers available
-				backoff = 0
-			}
-			return "", nil
-		}()
-
-		if r != nil {
-			err := T.scaleUpL1(name, r)
-			if err == nil {
-				return
-			}
-
-			log.Printf("failed to dial server: %v", err)
-		}
-
-		if backoff == 0 {
-			// no backoff
-			return
-		}
-
-		log.Printf("failed to dial server. trying again in %v", backoff)
-
-		time.Sleep(backoff)
-
-		backoff *= 2
-		if T.options.ServerReconnectMaxTime != 0 && backoff > T.options.ServerReconnectMaxTime {
-			backoff = T.options.ServerReconnectMaxTime
+	for name, r := range T.recipes {
+		if r.Allocate() {
+			return name, r
 		}
 	}
+
+	if len(T.servers) > 0 {
+		return "", nil
+	}
+	return "", nil
 }
 
 func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) error {
@@ -240,6 +181,21 @@ func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) error {
 	return nil
 }
 
+func (T *Pool) scaleUp() bool {
+	name, r := T.scaleUpL0()
+	if r == nil {
+		return false
+	}
+
+	err := T.scaleUpL1(name, r)
+	if err != nil {
+		log.Printf("failed to dial server: %v", err)
+		return false
+	}
+
+	return true
+}
+
 func (T *Pool) removeServer(server *Server) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
@@ -262,15 +218,20 @@ func (T *Pool) acquireServer(client *Client) *Server {
 	for {
 		serverID := T.options.Pooler.Acquire(client.GetID(), SyncModeNonBlocking)
 		if serverID == uuid.Nil {
-			// TODO(garet) can this be run on same thread and only create a goroutine if scaling is possible?
-			go T.scaleUp()
+			T.pendingCount.Add(1)
+			select {
+			case T.pending <- struct{}{}:
+			default:
+			}
 			serverID = T.options.Pooler.Acquire(client.GetID(), SyncModeBlocking)
+			T.pendingCount.Add(-1)
 		}
 
 		T.mu.RLock()
 		server, ok := T.servers[serverID]
 		T.mu.RUnlock()
 		if !ok {
+			log.Println("here")
 			T.options.Pooler.DeleteServer(serverID)
 			continue
 		}

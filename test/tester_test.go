@@ -6,9 +6,6 @@ import (
 	"fmt"
 	"net"
 	_ "net/http/pprof"
-	"strconv"
-	"testing"
-
 	"pggat/lib/auth"
 	"pggat/lib/auth/credentials"
 	"pggat/lib/bouncer/backends/v0"
@@ -21,6 +18,8 @@ import (
 	"pggat/lib/gat/pool/recipe"
 	"pggat/test"
 	"pggat/test/tests"
+	"strconv"
+	"testing"
 )
 
 func daisyChain(creds auth.Credentials, control dialer.Net, n int) (dialer.Net, error) {
