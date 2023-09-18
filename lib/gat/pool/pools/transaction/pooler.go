@@ -12,16 +12,16 @@ type Pooler struct {
 	s schedulers.Scheduler
 }
 
-func (T *Pooler) NewClient() uuid.UUID {
-	return T.s.NewUser()
+func (T *Pooler) AddClient(client uuid.UUID) {
+	T.s.AddUser(client)
 }
 
 func (T *Pooler) DeleteClient(client uuid.UUID) {
 	T.s.DeleteUser(client)
 }
 
-func (T *Pooler) NewServer() uuid.UUID {
-	return T.s.NewWorker()
+func (T *Pooler) AddServer(server uuid.UUID) {
+	T.s.AddWorker(server)
 }
 
 func (T *Pooler) DeleteServer(server uuid.UUID) {

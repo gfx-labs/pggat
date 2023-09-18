@@ -212,33 +212,40 @@ func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) error {
 		return err
 	}
 
-	T.mu.Lock()
-	defer T.mu.Unlock()
-	if T.recipes[name] != r {
-		// recipe was removed
-		r.Free()
-		return errors.New("recipe was removed")
+	server, err := func() (*Server, error) {
+		T.mu.Lock()
+		defer T.mu.Unlock()
+		if T.recipes[name] != r {
+			// recipe was removed
+			r.Free()
+			return nil, errors.New("recipe was removed")
+		}
+
+		server := NewServer(
+			T.options,
+			name,
+			conn,
+			params.InitialParameters,
+			params.BackendKey,
+		)
+
+		if T.servers == nil {
+			T.servers = make(map[uuid.UUID]*Server)
+		}
+		T.servers[server.GetID()] = server
+
+		if T.serversByRecipe == nil {
+			T.serversByRecipe = make(map[string][]*Server)
+		}
+		T.serversByRecipe[name] = append(T.serversByRecipe[name], server)
+		return server, nil
+	}()
+
+	if err != nil {
+		return err
 	}
 
-	id := T.options.Pooler.NewServer()
-	server := NewServer(
-		T.options,
-		id,
-		name,
-		conn,
-		params.InitialParameters,
-		params.BackendKey,
-	)
-
-	if T.servers == nil {
-		T.servers = make(map[uuid.UUID]*Server)
-	}
-	T.servers[id] = server
-
-	if T.serversByRecipe == nil {
-		T.serversByRecipe = make(map[string][]*Server)
-	}
-	T.serversByRecipe[name] = append(T.serversByRecipe[name], server)
+	T.options.Pooler.AddServer(server.GetID())
 	return nil
 }
 
@@ -273,7 +280,7 @@ func (T *Pool) acquireServer(client *Client) *Server {
 		server, ok := T.servers[serverID]
 		T.mu.RUnlock()
 		if !ok {
-			T.options.Pooler.Release(serverID)
+			T.options.Pooler.DeleteServer(serverID)
 			continue
 		}
 		return server
@@ -416,6 +423,7 @@ func (T *Pool) addClient(client *Client) {
 		T.clientsByKey = make(map[[8]byte]*Client)
 	}
 	T.clientsByKey[client.GetBackendKey()] = client
+	T.options.Pooler.AddClient(client.GetID())
 }
 
 func (T *Pool) removeClient(client *Client) {
@@ -426,6 +434,7 @@ func (T *Pool) removeClient(client *Client) {
 }
 
 func (T *Pool) removeClientL1(client *Client) {
+	T.options.Pooler.DeleteClient(client.GetID())
 	_ = client.conn.Close()
 	delete(T.clients, client.GetID())
 	delete(T.clientsByKey, client.GetBackendKey())

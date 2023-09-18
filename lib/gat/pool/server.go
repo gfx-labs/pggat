@@ -1,8 +1,6 @@
 package pool
 
 import (
-	"github.com/google/uuid"
-
 	"pggat/lib/fed"
 	"pggat/lib/middleware"
 	"pggat/lib/middleware/interceptor"
@@ -22,7 +20,6 @@ type Server struct {
 
 func NewServer(
 	options Options,
-	id uuid.UUID,
 	recipe string,
 	conn fed.Conn,
 	initialParameters map[strutil.CIString]string,
@@ -53,7 +50,6 @@ func NewServer(
 
 	return &Server{
 		Conn: MakeConn(
-			id,
 			conn,
 			initialParameters,
 			backendKey,

@@ -10,10 +10,10 @@ const (
 )
 
 type Pooler interface {
-	NewClient() uuid.UUID
+	AddClient(id uuid.UUID)
 	DeleteClient(client uuid.UUID)
 
-	NewServer() uuid.UUID
+	AddServer(id uuid.UUID)
 	DeleteServer(server uuid.UUID)
 
 	Acquire(client uuid.UUID, sync SyncMode) (server uuid.UUID)

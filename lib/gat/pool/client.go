@@ -1,8 +1,6 @@
 package pool
 
 import (
-	"github.com/google/uuid"
-
 	"pggat/lib/fed"
 	"pggat/lib/middleware"
 	"pggat/lib/middleware/interceptor"
@@ -50,7 +48,6 @@ func NewClient(
 
 	return &Client{
 		Conn: MakeConn(
-			uuid.New(),
 			conn,
 			initialParameters,
 			backendKey,

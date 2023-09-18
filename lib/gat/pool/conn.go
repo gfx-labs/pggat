@@ -38,13 +38,12 @@ type Conn struct {
 }
 
 func MakeConn(
-	id uuid.UUID,
 	conn fed.Conn,
 	initialParameters map[strutil.CIString]string,
 	backendKey [8]byte,
 ) Conn {
 	return Conn{
-		id:                id,
+		id:                uuid.New(),
 		conn:              conn,
 		rw:                conn,
 		initialParameters: initialParameters,

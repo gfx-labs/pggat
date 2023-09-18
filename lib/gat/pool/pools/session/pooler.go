@@ -16,17 +16,13 @@ type Pooler struct {
 	mu      sync.Mutex
 }
 
-func (*Pooler) NewClient() uuid.UUID {
-	return uuid.New()
-}
+func (*Pooler) AddClient(_ uuid.UUID) {}
 
 func (*Pooler) DeleteClient(_ uuid.UUID) {
 	// nothing to do
 }
 
-func (T *Pooler) NewServer() uuid.UUID {
-	server := uuid.New()
-
+func (T *Pooler) AddServer(server uuid.UUID) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -40,8 +36,6 @@ func (T *Pooler) NewServer() uuid.UUID {
 	if T.ready != nil {
 		T.ready.Signal()
 	}
-
-	return server
 }
 
 func (T *Pooler) DeleteServer(server uuid.UUID) {

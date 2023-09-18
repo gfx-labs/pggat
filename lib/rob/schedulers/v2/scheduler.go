@@ -23,9 +23,7 @@ type Scheduler struct {
 	mu      sync.RWMutex
 }
 
-func (T *Scheduler) NewWorker() uuid.UUID {
-	worker := uuid.New()
-
+func (T *Scheduler) AddWorker(worker uuid.UUID) {
 	s := sink.NewSink(worker)
 
 	T.mu.Lock()
@@ -39,11 +37,11 @@ func (T *Scheduler) NewWorker() uuid.UUID {
 	if len(T.backlog) > 0 {
 		s.Enqueue(T.backlog...)
 		T.backlog = T.backlog[:0]
-		return worker
+		return
 	}
 
 	T.stealFor(worker)
-	return worker
+	return
 }
 
 func (T *Scheduler) DeleteWorker(worker uuid.UUID) {
@@ -67,9 +65,7 @@ func (T *Scheduler) DeleteWorker(worker uuid.UUID) {
 	}
 }
 
-func (*Scheduler) NewUser() uuid.UUID {
-	return uuid.New()
-}
+func (*Scheduler) AddUser(_ uuid.UUID) {}
 
 func (T *Scheduler) DeleteUser(user uuid.UUID) {
 	T.affinity.Delete(user)
