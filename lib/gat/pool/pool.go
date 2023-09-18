@@ -3,7 +3,6 @@ package pool
 import (
 	"errors"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,8 +23,6 @@ type Pool struct {
 	options Options
 
 	closed chan struct{}
-
-	scalingUp atomic.Bool
 
 	recipes         map[string]*recipe.Recipe
 	clients         map[uuid.UUID]*Client
@@ -147,12 +144,6 @@ func (T *Pool) removeRecipe(name string) {
 }
 
 func (T *Pool) scaleUp() {
-	if T.scalingUp.Swap(true) {
-		// another person is trying to scale up this pool already
-		return
-	}
-	defer T.scalingUp.Store(false)
-
 	backoff := T.options.ServerReconnectInitialTime
 
 	for {
