@@ -23,7 +23,7 @@ const (
 type Options struct {
 	Credentials auth.Credentials
 
-	Pooler Pooler
+	NewPooler func() Pooler
 	// ReleaseAfterTransaction toggles whether servers should be released and re acquired after each transaction.
 	// Use false for lower latency
 	// Use true for better balancing

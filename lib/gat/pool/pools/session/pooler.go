@@ -16,6 +16,10 @@ type Pooler struct {
 	mu      sync.Mutex
 }
 
+func NewPooler() pool.Pooler {
+	return new(Pooler)
+}
+
 func (*Pooler) AddClient(_ uuid.UUID) {}
 
 func (*Pooler) DeleteClient(_ uuid.UUID) {

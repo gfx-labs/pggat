@@ -12,6 +12,10 @@ type Pooler struct {
 	s schedulers.Scheduler
 }
 
+func NewPooler() pool.Pooler {
+	return new(Pooler)
+}
+
 func (T *Pooler) AddClient(client uuid.UUID) {
 	T.s.AddUser(client)
 }

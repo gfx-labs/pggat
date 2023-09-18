@@ -22,6 +22,7 @@ import (
 
 type Pool struct {
 	options Options
+	pooler  Pooler
 
 	closed chan struct{}
 
@@ -37,10 +38,20 @@ type Pool struct {
 }
 
 func NewPool(options Options) *Pool {
+	if options.NewPooler == nil {
+		panic("expected new pooler func")
+	}
+	pooler := options.NewPooler()
+	if pooler == nil {
+		panic("expected pooler")
+	}
+
 	p := &Pool{
+		options: options,
+		pooler:  pooler,
+
 		closed:  make(chan struct{}),
 		pending: make(chan struct{}, 1),
-		options: options,
 	}
 
 	s := NewScaler(p)
@@ -177,7 +188,7 @@ func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) error {
 		return err
 	}
 
-	T.options.Pooler.AddServer(server.GetID())
+	T.pooler.AddServer(server.GetID())
 	return nil
 }
 
@@ -205,7 +216,7 @@ func (T *Pool) removeServer(server *Server) {
 
 func (T *Pool) removeServerL1(server *Server) {
 	delete(T.servers, server.GetID())
-	T.options.Pooler.DeleteServer(server.GetID())
+	T.pooler.DeleteServer(server.GetID())
 	_ = server.GetConn().Close()
 	if T.serversByRecipe != nil {
 		T.serversByRecipe[server.GetRecipe()] = slices.Remove(T.serversByRecipe[server.GetRecipe()], server)
@@ -216,14 +227,14 @@ func (T *Pool) acquireServer(client *Client) *Server {
 	client.SetState(metrics.ConnStateAwaitingServer, uuid.Nil)
 
 	for {
-		serverID := T.options.Pooler.Acquire(client.GetID(), SyncModeNonBlocking)
+		serverID := T.pooler.Acquire(client.GetID(), SyncModeNonBlocking)
 		if serverID == uuid.Nil {
 			T.pendingCount.Add(1)
 			select {
 			case T.pending <- struct{}{}:
 			default:
 			}
-			serverID = T.options.Pooler.Acquire(client.GetID(), SyncModeBlocking)
+			serverID = T.pooler.Acquire(client.GetID(), SyncModeBlocking)
 			T.pendingCount.Add(-1)
 		}
 
@@ -231,7 +242,7 @@ func (T *Pool) acquireServer(client *Client) *Server {
 		server, ok := T.servers[serverID]
 		T.mu.RUnlock()
 		if !ok {
-			T.options.Pooler.DeleteServer(serverID)
+			T.pooler.DeleteServer(serverID)
 			continue
 		}
 		return server
@@ -251,7 +262,7 @@ func (T *Pool) releaseServer(server *Server) {
 
 	server.SetState(metrics.ConnStateIdle, uuid.Nil)
 
-	T.options.Pooler.Release(server.GetID())
+	T.pooler.Release(server.GetID())
 }
 
 func (T *Pool) Serve(
@@ -374,7 +385,7 @@ func (T *Pool) addClient(client *Client) {
 		T.clientsByKey = make(map[[8]byte]*Client)
 	}
 	T.clientsByKey[client.GetBackendKey()] = client
-	T.options.Pooler.AddClient(client.GetID())
+	T.pooler.AddClient(client.GetID())
 }
 
 func (T *Pool) removeClient(client *Client) {
@@ -385,7 +396,7 @@ func (T *Pool) removeClient(client *Client) {
 }
 
 func (T *Pool) removeClientL1(client *Client) {
-	T.options.Pooler.DeleteClient(client.GetID())
+	T.pooler.DeleteClient(client.GetID())
 	_ = client.conn.Close()
 	delete(T.clients, client.GetID())
 	delete(T.clientsByKey, client.GetBackendKey())

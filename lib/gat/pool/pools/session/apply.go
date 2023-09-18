@@ -5,7 +5,7 @@ import (
 )
 
 func Apply(options pool.Options) pool.Options {
-	options.Pooler = new(Pooler)
+	options.NewPooler = NewPooler
 	options.ParameterStatusSync = pool.ParameterStatusSyncInitial
 	options.ExtendedQuerySync = false
 	return options
