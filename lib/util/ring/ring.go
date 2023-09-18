@@ -104,6 +104,7 @@ func (r *Ring[T]) PopFront() (T, bool) {
 	}
 
 	front := r.buf[r.head]
+	r.buf[r.head] = *new(T)
 	r.incHead()
 	return front, true
 }
@@ -114,7 +115,9 @@ func (r *Ring[T]) PopBack() (T, bool) {
 	}
 
 	r.decTail()
-	return r.buf[r.tail], true
+	back := r.buf[r.tail]
+	r.buf[r.tail] = *new(T)
+	return back, true
 }
 
 func (r *Ring[T]) Clear() {

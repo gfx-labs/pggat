@@ -14,3 +14,16 @@ func Remove[T comparable](slice []T, item T) []T {
 
 	return slice
 }
+
+// Delete is similar to Remove but leaves a *new(T) in the old slice, allowing the value to be GC'd
+func Delete[T comparable](slice []T, item T) []T {
+	for i, s := range slice {
+		if s == item {
+			copy(slice[i:], slice[i+1:])
+			slice[len(slice)-1] = *new(T)
+			return slice[:len(slice)-1]
+		}
+	}
+
+	return slice
+}

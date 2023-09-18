@@ -14,6 +14,7 @@ type RBTree[K order, V any] struct {
 }
 
 func (T *RBTree[K, V]) free(n *node[K, V]) {
+	*n = node[K, V]{}
 	T.pool = append(T.pool, n)
 }
 
@@ -21,7 +22,6 @@ func (T *RBTree[K, V]) alloc() *node[K, V] {
 	if len(T.pool) > 0 {
 		v := T.pool[len(T.pool)-1]
 		T.pool = T.pool[:len(T.pool)-1]
-		*v = node[K, V]{}
 		return v
 	}
 	return new(node[K, V])

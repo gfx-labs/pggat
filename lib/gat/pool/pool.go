@@ -219,7 +219,7 @@ func (T *Pool) removeServerL1(server *Server) {
 	T.pooler.DeleteServer(server.GetID())
 	_ = server.GetConn().Close()
 	if T.serversByRecipe != nil {
-		T.serversByRecipe[server.GetRecipe()] = slices.Remove(T.serversByRecipe[server.GetRecipe()], server)
+		T.serversByRecipe[server.GetRecipe()] = slices.Delete(T.serversByRecipe[server.GetRecipe()], server)
 	}
 }
 
