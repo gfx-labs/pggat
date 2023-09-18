@@ -325,6 +325,19 @@ func (T *Server) ListenAndServe() error {
 		}
 	}()
 
+	// load certificate
+	var sslConfig *tls.Config
+	certificate, err := tls.LoadX509KeyPair(T.config.TLSCrtFile, T.config.TLSKeyFile)
+	if err == nil {
+		sslConfig = &tls.Config{
+			Certificates: []tls.Certificate{
+				certificate,
+			},
+		}
+	} else {
+		log.Printf("failed to load certificate, ssl is disabled")
+	}
+
 	var bank flip.Bank
 
 	bank.Queue(func() error {
@@ -347,7 +360,7 @@ func (T *Server) ListenAndServe() error {
 				strutil.MakeCIString("extra_float_digits"),
 				strutil.MakeCIString("options"),
 			},
-			// TODO(garet)
+			SSLConfig: sslConfig,
 		}, &T.pools)
 	})
 

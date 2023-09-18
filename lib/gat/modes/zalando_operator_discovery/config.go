@@ -1,38 +1,30 @@
 package zalando_operator_discovery
 
 import (
-	"os"
-
+	"gfx.cafe/util/go/gun"
 	"k8s.io/client-go/rest"
 )
 
 type Config struct {
-	Namespace                   string
-	ConfigMapName               string
-	OperatorConfigurationObject string
+	Namespace                   string `env:"PGGAT_NAMESPACE" default:"default"`
+	ConfigMapName               string `env:"CONFIG_MAP_NAME"`
+	OperatorConfigurationObject string `env:"POSTGRES_OPERATOR_CONFIGURATION_OBJECT"`
+	TLSCrtFile                  string `env:"PGGAT_TLS_CRT_FILE" default:"/etc/ssl/certs/pgbouncer.crt"`
+	TLSKeyFile                  string `env:"PGGAT_TLS_KEY_FILE" default:"/etc/ssl/certs/pgbouncer.key"`
 
 	Rest *rest.Config
 }
 
 func Load() (*Config, error) {
-	namespace := os.Getenv("PGGAT_NAMESPACE")
-	if namespace == "" {
-		namespace = "default"
-	}
-	configMapName := os.Getenv("CONFIG_MAP_NAME")
-	operatorConfigurationObject := os.Getenv("POSTGRES_OPERATOR_CONFIGURATION_OBJECT")
+	var config Config
+	gun.Load(&config)
 
-	restConfig, err := rest.InClusterConfig()
+	var err error
+	config.Rest, err = rest.InClusterConfig()
 	if err != nil {
 		return nil, err
 	}
-	return &Config{
-		Namespace:                   namespace,
-		ConfigMapName:               configMapName,
-		OperatorConfigurationObject: operatorConfigurationObject,
-
-		Rest: restConfig,
-	}, nil
+	return &config, nil
 }
 
 func (T *Config) ListenAndServe() error {
