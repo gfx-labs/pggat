@@ -95,7 +95,7 @@ func (T *Config) ListenAndServe() error {
 			}
 
 			for _, dbname := range cluster.DBNames {
-				poolOptions := pool.Options{
+				baseOptions := pool.Options{
 					Credentials:                creds,
 					ServerReconnectInitialTime: 5 * time.Second,
 					ServerReconnectMaxTime:     5 * time.Second,
@@ -108,11 +108,12 @@ func (T *Config) ListenAndServe() error {
 						strutil.MakeCIString("application_name"),
 					},
 				}
+				var poolOptions pool.Options
 				if T.PoolMode == "session" {
-					poolOptions.ServerResetQuery = "DISCARD ALL"
-					poolOptions = session.Apply(poolOptions)
+					baseOptions.ServerResetQuery = "DISCARD ALL"
+					poolOptions = session.Apply(baseOptions)
 				} else {
-					poolOptions = transaction.Apply(poolOptions)
+					poolOptions = transaction.Apply(baseOptions)
 				}
 
 				p := pool.NewPool(poolOptions)
@@ -149,8 +150,14 @@ func (T *Config) ListenAndServe() error {
 					// change pool credentials
 					creds2 := creds
 					creds2.Username = user.Name + "_ro"
-					poolOptions2 := poolOptions
+					poolOptions2 := baseOptions
 					poolOptions2.Credentials = creds2
+
+					if T.PoolMode == "session" {
+						poolOptions2 = session.Apply(baseOptions)
+					} else {
+						poolOptions2 = transaction.Apply(baseOptions)
+					}
 
 					p2 := pool.NewPool(poolOptions2)
 

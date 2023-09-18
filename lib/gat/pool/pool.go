@@ -231,7 +231,6 @@ func (T *Pool) acquireServer(client *Client) *Server {
 		server, ok := T.servers[serverID]
 		T.mu.RUnlock()
 		if !ok {
-			log.Println("here")
 			T.options.Pooler.DeleteServer(serverID)
 			continue
 		}
