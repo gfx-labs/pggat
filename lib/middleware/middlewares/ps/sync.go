@@ -12,13 +12,16 @@ func sync(tracking []strutil.CIString, client fed.ReadWriter, c *Client, server 
 	value, hasValue := c.parameters[name]
 	expected, hasExpected := s.parameters[name]
 
+	var packet fed.Packet
+
 	if value == expected {
 		if !c.synced {
 			ps := packets.ParameterStatus{
 				Key:   name.String(),
 				Value: expected,
 			}
-			if err := client.WritePacket(ps.IntoPacket(nil)); err != nil {
+			packet = ps.IntoPacket(packet)
+			if err := client.WritePacket(packet); err != nil {
 				return err
 			}
 		}
@@ -49,7 +52,8 @@ func sync(tracking []strutil.CIString, client fed.ReadWriter, c *Client, server 
 			Key:   name.String(),
 			Value: expected,
 		}
-		if err := client.WritePacket(ps.IntoPacket(nil)); err != nil {
+		packet = ps.IntoPacket(packet)
+		if err := client.WritePacket(packet); err != nil {
 			return err
 		}
 	}

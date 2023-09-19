@@ -2,6 +2,7 @@ package pool
 
 import (
 	"pggat/lib/bouncer/backends/v0"
+	"pggat/lib/fed"
 	packets "pggat/lib/fed/packets/v3.0"
 	"pggat/lib/gat/metrics"
 	"pggat/lib/middleware/middlewares/eqp"
@@ -42,6 +43,8 @@ func SyncInitialParameters(options Options, client *Client, server *Server) (cli
 	clientParams := client.GetInitialParameters()
 	serverParams := server.GetInitialParameters()
 
+	var packet fed.Packet
+
 	for key, value := range clientParams {
 		// skip already set params
 		if serverParams[key] == value {
@@ -49,7 +52,8 @@ func SyncInitialParameters(options Options, client *Client, server *Server) (cli
 				Key:   key.String(),
 				Value: serverParams[key],
 			}
-			clientErr = client.GetConn().WritePacket(p.IntoPacket(nil))
+			packet = p.IntoPacket(packet)
+			clientErr = client.GetConn().WritePacket(packet)
 			if clientErr != nil {
 				return
 			}
@@ -66,7 +70,8 @@ func SyncInitialParameters(options Options, client *Client, server *Server) (cli
 			Key:   key.String(),
 			Value: value,
 		}
-		clientErr = client.GetConn().WritePacket(p.IntoPacket(nil))
+		packet = p.IntoPacket(packet)
+		clientErr = client.GetConn().WritePacket(packet)
 		if clientErr != nil {
 			return
 		}
@@ -96,7 +101,8 @@ func SyncInitialParameters(options Options, client *Client, server *Server) (cli
 			Key:   key.String(),
 			Value: value,
 		}
-		clientErr = client.GetConn().WritePacket(p.IntoPacket(nil))
+		packet = p.IntoPacket(packet)
+		clientErr = client.GetConn().WritePacket(packet)
 		if clientErr != nil {
 			return
 		}
