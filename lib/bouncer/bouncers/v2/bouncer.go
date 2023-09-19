@@ -16,7 +16,7 @@ func clientFail(ctx *backends.Context, client fed.ReadWriter, err perror.Error) 
 	_ = client.WritePacket(ctx.Packet)
 }
 
-func Bounce(client, server fed.ReadWriter, initialPacket fed.Packet) (clientError error, serverError error) {
+func Bounce(client, server fed.ReadWriter, initialPacket fed.Packet) (packet fed.Packet, clientError error, serverError error) {
 	ctx := backends.Context{
 		Server: server,
 		Packet: initialPacket,
@@ -30,6 +30,8 @@ func Bounce(client, server fed.ReadWriter, initialPacket fed.Packet) (clientErro
 	} else if serverError != nil {
 		clientFail(&ctx, client, perror.Wrap(serverError))
 	}
+
+	packet = ctx.Packet
 
 	return
 }

@@ -58,7 +58,7 @@ func TestQuery(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	clientErr, serverErr := bouncers.Bounce(client, server, initial)
+	_, clientErr, serverErr := bouncers.Bounce(client, server, initial)
 	if clientErr != nil {
 		t.Error(clientErr)
 	}

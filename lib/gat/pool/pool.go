@@ -364,7 +364,7 @@ func (T *Pool) serve(client *Client, initialized bool) error {
 			err, serverErr = Pair(T.options, client, server)
 		}
 		if err == nil && serverErr == nil {
-			err, serverErr = bouncers.Bounce(client.GetReadWriter(), server.GetReadWriter(), packet)
+			packet, err, serverErr = bouncers.Bounce(client.GetReadWriter(), server.GetReadWriter(), packet)
 		}
 		if serverErr != nil {
 			return serverErr

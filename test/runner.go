@@ -108,7 +108,7 @@ func (T *Runner) runModeL1(dialer dialer.Dialer, client *gsql.Client) error {
 			return err
 		}
 
-		clientErr, serverErr := bouncers.Bounce(client, server, p)
+		_, clientErr, serverErr := bouncers.Bounce(client, server, p)
 		if clientErr != nil {
 			return clientErr
 		}
