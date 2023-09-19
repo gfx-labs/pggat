@@ -5,20 +5,20 @@ import (
 	"errors"
 
 	"pggat/lib/auth"
-	"pggat/lib/fed"
 	packets "pggat/lib/fed/packets/v3.0"
 	"pggat/lib/perror"
 )
 
-func authenticationSASLInitial(client fed.Conn, creds auth.SASL) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {
+func authenticationSASLInitial(ctx *AuthenticateContext, creds auth.SASL) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {
 	// check which authentication method the client wants
-	packet, err2 := client.ReadPacket(true)
+	var err2 error
+	ctx.Packet, err2 = ctx.Conn.ReadPacket(true, ctx.Packet)
 	if err2 != nil {
 		err = perror.Wrap(err2)
 		return
 	}
 	var initialResponse packets.SASLInitialResponse
-	if !initialResponse.ReadFromPacket(packet) {
+	if !initialResponse.ReadFromPacket(ctx.Packet) {
 		err = packets.ErrBadFormat
 		return
 	}
@@ -41,14 +41,15 @@ func authenticationSASLInitial(client fed.Conn, creds auth.SASL) (tool auth.SASL
 	return
 }
 
-func authenticationSASLContinue(client fed.Conn, tool auth.SASLVerifier) (resp []byte, done bool, err perror.Error) {
-	packet, err2 := client.ReadPacket(true)
+func authenticationSASLContinue(ctx *AuthenticateContext, tool auth.SASLVerifier) (resp []byte, done bool, err perror.Error) {
+	var err2 error
+	ctx.Packet, err2 = ctx.Conn.ReadPacket(true, ctx.Packet)
 	if err2 != nil {
 		err = perror.Wrap(err2)
 		return
 	}
 	var authResp packets.AuthenticationResponse
-	if !authResp.ReadFromPacket(packet) {
+	if !authResp.ReadFromPacket(ctx.Packet) {
 		err = packets.ErrBadFormat
 		return
 	}
@@ -65,16 +66,17 @@ func authenticationSASLContinue(client fed.Conn, tool auth.SASLVerifier) (resp [
 	return
 }
 
-func authenticationSASL(client fed.Conn, creds auth.SASL) perror.Error {
+func authenticationSASL(ctx *AuthenticateContext, creds auth.SASL) perror.Error {
 	saslInitial := packets.AuthenticationSASL{
 		Mechanisms: creds.SupportedSASLMechanisms(),
 	}
-	err := perror.Wrap(client.WritePacket(saslInitial.IntoPacket()))
+	ctx.Packet = saslInitial.IntoPacket(ctx.Packet)
+	err := perror.Wrap(ctx.Conn.WritePacket(ctx.Packet))
 	if err != nil {
 		return err
 	}
 
-	tool, resp, done, err := authenticationSASLInitial(client, creds)
+	tool, resp, done, err := authenticationSASLInitial(ctx, creds)
 	if err != nil {
 		return err
 	}
@@ -82,20 +84,22 @@ func authenticationSASL(client fed.Conn, creds auth.SASL) perror.Error {
 	for {
 		if done {
 			final := packets.AuthenticationSASLFinal(resp)
-			err = perror.Wrap(client.WritePacket(final.IntoPacket()))
+			ctx.Packet = final.IntoPacket(ctx.Packet)
+			err = perror.Wrap(ctx.Conn.WritePacket(ctx.Packet))
 			if err != nil {
 				return err
 			}
 			break
 		} else {
 			cont := packets.AuthenticationSASLContinue(resp)
-			err = perror.Wrap(client.WritePacket(cont.IntoPacket()))
+			ctx.Packet = cont.IntoPacket(ctx.Packet)
+			err = perror.Wrap(ctx.Conn.WritePacket(ctx.Packet))
 			if err != nil {
 				return err
 			}
 		}
 
-		resp, done, err = authenticationSASLContinue(client, tool)
+		resp, done, err = authenticationSASLContinue(ctx, tool)
 		if err != nil {
 			return err
 		}
@@ -104,7 +108,7 @@ func authenticationSASL(client fed.Conn, creds auth.SASL) perror.Error {
 	return nil
 }
 
-func authenticationMD5(client fed.Conn, creds auth.MD5) perror.Error {
+func authenticationMD5(ctx *AuthenticateContext, creds auth.MD5) perror.Error {
 	var salt [4]byte
 	_, err := rand.Read(salt[:])
 	if err != nil {
@@ -113,19 +117,19 @@ func authenticationMD5(client fed.Conn, creds auth.MD5) perror.Error {
 	md5Initial := packets.AuthenticationMD5{
 		Salt: salt,
 	}
-	err = client.WritePacket(md5Initial.IntoPacket())
+	ctx.Packet = md5Initial.IntoPacket(ctx.Packet)
+	err = ctx.Conn.WritePacket(ctx.Packet)
 	if err != nil {
 		return perror.Wrap(err)
 	}
 
-	var packet fed.Packet
-	packet, err = client.ReadPacket(true)
+	ctx.Packet, err = ctx.Conn.ReadPacket(true, ctx.Packet)
 	if err != nil {
 		return perror.Wrap(err)
 	}
 
 	var pw packets.PasswordMessage
-	if !pw.ReadFromPacket(packet) {
+	if !pw.ReadFromPacket(ctx.Packet) {
 		return packets.ErrUnexpectedPacket
 	}
 
@@ -136,8 +140,8 @@ func authenticationMD5(client fed.Conn, creds auth.MD5) perror.Error {
 	return nil
 }
 
-func authenticate(client fed.Conn, options AuthenticateOptions) (params AuthenticateParams, err perror.Error) {
-	if options.Credentials == nil {
+func authenticate(ctx *AuthenticateContext) (params AuthenticateParams, err perror.Error) {
+	if ctx.Options.Credentials == nil {
 		err = perror.New(
 			perror.FATAL,
 			perror.InvalidPassword,
@@ -145,10 +149,10 @@ func authenticate(client fed.Conn, options AuthenticateOptions) (params Authenti
 		)
 		return
 	}
-	if credsSASL, ok := options.Credentials.(auth.SASL); ok {
-		err = authenticationSASL(client, credsSASL)
-	} else if credsMD5, ok := options.Credentials.(auth.MD5); ok {
-		err = authenticationMD5(client, credsMD5)
+	if credsSASL, ok := ctx.Options.Credentials.(auth.SASL); ok {
+		err = authenticationSASL(ctx, credsSASL)
+	} else if credsMD5, ok := ctx.Options.Credentials.(auth.MD5); ok {
+		err = authenticationMD5(ctx, credsMD5)
 	} else {
 		err = perror.New(
 			perror.FATAL,
@@ -162,7 +166,8 @@ func authenticate(client fed.Conn, options AuthenticateOptions) (params Authenti
 
 	// send auth Ok
 	authOk := packets.AuthenticationOk{}
-	if err = perror.Wrap(client.WritePacket(authOk.IntoPacket())); err != nil {
+	ctx.Packet = authOk.IntoPacket(ctx.Packet)
+	if err = perror.Wrap(ctx.Conn.WritePacket(ctx.Packet)); err != nil {
 		return
 	}
 
@@ -176,17 +181,18 @@ func authenticate(client fed.Conn, options AuthenticateOptions) (params Authenti
 	keyData := packets.BackendKeyData{
 		CancellationKey: params.BackendKey,
 	}
-	if err = perror.Wrap(client.WritePacket(keyData.IntoPacket())); err != nil {
+	ctx.Packet = keyData.IntoPacket(ctx.Packet)
+	if err = perror.Wrap(ctx.Conn.WritePacket(ctx.Packet)); err != nil {
 		return
 	}
 
 	return
 }
 
-func Authenticate(client fed.Conn, options AuthenticateOptions) (AuthenticateParams, perror.Error) {
-	params, err := authenticate(client, options)
+func Authenticate(ctx *AuthenticateContext) (AuthenticateParams, perror.Error) {
+	params, err := authenticate(ctx)
 	if err != nil {
-		fail(client, err)
+		fail(ctx.Packet, ctx.Conn, err)
 		return AuthenticateParams{}, err
 	}
 	return params, nil

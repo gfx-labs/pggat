@@ -16,8 +16,8 @@ func (T *Describe) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *Describe) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeDescribe, len(T.Target)+2)
+func (T *Describe) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = packet.Reset(TypeDescribe, len(T.Target)+2)
 	packet = packet.AppendUint8(T.Which)
 	packet = packet.AppendString(T.Target)
 	return packet

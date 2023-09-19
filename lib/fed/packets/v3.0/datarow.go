@@ -30,13 +30,13 @@ func (T *DataRow) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *DataRow) IntoPacket() fed.Packet {
+func (T *DataRow) IntoPacket(packet fed.Packet) fed.Packet {
 	size := 2
 	for _, v := range T.Columns {
 		size += len(v) + 4
 	}
 
-	packet := fed.NewPacket(TypeDataRow, size)
+	packet = packet.Reset(TypeDataRow, size)
 	packet = packet.AppendUint16(uint16(len(T.Columns)))
 	for _, v := range T.Columns {
 		if v == nil {

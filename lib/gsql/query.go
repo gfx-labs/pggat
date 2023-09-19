@@ -8,7 +8,7 @@ import (
 func Query(client *Client, results []any, query string) {
 	var q = packets.Query(query)
 
-	client.Do(NewQueryWriter(results...), q.IntoPacket())
+	client.Do(NewQueryWriter(results...), q.IntoPacket(nil))
 }
 
 type QueryWriter struct {

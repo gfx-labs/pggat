@@ -253,7 +253,10 @@ func (T *Pool) releaseServer(server *Server) {
 	if T.options.ServerResetQuery != "" {
 		server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
 
-		err := backends.QueryString(new(backends.Context), server.GetReadWriter(), T.options.ServerResetQuery)
+		ctx := backends.Context{
+			Server: server.GetReadWriter(),
+		}
+		err := backends.QueryString(&ctx, T.options.ServerResetQuery)
 		if err != nil {
 			T.removeServer(server)
 			return
@@ -322,6 +325,8 @@ func (T *Pool) serve(client *Client, initialized bool) error {
 		}
 	}()
 
+	var packet fed.Packet
+
 	if !initialized {
 		server = T.acquireServer(client)
 
@@ -334,7 +339,8 @@ func (T *Pool) serve(client *Client, initialized bool) error {
 		}
 
 		p := packets.ReadyForQuery('I')
-		err = client.GetConn().WritePacket(p.IntoPacket())
+		packet = p.IntoPacket(packet)
+		err = client.GetConn().WritePacket(packet)
 		if err != nil {
 			return err
 		}
@@ -347,8 +353,7 @@ func (T *Pool) serve(client *Client, initialized bool) error {
 			server = nil
 		}
 
-		var packet fed.Packet
-		packet, err = client.GetConn().ReadPacket(true)
+		packet, err = client.GetConn().ReadPacket(true, packet)
 		if err != nil {
 			return err
 		}

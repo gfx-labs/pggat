@@ -23,7 +23,11 @@ func (T Acceptor) Accept() (fed.Conn, frontends.AcceptParams, error) {
 		return nil, frontends.AcceptParams{}, err
 	}
 	conn := fed.WrapNetConn(netConn)
-	params, err := frontends.Accept(conn, T.Options)
+	ctx := frontends.AcceptContext{
+		Conn:    conn,
+		Options: T.Options,
+	}
+	params, err := frontends.Accept(&ctx)
 	if err != nil {
 		_ = conn.Close()
 		return nil, frontends.AcceptParams{}, err
@@ -69,9 +73,13 @@ func serve(client fed.Conn, acceptParams frontends.AcceptParams, pools Pools) er
 		return nil
 	}
 
-	authParams, err := frontends.Authenticate(client, frontends.AuthenticateOptions{
-		Credentials: p.GetCredentials(),
-	})
+	ctx := frontends.AuthenticateContext{
+		Conn: client,
+		Options: frontends.AuthenticateOptions{
+			Credentials: p.GetCredentials(),
+		},
+	}
+	authParams, err := frontends.Authenticate(&ctx)
 	if err != nil {
 		return err
 	}

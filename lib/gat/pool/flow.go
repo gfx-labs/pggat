@@ -49,7 +49,7 @@ func SyncInitialParameters(options Options, client *Client, server *Server) (cli
 				Key:   key.String(),
 				Value: serverParams[key],
 			}
-			clientErr = client.GetConn().WritePacket(p.IntoPacket())
+			clientErr = client.GetConn().WritePacket(p.IntoPacket(nil))
 			if clientErr != nil {
 				return
 			}
@@ -66,7 +66,7 @@ func SyncInitialParameters(options Options, client *Client, server *Server) (cli
 			Key:   key.String(),
 			Value: value,
 		}
-		clientErr = client.GetConn().WritePacket(p.IntoPacket())
+		clientErr = client.GetConn().WritePacket(p.IntoPacket(nil))
 		if clientErr != nil {
 			return
 		}
@@ -75,7 +75,10 @@ func SyncInitialParameters(options Options, client *Client, server *Server) (cli
 			continue
 		}
 
-		serverErr = backends.SetParameter(new(backends.Context), server.GetReadWriter(), key, value)
+		ctx := backends.Context{
+			Server: server.GetReadWriter(),
+		}
+		serverErr = backends.SetParameter(&ctx, key, value)
 		if serverErr != nil {
 			return
 		}
@@ -93,7 +96,7 @@ func SyncInitialParameters(options Options, client *Client, server *Server) (cli
 			Key:   key.String(),
 			Value: value,
 		}
-		clientErr = client.GetConn().WritePacket(p.IntoPacket())
+		clientErr = client.GetConn().WritePacket(p.IntoPacket(nil))
 		if clientErr != nil {
 			return
 		}

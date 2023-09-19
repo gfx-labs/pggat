@@ -16,8 +16,8 @@ func (T *PasswordMessage) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *PasswordMessage) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeAuthenticationResponse, len(T.Password)+1)
+func (T *PasswordMessage) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = packet.Reset(TypeAuthenticationResponse, len(T.Password)+1)
 	packet = packet.AppendString(T.Password)
 	return packet
 }

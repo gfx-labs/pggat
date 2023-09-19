@@ -14,8 +14,8 @@ func (T *CopyFail) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *CopyFail) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeCopyFail, len(T.Reason)+1)
+func (T *CopyFail) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = packet.Reset(TypeCopyFail, len(T.Reason)+1)
 	packet = packet.AppendString(T.Reason)
 	return packet
 }

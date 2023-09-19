@@ -1,11 +1,31 @@
 package backends
 
-import "pggat/lib/fed"
+import (
+	"pggat/lib/fed"
+)
+
+type AcceptContext struct {
+	Packet  fed.Packet
+	Conn    fed.Conn
+	Options AcceptOptions
+}
 
 type Context struct {
+	Server    fed.ReadWriter
+	Packet    fed.Packet
 	Peer      fed.ReadWriter
 	PeerError error
 	TxState   byte
+}
+
+func (T *Context) ServerRead() error {
+	var err error
+	T.Packet, err = T.Server.ReadPacket(true, T.Packet)
+	return err
+}
+
+func (T *Context) ServerWrite() error {
+	return T.Server.WritePacket(T.Packet)
 }
 
 func (T *Context) PeerOK() bool {
@@ -23,29 +43,30 @@ func (T *Context) PeerFail(err error) {
 	T.PeerError = err
 }
 
-func (T *Context) PeerRead() fed.Packet {
+func (T *Context) PeerRead() bool {
 	if T == nil {
-		return nil
+		return false
 	}
 	if !T.PeerOK() {
-		return nil
+		return false
 	}
-	packet, err := T.Peer.ReadPacket(true)
+	var err error
+	T.Packet, err = T.Peer.ReadPacket(true, T.Packet)
 	if err != nil {
 		T.PeerFail(err)
-		return nil
+		return false
 	}
-	return packet
+	return true
 }
 
-func (T *Context) PeerWrite(packet fed.Packet) {
+func (T *Context) PeerWrite() {
 	if T == nil {
 		return
 	}
 	if !T.PeerOK() {
 		return
 	}
-	err := T.Peer.WritePacket(packet)
+	err := T.Peer.WritePacket(T.Packet)
 	if err != nil {
 		T.PeerFail(err)
 	}

@@ -1,7 +1,7 @@
 package fed
 
 type Reader interface {
-	ReadPacket(typed bool) (Packet, error)
+	ReadPacket(typed bool, buffer Packet) (Packet, error)
 }
 
 type Writer interface {

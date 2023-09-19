@@ -23,19 +23,20 @@ func NewInterceptor(rw fed.Conn, middlewares ...middleware.Middleware) *Intercep
 	}
 }
 
-func (T *Interceptor) ReadPacket(typed bool) (fed.Packet, error) {
+func (T *Interceptor) ReadPacket(typed bool, packet fed.Packet) (fed.Packet, error) {
 outer:
 	for {
-		packet, err := T.rw.ReadPacket(typed)
+		var err error
+		packet, err = T.rw.ReadPacket(typed, packet)
 		if err != nil {
-			return nil, err
+			return packet, err
 		}
 
 		for _, mw := range T.middlewares {
 			T.context.reset()
 			err = mw.Read(&T.context, packet)
 			if err != nil {
-				return nil, err
+				return packet, err
 			}
 			if T.context.cancelled {
 				continue outer

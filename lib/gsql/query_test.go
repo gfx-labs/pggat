@@ -25,13 +25,17 @@ func TestQuery(t *testing.T) {
 		return
 	}
 	server := fed.WrapNetConn(s)
-	_, err = backends.Accept(server, backends.AcceptOptions{
-		Credentials: credentials.Cleartext{
-			Username: "postgres",
-			Password: "password",
+	ctx := backends.AcceptContext{
+		Conn: server,
+		Options: backends.AcceptOptions{
+			Credentials: credentials.Cleartext{
+				Username: "postgres",
+				Password: "password",
+			},
+			Database: "postgres",
 		},
-		Database: "postgres",
-	})
+	}
+	_, err = backends.Accept(&ctx)
 	if err != nil {
 		t.Error(err)
 		return
@@ -49,7 +53,8 @@ func TestQuery(t *testing.T) {
 		t.Error(err)
 	}
 
-	initial, err := client.ReadPacket(true)
+	var initial fed.Packet
+	initial, err = client.ReadPacket(true, initial)
 	if err != nil {
 		t.Error(err)
 	}

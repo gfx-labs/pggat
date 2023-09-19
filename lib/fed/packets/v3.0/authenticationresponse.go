@@ -16,7 +16,8 @@ func (T *AuthenticationResponse) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *AuthenticationResponse) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeAuthenticationResponse, len(*T))
-	return packet.AppendBytes(*T)
+func (T *AuthenticationResponse) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = fed.NewPacket(TypeAuthenticationResponse, len(*T))
+	packet = packet.AppendBytes(*T)
+	return packet
 }

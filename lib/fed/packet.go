@@ -3,18 +3,34 @@ package fed
 import (
 	"encoding/binary"
 	"math"
+
+	"pggat/lib/util/slices"
 )
 
 type Packet []byte
 
 func NewPacket(typ Type, size ...int) Packet {
+	return Packet(nil).Reset(typ, size...)
+}
+
+func (T Packet) Reset(typ Type, size ...int) Packet {
+	packet := T
+	c := 5
 	if len(size) > 0 {
-		packet := make([]byte, 5, 5+size[0])
-		packet[0] = byte(typ)
-		return packet
-	} else {
-		return []byte{byte(typ), 0, 0, 0, 0}
+		c += size[0]
 	}
+
+	if cap(packet) < c {
+		packet = make([]byte, 5, c)
+	} else {
+		packet = slices.Resize(packet, 5)
+	}
+	packet[0] = byte(typ)
+	packet[1] = 0
+	packet[2] = 0
+	packet[3] = 0
+	packet[4] = 0
+	return packet
 }
 
 func (T Packet) Payload() PacketFragment {
@@ -128,6 +144,10 @@ func (T Packet) ReadString(v *string) PacketFragment {
 
 func (T Packet) ReadBytes(v []byte) PacketFragment {
 	return T.Payload().ReadBytes(v)
+}
+
+func (T Packet) Done() {
+	// TODO(garet)
 }
 
 type PacketFragment []byte

@@ -12,8 +12,8 @@ func (T *Query) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *Query) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeQuery, len(*T)+1)
+func (T *Query) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = packet.Reset(TypeQuery, len(*T)+1)
 	packet = packet.AppendString(string(*T))
 	return packet
 }
