@@ -17,24 +17,6 @@ type Acceptor struct {
 	Options  frontends.AcceptOptions
 }
 
-func (T Acceptor) Accept() (fed.Conn, frontends.AcceptParams, error) {
-	netConn, err := T.Listener.Accept()
-	if err != nil {
-		return nil, frontends.AcceptParams{}, err
-	}
-	conn := fed.WrapNetConn(netConn)
-	ctx := frontends.AcceptContext{
-		Conn:    conn,
-		Options: T.Options,
-	}
-	params, err := frontends.Accept(&ctx)
-	if err != nil {
-		_ = conn.Close()
-		return nil, frontends.AcceptParams{}, err
-	}
-	return conn, params, nil
-}
-
 func Listen(network, address string, options frontends.AcceptOptions) (Acceptor, error) {
 	listener, err := net.Listen(network, address)
 	if err != nil {
