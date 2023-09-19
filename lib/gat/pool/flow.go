@@ -81,12 +81,14 @@ func SyncInitialParameters(options Options, client *Client, server *Server) (cli
 		}
 
 		ctx := backends.Context{
+			Packet: packet,
 			Server: server.GetReadWriter(),
 		}
 		serverErr = backends.SetParameter(&ctx, key, value)
 		if serverErr != nil {
 			return
 		}
+		packet = ctx.Packet
 	}
 
 	for key, value := range serverParams {

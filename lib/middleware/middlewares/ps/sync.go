@@ -32,11 +32,13 @@ func sync(tracking []strutil.CIString, client fed.ReadWriter, c *Client, server 
 
 	if hasValue && slices.Contains(tracking, name) {
 		ctx := backends.Context{
+			Packet: packet,
 			Server: server,
 		}
 		if err := backends.SetParameter(&ctx, name, value); err != nil {
 			return err
 		}
+		packet = ctx.Packet
 		if s.parameters == nil {
 			s.parameters = make(map[strutil.CIString]string)
 		}
