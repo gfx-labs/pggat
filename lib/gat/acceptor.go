@@ -92,18 +92,35 @@ func serve(client fed.Conn, acceptParams frontends.AcceptParams, pools Pools) er
 
 func Serve(acceptor Acceptor, pools Pools) error {
 	for {
-		conn, acceptParams, err := acceptor.Accept()
+		netConn, err := acceptor.Listener.Accept()
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
 				return nil
 			}
-			log.Print("error accepting client: ", err)
+			log.Print("error accepting connection: ", err)
 			continue
 		}
+		conn := fed.WrapNetConn(netConn)
+
 		go func() {
-			err := serve(conn, acceptParams, pools)
+			defer func() {
+				_ = conn.Close()
+			}()
+
+			ctx := frontends.AcceptContext{
+				Conn:    conn,
+				Options: acceptor.Options,
+			}
+			acceptParams, acceptErr := frontends.Accept(&ctx)
+			if acceptErr != nil {
+				log.Print("error accepting client: ", acceptErr)
+				return
+			}
+
+			err = serve(conn, acceptParams, pools)
 			if err != nil && !errors.Is(err, io.EOF) {
 				log.Print("error serving client: ", err)
+				return
 			}
 		}()
 	}
