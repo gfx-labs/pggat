@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net"
 	_ "net/http/pprof"
+	"strconv"
+	"testing"
+
 	"pggat/lib/auth"
 	"pggat/lib/auth/credentials"
 	"pggat/lib/bouncer/backends/v0"
@@ -18,8 +21,6 @@ import (
 	"pggat/lib/gat/pool/recipe"
 	"pggat/test"
 	"pggat/test/tests"
-	"strconv"
-	"testing"
 )
 
 func daisyChain(creds auth.Credentials, control dialer.Net, n int) (dialer.Net, error) {
@@ -59,6 +60,7 @@ func daisyChain(creds auth.Credentials, control dialer.Net, n int) (dialer.Net, 
 			Network: "tcp",
 			Address: ":" + strconv.Itoa(port),
 			AcceptOptions: backends.AcceptOptions{
+				Username:    "runner",
 				Credentials: creds,
 				Database:    "pool",
 			},
@@ -73,6 +75,7 @@ func TestTester(t *testing.T) {
 		Network: "tcp",
 		Address: "localhost:5432",
 		AcceptOptions: backends.AcceptOptions{
+			Username: "postgres",
 			Credentials: credentials.Cleartext{
 				Username: "postgres",
 				Password: "password",
@@ -137,6 +140,7 @@ func TestTester(t *testing.T) {
 		Network: "tcp",
 		Address: ":" + strconv.Itoa(port),
 		AcceptOptions: backends.AcceptOptions{
+			Username:    "runner",
 			Credentials: creds,
 			Database:    "transaction",
 		},
@@ -145,6 +149,7 @@ func TestTester(t *testing.T) {
 		Network: "tcp",
 		Address: ":" + strconv.Itoa(port),
 		AcceptOptions: backends.AcceptOptions{
+			Username:    "runner",
 			Credentials: creds,
 			Database:    "session",
 		},

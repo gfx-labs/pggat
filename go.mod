@@ -8,12 +8,14 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/xdg-go/scram v1.1.2
 	github.com/zalando/postgres-operator v1.10.1
+	google.golang.org/api v0.30.0
 	k8s.io/apimachinery v0.27.4
 	k8s.io/client-go v0.27.4
 	tuxpa.in/a/zlog v1.61.0
 )
 
 require (
+	cloud.google.com/go v0.65.0 // indirect
 	github.com/cristalhq/aconfig v0.18.3 // indirect
 	github.com/cristalhq/aconfig/aconfigdotenv v0.17.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -23,11 +25,13 @@ require (
 	github.com/go-openapi/jsonreference v0.20.1 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
+	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.4 // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
@@ -47,6 +51,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
+	go.opencensus.io v0.22.4 // indirect
 	golang.org/x/crypto v0.8.0 // indirect
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
@@ -55,6 +60,8 @@ require (
 	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
 	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/genproto v0.0.0-20220502173005-c8bf987b8c21 // indirect
+	google.golang.org/grpc v1.47.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

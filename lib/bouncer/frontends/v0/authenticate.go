@@ -9,7 +9,7 @@ import (
 	"pggat/lib/perror"
 )
 
-func authenticationSASLInitial(ctx *AuthenticateContext, creds auth.SASL) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {
+func authenticationSASLInitial(ctx *AuthenticateContext, creds auth.SASLServer) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {
 	// check which authentication method the client wants
 	var err2 error
 	ctx.Packet, err2 = ctx.Conn.ReadPacket(true, ctx.Packet)
@@ -66,7 +66,7 @@ func authenticationSASLContinue(ctx *AuthenticateContext, tool auth.SASLVerifier
 	return
 }
 
-func authenticationSASL(ctx *AuthenticateContext, creds auth.SASL) perror.Error {
+func authenticationSASL(ctx *AuthenticateContext, creds auth.SASLServer) perror.Error {
 	saslInitial := packets.AuthenticationSASL{
 		Mechanisms: creds.SupportedSASLMechanisms(),
 	}
@@ -108,7 +108,7 @@ func authenticationSASL(ctx *AuthenticateContext, creds auth.SASL) perror.Error 
 	return nil
 }
 
-func authenticationMD5(ctx *AuthenticateContext, creds auth.MD5) perror.Error {
+func authenticationMD5(ctx *AuthenticateContext, creds auth.MD5Server) perror.Error {
 	var salt [4]byte
 	_, err := rand.Read(salt[:])
 	if err != nil {
@@ -141,27 +141,21 @@ func authenticationMD5(ctx *AuthenticateContext, creds auth.MD5) perror.Error {
 }
 
 func authenticate(ctx *AuthenticateContext) (params AuthenticateParams, err perror.Error) {
-	if ctx.Options.Credentials == nil {
-		err = perror.New(
-			perror.FATAL,
-			perror.InvalidPassword,
-			"User or database not found",
-		)
-		return
-	}
-	if credsSASL, ok := ctx.Options.Credentials.(auth.SASL); ok {
-		err = authenticationSASL(ctx, credsSASL)
-	} else if credsMD5, ok := ctx.Options.Credentials.(auth.MD5); ok {
-		err = authenticationMD5(ctx, credsMD5)
-	} else {
-		err = perror.New(
-			perror.FATAL,
-			perror.InternalError,
-			"Auth method not supported",
-		)
-	}
-	if err != nil {
-		return
+	if ctx.Options.Credentials != nil {
+		if credsSASL, ok := ctx.Options.Credentials.(auth.SASLServer); ok {
+			err = authenticationSASL(ctx, credsSASL)
+		} else if credsMD5, ok := ctx.Options.Credentials.(auth.MD5Server); ok {
+			err = authenticationMD5(ctx, credsMD5)
+		} else {
+			err = perror.New(
+				perror.FATAL,
+				perror.InternalError,
+				"Auth method not supported",
+			)
+		}
+		if err != nil {
+			return
+		}
 	}
 
 	// send auth Ok

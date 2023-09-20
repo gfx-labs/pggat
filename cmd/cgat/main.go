@@ -8,6 +8,7 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
+	"pggat/lib/gat/modes/cloud_sql_discovery"
 	"pggat/lib/gat/modes/digitalocean_discovery"
 	"pggat/lib/gat/modes/pgbouncer"
 	"pggat/lib/gat/modes/zalando"
@@ -43,6 +44,18 @@ func main() {
 			panic(err)
 		}
 
+		err = conf.ListenAndServe()
+		if err != nil {
+			panic(err)
+		}
+		return
+	}
+
+	if os.Getenv("PGGAT_GC_PROJECT") != "" {
+		conf, err := cloud_sql_discovery.Load()
+		if err != nil {
+			panic(err)
+		}
 		err = conf.ListenAndServe()
 		if err != nil {
 			panic(err)

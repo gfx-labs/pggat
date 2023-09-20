@@ -122,6 +122,7 @@ func (T *Config) ListenAndServe() error {
 					SSLConfig: &tls.Config{
 						InsecureSkipVerify: true,
 					},
+					Username:    user.Name,
 					Credentials: creds,
 					Database:    dbname,
 				}

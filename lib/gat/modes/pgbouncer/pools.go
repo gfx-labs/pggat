@@ -191,6 +191,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		SSLConfig: &tls.Config{
 			InsecureSkipVerify: true, // TODO(garet)
 		},
+		Username:          user,
 		Credentials:       dbCreds,
 		Database:          backendDatabase,
 		StartupParameters: db.StartupParameters,

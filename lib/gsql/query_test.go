@@ -28,6 +28,7 @@ func TestQuery(t *testing.T) {
 	ctx := backends.AcceptContext{
 		Conn: server,
 		Options: backends.AcceptOptions{
+			Username: "postgres",
 			Credentials: credentials.Cleartext{
 				Username: "postgres",
 				Password: "password",

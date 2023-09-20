@@ -153,7 +153,7 @@ func (T *Server) addPostgresql(psql *acidv1.Postgresql) {
 	T.updatePostgresql(nil, psql)
 }
 
-func (T *Server) addPool(name string, userCreds, serverCreds auth.Credentials, database string) {
+func (T *Server) addPool(name string, userCreds, serverCreds auth.Credentials, userUser, serverUser, database string) {
 	d := dialer.Net{
 		Network: "tcp",
 		Address: fmt.Sprintf("%s.%s.svc.%s:5432", name, T.config.Namespace, T.opConfig.ClusterDomain),
@@ -162,6 +162,7 @@ func (T *Server) addPool(name string, userCreds, serverCreds auth.Credentials, d
 			SSLConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			},
+			Username:    serverUser,
 			Credentials: serverCreds,
 			Database:    database,
 		},
@@ -205,7 +206,7 @@ func (T *Server) addPool(name string, userCreds, serverCreds auth.Credentials, d
 
 	p.AddRecipe("service", r)
 
-	T.pools.Add(userCreds.GetUsername(), database, p)
+	T.pools.Add(userUser, database, p)
 }
 
 func (T *Server) updatePostgresql(oldPsql *acidv1.Postgresql, newPsql *acidv1.Postgresql) {
@@ -305,7 +306,7 @@ func (T *Server) updatePostgresql(oldPsql *acidv1.Postgresql, newPsql *acidv1.Po
 			Username: pair.User,
 			Password: creds.Password,
 		}
-		T.addPool(details.Name, userCreds, creds, pair.Database)
+		T.addPool(details.Name, userCreds, creds, pair.User, details.SecretUser, pair.Database)
 		log.Print("added pool username=", pair.User, " database=", pair.Database)
 	}
 }

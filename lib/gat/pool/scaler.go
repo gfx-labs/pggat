@@ -2,6 +2,7 @@ package pool
 
 import (
 	"time"
+
 	"tuxpa.in/a/zlog/log"
 )
 
@@ -19,7 +20,7 @@ type Scaler struct {
 func NewScaler(pool *Pool) *Scaler {
 	s := &Scaler{
 		pool:    pool,
-		backoff: pool.options.ServerIdleTimeout,
+		backoff: pool.options.ServerReconnectInitialTime,
 	}
 
 	if pool.options.ServerIdleTimeout != 0 {

@@ -51,7 +51,7 @@ func authenticationSASLChallenge(ctx *AcceptContext, encoder auth.SASLEncoder) (
 	}
 }
 
-func authenticationSASL(ctx *AcceptContext, mechanisms []string, creds auth.SASL) error {
+func authenticationSASL(ctx *AcceptContext, mechanisms []string, creds auth.SASLClient) error {
 	mechanism, encoder, err := creds.EncodeSASL(mechanisms)
 	if err != nil {
 		return err
@@ -86,7 +86,7 @@ func authenticationSASL(ctx *AcceptContext, mechanisms []string, creds auth.SASL
 	return nil
 }
 
-func authenticationMD5(ctx *AcceptContext, salt [4]byte, creds auth.MD5) error {
+func authenticationMD5(ctx *AcceptContext, salt [4]byte, creds auth.MD5Client) error {
 	pw := packets.PasswordMessage{
 		Password: creds.EncodeMD5(salt),
 	}
@@ -98,7 +98,7 @@ func authenticationMD5(ctx *AcceptContext, salt [4]byte, creds auth.MD5) error {
 	return nil
 }
 
-func authenticationCleartext(ctx *AcceptContext, creds auth.Cleartext) error {
+func authenticationCleartext(ctx *AcceptContext, creds auth.CleartextClient) error {
 	pw := packets.PasswordMessage{
 		Password: creds.EncodeCleartext(),
 	}
@@ -122,7 +122,7 @@ func authentication(ctx *AcceptContext) (done bool, err error) {
 		err = errors.New("kerberos v5 is not supported")
 		return
 	case 3:
-		c, ok := ctx.Options.Credentials.(auth.Cleartext)
+		c, ok := ctx.Options.Credentials.(auth.CleartextClient)
 		if !ok {
 			return false, auth.ErrMethodNotSupported
 		}
@@ -134,7 +134,7 @@ func authentication(ctx *AcceptContext) (done bool, err error) {
 			return
 		}
 
-		c, ok := ctx.Options.Credentials.(auth.MD5)
+		c, ok := ctx.Options.Credentials.(auth.MD5Client)
 		if !ok {
 			return false, auth.ErrMethodNotSupported
 		}
@@ -156,7 +156,7 @@ func authentication(ctx *AcceptContext) (done bool, err error) {
 			return
 		}
 
-		c, ok := ctx.Options.Credentials.(auth.SASL)
+		c, ok := ctx.Options.Credentials.(auth.SASLClient)
 		if !ok {
 			return false, auth.ErrMethodNotSupported
 		}
@@ -272,7 +272,7 @@ func enableSSL(ctx *AcceptContext) (bool, error) {
 }
 
 func Accept(ctx *AcceptContext) (AcceptParams, error) {
-	username := ctx.Options.Credentials.GetUsername()
+	username := ctx.Options.Username
 
 	if ctx.Options.Database == "" {
 		ctx.Options.Database = username
