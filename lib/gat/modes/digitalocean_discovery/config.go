@@ -195,7 +195,7 @@ func (T *Config) ListenAndServe() error {
 				strutil.MakeCIString("extra_float_digits"),
 				strutil.MakeCIString("options"),
 			},
-		}, &pools)
+		}, gat.NewKeyedPools(&pools))
 	})
 
 	return b.Wait()

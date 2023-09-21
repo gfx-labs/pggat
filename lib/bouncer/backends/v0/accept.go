@@ -40,7 +40,10 @@ func authenticationSASLChallenge(ctx *AcceptContext, encoder auth.SASLEncoder) (
 	case 12:
 		// finish
 		_, err = encoder.Write(p)
-		if err != nil {
+		if err != io.EOF {
+			if err == nil {
+				err = errors.New("expected EOF")
+			}
 			return
 		}
 

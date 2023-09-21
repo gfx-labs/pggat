@@ -362,7 +362,7 @@ func (T *Server) ListenAndServe() error {
 				strutil.MakeCIString("options"),
 			},
 			SSLConfig: sslConfig,
-		}, &T.pools)
+		}, gat.NewKeyedPools(&T.pools))
 	})
 
 	return bank.Wait()

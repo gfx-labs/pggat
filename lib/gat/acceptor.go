@@ -34,7 +34,7 @@ func Listen(network, address string, options frontends.AcceptOptions) (Acceptor,
 	}, nil
 }
 
-func serve(client fed.Conn, acceptParams frontends.AcceptParams, pools Pools) error {
+func serve(client fed.Conn, acceptParams frontends.AcceptParams, pools *KeyedPools) error {
 	defer func() {
 		_ = client.Close()
 	}()
@@ -72,7 +72,7 @@ func serve(client fed.Conn, acceptParams frontends.AcceptParams, pools Pools) er
 	return p.Serve(client, acceptParams.InitialParameters, authParams.BackendKey)
 }
 
-func Serve(acceptor Acceptor, pools Pools) error {
+func Serve(acceptor Acceptor, pools *KeyedPools) error {
 	for {
 		netConn, err := acceptor.Listener.Accept()
 		if err != nil {
@@ -108,7 +108,7 @@ func Serve(acceptor Acceptor, pools Pools) error {
 	}
 }
 
-func ListenAndServe(network, address string, options frontends.AcceptOptions, pools Pools) error {
+func ListenAndServe(network, address string, options frontends.AcceptOptions, pools *KeyedPools) error {
 	listener, err := Listen(network, address, options)
 	if err != nil {
 		return err

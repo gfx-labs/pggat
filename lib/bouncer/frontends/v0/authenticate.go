@@ -3,6 +3,7 @@ package frontends
 import (
 	"crypto/rand"
 	"errors"
+	"io"
 
 	"pggat/lib/auth"
 	packets "pggat/lib/fed/packets/v3.0"
@@ -31,7 +32,7 @@ func authenticationSASLInitial(ctx *AuthenticateContext, creds auth.SASLServer) 
 
 	resp, err2 = tool.Write(initialResponse.InitialResponse)
 	if err2 != nil {
-		if errors.Is(err2, auth.ErrSASLComplete) {
+		if errors.Is(err2, io.EOF) {
 			done = true
 			return
 		}
@@ -56,7 +57,7 @@ func authenticationSASLContinue(ctx *AuthenticateContext, tool auth.SASLVerifier
 
 	resp, err2 = tool.Write(authResp)
 	if err2 != nil {
-		if errors.Is(err2, auth.ErrSASLComplete) {
+		if errors.Is(err2, io.EOF) {
 			done = true
 			return
 		}

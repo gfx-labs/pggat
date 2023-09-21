@@ -13,8 +13,8 @@ import (
 )
 
 type Result struct {
-	Username string  `sql:"0"`
-	Password *string `sql:"1"`
+	Username string `sql:"0"`
+	Password string `sql:"1"`
 }
 
 func TestQuery(t *testing.T) {
@@ -44,7 +44,7 @@ func TestQuery(t *testing.T) {
 
 	var res Result
 	client := new(Client)
-	err = ExtendedQuery(client, &res, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", "bob")
+	err = ExtendedQuery(client, &res, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", "postgres")
 	if err != nil {
 		t.Error(err)
 		return

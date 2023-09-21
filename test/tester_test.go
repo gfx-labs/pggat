@@ -50,7 +50,7 @@ func daisyChain(creds auth.Credentials, control dialer.Net, n int) (dialer.Net, 
 		port := listener.Listener.Addr().(*net.TCPAddr).Port
 
 		go func() {
-			err := gat.Serve(listener, &g)
+			err := gat.Serve(listener, gat.NewKeyedPools(&g))
 			if err != nil {
 				panic(err)
 			}
@@ -130,7 +130,7 @@ func TestTester(t *testing.T) {
 	port := listener.Listener.Addr().(*net.TCPAddr).Port
 
 	go func() {
-		err := gat.Serve(listener, &g)
+		err := gat.Serve(listener, gat.NewKeyedPools(&g))
 		if err != nil {
 			t.Error(err)
 		}
