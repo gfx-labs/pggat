@@ -15,14 +15,13 @@ import (
 )
 
 type Scram struct {
-	User string
 	Keys scram.ServerKeys
 
 	clientKey []byte
 	mu        sync.RWMutex
 }
 
-func ScramFromString(user, password string) (*Scram, error) {
+func ScramFromString(password string) (*Scram, error) {
 	alg, iterKeys, ok := strings.Cut(password, "$")
 	if !ok {
 		return nil, ErrInvalidSecretFormat
@@ -47,7 +46,6 @@ func ScramFromString(user, password string) (*Scram, error) {
 	storedKey, serverKey, ok := strings.Cut(keys, ":")
 
 	var res Scram
-	res.User = user
 	res.Keys.Hasher = hasher
 
 	var err error
@@ -94,7 +92,6 @@ func (T *Scram) EncodeSASL(mechanisms []auth.SASLMechanism) (auth.SASLMechanism,
 		switch mechanism {
 		case auth.ScramSHA256:
 			return auth.ScramSHA256, &scram.ClientConversation{
-				User: T.User,
 				Lookup: scram.ClientKeysLookup(scram.ClientKeys{
 					ClientKey: clientKey,
 					ServerKey: T.Keys.ServerKey,
@@ -130,11 +127,7 @@ func (T *Scram) VerifySASL(mechanism auth.SASLMechanism) (auth.SASLVerifier, err
 		return ScramInterceptorVerifier{
 			Scram: T,
 			Conversation: &scram.ServerConversation{
-				Lookup: func(user string) (scram.ServerKeys, bool) {
-					if user != T.User {
-						return scram.ServerKeys{}, false
-					}
-
+				Lookup: func(string) (scram.ServerKeys, bool) {
 					return T.Keys, true
 				},
 			},

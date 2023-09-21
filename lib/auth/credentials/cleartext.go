@@ -72,7 +72,6 @@ func (T Cleartext) EncodeSASL(mechanisms []auth.SASLMechanism) (auth.SASLMechani
 		switch mechanism {
 		case auth.ScramSHA256:
 			return auth.ScramSHA256, &scram.ClientConversation{
-				User:   T.Username,
 				Lookup: scram.ClientPasswordLookup(T.Password, sha256.New),
 			}, nil
 		}
@@ -84,11 +83,7 @@ func (T Cleartext) VerifySASL(mechanism auth.SASLMechanism) (auth.SASLVerifier, 
 	switch mechanism {
 	case auth.ScramSHA256:
 		return &scram.ServerConversation{
-			Lookup: func(user string) (scram.ServerKeys, bool) {
-				if T.Username != user {
-					return scram.ServerKeys{}, false
-				}
-
+			Lookup: func(string) (scram.ServerKeys, bool) {
 				var salt [32]byte
 				_, err := rand.Read(salt[:])
 				if err != nil {

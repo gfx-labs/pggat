@@ -3,7 +3,7 @@ module pggat
 go 1.20
 
 require (
-	gfx.cafe/ghalliday1/scram v0.0.1
+	gfx.cafe/ghalliday1/scram v0.0.2
 	gfx.cafe/util/go/gun v0.0.0-20230721185457-c559e86c829c
 	github.com/digitalocean/godo v1.102.1
 	github.com/google/uuid v1.3.0
