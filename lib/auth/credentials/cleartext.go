@@ -2,9 +2,12 @@ package credentials
 
 import (
 	"crypto/md5"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"strings"
+
+	"gfx.cafe/ghalliday1/scram"
 
 	"pggat/lib/auth"
 	"pggat/lib/util/slices"
@@ -68,12 +71,10 @@ func (T Cleartext) EncodeSASL(mechanisms []auth.SASLMechanism) (auth.SASLMechani
 	for _, mechanism := range mechanisms {
 		switch mechanism {
 		case auth.ScramSHA256:
-			encoder, err := MakeCleartextScramEncoder(T.Username, T.Password, sha256.New)
-			if err != nil {
-				return "", nil, err
-			}
-
-			return auth.ScramSHA256, encoder, nil
+			return auth.ScramSHA256, &scram.ClientConversation{
+				User:   T.Username,
+				Lookup: scram.ClientPasswordLookup(T.Password, sha256.New),
+			}, nil
 		}
 	}
 	return "", nil, auth.ErrSASLMechanismNotSupported
@@ -82,7 +83,35 @@ func (T Cleartext) EncodeSASL(mechanisms []auth.SASLMechanism) (auth.SASLMechani
 func (T Cleartext) VerifySASL(mechanism auth.SASLMechanism) (auth.SASLVerifier, error) {
 	switch mechanism {
 	case auth.ScramSHA256:
-		return MakeCleartextScramVerifier(T.Username, T.Password, sha256.New)
+		return &scram.ServerConversation{
+			Lookup: func(user string) (scram.ServerKeys, bool) {
+				if T.Username != user {
+					return scram.ServerKeys{}, false
+				}
+
+				var salt [32]byte
+				_, err := rand.Read(salt[:])
+				if err != nil {
+					return scram.ServerKeys{}, false
+				}
+				hasher := scram.Hasher(sha256.New)
+				keyInfo := scram.KeyInfo{
+					Salt:   salt[:],
+					Iters:  2048,
+					Hasher: hasher,
+				}
+				saltedPassword := hasher.SaltedPassword([]byte(T.Password), keyInfo.Salt, keyInfo.Iters)
+				serverKey := hasher.ServerKey(saltedPassword)
+				clientKey := hasher.ClientKey(saltedPassword)
+				storedKey := hasher.StoredKey(clientKey)
+
+				return scram.ServerKeys{
+					ServerKey: serverKey,
+					StoredKey: storedKey,
+					KeyInfo:   keyInfo,
+				}, true
+			},
+		}, nil
 	default:
 		return nil, auth.ErrSASLMechanismNotSupported
 	}

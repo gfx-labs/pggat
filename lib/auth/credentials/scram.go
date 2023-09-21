@@ -1,76 +1,31 @@
 package credentials
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
+	"io"
 	"strconv"
 	"strings"
+	"sync"
 
 	"gfx.cafe/ghalliday1/scram"
 
 	"pggat/lib/auth"
 )
 
-func MakeCleartextScramEncoder(username, password string, hashGenerator scram.Hasher) (auth.SASLEncoder, error) {
-	return &scram.ClientConversation{
-		User:   username,
-		Lookup: scram.ClientPasswordLookup(password, hashGenerator),
-	}, nil
-}
-
-func MakeCleartextScramVerifier(username, password string, hashGenerator scram.Hasher) (auth.SASLVerifier, error) {
-	return &scram.ServerConversation{
-		Lookup: func(user string) (scram.ServerKeys, bool) {
-			if username != user {
-				return scram.ServerKeys{}, false
-			}
-
-			var salt [32]byte
-			_, err := rand.Read(salt[:])
-			if err != nil {
-				return scram.ServerKeys{}, false
-			}
-			keyInfo := scram.KeyInfo{
-				Salt:   salt[:],
-				Iters:  2048,
-				Hasher: hashGenerator,
-			}
-			saltedPassword := hashGenerator.SaltedPassword([]byte(password), keyInfo.Salt, keyInfo.Iters)
-			serverKey := hashGenerator.ServerKey(saltedPassword)
-			clientKey := hashGenerator.ClientKey(saltedPassword)
-			storedKey := hashGenerator.StoredKey(clientKey)
-
-			return scram.ServerKeys{
-				ServerKey: serverKey,
-				StoredKey: storedKey,
-				KeyInfo:   keyInfo,
-			}, true
-		},
-	}, nil
-}
-
-func MakeStoredCredentialsScramVerifier(username string, keys scram.ServerKeys) (auth.SASLVerifier, error) {
-	return &scram.ServerConversation{
-		Lookup: func(user string) (scram.ServerKeys, bool) {
-			if user != username {
-				return scram.ServerKeys{}, false
-			}
-
-			return keys, true
-		},
-	}, nil
-}
-
 type Scram struct {
 	User string
 	Keys scram.ServerKeys
+
+	clientKey []byte
+	mu        sync.RWMutex
 }
 
-func ScramFromString(user, password string) (Scram, error) {
+func ScramFromString(user, password string) (*Scram, error) {
 	alg, iterKeys, ok := strings.Cut(password, "$")
 	if !ok {
-		return Scram{}, ErrInvalidSecretFormat
+		return nil, ErrInvalidSecretFormat
 	}
 	var hasher scram.Hasher
 	switch alg {
@@ -78,16 +33,16 @@ func ScramFromString(user, password string) (Scram, error) {
 		hasher = sha256.New
 	default:
 		// invalid algorithm
-		return Scram{}, ErrInvalidSecretFormat
+		return nil, ErrInvalidSecretFormat
 	}
 
 	iterSalt, keys, ok := strings.Cut(iterKeys, "$")
 	if !ok {
-		return Scram{}, ErrInvalidSecretFormat
+		return nil, ErrInvalidSecretFormat
 	}
 	iter, salt, ok := strings.Cut(iterSalt, ":")
 	if !ok {
-		return Scram{}, ErrInvalidSecretFormat
+		return nil, ErrInvalidSecretFormat
 	}
 	storedKey, serverKey, ok := strings.Cut(keys, ":")
 
@@ -98,45 +53,99 @@ func ScramFromString(user, password string) (Scram, error) {
 	var err error
 	res.Keys.Iters, err = strconv.Atoi(iter)
 	if err != nil {
-		return Scram{}, err
+		return nil, err
 	}
 
 	var saltBytes []byte
 	saltBytes, err = base64.StdEncoding.DecodeString(salt)
 	if err != nil {
-		return Scram{}, err
+		return nil, err
 	}
 	res.Keys.Salt = saltBytes
 
 	res.Keys.StoredKey, err = base64.StdEncoding.DecodeString(storedKey)
 	if err != nil {
-		return Scram{}, err
+		return nil, err
 	}
 
 	res.Keys.ServerKey, err = base64.StdEncoding.DecodeString(serverKey)
 	if err != nil {
-		return Scram{}, err
+		return nil, err
 	}
 
-	return res, nil
+	return &res, nil
 }
 
-func (T Scram) SupportedSASLMechanisms() []auth.SASLMechanism {
+func (T *Scram) SupportedSASLMechanisms() []auth.SASLMechanism {
 	return []auth.SASLMechanism{
 		auth.ScramSHA256,
 	}
 }
 
-func (T Scram) VerifySASL(mechanism auth.SASLMechanism) (auth.SASLVerifier, error) {
+func (T *Scram) EncodeSASL(mechanisms []auth.SASLMechanism) (auth.SASLMechanism, auth.SASLEncoder, error) {
+	T.mu.RLock()
+	clientKey := T.clientKey
+	T.mu.RUnlock()
+	if clientKey == nil {
+		return "", nil, errors.New("you must log in with SASL first")
+	}
+
+	for _, mechanism := range mechanisms {
+		switch mechanism {
+		case auth.ScramSHA256:
+			return auth.ScramSHA256, &scram.ClientConversation{
+				User: T.User,
+				Lookup: scram.ClientKeysLookup(scram.ClientKeys{
+					ClientKey: clientKey,
+					ServerKey: T.Keys.ServerKey,
+					KeyInfo:   T.Keys.KeyInfo,
+				}),
+			}, nil
+		}
+	}
+	return "", nil, auth.ErrSASLMechanismNotSupported
+}
+
+type ScramInterceptorVerifier struct {
+	Scram        *Scram
+	Conversation *scram.ServerConversation
+}
+
+func (T ScramInterceptorVerifier) Write(bytes []byte) ([]byte, error) {
+	resp, err := T.Conversation.Write(bytes)
+	if err == io.EOF {
+		T.Scram.mu.Lock()
+		defer T.Scram.mu.Unlock()
+
+		T.Scram.clientKey = T.Conversation.RecoveredClientKey
+	}
+	return resp, err
+}
+
+var _ auth.SASLVerifier = ScramInterceptorVerifier{}
+
+func (T *Scram) VerifySASL(mechanism auth.SASLMechanism) (auth.SASLVerifier, error) {
 	switch mechanism {
 	case auth.ScramSHA256:
-		return MakeStoredCredentialsScramVerifier(T.User, T.Keys)
+		return ScramInterceptorVerifier{
+			Scram: T,
+			Conversation: &scram.ServerConversation{
+				Lookup: func(user string) (scram.ServerKeys, bool) {
+					if user != T.User {
+						return scram.ServerKeys{}, false
+					}
+
+					return T.Keys, true
+				},
+			},
+		}, nil
 	default:
 		return nil, auth.ErrSASLMechanismNotSupported
 	}
 }
 
-func (Scram) Credentials() {}
+func (*Scram) Credentials() {}
 
-var _ auth.Credentials = Scram{}
-var _ auth.SASLServer = Scram{}
+var _ auth.Credentials = (*Scram)(nil)
+var _ auth.SASLServer = (*Scram)(nil)
+var _ auth.SASLClient = (*Scram)(nil)
