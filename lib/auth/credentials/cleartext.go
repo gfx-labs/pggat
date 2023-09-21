@@ -2,10 +2,9 @@ package credentials
 
 import (
 	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"strings"
-
-	"github.com/xdg-go/scram"
 
 	"pggat/lib/auth"
 	"pggat/lib/util/slices"
@@ -69,7 +68,7 @@ func (T Cleartext) EncodeSASL(mechanisms []auth.SASLMechanism) (auth.SASLMechani
 	for _, mechanism := range mechanisms {
 		switch mechanism {
 		case auth.ScramSHA256:
-			encoder, err := MakeCleartextScramEncoder(T.Username, T.Password, scram.SHA256)
+			encoder, err := MakeCleartextScramEncoder(T.Username, T.Password, sha256.New)
 			if err != nil {
 				return "", nil, err
 			}
@@ -83,7 +82,7 @@ func (T Cleartext) EncodeSASL(mechanisms []auth.SASLMechanism) (auth.SASLMechani
 func (T Cleartext) VerifySASL(mechanism auth.SASLMechanism) (auth.SASLVerifier, error) {
 	switch mechanism {
 	case auth.ScramSHA256:
-		return MakeCleartextScramVerifier(T.Username, T.Password, scram.SHA256)
+		return MakeCleartextScramVerifier(T.Username, T.Password, sha256.New)
 	default:
 		return nil, auth.ErrSASLMechanismNotSupported
 	}
