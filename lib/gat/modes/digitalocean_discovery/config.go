@@ -164,7 +164,7 @@ func (T *Config) ListenAndServe() error {
 							replicaAddr = net.JoinHostPort(replica.Connection.Host, strconv.Itoa(replica.Connection.Port))
 						}
 
-						p2.AddRecipe(replica.Name, recipe.NewRecipe(recipe.Options{
+						p2.AddRecipe(replica.ID, recipe.NewRecipe(recipe.Options{
 							Dialer: dialer.Net{
 								Network:       "tcp",
 								Address:       replicaAddr,
