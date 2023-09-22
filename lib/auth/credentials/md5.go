@@ -10,13 +10,26 @@ import (
 )
 
 type MD5 struct {
-	Username string
-	Hash     []byte
+	Hash []byte
 }
 
-func (T MD5) GetUsername() string {
-	return T.Username
+func MD5FromString(value string) (MD5, error) {
+	if !strings.HasPrefix(value, "md5") {
+		return MD5{}, ErrInvalidSecretFormat
+	}
+
+	var res MD5
+	var err error
+	hexString := strings.TrimPrefix(value, "md5")
+	res.Hash, err = hex.DecodeString(hexString)
+	if err != nil {
+		return MD5{}, err
+	}
+
+	return res, nil
 }
+
+func (MD5) Credentials() {}
 
 func (T MD5) EncodeMD5(salt [4]byte) string {
 	hexEncoded := make([]byte, hex.EncodedLen(len(T.Hash)))
@@ -44,4 +57,6 @@ func (T MD5) VerifyMD5(salt [4]byte, value string) error {
 	return nil
 }
 
-var _ auth.MD5 = MD5{}
+var _ auth.Credentials = MD5{}
+var _ auth.MD5Client = MD5{}
+var _ auth.MD5Server = MD5{}

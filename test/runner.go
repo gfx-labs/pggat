@@ -34,7 +34,7 @@ func (T *Runner) prepare(client *gsql.Client, until int) []Capturer {
 		switch v := x.(type) {
 		case inst.SimpleQuery:
 			q := packets.Query(v)
-			client.Do(&results[i], q.IntoPacket())
+			client.Do(&results[i], q.IntoPacket(nil))
 		case inst.Sync:
 			client.Do(&results[i], fed.NewPacket(packets.TypeSync))
 		case inst.Parse:
@@ -42,45 +42,45 @@ func (T *Runner) prepare(client *gsql.Client, until int) []Capturer {
 				Destination: v.Destination,
 				Query:       v.Query,
 			}
-			client.Do(&results[i], p.IntoPacket())
+			client.Do(&results[i], p.IntoPacket(nil))
 		case inst.Bind:
 			p := packets.Bind{
 				Destination: v.Destination,
 				Source:      v.Source,
 			}
-			client.Do(&results[i], p.IntoPacket())
+			client.Do(&results[i], p.IntoPacket(nil))
 		case inst.DescribePortal:
 			p := packets.Describe{
 				Which:  'P',
 				Target: string(v),
 			}
-			client.Do(&results[i], p.IntoPacket())
+			client.Do(&results[i], p.IntoPacket(nil))
 		case inst.DescribePreparedStatement:
 			p := packets.Describe{
 				Which:  'S',
 				Target: string(v),
 			}
-			client.Do(&results[i], p.IntoPacket())
+			client.Do(&results[i], p.IntoPacket(nil))
 		case inst.Execute:
 			p := packets.Execute{
 				Target: string(v),
 			}
-			client.Do(&results[i], p.IntoPacket())
+			client.Do(&results[i], p.IntoPacket(nil))
 		case inst.ClosePortal:
 			p := packets.Close{
 				Which:  'P',
 				Target: string(v),
 			}
-			client.Do(&results[i], p.IntoPacket())
+			client.Do(&results[i], p.IntoPacket(nil))
 		case inst.ClosePreparedStatement:
 			p := packets.Close{
 				Which:  'S',
 				Target: string(v),
 			}
-			client.Do(&results[i], p.IntoPacket())
+			client.Do(&results[i], p.IntoPacket(nil))
 		case inst.CopyData:
 			p := packets.CopyData(v)
-			client.Do(&results[i], p.IntoPacket())
+			client.Do(&results[i], p.IntoPacket(nil))
 		case inst.CopyDone:
 			client.Do(&results[i], fed.NewPacket(packets.TypeCopyDone))
 		}
@@ -100,7 +100,7 @@ func (T *Runner) runModeL1(dialer dialer.Dialer, client *gsql.Client) error {
 
 	for {
 		var p fed.Packet
-		p, err = client.ReadPacket(true)
+		p, err = client.ReadPacket(true, p)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
@@ -108,7 +108,7 @@ func (T *Runner) runModeL1(dialer dialer.Dialer, client *gsql.Client) error {
 			return err
 		}
 
-		clientErr, serverErr := bouncers.Bounce(client, server, p)
+		_, clientErr, serverErr := bouncers.Bounce(client, server, p)
 		if clientErr != nil {
 			return clientErr
 		}

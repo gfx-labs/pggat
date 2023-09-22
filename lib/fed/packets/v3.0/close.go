@@ -16,8 +16,8 @@ func (T *Close) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *Close) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeClose, 2+len(T.Target))
+func (T *Close) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = packet.Reset(TypeClose, 2+len(T.Target))
 	packet = packet.AppendUint8(T.Which)
 	packet = packet.AppendString(T.Target)
 	return packet

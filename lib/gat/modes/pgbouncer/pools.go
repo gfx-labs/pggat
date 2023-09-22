@@ -3,6 +3,7 @@ package pgbouncer
 import (
 	"crypto/tls"
 	"errors"
+	"io"
 	"net"
 	"strconv"
 	"strings"
@@ -25,8 +26,8 @@ import (
 )
 
 type authQueryResult struct {
-	Username string  `sql:"0"`
-	Password *string `sql:"1"`
+	Username string `sql:"0"`
+	Password string `sql:"1"`
 }
 
 type poolKey struct {
@@ -38,7 +39,6 @@ type Pools struct {
 	Config *Config
 
 	pools maps.RWLocked[poolKey, *pool.Pool]
-	keys  maps.RWLocked[[8]byte, *pool.Pool]
 }
 
 func NewPools(config *Config) (*Pools, error) {
@@ -110,7 +110,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 			return nil
 		}
 		err = authPool.ServeBot(client)
-		if err != nil && !errors.Is(err, net.ErrClosed) {
+		if err != nil && !errors.Is(err, io.EOF) {
 			log.Println("auth query failed:", err)
 			return nil
 		}
@@ -120,9 +120,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 			return nil
 		}
 
-		if result.Password != nil {
-			password = *result.Password
-		}
+		password = result.Password
 	}
 
 	creds := credentials.FromString(user, password)
@@ -191,6 +189,7 @@ func (T *Pools) Lookup(user, database string) *pool.Pool {
 		SSLConfig: &tls.Config{
 			InsecureSkipVerify: true, // TODO(garet)
 		},
+		Username:          user,
 		Credentials:       dbCreds,
 		Database:          backendDatabase,
 		StartupParameters: db.StartupParameters,
@@ -254,23 +253,6 @@ func (T *Pools) ReadMetrics(metrics *metrics.Pools) {
 		p.ReadMetrics(&metrics.Pool)
 		return true
 	})
-}
-
-func (T *Pools) RegisterKey(key [8]byte, user, database string) {
-	p := T.Lookup(user, database)
-	if p == nil {
-		return
-	}
-	T.keys.Store(key, p)
-}
-
-func (T *Pools) UnregisterKey(key [8]byte) {
-	T.keys.Delete(key)
-}
-
-func (T *Pools) LookupKey(key [8]byte) *pool.Pool {
-	p, _ := T.keys.Load(key)
-	return p
 }
 
 var _ gat.Pools = (*Pools)(nil)

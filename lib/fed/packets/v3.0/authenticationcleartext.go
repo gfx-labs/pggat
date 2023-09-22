@@ -16,8 +16,8 @@ func (T *AuthenticationCleartext) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *AuthenticationCleartext) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeAuthentication, 4)
+func (T *AuthenticationCleartext) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = packet.Reset(TypeAuthentication, 4)
 	packet = packet.AppendUint32(3)
 	return packet
 }

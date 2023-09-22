@@ -19,8 +19,8 @@ func (T *AuthenticationMD5) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *AuthenticationMD5) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeAuthentication, 8)
+func (T *AuthenticationMD5) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = packet.Reset(TypeAuthentication, 8)
 	packet = packet.AppendUint32(5)
 	packet = packet.AppendBytes(T.Salt[:])
 	return packet

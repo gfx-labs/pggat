@@ -1,6 +1,7 @@
 package eqp
 
 import (
+	"bytes"
 	"hash/maphash"
 
 	"pggat/lib/fed"
@@ -24,7 +25,7 @@ func MakePreparedStatement(packet fed.Packet) PreparedStatement {
 
 	var res PreparedStatement
 	packet.ReadString(&res.Target)
-	res.Packet = packet
+	res.Packet = bytes.Clone(packet)
 	res.Hash = maphash.Bytes(seed, packet.Payload())
 
 	return res
@@ -42,7 +43,7 @@ func MakePortal(packet fed.Packet) Portal {
 
 	var res Portal
 	packet.ReadString(&res.Target)
-	res.Packet = packet
+	res.Packet = bytes.Clone(packet)
 
 	return res
 }

@@ -11,6 +11,7 @@ import (
 type AcceptOptions struct {
 	SSLMode           bouncer.SSLMode
 	SSLConfig         *tls.Config
+	Username          string
 	Credentials       auth.Credentials
 	Database          string
 	StartupParameters map[strutil.CIString]string

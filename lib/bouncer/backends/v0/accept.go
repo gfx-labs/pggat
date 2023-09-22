@@ -1,7 +1,6 @@
 package backends
 
 import (
-	"crypto/tls"
 	"errors"
 	"io"
 
@@ -11,20 +10,19 @@ import (
 	"pggat/lib/util/strutil"
 )
 
-func authenticationSASLChallenge(server fed.Conn, encoder auth.SASLEncoder) (done bool, err error) {
-	var packet fed.Packet
-	packet, err = server.ReadPacket(true)
+func authenticationSASLChallenge(ctx *AcceptContext, encoder auth.SASLEncoder) (done bool, err error) {
+	ctx.Packet, err = ctx.Conn.ReadPacket(true, ctx.Packet)
 	if err != nil {
 		return
 	}
 
-	if packet.Type() != packets.TypeAuthentication {
+	if ctx.Packet.Type() != packets.TypeAuthentication {
 		err = ErrUnexpectedPacket
 		return
 	}
 
 	var method int32
-	p := packet.ReadInt32(&method)
+	p := ctx.Packet.ReadInt32(&method)
 
 	switch method {
 	case 11:
@@ -36,12 +34,16 @@ func authenticationSASLChallenge(server fed.Conn, encoder auth.SASLEncoder) (don
 		}
 
 		resp := packets.AuthenticationResponse(response)
-		err = server.WritePacket(resp.IntoPacket())
+		ctx.Packet = resp.IntoPacket(ctx.Packet)
+		err = ctx.Conn.WritePacket(ctx.Packet)
 		return
 	case 12:
 		// finish
 		_, err = encoder.Write(p)
-		if err != nil {
+		if err != io.EOF {
+			if err == nil {
+				err = errors.New("expected EOF")
+			}
 			return
 		}
 
@@ -52,7 +54,7 @@ func authenticationSASLChallenge(server fed.Conn, encoder auth.SASLEncoder) (don
 	}
 }
 
-func authenticationSASL(server fed.Conn, mechanisms []string, creds auth.SASL) error {
+func authenticationSASL(ctx *AcceptContext, mechanisms []string, creds auth.SASLClient) error {
 	mechanism, encoder, err := creds.EncodeSASL(mechanisms)
 	if err != nil {
 		return err
@@ -66,7 +68,8 @@ func authenticationSASL(server fed.Conn, mechanisms []string, creds auth.SASL) e
 		Mechanism:       mechanism,
 		InitialResponse: initialResponse,
 	}
-	err = server.WritePacket(saslInitialResponse.IntoPacket())
+	ctx.Packet = saslInitialResponse.IntoPacket(ctx.Packet)
+	err = ctx.Conn.WritePacket(ctx.Packet)
 	if err != nil {
 		return err
 	}
@@ -74,7 +77,7 @@ func authenticationSASL(server fed.Conn, mechanisms []string, creds auth.SASL) e
 	// challenge loop
 	for {
 		var done bool
-		done, err = authenticationSASLChallenge(server, encoder)
+		done, err = authenticationSASLChallenge(ctx, encoder)
 		if err != nil {
 			return err
 		}
@@ -86,31 +89,33 @@ func authenticationSASL(server fed.Conn, mechanisms []string, creds auth.SASL) e
 	return nil
 }
 
-func authenticationMD5(server fed.Conn, salt [4]byte, creds auth.MD5) error {
+func authenticationMD5(ctx *AcceptContext, salt [4]byte, creds auth.MD5Client) error {
 	pw := packets.PasswordMessage{
 		Password: creds.EncodeMD5(salt),
 	}
-	err := server.WritePacket(pw.IntoPacket())
+	ctx.Packet = pw.IntoPacket(ctx.Packet)
+	err := ctx.Conn.WritePacket(ctx.Packet)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func authenticationCleartext(server fed.Conn, creds auth.Cleartext) error {
+func authenticationCleartext(ctx *AcceptContext, creds auth.CleartextClient) error {
 	pw := packets.PasswordMessage{
 		Password: creds.EncodeCleartext(),
 	}
-	err := server.WritePacket(pw.IntoPacket())
+	ctx.Packet = pw.IntoPacket(ctx.Packet)
+	err := ctx.Conn.WritePacket(ctx.Packet)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func authentication(server fed.Conn, creds auth.Credentials, packet fed.Packet) (done bool, err error) {
+func authentication(ctx *AcceptContext) (done bool, err error) {
 	var method int32
-	packet.ReadInt32(&method)
+	ctx.Packet.ReadInt32(&method)
 	// they have more authentication methods than there are pokemon
 	switch method {
 	case 0:
@@ -120,23 +125,23 @@ func authentication(server fed.Conn, creds auth.Credentials, packet fed.Packet) 
 		err = errors.New("kerberos v5 is not supported")
 		return
 	case 3:
-		c, ok := creds.(auth.Cleartext)
+		c, ok := ctx.Options.Credentials.(auth.CleartextClient)
 		if !ok {
 			return false, auth.ErrMethodNotSupported
 		}
-		return false, authenticationCleartext(server, c)
+		return false, authenticationCleartext(ctx, c)
 	case 5:
 		var md5 packets.AuthenticationMD5
-		if !md5.ReadFromPacket(packet) {
+		if !md5.ReadFromPacket(ctx.Packet) {
 			err = ErrBadFormat
 			return
 		}
 
-		c, ok := creds.(auth.MD5)
+		c, ok := ctx.Options.Credentials.(auth.MD5Client)
 		if !ok {
 			return false, auth.ErrMethodNotSupported
 		}
-		return false, authenticationMD5(server, md5.Salt, c)
+		return false, authenticationMD5(ctx, md5.Salt, c)
 	case 6:
 		err = errors.New("scm credential is not supported")
 		return
@@ -149,40 +154,39 @@ func authentication(server fed.Conn, creds auth.Credentials, packet fed.Packet) 
 	case 10:
 		// read list of mechanisms
 		var sasl packets.AuthenticationSASL
-		if !sasl.ReadFromPacket(packet) {
+		if !sasl.ReadFromPacket(ctx.Packet) {
 			err = ErrBadFormat
 			return
 		}
 
-		c, ok := creds.(auth.SASL)
+		c, ok := ctx.Options.Credentials.(auth.SASLClient)
 		if !ok {
 			return false, auth.ErrMethodNotSupported
 		}
-		return false, authenticationSASL(server, sasl.Mechanisms, c)
+		return false, authenticationSASL(ctx, sasl.Mechanisms, c)
 	default:
 		err = errors.New("unknown authentication method")
 		return
 	}
 }
 
-func startup0(server fed.Conn, creds auth.Credentials) (done bool, err error) {
-	var packet fed.Packet
-	packet, err = server.ReadPacket(true)
+func startup0(ctx *AcceptContext) (done bool, err error) {
+	ctx.Packet, err = ctx.Conn.ReadPacket(true, ctx.Packet)
 	if err != nil {
 		return
 	}
 
-	switch packet.Type() {
+	switch ctx.Packet.Type() {
 	case packets.TypeErrorResponse:
 		var err2 packets.ErrorResponse
-		if !err2.ReadFromPacket(packet) {
+		if !err2.ReadFromPacket(ctx.Packet) {
 			err = ErrBadFormat
 		} else {
 			err = errors.New(err2.Error.String())
 		}
 		return
 	case packets.TypeAuthentication:
-		return authentication(server, creds, packet)
+		return authentication(ctx)
 	case packets.TypeNegotiateProtocolVersion:
 		// we only support protocol 3.0 for now
 		err = errors.New("server wanted to negotiate protocol version")
@@ -193,20 +197,19 @@ func startup0(server fed.Conn, creds auth.Credentials) (done bool, err error) {
 	}
 }
 
-func startup1(conn fed.Conn, params *AcceptParams) (done bool, err error) {
-	var packet fed.Packet
-	packet, err = conn.ReadPacket(true)
+func startup1(ctx *AcceptContext, params *AcceptParams) (done bool, err error) {
+	ctx.Packet, err = ctx.Conn.ReadPacket(true, ctx.Packet)
 	if err != nil {
 		return
 	}
 
-	switch packet.Type() {
+	switch ctx.Packet.Type() {
 	case packets.TypeBackendKeyData:
-		packet.ReadBytes(params.BackendKey[:])
+		ctx.Packet.ReadBytes(params.BackendKey[:])
 		return false, nil
 	case packets.TypeParameterStatus:
 		var ps packets.ParameterStatus
-		if !ps.ReadFromPacket(packet) {
+		if !ps.ReadFromPacket(ctx.Packet) {
 			err = ErrBadFormat
 			return
 		}
@@ -220,7 +223,7 @@ func startup1(conn fed.Conn, params *AcceptParams) (done bool, err error) {
 		return true, nil
 	case packets.TypeErrorResponse:
 		var err2 packets.ErrorResponse
-		if !err2.ReadFromPacket(packet) {
+		if !err2.ReadFromPacket(ctx.Packet) {
 			err = ErrBadFormat
 		} else {
 			err = errors.New(err2.Error.String())
@@ -235,15 +238,15 @@ func startup1(conn fed.Conn, params *AcceptParams) (done bool, err error) {
 	}
 }
 
-func enableSSL(server fed.Conn, config *tls.Config) (bool, error) {
-	packet := fed.NewPacket(0, 4)
-	packet = packet.AppendUint16(1234)
-	packet = packet.AppendUint16(5679)
-	if err := server.WritePacket(packet); err != nil {
+func enableSSL(ctx *AcceptContext) (bool, error) {
+	ctx.Packet = ctx.Packet.Reset(0, 4)
+	ctx.Packet = ctx.Packet.AppendUint16(1234)
+	ctx.Packet = ctx.Packet.AppendUint16(5679)
+	if err := ctx.Conn.WritePacket(ctx.Packet); err != nil {
 		return false, err
 	}
 
-	byteReader, ok := server.(io.ByteReader)
+	byteReader, ok := ctx.Conn.(io.ByteReader)
 	if !ok {
 		return false, errors.New("server must be io.ByteReader to enable ssl")
 	}
@@ -259,65 +262,65 @@ func enableSSL(server fed.Conn, config *tls.Config) (bool, error) {
 		return false, nil
 	}
 
-	sslClient, ok := server.(fed.SSLClient)
+	sslClient, ok := ctx.Conn.(fed.SSLClient)
 	if !ok {
 		return false, errors.New("server must be fed.SSLClient to enable ssl")
 	}
 
-	if err = sslClient.EnableSSLClient(config); err != nil {
+	if err = sslClient.EnableSSLClient(ctx.Options.SSLConfig); err != nil {
 		return false, err
 	}
 
 	return true, nil
 }
 
-func Accept(server fed.Conn, options AcceptOptions) (AcceptParams, error) {
-	username := options.Credentials.GetUsername()
+func Accept(ctx *AcceptContext) (AcceptParams, error) {
+	username := ctx.Options.Username
 
-	if options.Database == "" {
-		options.Database = username
+	if ctx.Options.Database == "" {
+		ctx.Options.Database = username
 	}
 
 	var params AcceptParams
 
-	if options.SSLMode.ShouldAttempt() {
+	if ctx.Options.SSLMode.ShouldAttempt() {
 		var err error
-		params.SSLEnabled, err = enableSSL(server, options.SSLConfig)
+		params.SSLEnabled, err = enableSSL(ctx)
 		if err != nil {
 			return AcceptParams{}, err
 		}
-		if !params.SSLEnabled && options.SSLMode.IsRequired() {
+		if !params.SSLEnabled && ctx.Options.SSLMode.IsRequired() {
 			return AcceptParams{}, errors.New("server rejected SSL encryption")
 		}
 	}
 
-	size := 4 + len("user") + 1 + len(username) + 1 + len("database") + 1 + len(options.Database) + 1
-	for key, value := range options.StartupParameters {
+	size := 4 + len("user") + 1 + len(username) + 1 + len("database") + 1 + len(ctx.Options.Database) + 1
+	for key, value := range ctx.Options.StartupParameters {
 		size += len(key.String()) + len(value) + 2
 	}
 	size += 1
 
-	packet := fed.NewPacket(0, size)
-	packet = packet.AppendUint16(3)
-	packet = packet.AppendUint16(0)
-	packet = packet.AppendString("user")
-	packet = packet.AppendString(username)
-	packet = packet.AppendString("database")
-	packet = packet.AppendString(options.Database)
-	for key, value := range options.StartupParameters {
-		packet = packet.AppendString(key.String())
-		packet = packet.AppendString(value)
+	ctx.Packet = ctx.Packet.Reset(0, size)
+	ctx.Packet = ctx.Packet.AppendUint16(3)
+	ctx.Packet = ctx.Packet.AppendUint16(0)
+	ctx.Packet = ctx.Packet.AppendString("user")
+	ctx.Packet = ctx.Packet.AppendString(username)
+	ctx.Packet = ctx.Packet.AppendString("database")
+	ctx.Packet = ctx.Packet.AppendString(ctx.Options.Database)
+	for key, value := range ctx.Options.StartupParameters {
+		ctx.Packet = ctx.Packet.AppendString(key.String())
+		ctx.Packet = ctx.Packet.AppendString(value)
 	}
-	packet = packet.AppendUint8(0)
+	ctx.Packet = ctx.Packet.AppendUint8(0)
 
-	err := server.WritePacket(packet)
+	err := ctx.Conn.WritePacket(ctx.Packet)
 	if err != nil {
 		return AcceptParams{}, err
 	}
 
 	for {
 		var done bool
-		done, err = startup0(server, options.Credentials)
+		done, err = startup0(ctx)
 		if err != nil {
 			return AcceptParams{}, err
 		}
@@ -328,7 +331,7 @@ func Accept(server fed.Conn, options AcceptOptions) (AcceptParams, error) {
 
 	for {
 		var done bool
-		done, err = startup1(server, &params)
+		done, err = startup1(ctx, &params)
 		if err != nil {
 			return AcceptParams{}, err
 		}

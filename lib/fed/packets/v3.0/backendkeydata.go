@@ -14,8 +14,8 @@ func (T *BackendKeyData) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *BackendKeyData) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeBackendKeyData, 8)
+func (T *BackendKeyData) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = fed.NewPacket(TypeBackendKeyData, 8)
 	packet = packet.AppendBytes(T.CancellationKey[:])
 	return packet
 }

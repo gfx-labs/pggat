@@ -13,7 +13,7 @@ type Capturer struct {
 }
 
 func (T *Capturer) WritePacket(packet fed.Packet) error {
-	T.Packets = append(T.Packets, packet)
+	T.Packets = append(T.Packets, bytes.Clone(packet))
 	return nil
 }
 

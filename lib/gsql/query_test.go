@@ -13,8 +13,8 @@ import (
 )
 
 type Result struct {
-	Username string  `sql:"0"`
-	Password *string `sql:"1"`
+	Username string `sql:"0"`
+	Password string `sql:"1"`
 }
 
 func TestQuery(t *testing.T) {
@@ -25,13 +25,18 @@ func TestQuery(t *testing.T) {
 		return
 	}
 	server := fed.WrapNetConn(s)
-	_, err = backends.Accept(server, backends.AcceptOptions{
-		Credentials: credentials.Cleartext{
+	ctx := backends.AcceptContext{
+		Conn: server,
+		Options: backends.AcceptOptions{
 			Username: "postgres",
-			Password: "password",
+			Credentials: credentials.Cleartext{
+				Username: "postgres",
+				Password: "password",
+			},
+			Database: "postgres",
 		},
-		Database: "postgres",
-	})
+	}
+	_, err = backends.Accept(&ctx)
 	if err != nil {
 		t.Error(err)
 		return
@@ -39,7 +44,7 @@ func TestQuery(t *testing.T) {
 
 	var res Result
 	client := new(Client)
-	err = ExtendedQuery(client, &res, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", "bob")
+	err = ExtendedQuery(client, &res, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", "postgres")
 	if err != nil {
 		t.Error(err)
 		return
@@ -49,11 +54,12 @@ func TestQuery(t *testing.T) {
 		t.Error(err)
 	}
 
-	initial, err := client.ReadPacket(true)
+	var initial fed.Packet
+	initial, err = client.ReadPacket(true, initial)
 	if err != nil {
 		t.Error(err)
 	}
-	clientErr, serverErr := bouncers.Bounce(client, server, initial)
+	_, clientErr, serverErr := bouncers.Bounce(client, server, initial)
 	if clientErr != nil {
 		t.Error(clientErr)
 	}

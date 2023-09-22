@@ -17,20 +17,6 @@ type Acceptor struct {
 	Options  frontends.AcceptOptions
 }
 
-func (T Acceptor) Accept() (fed.Conn, frontends.AcceptParams, error) {
-	netConn, err := T.Listener.Accept()
-	if err != nil {
-		return nil, frontends.AcceptParams{}, err
-	}
-	conn := fed.WrapNetConn(netConn)
-	params, err := frontends.Accept(conn, T.Options)
-	if err != nil {
-		_ = conn.Close()
-		return nil, frontends.AcceptParams{}, err
-	}
-	return conn, params, nil
-}
-
 func Listen(network, address string, options frontends.AcceptOptions) (Acceptor, error) {
 	listener, err := net.Listen(network, address)
 	if err != nil {
@@ -48,7 +34,7 @@ func Listen(network, address string, options frontends.AcceptOptions) (Acceptor,
 	}, nil
 }
 
-func serve(client fed.Conn, acceptParams frontends.AcceptParams, pools Pools) error {
+func serve(client fed.Conn, acceptParams frontends.AcceptParams, pools *KeyedPools) error {
 	defer func() {
 		_ = client.Close()
 	}()
@@ -69,9 +55,13 @@ func serve(client fed.Conn, acceptParams frontends.AcceptParams, pools Pools) er
 		return nil
 	}
 
-	authParams, err := frontends.Authenticate(client, frontends.AuthenticateOptions{
-		Credentials: p.GetCredentials(),
-	})
+	ctx := frontends.AuthenticateContext{
+		Conn: client,
+		Options: frontends.AuthenticateOptions{
+			Credentials: p.GetCredentials(),
+		},
+	}
+	authParams, err := frontends.Authenticate(&ctx)
 	if err != nil {
 		return err
 	}
@@ -82,26 +72,43 @@ func serve(client fed.Conn, acceptParams frontends.AcceptParams, pools Pools) er
 	return p.Serve(client, acceptParams.InitialParameters, authParams.BackendKey)
 }
 
-func Serve(acceptor Acceptor, pools Pools) error {
+func Serve(acceptor Acceptor, pools *KeyedPools) error {
 	for {
-		conn, acceptParams, err := acceptor.Accept()
+		netConn, err := acceptor.Listener.Accept()
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
 				return nil
 			}
-			log.Print("error accepting client: ", err)
+			log.Print("error accepting connection: ", err)
 			continue
 		}
+		conn := fed.WrapNetConn(netConn)
+
 		go func() {
-			err := serve(conn, acceptParams, pools)
+			defer func() {
+				_ = conn.Close()
+			}()
+
+			ctx := frontends.AcceptContext{
+				Conn:    conn,
+				Options: acceptor.Options,
+			}
+			acceptParams, acceptErr := frontends.Accept(&ctx)
+			if acceptErr != nil {
+				log.Print("error accepting client: ", acceptErr)
+				return
+			}
+
+			err = serve(conn, acceptParams, pools)
 			if err != nil && !errors.Is(err, io.EOF) {
 				log.Print("error serving client: ", err)
+				return
 			}
 		}()
 	}
 }
 
-func ListenAndServe(network, address string, options frontends.AcceptOptions, pools Pools) error {
+func ListenAndServe(network, address string, options frontends.AcceptOptions, pools *KeyedPools) error {
 	listener, err := Listen(network, address, options)
 	if err != nil {
 		return err

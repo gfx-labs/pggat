@@ -7,6 +7,7 @@ import (
 
 	"pggat/lib/fed"
 	"pggat/lib/util/ring"
+	"pggat/lib/util/slices"
 )
 
 type batch struct {
@@ -57,7 +58,9 @@ func (T *Client) queueNext() bool {
 	return false
 }
 
-func (T *Client) ReadPacket(typed bool) (fed.Packet, error) {
+func (T *Client) ReadPacket(typed bool, buffer fed.Packet) (packet fed.Packet, err error) {
+	packet = buffer
+
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -75,7 +78,8 @@ func (T *Client) ReadPacket(typed bool) (fed.Packet, error) {
 		}
 
 		if T.closed {
-			return nil, io.EOF
+			err = io.EOF
+			return
 		}
 
 		if T.readC == nil {
@@ -85,10 +89,13 @@ func (T *Client) ReadPacket(typed bool) (fed.Packet, error) {
 	}
 
 	if (p.Type() == 0 && typed) || (p.Type() != 0 && !typed) {
-		return nil, ErrTypedMismatch
+		err = ErrTypedMismatch
+		return
 	}
 
-	return p, nil
+	packet = slices.Resize(packet, len(p))
+	copy(packet, p)
+	return
 }
 
 func (T *Client) WritePacket(packet fed.Packet) error {

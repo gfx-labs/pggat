@@ -16,8 +16,8 @@ func (T *ParameterStatus) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *ParameterStatus) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeParameterStatus, len(T.Key)+len(T.Value)+2)
+func (T *ParameterStatus) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = packet.Reset(TypeParameterStatus, len(T.Key)+len(T.Value)+2)
 	packet = packet.AppendString(T.Key)
 	packet = packet.AppendString(T.Value)
 	return packet

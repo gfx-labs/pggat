@@ -14,8 +14,8 @@ func (T *ReadyForQuery) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *ReadyForQuery) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeReadyForQuery, 1)
+func (T *ReadyForQuery) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = fed.NewPacket(TypeReadyForQuery, 1)
 	packet = packet.AppendUint8(byte(*T))
 	return packet
 }

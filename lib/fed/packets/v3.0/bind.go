@@ -51,7 +51,7 @@ func (T *Bind) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *Bind) IntoPacket() fed.Packet {
+func (T *Bind) IntoPacket(packet fed.Packet) fed.Packet {
 	size := 0
 	size += len(T.Destination) + 1
 	size += len(T.Source) + 1
@@ -64,7 +64,7 @@ func (T *Bind) IntoPacket() fed.Packet {
 	size += 2
 	size += len(T.ResultFormatCodes) * 2
 
-	packet := fed.NewPacket(TypeBind, size)
+	packet = packet.Reset(TypeBind, size)
 	packet = packet.AppendString(T.Destination)
 	packet = packet.AppendString(T.Source)
 	packet = packet.AppendUint16(uint16(len(T.ParameterFormatCodes)))

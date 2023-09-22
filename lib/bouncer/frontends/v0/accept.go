@@ -13,11 +13,11 @@ import (
 )
 
 func startup0(
-	conn fed.Conn,
+	ctx *AcceptContext,
 	params *AcceptParams,
-	options AcceptOptions,
 ) (done bool, err perror.Error) {
-	packet, err2 := conn.ReadPacket(false)
+	var err2 error
+	ctx.Packet, err2 = ctx.Conn.ReadPacket(false, ctx.Packet)
 	if err2 != nil {
 		err = perror.Wrap(err2)
 		return
@@ -25,7 +25,7 @@ func startup0(
 
 	var majorVersion uint16
 	var minorVersion uint16
-	p := packet.ReadUint16(&majorVersion)
+	p := ctx.Packet.ReadUint16(&majorVersion)
 	p = p.ReadUint16(&minorVersion)
 
 	if majorVersion == 1234 {
@@ -49,7 +49,7 @@ func startup0(
 			done = true
 			return
 		case 5679:
-			byteWriter, ok := conn.(io.ByteWriter)
+			byteWriter, ok := ctx.Conn.(io.ByteWriter)
 			if !ok {
 				err = perror.New(
 					perror.FATAL,
@@ -60,12 +60,12 @@ func startup0(
 			}
 
 			// ssl is not enabled
-			if options.SSLConfig == nil {
+			if ctx.Options.SSLConfig == nil {
 				err = perror.Wrap(byteWriter.WriteByte('N'))
 				return
 			}
 
-			sslServer, ok := conn.(fed.SSLServer)
+			sslServer, ok := ctx.Conn.(fed.SSLServer)
 			if !ok {
 				err = perror.New(
 					perror.FATAL,
@@ -79,13 +79,13 @@ func startup0(
 			if err = perror.Wrap(byteWriter.WriteByte('S')); err != nil {
 				return
 			}
-			if err = perror.Wrap(sslServer.EnableSSLServer(options.SSLConfig)); err != nil {
+			if err = perror.Wrap(sslServer.EnableSSLServer(ctx.Options.SSLConfig)); err != nil {
 				return
 			}
 			params.SSLEnabled = true
 			return
 		case 5680:
-			byteWriter, ok := conn.(io.ByteWriter)
+			byteWriter, ok := ctx.Conn.(io.ByteWriter)
 			if !ok {
 				err = perror.New(
 					perror.FATAL,
@@ -154,7 +154,7 @@ func startup0(
 
 					ikey := strutil.MakeCIString(key)
 
-					if !slices.Contains(options.AllowedStartupOptions, ikey) {
+					if !slices.Contains(ctx.Options.AllowedStartupOptions, ikey) {
 						err = perror.New(
 							perror.FATAL,
 							perror.FeatureNotSupported,
@@ -190,7 +190,7 @@ func startup0(
 			} else {
 				ikey := strutil.MakeCIString(key)
 
-				if !slices.Contains(options.AllowedStartupOptions, ikey) {
+				if !slices.Contains(ctx.Options.AllowedStartupOptions, ikey) {
 					err = perror.New(
 						perror.FATAL,
 						perror.FeatureNotSupported,
@@ -213,8 +213,8 @@ func startup0(
 			MinorProtocolVersion: 0,
 			UnrecognizedOptions:  unsupportedOptions,
 		}
-
-		err = perror.Wrap(conn.WritePacket(uopts.IntoPacket()))
+		ctx.Packet = uopts.IntoPacket(ctx.Packet)
+		err = perror.Wrap(ctx.Conn.WritePacket(ctx.Packet))
 		if err != nil {
 			return
 		}
@@ -237,12 +237,11 @@ func startup0(
 }
 
 func accept(
-	client fed.Conn,
-	options AcceptOptions,
+	ctx *AcceptContext,
 ) (params AcceptParams, err perror.Error) {
 	for {
 		var done bool
-		done, err = startup0(client, &params, options)
+		done, err = startup0(ctx, &params)
 		if err != nil {
 			return
 		}
@@ -255,7 +254,7 @@ func accept(
 		return
 	}
 
-	if options.SSLRequired && !params.SSLEnabled {
+	if ctx.Options.SSLRequired && !params.SSLEnabled {
 		err = perror.New(
 			perror.FATAL,
 			perror.InvalidPassword,
@@ -267,17 +266,18 @@ func accept(
 	return
 }
 
-func fail(client fed.Conn, err perror.Error) {
+func fail(packet fed.Packet, client fed.Conn, err perror.Error) {
 	resp := packets.ErrorResponse{
 		Error: err,
 	}
-	_ = client.WritePacket(resp.IntoPacket())
+	packet = resp.IntoPacket(packet)
+	_ = client.WritePacket(packet)
 }
 
-func Accept(client fed.Conn, options AcceptOptions) (AcceptParams, perror.Error) {
-	params, err := accept(client, options)
+func Accept(ctx *AcceptContext) (AcceptParams, perror.Error) {
+	params, err := accept(ctx)
 	if err != nil {
-		fail(client, err)
+		fail(ctx.Packet, ctx.Conn, err)
 		return AcceptParams{}, err
 	}
 	return params, nil

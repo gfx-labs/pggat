@@ -299,6 +299,8 @@ func (T *Config) ListenAndServe() error {
 
 	var bank flip.Bank
 
+	keyedPools := gat.NewKeyedPools(pools)
+
 	if T.PgBouncer.ListenAddr != "" {
 		bank.Queue(func() error {
 			listenAddr := T.PgBouncer.ListenAddr
@@ -310,7 +312,7 @@ func (T *Config) ListenAndServe() error {
 
 			log.Printf("listening on %s", listen)
 
-			return gat.ListenAndServe("tcp", listen, acceptOptions, pools)
+			return gat.ListenAndServe("tcp", listen, acceptOptions, keyedPools)
 		})
 	}
 
@@ -326,7 +328,7 @@ func (T *Config) ListenAndServe() error {
 
 		log.Printf("listening on unix:%s", dir)
 
-		return gat.ListenAndServe("unix", dir, acceptOptions, pools)
+		return gat.ListenAndServe("unix", dir, acceptOptions, keyedPools)
 	})
 
 	return bank.Wait()

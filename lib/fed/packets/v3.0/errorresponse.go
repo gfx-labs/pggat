@@ -56,7 +56,7 @@ func (T *ErrorResponse) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *ErrorResponse) IntoPacket() fed.Packet {
+func (T *ErrorResponse) IntoPacket(packet fed.Packet) fed.Packet {
 	size := 1
 	size += len(T.Error.Severity()) + 2
 	size += len(T.Error.Code()) + 2
@@ -65,7 +65,7 @@ func (T *ErrorResponse) IntoPacket() fed.Packet {
 		size += len(field.Value) + 2
 	}
 
-	packet := fed.NewPacket(TypeErrorResponse, size)
+	packet = packet.Reset(TypeErrorResponse, size)
 
 	packet = packet.AppendUint8('S')
 	packet = packet.AppendString(string(T.Error.Severity()))

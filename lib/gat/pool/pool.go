@@ -29,12 +29,13 @@ type Pool struct {
 	pendingCount atomic.Int64
 	pending      chan struct{}
 
-	recipes         map[string]*recipe.Recipe
-	clients         map[uuid.UUID]*Client
-	clientsByKey    map[[8]byte]*Client
-	servers         map[uuid.UUID]*Server
-	serversByRecipe map[string][]*Server
-	mu              sync.RWMutex
+	recipes          map[string]*recipe.Recipe
+	recipeScaleOrder slices.Sorted[string]
+	clients          map[uuid.UUID]*Client
+	clientsByKey     map[[8]byte]*Client
+	servers          map[uuid.UUID]*Server
+	serversByRecipe  map[string][]*Server
+	mu               sync.RWMutex
 }
 
 func NewPool(options Options) *Pool {
@@ -94,6 +95,11 @@ func (T *Pool) AddRecipe(name string, r *recipe.Recipe) {
 			T.recipes = make(map[string]*recipe.Recipe)
 		}
 		T.recipes[name] = r
+
+		// add to front of scale order
+		T.recipeScaleOrder = T.recipeScaleOrder.Insert(name, func(n string) int {
+			return len(T.serversByRecipe[n])
+		})
 	}()
 
 	count := r.AllocateInitial()
@@ -124,6 +130,8 @@ func (T *Pool) removeRecipe(name string) {
 
 	servers := T.serversByRecipe[name]
 	delete(T.serversByRecipe, name)
+	// remove from recipeScaleOrder
+	T.recipeScaleOrder = slices.Delete(T.recipeScaleOrder, name)
 
 	for _, server := range servers {
 		r.Free()
@@ -135,15 +143,13 @@ func (T *Pool) scaleUpL0() (string, *recipe.Recipe) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 
-	for name, r := range T.recipes {
+	for _, name := range T.recipeScaleOrder {
+		r := T.recipes[name]
 		if r.Allocate() {
 			return name, r
 		}
 	}
 
-	if len(T.servers) > 0 {
-		return "", nil
-	}
 	return "", nil
 }
 
@@ -181,6 +187,10 @@ func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) error {
 			T.serversByRecipe = make(map[string][]*Server)
 		}
 		T.serversByRecipe[name] = append(T.serversByRecipe[name], server)
+		// update order
+		T.recipeScaleOrder.Update(slices.Index(T.recipeScaleOrder, name), func(n string) int {
+			return len(T.serversByRecipe[n])
+		})
 		return server, nil
 	}()
 
@@ -219,7 +229,12 @@ func (T *Pool) removeServerL1(server *Server) {
 	T.pooler.DeleteServer(server.GetID())
 	_ = server.GetConn().Close()
 	if T.serversByRecipe != nil {
-		T.serversByRecipe[server.GetRecipe()] = slices.Delete(T.serversByRecipe[server.GetRecipe()], server)
+		name := server.GetRecipe()
+		T.serversByRecipe[name] = slices.Delete(T.serversByRecipe[name], server)
+		// update order
+		T.recipeScaleOrder.Update(slices.Index(T.recipeScaleOrder, name), func(n string) int {
+			return len(T.serversByRecipe[n])
+		})
 	}
 }
 
@@ -253,7 +268,10 @@ func (T *Pool) releaseServer(server *Server) {
 	if T.options.ServerResetQuery != "" {
 		server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
 
-		err := backends.QueryString(new(backends.Context), server.GetReadWriter(), T.options.ServerResetQuery)
+		ctx := backends.Context{
+			Server: server.GetReadWriter(),
+		}
+		err := backends.QueryString(&ctx, T.options.ServerResetQuery)
 		if err != nil {
 			T.removeServer(server)
 			return
@@ -322,6 +340,8 @@ func (T *Pool) serve(client *Client, initialized bool) error {
 		}
 	}()
 
+	var packet fed.Packet
+
 	if !initialized {
 		server = T.acquireServer(client)
 
@@ -334,7 +354,8 @@ func (T *Pool) serve(client *Client, initialized bool) error {
 		}
 
 		p := packets.ReadyForQuery('I')
-		err = client.GetConn().WritePacket(p.IntoPacket())
+		packet = p.IntoPacket(packet)
+		err = client.GetConn().WritePacket(packet)
 		if err != nil {
 			return err
 		}
@@ -347,8 +368,7 @@ func (T *Pool) serve(client *Client, initialized bool) error {
 			server = nil
 		}
 
-		var packet fed.Packet
-		packet, err = client.GetConn().ReadPacket(true)
+		packet, err = client.GetConn().ReadPacket(true, packet)
 		if err != nil {
 			return err
 		}
@@ -359,7 +379,7 @@ func (T *Pool) serve(client *Client, initialized bool) error {
 			err, serverErr = Pair(T.options, client, server)
 		}
 		if err == nil && serverErr == nil {
-			err, serverErr = bouncers.Bounce(client.GetReadWriter(), server.GetReadWriter(), packet)
+			packet, err, serverErr = bouncers.Bounce(client.GetReadWriter(), server.GetReadWriter(), packet)
 		}
 		if serverErr != nil {
 			return serverErr

@@ -16,8 +16,8 @@ func (T *Execute) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *Execute) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeExecute, len(T.Target)+5)
+func (T *Execute) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = packet.Reset(TypeExecute, len(T.Target)+5)
 	packet = packet.AppendString(T.Target)
 	packet = packet.AppendInt32(T.MaxRows)
 	return packet

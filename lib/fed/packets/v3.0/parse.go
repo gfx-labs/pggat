@@ -26,8 +26,8 @@ func (T *Parse) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *Parse) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeParse, len(T.Destination)+len(T.Query)+4+len(T.ParameterDataTypes)*4)
+func (T *Parse) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = packet.Reset(TypeParse, len(T.Destination)+len(T.Query)+4+len(T.ParameterDataTypes)*4)
 	packet = packet.AppendString(T.Destination)
 	packet = packet.AppendString(T.Query)
 	packet = packet.AppendInt16(int16(len(T.ParameterDataTypes)))

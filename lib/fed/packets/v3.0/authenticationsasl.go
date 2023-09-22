@@ -27,13 +27,13 @@ func (T *AuthenticationSASL) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *AuthenticationSASL) IntoPacket() fed.Packet {
+func (T *AuthenticationSASL) IntoPacket(packet fed.Packet) fed.Packet {
 	size := 5
 	for _, mechanism := range T.Mechanisms {
 		size += len(mechanism) + 1
 	}
 
-	packet := fed.NewPacket(TypeAuthentication, size)
+	packet = packet.Reset(TypeAuthentication, size)
 
 	packet = packet.AppendInt32(10)
 	for _, mechanism := range T.Mechanisms {

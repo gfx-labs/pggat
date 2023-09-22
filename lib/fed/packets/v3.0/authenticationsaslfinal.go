@@ -21,8 +21,8 @@ func (T *AuthenticationSASLFinal) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *AuthenticationSASLFinal) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeAuthentication, 4+len(*T))
+func (T *AuthenticationSASLFinal) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = packet.Reset(TypeAuthentication, 4+len(*T))
 	packet = packet.AppendUint32(12)
 	packet = packet.AppendBytes(*T)
 	return packet

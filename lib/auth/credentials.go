@@ -1,20 +1,30 @@
 package auth
 
 type Credentials interface {
-	GetUsername() string
+	Credentials()
 }
 
-type Cleartext interface {
+type CleartextClient interface {
 	Credentials
 
 	EncodeCleartext() string
+}
+
+type CleartextServer interface {
+	Credentials
+
 	VerifyCleartext(value string) error
 }
 
-type MD5 interface {
+type MD5Client interface {
 	Credentials
 
 	EncodeMD5(salt [4]byte) string
+}
+
+type MD5Server interface {
+	Credentials
+
 	VerifyMD5(salt [4]byte, value string) error
 }
 
@@ -32,11 +42,16 @@ type SASLVerifier interface {
 	Write(bytes []byte) ([]byte, error)
 }
 
-type SASL interface {
+type SASLClient interface {
+	Credentials
+
+	EncodeSASL(mechanisms []SASLMechanism) (SASLMechanism, SASLEncoder, error)
+}
+
+type SASLServer interface {
 	Credentials
 
 	SupportedSASLMechanisms() []SASLMechanism
 
-	EncodeSASL(mechanisms []SASLMechanism) (SASLMechanism, SASLEncoder, error)
 	VerifySASL(mechanism SASLMechanism) (SASLVerifier, error)
 }

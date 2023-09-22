@@ -12,13 +12,16 @@ func sync(tracking []strutil.CIString, client fed.ReadWriter, c *Client, server 
 	value, hasValue := c.parameters[name]
 	expected, hasExpected := s.parameters[name]
 
+	var packet fed.Packet
+
 	if value == expected {
 		if !c.synced {
 			ps := packets.ParameterStatus{
 				Key:   name.String(),
 				Value: expected,
 			}
-			if err := client.WritePacket(ps.IntoPacket()); err != nil {
+			packet = ps.IntoPacket(packet)
+			if err := client.WritePacket(packet); err != nil {
 				return err
 			}
 		}
@@ -28,9 +31,14 @@ func sync(tracking []strutil.CIString, client fed.ReadWriter, c *Client, server 
 	var doSet bool
 
 	if hasValue && slices.Contains(tracking, name) {
-		if err := backends.SetParameter(&backends.Context{}, server, name, value); err != nil {
+		ctx := backends.Context{
+			Packet: packet,
+			Server: server,
+		}
+		if err := backends.SetParameter(&ctx, name, value); err != nil {
 			return err
 		}
+		packet = ctx.Packet
 		if s.parameters == nil {
 			s.parameters = make(map[strutil.CIString]string)
 		}
@@ -46,7 +54,8 @@ func sync(tracking []strutil.CIString, client fed.ReadWriter, c *Client, server 
 			Key:   name.String(),
 			Value: expected,
 		}
-		if err := client.WritePacket(ps.IntoPacket()); err != nil {
+		packet = ps.IntoPacket(packet)
+		if err := client.WritePacket(packet); err != nil {
 			return err
 		}
 	}

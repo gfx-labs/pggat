@@ -12,8 +12,8 @@ func (T *CommandComplete) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *CommandComplete) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeCommandComplete, len(*T)+1)
+func (T *CommandComplete) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = packet.Reset(TypeCommandComplete, len(*T)+1)
 	packet = packet.AppendString(string(*T))
 	return packet
 }

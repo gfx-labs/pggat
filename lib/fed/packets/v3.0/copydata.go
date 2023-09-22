@@ -17,8 +17,8 @@ func (T *CopyData) ReadFromPacket(packet fed.Packet) bool {
 	return true
 }
 
-func (T *CopyData) IntoPacket() fed.Packet {
-	packet := fed.NewPacket(TypeCopyData, len(*T))
+func (T *CopyData) IntoPacket(packet fed.Packet) fed.Packet {
+	packet = fed.NewPacket(TypeCopyData, len(*T))
 	packet = packet.AppendBytes(*T)
 	return packet
 }

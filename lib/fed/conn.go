@@ -7,6 +7,8 @@ import (
 	"errors"
 	"io"
 	"net"
+
+	"pggat/lib/util/slices"
 )
 
 type Conn interface {
@@ -67,33 +69,35 @@ func (T *netConn) ReadByte() (byte, error) {
 	return T.reader.ReadByte()
 }
 
-func (T *netConn) ReadPacket(typed bool) (Packet, error) {
-	if err := T.writer.Flush(); err != nil {
-		return nil, err
+func (T *netConn) ReadPacket(typed bool, buffer Packet) (packet Packet, err error) {
+	packet = buffer
+
+	if err = T.writer.Flush(); err != nil {
+		return
 	}
+
 	if typed {
-		_, err := io.ReadFull(&T.reader, T.headerBuf[:])
+		_, err = io.ReadFull(&T.reader, T.headerBuf[:])
 		if err != nil {
-			return nil, err
+			return
 		}
 	} else {
-		_, err := io.ReadFull(&T.reader, T.headerBuf[1:])
+		_, err = io.ReadFull(&T.reader, T.headerBuf[1:])
 		if err != nil {
-			return nil, err
+			return
 		}
 	}
 
 	length := binary.BigEndian.Uint32(T.headerBuf[1:])
 
-	p := make([]byte, length+1)
-	copy(p, T.headerBuf[:])
+	packet = slices.Resize(buffer, int(length)+1)
+	copy(packet, T.headerBuf[:])
 
-	packet := Packet(p)
-	_, err := io.ReadFull(&T.reader, packet.Payload())
+	_, err = io.ReadFull(&T.reader, packet.Payload())
 	if err != nil {
-		return nil, err
+		return
 	}
-	return packet, nil
+	return
 }
 
 func (T *netConn) WriteByte(b byte) error {

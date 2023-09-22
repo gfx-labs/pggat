@@ -22,7 +22,11 @@ func (T Net) Dial() (fed.Conn, backends.AcceptParams, error) {
 		return nil, backends.AcceptParams{}, err
 	}
 	conn := fed.WrapNetConn(c)
-	params, err := backends.Accept(conn, T.AcceptOptions)
+	ctx := backends.AcceptContext{
+		Conn:    conn,
+		Options: T.AcceptOptions,
+	}
+	params, err := backends.Accept(&ctx)
 	if err != nil {
 		return nil, backends.AcceptParams{}, err
 	}
@@ -43,7 +47,7 @@ func (T Net) Cancel(key [8]byte) error {
 	}
 
 	// wait for server to close the connection, this means that the server received it ok
-	_, err = conn.ReadPacket(true)
+	_, err = conn.ReadPacket(true, nil)
 	if err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}

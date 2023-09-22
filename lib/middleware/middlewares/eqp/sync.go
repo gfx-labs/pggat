@@ -16,12 +16,15 @@ func Sync(c *Client, server fed.ReadWriter, s *Server) error {
 		needsBackendSync = true
 	}
 
+	var packet fed.Packet
+
 	for name := range s.state.portals {
 		p := packets.Close{
 			Which:  'P',
 			Target: name,
 		}
-		if err := server.WritePacket(p.IntoPacket()); err != nil {
+		packet = p.IntoPacket(packet)
+		if err := server.WritePacket(packet); err != nil {
 			return err
 		}
 	}
@@ -44,7 +47,8 @@ func Sync(c *Client, server fed.ReadWriter, s *Server) error {
 			Which:  'S',
 			Target: name,
 		}
-		if err := server.WritePacket(p.IntoPacket()); err != nil {
+		packet = p.IntoPacket(packet)
+		if err := server.WritePacket(packet); err != nil {
 			return err
 		}
 
@@ -79,7 +83,11 @@ func Sync(c *Client, server fed.ReadWriter, s *Server) error {
 	}
 
 	if needsBackendSync {
-		_, err := backends.Sync(new(backends.Context), server)
+		ctx := backends.Context{
+			Packet: packet,
+			Server: server,
+		}
+		_, err := backends.Sync(&ctx)
 		return err
 	}
 

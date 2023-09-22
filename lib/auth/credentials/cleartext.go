@@ -2,10 +2,12 @@ package credentials
 
 import (
 	"crypto/md5"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"strings"
 
-	"github.com/xdg-go/scram"
+	"gfx.cafe/ghalliday1/scram"
 
 	"pggat/lib/auth"
 	"pggat/lib/util/slices"
@@ -16,9 +18,7 @@ type Cleartext struct {
 	Password string
 }
 
-func (T Cleartext) GetUsername() string {
-	return T.Username
-}
+func (Cleartext) Credentials() {}
 
 func (T Cleartext) EncodeCleartext() string {
 	return T.Password
@@ -67,107 +67,55 @@ func (T Cleartext) SupportedSASLMechanisms() []auth.SASLMechanism {
 	}
 }
 
-type CleartextScramEncoder struct {
-	conversation *scram.ClientConversation
-}
-
-func MakeCleartextScramEncoder(username, password string, hashGenerator scram.HashGeneratorFcn) (CleartextScramEncoder, error) {
-	client, err := hashGenerator.NewClient(username, password, "")
-	if err != nil {
-		return CleartextScramEncoder{}, err
-	}
-
-	return CleartextScramEncoder{
-		conversation: client.NewConversation(),
-	}, nil
-}
-
-func (T CleartextScramEncoder) Write(bytes []byte) ([]byte, error) {
-	msg, err := T.conversation.Step(string(bytes))
-	if err != nil {
-		return nil, err
-	}
-	return []byte(msg), nil
-}
-
-var _ auth.SASLEncoder = CleartextScramEncoder{}
-
 func (T Cleartext) EncodeSASL(mechanisms []auth.SASLMechanism) (auth.SASLMechanism, auth.SASLEncoder, error) {
 	for _, mechanism := range mechanisms {
 		switch mechanism {
 		case auth.ScramSHA256:
-			encoder, err := MakeCleartextScramEncoder(T.Username, T.Password, scram.SHA256)
-			if err != nil {
-				return "", nil, err
-			}
-
-			return auth.ScramSHA256, encoder, nil
+			return auth.ScramSHA256, &scram.ClientConversation{
+				Lookup: scram.ClientPasswordLookup(T.Password, sha256.New),
+			}, nil
 		}
 	}
 	return "", nil, auth.ErrSASLMechanismNotSupported
 }
 
-type CleartextScramVerifier struct {
-	conversation *scram.ServerConversation
-}
-
-func MakeCleartextScramVerifier(username, password string, hashGenerator scram.HashGeneratorFcn) (CleartextScramVerifier, error) {
-	client, err := hashGenerator.NewClient(username, password, "")
-	if err != nil {
-		return CleartextScramVerifier{}, err
-	}
-
-	kf := scram.KeyFactors{
-		Iters: 4096,
-	}
-	stored := client.GetStoredCredentials(kf)
-
-	server, err := hashGenerator.NewServer(
-		func(string) (scram.StoredCredentials, error) {
-			return stored, nil
-		},
-	)
-	if err != nil {
-		return CleartextScramVerifier{}, err
-	}
-
-	return CleartextScramVerifier{
-		conversation: server.NewConversation(),
-	}, nil
-}
-
-func (T CleartextScramVerifier) Write(bytes []byte) ([]byte, error) {
-	msg, err := T.conversation.Step(string(bytes))
-	if err != nil {
-		return nil, err
-	}
-
-	if T.conversation.Done() {
-		// check if conversation params are valid
-		if !T.conversation.Valid() {
-			return nil, auth.ErrFailed
-		}
-
-		// done
-		return []byte(msg), auth.ErrSASLComplete
-	}
-
-	// there is more
-	return []byte(msg), nil
-}
-
-var _ auth.SASLVerifier = CleartextScramVerifier{}
-
 func (T Cleartext) VerifySASL(mechanism auth.SASLMechanism) (auth.SASLVerifier, error) {
 	switch mechanism {
 	case auth.ScramSHA256:
-		return MakeCleartextScramVerifier(T.Username, T.Password, scram.SHA256)
+		return &scram.ServerConversation{
+			Lookup: func(string) (scram.ServerKeys, bool) {
+				var salt [32]byte
+				_, err := rand.Read(salt[:])
+				if err != nil {
+					return scram.ServerKeys{}, false
+				}
+				hasher := scram.Hasher(sha256.New)
+				keyInfo := scram.KeyInfo{
+					Salt:   salt[:],
+					Iters:  2048,
+					Hasher: hasher,
+				}
+				saltedPassword := hasher.SaltedPassword([]byte(T.Password), keyInfo.Salt, keyInfo.Iters)
+				serverKey := hasher.ServerKey(saltedPassword)
+				clientKey := hasher.ClientKey(saltedPassword)
+				storedKey := hasher.StoredKey(clientKey)
+
+				return scram.ServerKeys{
+					ServerKey: serverKey,
+					StoredKey: storedKey,
+					KeyInfo:   keyInfo,
+				}, true
+			},
+		}, nil
 	default:
 		return nil, auth.ErrSASLMechanismNotSupported
 	}
 }
 
 var _ auth.Credentials = Cleartext{}
-var _ auth.Cleartext = Cleartext{}
-var _ auth.MD5 = Cleartext{}
-var _ auth.SASL = Cleartext{}
+var _ auth.CleartextClient = Cleartext{}
+var _ auth.CleartextServer = Cleartext{}
+var _ auth.MD5Client = Cleartext{}
+var _ auth.MD5Server = Cleartext{}
+var _ auth.SASLClient = Cleartext{}
+var _ auth.SASLServer = Cleartext{}
