@@ -8,16 +8,12 @@ RUN go mod tidy
 RUN go build -o cgat ./cmd/cgat
 
 FROM alpine:latest
+WORKDIR /
+RUN apk add --no-cache bash
 
-WORKDIR /bin
+COPY entrypoint.sh .
 
-RUN addgroup -S pgbouncer && adduser -S pgbouncer
-COPY --from=GOBUILDER /src/cgat.sh entrypoint.sh
-COPY --from=GOBUILDER /src/cgat pggat
-RUN apk add openssl
-RUN install -d -m 0755 -o pgbouncer -g pgbouncer /etc/pgbouncer /var/log/pgbouncer /var/run/pgbouncer /etc/ssl/certs
-RUN chown -R pgbouncer:pgbouncer /bin/entrypoint.sh
-RUN cp /bin/entrypoint.sh /bin/run.sh
-USER pgbouncer:pgbouncer
+COPY --from=GOBUILDER /src/cgat /usr/bin/pggat
 
-ENTRYPOINT ["entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]
+cmd ["pggat"]

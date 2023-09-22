@@ -21,13 +21,13 @@ type Config struct {
 	AuthPassword  string `env:"PGGAT_GC_AUTH_PASSWORD"`
 }
 
-func Load() (Config, error) {
+func Load() (*Config, error) {
 	var conf Config
 	gun.Load(&conf)
 	if conf.Project == "" {
-		return Config{}, errors.New("expected google cloud project id")
+		return &Config{}, errors.New("expected google cloud project id")
 	}
-	return conf, nil
+	return &conf, nil
 }
 
 func (T *Config) ListenAndServe() error {

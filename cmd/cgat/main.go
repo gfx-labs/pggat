@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -20,77 +19,41 @@ func main() {
 		panic(http.ListenAndServe(":8080", nil))
 	}()
 
-	log.Printf("Starting pggat...")
-
-	if len(os.Args) == 2 {
-		log.Printf("running in pgbouncer compatibility mode")
-		conf, err := pgbouncer.Load(os.Args[1])
-		if err != nil {
-			panic(err)
-		}
-
-		err = conf.ListenAndServe()
-		if err != nil {
-			panic(err)
-		}
-		return
+	runMode := os.Getenv("PGGAT_RUN_MODE")
+	if runMode == "" {
+		runMode = "pgbouncer"
 	}
 
-	if os.Getenv("CONNECTION_POOLER_MODE") != "" {
-		log.Printf("running in zalando compatibility mode")
+	log.Printf("Starting pggat (%s)...", runMode)
 
-		conf, err := zalando.Load()
-		if err != nil {
-			panic(err)
-		}
-
-		err = conf.ListenAndServe()
-		if err != nil {
-			panic(err)
-		}
-		return
+	// TODO: this really should load a dynamically registered module
+	var conf interface {
+		ListenAndServe() error
+	}
+	var err error
+	switch runMode {
+	case "pggat":
+		conf, err = pgbouncer.Load(os.Args[1])
+	case "pgbouncer":
+		conf, err = pgbouncer.Load(os.Args[1])
+	case "pgbouncer_spilo":
+		conf, err = zalando.Load()
+	case "zalando_kubernetes_operator":
+		conf, err = zalando_operator_discovery.Load()
+	case "google_cloud_sql":
+		conf, err = cloud_sql_discovery.Load()
+	case "digitalocean_databases":
+		conf, err = digitalocean_discovery.Load()
+	default:
+		panic("Unknown PGGAT_RUN_MODE: " + runMode)
+	}
+	if err != nil {
+		panic(err)
 	}
 
-	if os.Getenv("PGGAT_GC_PROJECT") != "" {
-		conf, err := cloud_sql_discovery.Load()
-		if err != nil {
-			panic(err)
-		}
-		err = conf.ListenAndServe()
-		if err != nil {
-			panic(err)
-		}
-		return
+	err = conf.ListenAndServe()
+	if err != nil {
+		panic(err)
 	}
-
-	if os.Getenv("PGGAT_DO_API_KEY") != "" {
-		log.Printf("running in digitalocean discovery mode")
-
-		conf, err := digitalocean_discovery.Load()
-		if err != nil {
-			panic(err)
-		}
-
-		err = conf.ListenAndServe()
-		if err != nil {
-			panic(err)
-		}
-		return
-	}
-
-	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" && os.Getenv("KUBERNETES_SERVICE_PORT") != "" {
-		log.Printf("running in zalando operator discovery mode")
-		conf, err := zalando_operator_discovery.Load()
-		if err != nil {
-			panic(err)
-		}
-
-		err = conf.ListenAndServe()
-		if err != nil {
-			panic(err)
-		}
-		return
-	}
-
-	panic(fmt.Sprintf("usage: %s <config>", os.Args[0]))
+	return
 }

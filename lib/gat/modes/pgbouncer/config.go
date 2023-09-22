@@ -241,15 +241,15 @@ var Default = Config{
 	},
 }
 
-func Load(config string) (Config, error) {
+func Load(config string) (*Config, error) {
 	conf, err := ini.ReadFile(config)
 	if err != nil {
-		return Config{}, err
+		return &Config{}, err
 	}
 
 	var c = Default
 	err = ini.Unmarshal(conf, &c)
-	return c, err
+	return &c, err
 }
 
 func (T *Config) ListenAndServe() error {

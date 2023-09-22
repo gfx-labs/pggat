@@ -26,14 +26,14 @@ type Config struct {
 	PoolerMaxDBConn     int    `env:"CONNECTION_POOLER_MAX_DB_CONN"`
 }
 
-func Load() (Config, error) {
+func Load() (*Config, error) {
 	var conf Config
 	gun.Load(&conf)
 	if conf.PoolerMode == "" {
-		return Config{}, errors.New("expected pooler mode")
+		return &Config{}, errors.New("expected pooler mode")
 	}
 
-	return conf, nil
+	return &conf, nil
 }
 
 func (T *Config) ListenAndServe() error {

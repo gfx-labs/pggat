@@ -35,14 +35,14 @@ type Config struct {
 	TLSKeyFile string `env:"PGGAT_TLS_KEY_FILE" default:"/etc/ssl/certs/pgbouncer.key"`
 }
 
-func Load() (Config, error) {
+func Load() (*Config, error) {
 	var conf Config
 	gun.Load(&conf)
 	if conf.APIKey == "" {
-		return Config{}, errors.New("expected auth token")
+		return &Config{}, errors.New("expected auth token")
 	}
 
-	return conf, nil
+	return &conf, nil
 }
 
 func (T *Config) ListenAndServe() error {
