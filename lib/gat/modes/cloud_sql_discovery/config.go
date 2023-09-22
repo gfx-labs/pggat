@@ -2,12 +2,14 @@ package cloud_sql_discovery
 
 import (
 	"errors"
+	"time"
 
 	"gfx.cafe/util/go/gun"
 	"tuxpa.in/a/zlog/log"
 
 	"pggat/lib/bouncer/frontends/v0"
 	"pggat/lib/gat"
+	"pggat/lib/gat/metrics"
 	"pggat/lib/util/flip"
 	"pggat/lib/util/strutil"
 )
@@ -33,6 +35,16 @@ func (T *Config) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
+
+	go func() {
+		var m metrics.Pools
+		for {
+			m.Clear()
+			time.Sleep(1 * time.Minute)
+			pools.ReadMetrics(&m)
+			log.Print(m.String())
+		}
+	}()
 
 	var b flip.Bank
 
