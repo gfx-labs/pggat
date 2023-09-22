@@ -16,7 +16,6 @@ import (
 	packets "pggat/lib/fed/packets/v3.0"
 	"pggat/lib/gat/metrics"
 	"pggat/lib/gat/pool/recipe"
-	"pggat/lib/util/ring"
 	"pggat/lib/util/slices"
 	"pggat/lib/util/strutil"
 )
@@ -30,14 +29,13 @@ type Pool struct {
 	pendingCount atomic.Int64
 	pending      chan struct{}
 
-	recipes         map[string]*recipe.Recipe
-	recipeOrder     ring.Ring[string]
-	recipeOrderMu   sync.Mutex
-	clients         map[uuid.UUID]*Client
-	clientsByKey    map[[8]byte]*Client
-	servers         map[uuid.UUID]*Server
-	serversByRecipe map[string][]*Server
-	mu              sync.RWMutex
+	recipes          map[string]*recipe.Recipe
+	recipeScaleOrder slices.Sorted[string]
+	clients          map[uuid.UUID]*Client
+	clientsByKey     map[[8]byte]*Client
+	servers          map[uuid.UUID]*Server
+	serversByRecipe  map[string][]*Server
+	mu               sync.RWMutex
 }
 
 func NewPool(options Options) *Pool {
@@ -97,7 +95,11 @@ func (T *Pool) AddRecipe(name string, r *recipe.Recipe) {
 			T.recipes = make(map[string]*recipe.Recipe)
 		}
 		T.recipes[name] = r
-		T.recipeOrder.PushBack(name)
+
+		// add to front of scale order
+		T.recipeScaleOrder = T.recipeScaleOrder.Insert(name, func(n string) int {
+			return len(T.serversByRecipe[n])
+		})
 	}()
 
 	count := r.AllocateInitial()
@@ -128,6 +130,8 @@ func (T *Pool) removeRecipe(name string) {
 
 	servers := T.serversByRecipe[name]
 	delete(T.serversByRecipe, name)
+	// remove from recipeScaleOrder
+	T.recipeScaleOrder = slices.Delete(T.recipeScaleOrder, name)
 
 	for _, server := range servers {
 		r.Free()
@@ -138,20 +142,9 @@ func (T *Pool) removeRecipe(name string) {
 func (T *Pool) scaleUpL0() (string, *recipe.Recipe) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
-	T.recipeOrderMu.Lock()
-	defer T.recipeOrderMu.Unlock()
 
-	count := T.recipeOrder.Length()
-	for i := 0; i < count; i++ {
-		name, ok := T.recipeOrder.PopFront()
-		if !ok {
-			break
-		}
-		r, ok := T.recipes[name]
-		if !ok {
-			continue
-		}
-		T.recipeOrder.PushBack(name)
+	for _, name := range T.recipeScaleOrder {
+		r := T.recipes[name]
 		if r.Allocate() {
 			return name, r
 		}
@@ -194,6 +187,10 @@ func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) error {
 			T.serversByRecipe = make(map[string][]*Server)
 		}
 		T.serversByRecipe[name] = append(T.serversByRecipe[name], server)
+		// update order
+		T.recipeScaleOrder.Update(slices.Index(T.recipeScaleOrder, name), func(n string) int {
+			return len(T.serversByRecipe[n])
+		})
 		return server, nil
 	}()
 
@@ -232,7 +229,12 @@ func (T *Pool) removeServerL1(server *Server) {
 	T.pooler.DeleteServer(server.GetID())
 	_ = server.GetConn().Close()
 	if T.serversByRecipe != nil {
-		T.serversByRecipe[server.GetRecipe()] = slices.Delete(T.serversByRecipe[server.GetRecipe()], server)
+		name := server.GetRecipe()
+		T.serversByRecipe[name] = slices.Delete(T.serversByRecipe[name], server)
+		// update order
+		T.recipeScaleOrder.Update(slices.Index(T.recipeScaleOrder, name), func(n string) int {
+			return len(T.serversByRecipe[n])
+		})
 	}
 }
 
@@ -495,5 +497,4 @@ func (T *Pool) Close() {
 	for name := range T.recipes {
 		T.removeRecipe(name)
 	}
-	T.recipeOrder.Clear()
 }
