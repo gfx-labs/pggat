@@ -10,7 +10,7 @@ import (
 	"pggat/lib/util/slices"
 )
 
-func Pair(options Options, client *Client, server *Server) (clientErr, serverErr error) {
+func pair(options Options, client *pooledClient, server *pooledServer) (clientErr, serverErr error) {
 	defer func() {
 		client.SetState(metrics.ConnStateActive, server.GetID())
 		server.SetState(metrics.ConnStateActive, client.GetID())
@@ -25,7 +25,7 @@ func Pair(options Options, client *Client, server *Server) (clientErr, serverErr
 	case ParameterStatusSyncDynamic:
 		clientErr, serverErr = ps.Sync(options.TrackedParameters, client.GetReadWriter(), client.GetPS(), server.GetReadWriter(), server.GetPS())
 	case ParameterStatusSyncInitial:
-		clientErr, serverErr = SyncInitialParameters(options, client, server)
+		clientErr, serverErr = syncInitialParameters(options, client, server)
 	}
 
 	if clientErr != nil || serverErr != nil {
@@ -39,7 +39,7 @@ func Pair(options Options, client *Client, server *Server) (clientErr, serverErr
 	return
 }
 
-func SyncInitialParameters(options Options, client *Client, server *Server) (clientErr, serverErr error) {
+func syncInitialParameters(options Options, client *pooledClient, server *pooledServer) (clientErr, serverErr error) {
 	clientParams := client.GetInitialParameters()
 	serverParams := server.GetInitialParameters()
 
@@ -114,7 +114,7 @@ func SyncInitialParameters(options Options, client *Client, server *Server) (cli
 
 }
 
-func TransactionComplete(client *Client, server *Server) {
+func transactionComplete(client *pooledClient, server *pooledServer) {
 	client.TransactionComplete()
 	server.TransactionComplete()
 }

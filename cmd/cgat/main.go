@@ -1,18 +1,64 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 
 	"tuxpa.in/a/zlog/log"
 
-	"pggat/lib/gat/modes/cloud_sql_discovery"
-	"pggat/lib/gat/modes/digitalocean_discovery"
-	"pggat/lib/gat/modes/pgbouncer"
-	"pggat/lib/gat/modes/zalando"
-	"pggat/lib/gat/modes/zalando_operator_discovery"
+	"pggat/lib/gat/modules/cloud_sql_discovery"
+	"pggat/lib/gat/modules/digitalocean_discovery"
+	"pggat/lib/gat/modules/pgbouncer"
+	"pggat/lib/gat/modules/zalando"
+	"pggat/lib/gat/modules/zalando_operator_discovery"
+
+	"pggat/lib/gat"
 )
+
+func loadModule(mode string) (gat.Module, error) {
+	switch mode {
+	case "pggat":
+		conf, err := pgbouncer.Load(os.Args[1])
+		if err != nil {
+			return nil, err
+		}
+		return pgbouncer.NewModule(conf)
+	case "pgbouncer":
+		conf, err := pgbouncer.Load(os.Args[1])
+		if err != nil {
+			return nil, err
+		}
+		return pgbouncer.NewModule(conf)
+	case "pgbouncer_spilo":
+		conf, err := zalando.Load()
+		if err != nil {
+			return nil, err
+		}
+		return zalando.NewModule(conf)
+	case "zalando_kubernetes_operator":
+		conf, err := zalando_operator_discovery.Load()
+		if err != nil {
+			return nil, err
+		}
+		return zalando_operator_discovery.NewModule(conf)
+	case "google_cloud_sql":
+		conf, err := cloud_sql_discovery.Load()
+		if err != nil {
+			return nil, err
+		}
+		return cloud_sql_discovery.NewModule(conf)
+	case "digitalocean_databases":
+		conf, err := digitalocean_discovery.Load()
+		if err != nil {
+			return nil, err
+		}
+		return digitalocean_discovery.NewModule(conf)
+	default:
+		return nil, errors.New("Unknown PGGAT_RUN_MODE: " + mode)
+	}
+}
 
 func main() {
 	go func() {
@@ -26,32 +72,15 @@ func main() {
 
 	log.Printf("Starting pggat (%s)...", runMode)
 
-	// TODO: this really should load a dynamically registered module
-	var conf interface {
-		ListenAndServe() error
-	}
-	var err error
-	switch runMode {
-	case "pggat":
-		conf, err = pgbouncer.Load(os.Args[1])
-	case "pgbouncer":
-		conf, err = pgbouncer.Load(os.Args[1])
-	case "pgbouncer_spilo":
-		conf, err = zalando.Load()
-	case "zalando_kubernetes_operator":
-		conf, err = zalando_operator_discovery.Load()
-	case "google_cloud_sql":
-		conf, err = cloud_sql_discovery.Load()
-	case "digitalocean_databases":
-		conf, err = digitalocean_discovery.Load()
-	default:
-		panic("Unknown PGGAT_RUN_MODE: " + runMode)
-	}
+	var server gat.Server
+
+	module, err := loadModule(runMode)
 	if err != nil {
 		panic(err)
 	}
+	server.AddModule(module)
 
-	err = conf.ListenAndServe()
+	err = server.ListenAndServe()
 	if err != nil {
 		panic(err)
 	}

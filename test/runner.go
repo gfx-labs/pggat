@@ -8,7 +8,7 @@ import (
 	"pggat/lib/bouncer/bouncers/v2"
 	"pggat/lib/fed"
 	packets "pggat/lib/fed/packets/v3.0"
-	"pggat/lib/gat/pool/dialer"
+	"pggat/lib/gat/pool/recipe"
 	"pggat/lib/gsql"
 	"pggat/lib/util/flip"
 	"pggat/test/inst"
@@ -89,7 +89,7 @@ func (T *Runner) prepare(client *gsql.Client, until int) []Capturer {
 	return results
 }
 
-func (T *Runner) runModeL1(dialer dialer.Dialer, client *gsql.Client) error {
+func (T *Runner) runModeL1(dialer recipe.Dialer, client *gsql.Client) error {
 	server, _, err := dialer.Dial()
 	if err != nil {
 		return err
@@ -120,7 +120,7 @@ func (T *Runner) runModeL1(dialer dialer.Dialer, client *gsql.Client) error {
 	return nil
 }
 
-func (T *Runner) runModeOnce(dialer dialer.Dialer) ([]Capturer, error) {
+func (T *Runner) runModeOnce(dialer recipe.Dialer) ([]Capturer, error) {
 	var client gsql.Client
 	results := T.prepare(&client, len(T.test.Instructions))
 	if err := client.Close(); err != nil {
@@ -134,7 +134,7 @@ func (T *Runner) runModeOnce(dialer dialer.Dialer) ([]Capturer, error) {
 	return results, nil
 }
 
-func (T *Runner) runModeFail(dialer dialer.Dialer) error {
+func (T *Runner) runModeFail(dialer recipe.Dialer) error {
 	for i := 1; i < len(T.test.Instructions)+1; i++ {
 		var client gsql.Client
 		T.prepare(&client, i)
@@ -150,7 +150,7 @@ func (T *Runner) runModeFail(dialer dialer.Dialer) error {
 	return nil
 }
 
-func (T *Runner) runMode(dialer dialer.Dialer) ([]Capturer, error) {
+func (T *Runner) runMode(dialer recipe.Dialer) ([]Capturer, error) {
 	instances := T.config.Stress
 	if instances < 1 || T.test.SideEffects {
 		return T.runModeOnce(dialer)

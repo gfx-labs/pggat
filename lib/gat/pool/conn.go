@@ -12,7 +12,7 @@ import (
 	"pggat/lib/util/strutil"
 )
 
-type Conn struct {
+type pooledConn struct {
 	id uuid.UUID
 
 	conn fed.Conn
@@ -37,12 +37,12 @@ type Conn struct {
 	mu sync.RWMutex
 }
 
-func MakeConn(
+func makeConn(
 	conn fed.Conn,
 	initialParameters map[strutil.CIString]string,
 	backendKey [8]byte,
-) Conn {
-	return Conn{
+) pooledConn {
+	return pooledConn{
 		id:                uuid.New(),
 		conn:              conn,
 		rw:                conn,
@@ -53,32 +53,32 @@ func MakeConn(
 	}
 }
 
-func (T *Conn) GetID() uuid.UUID {
+func (T *pooledConn) GetID() uuid.UUID {
 	return T.id
 }
 
-func (T *Conn) GetConn() fed.Conn {
+func (T *pooledConn) GetConn() fed.Conn {
 	return T.conn
 }
 
 // GetReadWriter is the exact same as GetConn but bypasses the runtime.convI2I
-func (T *Conn) GetReadWriter() fed.ReadWriter {
+func (T *pooledConn) GetReadWriter() fed.ReadWriter {
 	return T.rw
 }
 
-func (T *Conn) GetInitialParameters() map[strutil.CIString]string {
+func (T *pooledConn) GetInitialParameters() map[strutil.CIString]string {
 	return T.initialParameters
 }
 
-func (T *Conn) GetBackendKey() [8]byte {
+func (T *pooledConn) GetBackendKey() [8]byte {
 	return T.backendKey
 }
 
-func (T *Conn) TransactionComplete() {
+func (T *pooledConn) TransactionComplete() {
 	T.transactionCount.Add(1)
 }
 
-func (T *Conn) SetState(state metrics.ConnState, peer uuid.UUID) {
+func (T *pooledConn) SetState(state metrics.ConnState, peer uuid.UUID) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -97,7 +97,7 @@ func (T *Conn) SetState(state metrics.ConnState, peer uuid.UUID) {
 	T.since = now
 }
 
-func (T *Conn) GetState() (state metrics.ConnState, peer uuid.UUID, since time.Time) {
+func (T *pooledConn) GetState() (state metrics.ConnState, peer uuid.UUID, since time.Time) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 	state = T.state
@@ -106,7 +106,7 @@ func (T *Conn) GetState() (state metrics.ConnState, peer uuid.UUID, since time.T
 	return
 }
 
-func (T *Conn) ReadMetrics(m *metrics.Conn) {
+func (T *pooledConn) ReadMetrics(m *metrics.Conn) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 

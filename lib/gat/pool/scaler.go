@@ -6,7 +6,7 @@ import (
 	"tuxpa.in/a/zlog/log"
 )
 
-type Scaler struct {
+type scaler struct {
 	pool *Pool
 
 	backingOff bool
@@ -17,8 +17,8 @@ type Scaler struct {
 	pending *time.Timer
 }
 
-func NewScaler(pool *Pool) *Scaler {
-	s := &Scaler{
+func newScaler(pool *Pool) *scaler {
+	s := &scaler{
 		pool:    pool,
 		backoff: pool.options.ServerReconnectInitialTime,
 	}
@@ -30,11 +30,11 @@ func NewScaler(pool *Pool) *Scaler {
 	return s
 }
 
-func (T *Scaler) idleTimeout(now time.Time) {
+func (T *scaler) idleTimeout(now time.Time) {
 	// idle loop for scaling down
 	var wait time.Duration
 
-	var idlest *Server
+	var idlest *pooledServer
 	var idleStart time.Time
 	for idlest, idleStart = T.pool.idlest(); idlest != nil && now.Sub(idleStart) > T.pool.options.ServerIdleTimeout; idlest, idleStart = T.pool.idlest() {
 		T.pool.removeServer(idlest)
@@ -49,7 +49,7 @@ func (T *Scaler) idleTimeout(now time.Time) {
 	T.idle.Reset(wait)
 }
 
-func (T *Scaler) pendingTimeout() {
+func (T *scaler) pendingTimeout() {
 	if T.backingOff {
 		T.backoff *= 2
 		if T.pool.options.ServerReconnectMaxTime != 0 && T.backoff > T.pool.options.ServerReconnectMaxTime {
@@ -86,7 +86,7 @@ func (T *Scaler) pendingTimeout() {
 	}
 }
 
-func (T *Scaler) Run() {
+func (T *scaler) Run() {
 	for {
 		var idle <-chan time.Time
 		if T.idle != nil {

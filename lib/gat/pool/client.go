@@ -10,19 +10,19 @@ import (
 	"pggat/lib/util/strutil"
 )
 
-type Client struct {
-	Conn
+type pooledClient struct {
+	pooledConn
 
 	ps  *ps.Client
 	eqp *eqp.Client
 }
 
-func NewClient(
+func newClient(
 	options Options,
 	conn fed.Conn,
 	initialParameters map[strutil.CIString]string,
 	backendKey [8]byte,
-) *Client {
+) *pooledClient {
 	middlewares := []middleware.Middleware{
 		unterminate.Unterminate,
 	}
@@ -46,8 +46,8 @@ func NewClient(
 		middlewares...,
 	)
 
-	return &Client{
-		Conn: MakeConn(
+	return &pooledClient{
+		pooledConn: makeConn(
 			conn,
 			initialParameters,
 			backendKey,
@@ -57,10 +57,10 @@ func NewClient(
 	}
 }
 
-func (T *Client) GetEQP() *eqp.Client {
+func (T *pooledClient) GetEQP() *eqp.Client {
 	return T.eqp
 }
 
-func (T *Client) GetPS() *ps.Client {
+func (T *pooledClient) GetPS() *ps.Client {
 	return T.ps
 }

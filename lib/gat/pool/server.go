@@ -9,8 +9,8 @@ import (
 	"pggat/lib/util/strutil"
 )
 
-type Server struct {
-	Conn
+type pooledServer struct {
+	pooledConn
 
 	recipe string
 
@@ -18,13 +18,13 @@ type Server struct {
 	eqp *eqp.Server
 }
 
-func NewServer(
+func newServer(
 	options Options,
 	recipe string,
 	conn fed.Conn,
 	initialParameters map[strutil.CIString]string,
 	backendKey [8]byte,
-) *Server {
+) *pooledServer {
 	var middlewares []middleware.Middleware
 
 	var psServer *ps.Server
@@ -48,8 +48,8 @@ func NewServer(
 		)
 	}
 
-	return &Server{
-		Conn: MakeConn(
+	return &pooledServer{
+		pooledConn: makeConn(
 			conn,
 			initialParameters,
 			backendKey,
@@ -60,14 +60,14 @@ func NewServer(
 	}
 }
 
-func (T *Server) GetRecipe() string {
+func (T *pooledServer) GetRecipe() string {
 	return T.recipe
 }
 
-func (T *Server) GetEQP() *eqp.Server {
+func (T *pooledServer) GetEQP() *eqp.Server {
 	return T.eqp
 }
 
-func (T *Server) GetPS() *ps.Server {
+func (T *pooledServer) GetPS() *ps.Server {
 	return T.ps
 }

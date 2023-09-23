@@ -15,7 +15,6 @@ import (
 	"pggat/lib/fed"
 	packets "pggat/lib/fed/packets/v3.0"
 	"pggat/lib/gat/metrics"
-	"pggat/lib/gat/pool/recipe"
 	"pggat/lib/util/slices"
 	"pggat/lib/util/strutil"
 )
@@ -29,12 +28,12 @@ type Pool struct {
 	pendingCount atomic.Int64
 	pending      chan struct{}
 
-	recipes          map[string]*recipe.Recipe
+	recipes          map[string]*Recipe
 	recipeScaleOrder slices.Sorted[string]
-	clients          map[uuid.UUID]*Client
-	clientsByKey     map[[8]byte]*Client
-	servers          map[uuid.UUID]*Server
-	serversByRecipe  map[string][]*Server
+	clients          map[uuid.UUID]*pooledClient
+	clientsByKey     map[[8]byte]*pooledClient
+	servers          map[uuid.UUID]*pooledServer
+	serversByRecipe  map[string][]*pooledServer
 	mu               sync.RWMutex
 }
 
@@ -55,13 +54,13 @@ func NewPool(options Options) *Pool {
 		pending: make(chan struct{}, 1),
 	}
 
-	s := NewScaler(p)
+	s := newScaler(p)
 	go s.Run()
 
 	return p
 }
 
-func (T *Pool) idlest() (server *Server, at time.Time) {
+func (T *Pool) idlest() (server *pooledServer, at time.Time) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 
@@ -84,7 +83,7 @@ func (T *Pool) GetCredentials() auth.Credentials {
 	return T.options.Credentials
 }
 
-func (T *Pool) AddRecipe(name string, r *recipe.Recipe) {
+func (T *Pool) AddRecipe(name string, r *Recipe) {
 	func() {
 		T.mu.Lock()
 		defer T.mu.Unlock()
@@ -92,7 +91,7 @@ func (T *Pool) AddRecipe(name string, r *recipe.Recipe) {
 		T.removeRecipe(name)
 
 		if T.recipes == nil {
-			T.recipes = make(map[string]*recipe.Recipe)
+			T.recipes = make(map[string]*Recipe)
 		}
 		T.recipes[name] = r
 
@@ -139,7 +138,7 @@ func (T *Pool) removeRecipe(name string) {
 	}
 }
 
-func (T *Pool) scaleUpL0() (string, *recipe.Recipe) {
+func (T *Pool) scaleUpL0() (string, *Recipe) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 
@@ -153,7 +152,7 @@ func (T *Pool) scaleUpL0() (string, *recipe.Recipe) {
 	return "", nil
 }
 
-func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) error {
+func (T *Pool) scaleUpL1(name string, r *Recipe) error {
 	conn, params, err := r.Dial()
 	if err != nil {
 		// failed to dial
@@ -161,7 +160,7 @@ func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) error {
 		return err
 	}
 
-	server, err := func() (*Server, error) {
+	server, err := func() (*pooledServer, error) {
 		T.mu.Lock()
 		defer T.mu.Unlock()
 		if T.recipes[name] != r {
@@ -170,7 +169,7 @@ func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) error {
 			return nil, errors.New("recipe was removed")
 		}
 
-		server := NewServer(
+		server := newServer(
 			T.options,
 			name,
 			conn,
@@ -179,12 +178,12 @@ func (T *Pool) scaleUpL1(name string, r *recipe.Recipe) error {
 		)
 
 		if T.servers == nil {
-			T.servers = make(map[uuid.UUID]*Server)
+			T.servers = make(map[uuid.UUID]*pooledServer)
 		}
 		T.servers[server.GetID()] = server
 
 		if T.serversByRecipe == nil {
-			T.serversByRecipe = make(map[string][]*Server)
+			T.serversByRecipe = make(map[string][]*pooledServer)
 		}
 		T.serversByRecipe[name] = append(T.serversByRecipe[name], server)
 		// update order
@@ -217,14 +216,14 @@ func (T *Pool) scaleUp() bool {
 	return true
 }
 
-func (T *Pool) removeServer(server *Server) {
+func (T *Pool) removeServer(server *pooledServer) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
 	T.removeServerL1(server)
 }
 
-func (T *Pool) removeServerL1(server *Server) {
+func (T *Pool) removeServerL1(server *pooledServer) {
 	delete(T.servers, server.GetID())
 	T.pooler.DeleteServer(server.GetID())
 	_ = server.GetConn().Close()
@@ -238,7 +237,7 @@ func (T *Pool) removeServerL1(server *Server) {
 	}
 }
 
-func (T *Pool) acquireServer(client *Client) *Server {
+func (T *Pool) acquireServer(client *pooledClient) *pooledServer {
 	client.SetState(metrics.ConnStateAwaitingServer, uuid.Nil)
 
 	for {
@@ -264,7 +263,7 @@ func (T *Pool) acquireServer(client *Client) *Server {
 	}
 }
 
-func (T *Pool) releaseServer(server *Server) {
+func (T *Pool) releaseServer(server *pooledServer) {
 	if T.options.ServerResetQuery != "" {
 		server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
 
@@ -292,7 +291,7 @@ func (T *Pool) Serve(
 		_ = conn.Close()
 	}()
 
-	client := NewClient(
+	client := newClient(
 		T.options,
 		conn,
 		initialParameters,
@@ -311,7 +310,7 @@ func (T *Pool) ServeBot(
 		_ = conn.Close()
 	}()
 
-	client := NewClient(
+	client := newClient(
 		T.options,
 		conn,
 		nil,
@@ -321,14 +320,14 @@ func (T *Pool) ServeBot(
 	return T.serve(client, true)
 }
 
-func (T *Pool) serve(client *Client, initialized bool) error {
+func (T *Pool) serve(client *pooledClient, initialized bool) error {
 	T.addClient(client)
 	defer T.removeClient(client)
 
 	var err error
 	var serverErr error
 
-	var server *Server
+	var server *pooledServer
 	defer func() {
 		if server != nil {
 			if serverErr != nil {
@@ -345,7 +344,7 @@ func (T *Pool) serve(client *Client, initialized bool) error {
 	if !initialized {
 		server = T.acquireServer(client)
 
-		err, serverErr = Pair(T.options, client, server)
+		err, serverErr = pair(T.options, client, server)
 		if serverErr != nil {
 			return serverErr
 		}
@@ -376,7 +375,7 @@ func (T *Pool) serve(client *Client, initialized bool) error {
 		if server == nil {
 			server = T.acquireServer(client)
 
-			err, serverErr = Pair(T.options, client, server)
+			err, serverErr = pair(T.options, client, server)
 		}
 		if err == nil && serverErr == nil {
 			packet, err, serverErr = bouncers.Bounce(client.GetReadWriter(), server.GetReadWriter(), packet)
@@ -384,7 +383,7 @@ func (T *Pool) serve(client *Client, initialized bool) error {
 		if serverErr != nil {
 			return serverErr
 		} else {
-			TransactionComplete(client, server)
+			transactionComplete(client, server)
 		}
 
 		if err != nil {
@@ -393,29 +392,29 @@ func (T *Pool) serve(client *Client, initialized bool) error {
 	}
 }
 
-func (T *Pool) addClient(client *Client) {
+func (T *Pool) addClient(client *pooledClient) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
 	if T.clients == nil {
-		T.clients = make(map[uuid.UUID]*Client)
+		T.clients = make(map[uuid.UUID]*pooledClient)
 	}
 	T.clients[client.GetID()] = client
 	if T.clientsByKey == nil {
-		T.clientsByKey = make(map[[8]byte]*Client)
+		T.clientsByKey = make(map[[8]byte]*pooledClient)
 	}
 	T.clientsByKey[client.GetBackendKey()] = client
 	T.pooler.AddClient(client.GetID())
 }
 
-func (T *Pool) removeClient(client *Client) {
+func (T *Pool) removeClient(client *pooledClient) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
 	T.removeClientL1(client)
 }
 
-func (T *Pool) removeClientL1(client *Client) {
+func (T *Pool) removeClientL1(client *pooledClient) {
 	T.pooler.DeleteClient(client.GetID())
 	_ = client.conn.Close()
 	delete(T.clients, client.GetID())
