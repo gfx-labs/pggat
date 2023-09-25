@@ -5,13 +5,16 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"time"
 
 	"tuxpa.in/a/zlog/log"
 
 	"pggat/lib/gat"
+	"pggat/lib/gat/metrics"
 	"pggat/lib/gat/modules/cloud_sql_discovery"
 	"pggat/lib/gat/modules/digitalocean_discovery"
 	"pggat/lib/gat/modules/pgbouncer"
+	"pggat/lib/gat/modules/ssl_endpoint"
 	"pggat/lib/gat/modules/zalando"
 	"pggat/lib/gat/modules/zalando_operator_discovery"
 )
@@ -73,11 +76,29 @@ func main() {
 
 	var server gat.Server
 
+	// load and add main module
 	module, err := loadModule(runMode)
 	if err != nil {
 		panic(err)
 	}
 	server.AddModule(module)
+
+	// back up ssl endpoint (for modules that don't have endpoints by default such as discovery)
+	ep, err := ssl_endpoint.NewModule()
+	if err != nil {
+		panic(err)
+	}
+	server.AddModule(ep)
+
+	go func() {
+		var m metrics.Server
+		for {
+			time.Sleep(1 * time.Minute)
+			server.ReadMetrics(&m)
+			log.Printf("%s", m.String())
+			m.Clear()
+		}
+	}()
 
 	err = server.ListenAndServe()
 	if err != nil {

@@ -17,7 +17,7 @@ func Load() (Config, error) {
 	var conf Config
 	gun.Load(&conf)
 	if conf.Project == "" {
-		return Config{}, errors.New("expected google cloud project id")
+		return Config{}, errors.New("expected PGGAT_GC_PROJECT")
 	}
 	return conf, nil
 }

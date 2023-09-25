@@ -179,7 +179,10 @@ func (T *Module) discoverLoop() {
 		case next := <-T.config.Discoverer.Updated():
 			T.updated(T.clusters[next.ID], next)
 		case <-reconcile:
-			_ = T.reconcile() // TODO(garet) do something with this error
+			err := T.reconcile()
+			if err != nil {
+				log.Printf("failed to reconcile: %v", err)
+			}
 		}
 	}
 }

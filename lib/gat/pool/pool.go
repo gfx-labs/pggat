@@ -489,7 +489,7 @@ func (T *Pool) Close() {
 
 	// remove clients
 	for _, client := range T.clients {
-		T.removeClient(client)
+		T.removeClientL1(client)
 	}
 
 	// remove recipes

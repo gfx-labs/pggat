@@ -52,9 +52,9 @@ func (T Discoverer) Clusters() ([]discovery.Cluster, error) {
 			Users:     make([]discovery.User, 0, len(cluster.Users)),
 		}
 
-		for _, user := range c.Users {
+		for _, user := range cluster.Users {
 			c.Users = append(c.Users, discovery.User{
-				Username: user.Username,
+				Username: user.Name,
 				Password: user.Password,
 			})
 		}
