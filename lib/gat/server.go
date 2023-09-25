@@ -115,19 +115,23 @@ func (T *Server) accept(raw net.Conn, acceptOptions FrontendAcceptOptions) {
 	}
 }
 
-func (T *Server) listenAndServe(endpoint Endpoint) error {
-	listener, err := net.Listen(endpoint.Network, endpoint.Address)
+func (T *Server) Listen(network, address string) (net.Listener, error) {
+	listener, err := net.Listen(network, address)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if endpoint.Network == "unix" {
+	if network == "unix" {
 		beforeexit.Run(func() {
 			_ = listener.Close()
 		})
 	}
 
-	log.Printf("listening on %s(%s)", endpoint.Network, endpoint.Address)
+	log.Printf("listening on %s(%s)", network, address)
 
+	return listener, nil
+}
+
+func (T *Server) Serve(listener net.Listener, acceptOptions FrontendAcceptOptions) error {
 	for {
 		raw, err := listener.Accept()
 		if err != nil {
@@ -136,7 +140,7 @@ func (T *Server) listenAndServe(endpoint Endpoint) error {
 			}
 		}
 
-		go T.accept(raw, endpoint.AcceptOptions)
+		go T.accept(raw, acceptOptions)
 	}
 
 	return nil
@@ -151,7 +155,11 @@ func (T *Server) ListenAndServe() error {
 		for _, endpoint := range endpoints {
 			e := endpoint
 			b.Queue(func() error {
-				return T.listenAndServe(e)
+				listener, err := T.Listen(e.Network, e.Address)
+				if err != nil {
+					return err
+				}
+				return T.Serve(listener, e.AcceptOptions)
 			})
 		}
 	}

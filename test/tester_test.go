@@ -14,8 +14,8 @@ import (
 	"pggat/lib/bouncer/backends/v0"
 	"pggat/lib/bouncer/frontends/v0"
 	"pggat/lib/gat"
+	"pggat/lib/gat/modules/raw_pools"
 	"pggat/lib/gat/pool"
-	"pggat/lib/gat/pool/dialer"
 	"pggat/lib/gat/pool/pools/session"
 	"pggat/lib/gat/pool/pools/transaction"
 	"pggat/lib/gat/pool/recipe"
@@ -23,9 +23,9 @@ import (
 	"pggat/test/tests"
 )
 
-func daisyChain(creds auth.Credentials, control dialer.Net, n int) (dialer.Net, error) {
+func daisyChain(creds auth.Credentials, control recipe.Dialer, n int) (recipe.Dialer, error) {
 	for i := 0; i < n; i++ {
-		var g gat.PoolsMap
+		var server gat.Server
 
 		var options = pool.Options{
 			Credentials: creds,
@@ -41,22 +41,28 @@ func daisyChain(creds auth.Credentials, control dialer.Net, n int) (dialer.Net, 
 		p.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
 			Dialer: control,
 		}))
-		g.Add("runner", "pool", p)
 
-		listener, err := gat.Listen("tcp", ":0", frontends.AcceptOptions{})
+		m, err := raw_pools.NewModule()
 		if err != nil {
-			return dialer.Net{}, err
+			return recipe.Dialer{}, err
 		}
-		port := listener.Listener.Addr().(*net.TCPAddr).Port
+		m.Add("runner", "pool", p)
+		server.AddModule(m)
+
+		listener, err := server.Listen("tcp", ":0")
+		if err != nil {
+			return recipe.Dialer{}, err
+		}
+		port := listener.Addr().(*net.TCPAddr).Port
 
 		go func() {
-			err := gat.Serve(listener, gat.NewKeyedPools(&g))
+			err := server.Serve(listener, frontends.AcceptOptions{})
 			if err != nil {
 				panic(err)
 			}
 		}()
 
-		control = dialer.Net{
+		control = recipe.Dialer{
 			Network: "tcp",
 			Address: ":" + strconv.Itoa(port),
 			AcceptOptions: backends.AcceptOptions{
@@ -71,7 +77,7 @@ func daisyChain(creds auth.Credentials, control dialer.Net, n int) (dialer.Net, 
 }
 
 func TestTester(t *testing.T) {
-	control := dialer.Net{
+	control := recipe.Dialer{
 		Network: "tcp",
 		Address: "localhost:5432",
 		AcceptOptions: backends.AcceptOptions{
@@ -103,15 +109,20 @@ func TestTester(t *testing.T) {
 		return
 	}
 
-	var g gat.PoolsMap
+	var server gat.Server
 
+	m, err := raw_pools.NewModule()
+	if err != nil {
+		t.Error(err)
+		return
+	}
 	transactionPool := pool.NewPool(transaction.Apply(pool.Options{
 		Credentials: creds,
 	}))
 	transactionPool.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
 		Dialer: parent,
 	}))
-	g.Add("runner", "transaction", transactionPool)
+	m.Add("runner", "transaction", transactionPool)
 
 	sessionPool := pool.NewPool(session.Apply(pool.Options{
 		Credentials:      creds,
@@ -120,23 +131,25 @@ func TestTester(t *testing.T) {
 	sessionPool.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
 		Dialer: parent,
 	}))
-	g.Add("runner", "session", sessionPool)
+	m.Add("runner", "session", sessionPool)
 
-	listener, err := gat.Listen("tcp", ":0", frontends.AcceptOptions{})
+	server.AddModule(m)
+
+	listener, err := server.Listen("tcp", ":0")
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	port := listener.Listener.Addr().(*net.TCPAddr).Port
+	port := listener.Addr().(*net.TCPAddr).Port
 
 	go func() {
-		err := gat.Serve(listener, gat.NewKeyedPools(&g))
+		err := server.Serve(listener, frontends.AcceptOptions{})
 		if err != nil {
 			t.Error(err)
 		}
 	}()
 
-	transactionDialer := dialer.Net{
+	transactionDialer := recipe.Dialer{
 		Network: "tcp",
 		Address: ":" + strconv.Itoa(port),
 		AcceptOptions: backends.AcceptOptions{
@@ -145,7 +158,7 @@ func TestTester(t *testing.T) {
 			Database:    "transaction",
 		},
 	}
-	sessionDialer := dialer.Net{
+	sessionDialer := recipe.Dialer{
 		Network: "tcp",
 		Address: ":" + strconv.Itoa(port),
 		AcceptOptions: backends.AcceptOptions{
