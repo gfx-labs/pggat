@@ -6,15 +6,14 @@ import (
 )
 
 type Module struct {
+	config Config
 }
 
 func NewModule(config Config) (*Module, error) {
 
 }
 
-func (T *Module) GatModule() gat.ModuleInfo {
-	// TODO(garet)
-}
+func (T *Module) GatModule() {}
 
 func (T *Module) ReadMetrics(metrics *metrics.Pools) {
 	// TODO implement me

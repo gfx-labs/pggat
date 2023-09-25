@@ -8,13 +8,12 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
+	"pggat/lib/gat"
 	"pggat/lib/gat/modules/cloud_sql_discovery"
 	"pggat/lib/gat/modules/digitalocean_discovery"
 	"pggat/lib/gat/modules/pgbouncer"
 	"pggat/lib/gat/modules/zalando"
 	"pggat/lib/gat/modules/zalando_operator_discovery"
-
-	"pggat/lib/gat"
 )
 
 func loadModule(mode string) (gat.Module, error) {

@@ -13,6 +13,7 @@ import (
 
 	"pggat/lib/auth/credentials"
 	"pggat/lib/bouncer/backends/v0"
+	"pggat/lib/bouncer/frontends/v0"
 	"pggat/lib/gat"
 	"pggat/lib/gat/metrics"
 	"pggat/lib/gat/pool"
@@ -247,9 +248,73 @@ func (T *Module) ReadMetrics(metrics *metrics.Pools) {
 	})
 }
 
-func (T *Module) GatModule() gat.ModuleInfo {
-	return gat.ModuleInfo{} // TODO(garet)
+func (T *Module) Endpoints() []gat.Endpoint {
+	trackedParameters := append([]strutil.CIString{
+		strutil.MakeCIString("client_encoding"),
+		strutil.MakeCIString("datestyle"),
+		strutil.MakeCIString("timezone"),
+		strutil.MakeCIString("standard_conforming_strings"),
+		strutil.MakeCIString("application_name"),
+	}, T.config.PgBouncer.TrackExtraParameters...)
+
+	allowedStartupParameters := append(trackedParameters, T.config.PgBouncer.IgnoreStartupParameters...)
+	var sslConfig *tls.Config
+	if T.config.PgBouncer.ClientTLSCertFile != "" && T.config.PgBouncer.ClientTLSKeyFile != "" {
+		certificate, err := tls.LoadX509KeyPair(T.config.PgBouncer.ClientTLSCertFile, T.config.PgBouncer.ClientTLSKeyFile)
+		if err != nil {
+			log.Printf("error loading X509 keypair: %v", err)
+		} else {
+			sslConfig = &tls.Config{
+				Certificates: []tls.Certificate{
+					certificate,
+				},
+			}
+		}
+	}
+
+	acceptOptions := frontends.AcceptOptions{
+		SSLRequired:           T.config.PgBouncer.ClientTLSSSLMode.IsRequired(),
+		SSLConfig:             sslConfig,
+		AllowedStartupOptions: allowedStartupParameters,
+	}
+
+	var endpoints []gat.Endpoint
+
+	if T.config.PgBouncer.ListenAddr != "" {
+		listenAddr := T.config.PgBouncer.ListenAddr
+		if listenAddr == "*" {
+			listenAddr = ""
+		}
+
+		listen := net.JoinHostPort(listenAddr, strconv.Itoa(T.config.PgBouncer.ListenPort))
+
+		endpoints = append(endpoints, gat.Endpoint{
+			Network:       "tcp",
+			Address:       listen,
+			AcceptOptions: acceptOptions,
+		})
+	}
+
+	// listen on unix socket
+	dir := T.config.PgBouncer.UnixSocketDir
+	port := T.config.PgBouncer.ListenPort
+
+	if !strings.HasSuffix(dir, "/") {
+		dir = dir + "/"
+	}
+	dir = dir + ".s.PGSQL." + strconv.Itoa(port)
+
+	endpoints = append(endpoints, gat.Endpoint{
+		Network:       "unix",
+		Address:       dir,
+		AcceptOptions: acceptOptions,
+	})
+
+	return endpoints
 }
+
+func (T *Module) GatModule() {}
 
 var _ gat.Module = (*Module)(nil)
 var _ gat.Provider = (*Module)(nil)
+var _ gat.Listener = (*Module)(nil)

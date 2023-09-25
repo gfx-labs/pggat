@@ -3,12 +3,14 @@ package gat
 import (
 	"errors"
 	"io"
+	"net"
 
 	"tuxpa.in/a/zlog/log"
 
 	"pggat/lib/bouncer/frontends/v0"
 	"pggat/lib/fed"
 	"pggat/lib/gat/metrics"
+	"pggat/lib/util/beforeexit"
 	"pggat/lib/util/flip"
 	"pggat/lib/util/maps"
 )
@@ -16,6 +18,7 @@ import (
 type Server struct {
 	modules   []Module
 	providers []Provider
+	listeners []Listener
 
 	keys maps.RWLocked[[8]byte, *Pool]
 }
@@ -24,6 +27,9 @@ func (T *Server) AddModule(module Module) {
 	T.modules = append(T.modules, module)
 	if provider, ok := module.(Provider); ok {
 		T.providers = append(T.providers, provider)
+	}
+	if listener, ok := module.(Listener); ok {
+		T.listeners = append(T.listeners, listener)
 	}
 }
 
@@ -85,41 +91,70 @@ func (T *Server) serve(conn fed.Conn, params frontends.AcceptParams) error {
 	return p.Serve(conn, params.InitialParameters, auth.BackendKey)
 }
 
-func (T *Server) Serve(listener Listener) error {
-	raw, err := listener.Listener.Accept()
+func (T *Server) accept(raw net.Conn, acceptOptions FrontendAcceptOptions) {
+	conn := fed.WrapNetConn(raw)
+
+	defer func() {
+		_ = conn.Close()
+	}()
+
+	ctx := frontends.AcceptContext{
+		Conn:    conn,
+		Options: acceptOptions,
+	}
+	params, err2 := frontends.Accept(&ctx)
+	if err2 != nil {
+		log.Print("error accepting client: ", err2)
+		return
+	}
+
+	err := T.serve(conn, params)
+	if err != nil && !errors.Is(err, io.EOF) {
+		log.Print("error serving client: ", err)
+		return
+	}
+}
+
+func (T *Server) listenAndServe(endpoint Endpoint) error {
+	listener, err := net.Listen(endpoint.Network, endpoint.Address)
 	if err != nil {
 		return err
 	}
-	conn := fed.WrapNetConn(raw)
+	if endpoint.Network == "unix" {
+		beforeexit.Run(func() {
+			_ = listener.Close()
+		})
+	}
 
-	go func() {
-		defer func() {
-			_ = conn.Close()
-		}()
+	log.Printf("listening on %s(%s)", endpoint.Network, endpoint.Address)
 
-		ctx := frontends.AcceptContext{
-			Conn:    conn,
-			Options: listener.Options,
-		}
-		params, err2 := frontends.Accept(&ctx)
-		if err2 != nil {
-			log.Print("error accepting client: ", err2)
-			return
+	for {
+		raw, err := listener.Accept()
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				break
+			}
 		}
 
-		err := T.serve(conn, params)
-		if err != nil && !errors.Is(err, io.EOF) {
-			log.Print("error serving client: ", err)
-			return
-		}
-	}()
+		go T.accept(raw, endpoint.AcceptOptions)
+	}
+
 	return nil
 }
 
 func (T *Server) ListenAndServe() error {
 	var b flip.Bank
 
-	// TODO(garet) add listeners to bank
+	if len(T.listeners) > 0 {
+		l := T.listeners[0]
+		endpoints := l.Endpoints()
+		for _, endpoint := range endpoints {
+			e := endpoint
+			b.Queue(func() error {
+				return T.listenAndServe(e)
+			})
+		}
+	}
 
 	return b.Wait()
 }
