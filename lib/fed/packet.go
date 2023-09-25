@@ -146,10 +146,6 @@ func (T Packet) ReadBytes(v []byte) PacketFragment {
 	return T.Payload().ReadBytes(v)
 }
 
-func (T Packet) Done() {
-	// TODO(garet)
-}
-
 type PacketFragment []byte
 
 func (T PacketFragment) ReadUint8(v *uint8) PacketFragment {

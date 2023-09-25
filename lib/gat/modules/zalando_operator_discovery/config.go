@@ -26,11 +26,3 @@ func Load() (Config, error) {
 	}
 	return config, nil
 }
-
-func (T *Config) ListenAndServe() error {
-	server, err := NewServer(T)
-	if err != nil {
-		return err
-	}
-	return server.ListenAndServe()
-}

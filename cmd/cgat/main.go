@@ -9,8 +9,6 @@ import (
 	"tuxpa.in/a/zlog/log"
 
 	"pggat/lib/gat"
-	"pggat/lib/gat/modules/cloud_sql_discovery"
-	"pggat/lib/gat/modules/digitalocean_discovery"
 	"pggat/lib/gat/modules/pgbouncer"
 	"pggat/lib/gat/modules/zalando"
 	"pggat/lib/gat/modules/zalando_operator_discovery"
@@ -42,7 +40,7 @@ func loadModule(mode string) (gat.Module, error) {
 			return nil, err
 		}
 		return zalando_operator_discovery.NewModule(conf)
-	case "google_cloud_sql":
+	/*case "google_cloud_sql":
 		conf, err := cloud_sql_discovery.Load()
 		if err != nil {
 			return nil, err
@@ -53,7 +51,7 @@ func loadModule(mode string) (gat.Module, error) {
 		if err != nil {
 			return nil, err
 		}
-		return digitalocean_discovery.NewModule(conf)
+		return digitalocean_discovery.NewModule(conf)*/
 	default:
 		return nil, errors.New("Unknown PGGAT_RUN_MODE: " + mode)
 	}
