@@ -194,6 +194,11 @@ func (T *Module) addPool(user, database string, p *pool.Pool) {
 func (T *Module) removePool(user, database string) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
+	p, ok := T.pools.Load(user, database)
+	if !ok {
+		return
+	}
+	p.Close()
 	log.Printf("removed pool user=%s database=%s", user, database)
 	T.pools.Delete(user, database)
 }

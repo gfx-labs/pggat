@@ -9,6 +9,7 @@ import (
 	"tuxpa.in/a/zlog/log"
 
 	"pggat/lib/gat"
+	"pggat/lib/gat/modules/cloud_sql_discovery"
 	"pggat/lib/gat/modules/digitalocean_discovery"
 	"pggat/lib/gat/modules/pgbouncer"
 	"pggat/lib/gat/modules/zalando"
@@ -41,13 +42,12 @@ func loadModule(mode string) (gat.Module, error) {
 			return nil, err
 		}
 		return zalando_operator_discovery.NewModule(conf)
-	/*case "google_cloud_sql":
-	conf, err := cloud_sql_discovery.Load()
-	if err != nil {
-		return nil, err
-	}
-	return cloud_sql_discovery.NewModule(conf)
-	*/
+	case "google_cloud_sql":
+		conf, err := cloud_sql_discovery.Load()
+		if err != nil {
+			return nil, err
+		}
+		return cloud_sql_discovery.NewModule(conf)
 	case "digitalocean_databases":
 		conf, err := digitalocean_discovery.Load()
 		if err != nil {
