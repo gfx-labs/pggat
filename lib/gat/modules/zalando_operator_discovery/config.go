@@ -9,8 +9,6 @@ type Config struct {
 	Namespace                   string `env:"PGGAT_NAMESPACE" default:"default"`
 	ConfigMapName               string `env:"CONFIG_MAP_NAME"`
 	OperatorConfigurationObject string `env:"POSTGRES_OPERATOR_CONFIGURATION_OBJECT"`
-	TLSCrtFile                  string `env:"PGGAT_TLS_CRT_FILE" default:"/etc/ssl/certs/pgbouncer.crt"`
-	TLSKeyFile                  string `env:"PGGAT_TLS_KEY_FILE" default:"/etc/ssl/certs/pgbouncer.key"`
 
 	Rest *rest.Config
 }
