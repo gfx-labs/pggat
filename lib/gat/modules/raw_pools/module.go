@@ -3,10 +3,10 @@ package raw_pools
 import (
 	"sync"
 
-	"pggat/lib/gat"
-	"pggat/lib/gat/metrics"
-	"pggat/lib/gat/pool"
-	"pggat/lib/util/maps"
+	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/gat/pool"
+	"gfx.cafe/gfx/pggat/lib/util/maps"
 )
 
 type Module struct {

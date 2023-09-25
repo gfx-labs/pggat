@@ -1,5 +1,5 @@
 package pool
 
-import "pggat/lib/gat/pool/recipe"
+import "gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
 
 type Recipe = recipe.Recipe

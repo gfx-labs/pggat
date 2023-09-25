@@ -4,9 +4,9 @@ import (
 	"crypto/tls"
 	"time"
 
-	"pggat/lib/bouncer"
-	"pggat/lib/gat/modules/discovery"
-	"pggat/lib/util/strutil"
+	"gfx.cafe/gfx/pggat/lib/bouncer"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/discovery"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 func NewModule(config Config) (*discovery.Module, error) {

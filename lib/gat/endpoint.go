@@ -1,6 +1,6 @@
 package gat
 
-import "pggat/lib/bouncer/frontends/v0"
+import "gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 
 type FrontendAcceptOptions = frontends.AcceptOptions
 

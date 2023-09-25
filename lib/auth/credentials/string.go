@@ -1,7 +1,7 @@
 package credentials
 
 import (
-	"pggat/lib/auth"
+	"gfx.cafe/gfx/pggat/lib/auth"
 )
 
 func FromString(user, password string) auth.Credentials {

@@ -1,9 +1,9 @@
 package pgbouncer
 
 import (
-	"pggat/lib/bouncer"
-	"pggat/lib/util/encoding/ini"
-	"pggat/lib/util/strutil"
+	"gfx.cafe/gfx/pggat/lib/bouncer"
+	"gfx.cafe/gfx/pggat/lib/util/encoding/ini"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type PoolMode string

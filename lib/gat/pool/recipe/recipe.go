@@ -3,8 +3,8 @@ package recipe
 import (
 	"sync"
 
-	"pggat/lib/bouncer/backends/v0"
-	"pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
+	"gfx.cafe/gfx/pggat/lib/fed"
 )
 
 type Recipe struct {

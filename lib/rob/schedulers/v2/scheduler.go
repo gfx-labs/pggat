@@ -1,12 +1,12 @@
 package schedulers
 
 import (
+	"gfx.cafe/gfx/pggat/lib/rob"
+	"gfx.cafe/gfx/pggat/lib/rob/schedulers/v2/job"
+	"gfx.cafe/gfx/pggat/lib/rob/schedulers/v2/sink"
+	"gfx.cafe/gfx/pggat/lib/util/maps"
+	"gfx.cafe/gfx/pggat/lib/util/pools"
 	"github.com/google/uuid"
-	"pggat/lib/rob"
-	"pggat/lib/rob/schedulers/v2/job"
-	"pggat/lib/rob/schedulers/v2/sink"
-	"pggat/lib/util/maps"
-	"pggat/lib/util/pools"
 	"sync"
 )
 

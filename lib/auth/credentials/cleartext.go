@@ -9,8 +9,8 @@ import (
 
 	"gfx.cafe/ghalliday1/scram"
 
-	"pggat/lib/auth"
-	"pggat/lib/util/slices"
+	"gfx.cafe/gfx/pggat/lib/auth"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
 type Cleartext struct {

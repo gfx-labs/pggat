@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"hash/maphash"
 
-	"pggat/lib/fed"
-	packets "pggat/lib/fed/packets/v3.0"
-	"pggat/lib/util/maps"
-	"pggat/lib/util/ring"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/util/maps"
+	"gfx.cafe/gfx/pggat/lib/util/ring"
 )
 
 var seed = maphash.MakeSeed()

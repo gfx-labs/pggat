@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 
-	"pggat/lib/fed"
-	"pggat/lib/gsql"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/gsql"
 )
 
 type Capturer struct {

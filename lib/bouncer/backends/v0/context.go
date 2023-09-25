@@ -1,7 +1,7 @@
 package backends
 
 import (
-	"pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/fed"
 )
 
 type AcceptContext struct {

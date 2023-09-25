@@ -1,6 +1,6 @@
 package middleware
 
-import "pggat/lib/fed"
+import "gfx.cafe/gfx/pggat/lib/fed"
 
 type Middleware interface {
 	Read(ctx Context, packet fed.Packet) error

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"pggat/lib/util/encoding/ini"
+	"gfx.cafe/gfx/pggat/lib/util/encoding/ini"
 )
 
 // CIString is a case-insensitive string.

@@ -1,7 +1,7 @@
 package packets
 
 import (
-	"pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/fed"
 )
 
 type ReadyForQuery byte

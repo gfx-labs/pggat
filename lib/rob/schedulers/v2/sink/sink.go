@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"pggat/lib/rob/schedulers/v2/job"
-	"pggat/lib/util/rbtree"
-	"pggat/lib/util/ring"
+	"gfx.cafe/gfx/pggat/lib/rob/schedulers/v2/job"
+	"gfx.cafe/gfx/pggat/lib/util/rbtree"
+	"gfx.cafe/gfx/pggat/lib/util/ring"
 )
 
 type Sink struct {

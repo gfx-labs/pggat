@@ -5,9 +5,9 @@ import (
 	"net"
 	"sync"
 
-	"pggat/lib/fed"
-	"pggat/lib/util/ring"
-	"pggat/lib/util/slices"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/util/ring"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
 type batch struct {

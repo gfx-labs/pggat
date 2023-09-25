@@ -1,6 +1,6 @@
 package packets
 
-import "pggat/lib/perror"
+import "gfx.cafe/gfx/pggat/lib/perror"
 
 var (
 	ErrBadFormat = perror.New(

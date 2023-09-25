@@ -11,18 +11,18 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
-	"pggat/lib/auth/credentials"
-	"pggat/lib/bouncer/backends/v0"
-	"pggat/lib/bouncer/frontends/v0"
-	"pggat/lib/gat"
-	"pggat/lib/gat/metrics"
-	"pggat/lib/gat/pool"
-	"pggat/lib/gat/pool/pools/session"
-	"pggat/lib/gat/pool/pools/transaction"
-	"pggat/lib/gat/pool/recipe"
-	"pggat/lib/gsql"
-	"pggat/lib/util/maps"
-	"pggat/lib/util/strutil"
+	"gfx.cafe/gfx/pggat/lib/auth/credentials"
+	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
+	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
+	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/gat/pool"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/pools/session"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/pools/transaction"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
+	"gfx.cafe/gfx/pggat/lib/gsql"
+	"gfx.cafe/gfx/pggat/lib/util/maps"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type authQueryResult struct {

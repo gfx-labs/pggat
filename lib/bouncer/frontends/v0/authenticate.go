@@ -5,9 +5,9 @@ import (
 	"errors"
 	"io"
 
-	"pggat/lib/auth"
-	packets "pggat/lib/fed/packets/v3.0"
-	"pggat/lib/perror"
+	"gfx.cafe/gfx/pggat/lib/auth"
+	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
 func authenticationSASLInitial(ctx *AuthenticateContext, creds auth.SASLServer) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {

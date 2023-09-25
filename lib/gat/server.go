@@ -7,12 +7,12 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
-	"pggat/lib/bouncer/frontends/v0"
-	"pggat/lib/fed"
-	"pggat/lib/gat/metrics"
-	"pggat/lib/util/beforeexit"
-	"pggat/lib/util/flip"
-	"pggat/lib/util/maps"
+	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/util/beforeexit"
+	"gfx.cafe/gfx/pggat/lib/util/flip"
+	"gfx.cafe/gfx/pggat/lib/util/maps"
 )
 
 type Server struct {

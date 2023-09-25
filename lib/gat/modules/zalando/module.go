@@ -3,9 +3,9 @@ package zalando
 import (
 	"fmt"
 
-	"pggat/lib/bouncer"
-	"pggat/lib/gat/modules/pgbouncer"
-	"pggat/lib/util/strutil"
+	"gfx.cafe/gfx/pggat/lib/bouncer"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/pgbouncer"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 func NewModule(config Config) (*pgbouncer.Module, error) {

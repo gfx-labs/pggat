@@ -1,13 +1,13 @@
 package pool
 
 import (
-	"pggat/lib/bouncer/backends/v0"
-	"pggat/lib/fed"
-	packets "pggat/lib/fed/packets/v3.0"
-	"pggat/lib/gat/metrics"
-	"pggat/lib/middleware/middlewares/eqp"
-	"pggat/lib/middleware/middlewares/ps"
-	"pggat/lib/util/slices"
+	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/eqp"
+	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/ps"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
 func pair(options Options, client *pooledClient, server *pooledServer) (clientErr, serverErr error) {

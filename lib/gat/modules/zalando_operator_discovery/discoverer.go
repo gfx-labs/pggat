@@ -16,7 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"pggat/lib/gat/modules/discovery"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/discovery"
 )
 
 type Discoverer struct {

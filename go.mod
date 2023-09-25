@@ -1,4 +1,4 @@
-module pggat
+module gfx.cafe/gfx/pggat
 
 go 1.20
 

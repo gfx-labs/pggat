@@ -1,5 +1,5 @@
 package gat
 
-import "pggat/lib/gat/pool"
+import "gfx.cafe/gfx/pggat/lib/gat/pool"
 
 type Pool = pool.Pool

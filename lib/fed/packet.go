@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"math"
 
-	"pggat/lib/util/slices"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
 type Packet []byte

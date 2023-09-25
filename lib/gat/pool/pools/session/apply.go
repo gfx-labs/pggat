@@ -1,7 +1,7 @@
 package session
 
 import (
-	"pggat/lib/gat/pool"
+	"gfx.cafe/gfx/pggat/lib/gat/pool"
 )
 
 func Apply(options pool.Options) pool.Options {

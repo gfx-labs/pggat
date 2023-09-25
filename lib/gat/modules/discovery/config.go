@@ -4,8 +4,8 @@ import (
 	"crypto/tls"
 	"time"
 
-	"pggat/lib/bouncer"
-	"pggat/lib/util/strutil"
+	"gfx.cafe/gfx/pggat/lib/bouncer"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type Config struct {

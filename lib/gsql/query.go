@@ -1,8 +1,8 @@
 package gsql
 
 import (
-	"pggat/lib/fed"
-	packets "pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 )
 
 func Query(client *Client, results []any, query string) {

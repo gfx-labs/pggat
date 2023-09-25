@@ -1,6 +1,6 @@
 package gat
 
-import "pggat/lib/gat/metrics"
+import "gfx.cafe/gfx/pggat/lib/gat/metrics"
 
 // Provider provides pool to the server
 type Provider interface {

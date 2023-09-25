@@ -11,7 +11,7 @@ import (
 
 	"gfx.cafe/ghalliday1/scram"
 
-	"pggat/lib/auth"
+	"gfx.cafe/gfx/pggat/lib/auth"
 )
 
 type Scram struct {

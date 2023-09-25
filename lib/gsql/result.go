@@ -1,6 +1,6 @@
 package gsql
 
-import "pggat/lib/fed"
+import "gfx.cafe/gfx/pggat/lib/fed"
 
 type ResultWriter interface {
 	fed.Writer

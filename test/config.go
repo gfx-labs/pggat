@@ -1,7 +1,7 @@
 package test
 
 import (
-	"pggat/lib/gat/pool/recipe"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
 )
 
 type Config struct {

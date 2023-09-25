@@ -8,13 +8,13 @@ import (
 
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
-	"pggat/lib/auth/credentials"
-	"pggat/lib/bouncer"
-	"pggat/lib/bouncer/backends/v0"
-	"pggat/lib/bouncer/bouncers/v2"
-	"pggat/lib/fed"
-	"pggat/lib/gat/modules/discovery"
-	"pggat/lib/gsql"
+	"gfx.cafe/gfx/pggat/lib/auth/credentials"
+	"gfx.cafe/gfx/pggat/lib/bouncer"
+	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
+	"gfx.cafe/gfx/pggat/lib/bouncer/bouncers/v2"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/discovery"
+	"gfx.cafe/gfx/pggat/lib/gsql"
 )
 
 type authQueryResult struct {

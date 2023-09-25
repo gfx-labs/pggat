@@ -9,14 +9,14 @@ import (
 	"github.com/google/uuid"
 	"tuxpa.in/a/zlog/log"
 
-	"pggat/lib/auth"
-	"pggat/lib/bouncer/backends/v0"
-	"pggat/lib/bouncer/bouncers/v2"
-	"pggat/lib/fed"
-	packets "pggat/lib/fed/packets/v3.0"
-	"pggat/lib/gat/metrics"
-	"pggat/lib/util/slices"
-	"pggat/lib/util/strutil"
+	"gfx.cafe/gfx/pggat/lib/auth"
+	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
+	"gfx.cafe/gfx/pggat/lib/bouncer/bouncers/v2"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type Pool struct {

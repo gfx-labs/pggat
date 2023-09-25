@@ -3,8 +3,8 @@ package backends
 import (
 	"fmt"
 
-	packets "pggat/lib/fed/packets/v3.0"
-	"pggat/lib/util/strutil"
+	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 func CopyIn(ctx *Context) error {

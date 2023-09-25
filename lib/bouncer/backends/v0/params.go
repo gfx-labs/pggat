@@ -1,6 +1,6 @@
 package backends
 
-import "pggat/lib/util/strutil"
+import "gfx.cafe/gfx/pggat/lib/util/strutil"
 
 type AcceptParams struct {
 	SSLEnabled        bool

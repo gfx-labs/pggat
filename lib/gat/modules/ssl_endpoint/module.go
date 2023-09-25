@@ -12,8 +12,8 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
-	"pggat/lib/gat"
-	"pggat/lib/util/strutil"
+	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type Module struct {

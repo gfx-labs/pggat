@@ -3,7 +3,7 @@ package pools
 import (
 	"math/bits"
 
-	"pggat/lib/util/slices"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
 type Log2[T any] struct {

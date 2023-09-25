@@ -1,6 +1,6 @@
 package test
 
-import "pggat/test/inst"
+import "gfx.cafe/gfx/pggat/test/inst"
 
 type Test struct {
 	// SideEffects determines whether this test has side effects such as creating or dropping tables.

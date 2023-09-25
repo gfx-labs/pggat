@@ -3,8 +3,8 @@ package pgbouncer
 import (
 	"os"
 
-	"pggat/lib/util/encoding/ini"
-	"pggat/lib/util/encoding/userlist"
+	"gfx.cafe/gfx/pggat/lib/util/encoding/ini"
+	"gfx.cafe/gfx/pggat/lib/util/encoding/userlist"
 )
 
 type AuthFile map[string]string

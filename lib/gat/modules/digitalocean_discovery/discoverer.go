@@ -7,7 +7,7 @@ import (
 
 	"github.com/digitalocean/godo"
 
-	"pggat/lib/gat/modules/discovery"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/discovery"
 )
 
 type Discoverer struct {

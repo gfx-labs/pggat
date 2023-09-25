@@ -8,7 +8,7 @@ import (
 	"io"
 	"net"
 
-	"pggat/lib/util/slices"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
 type Conn interface {

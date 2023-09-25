@@ -9,14 +9,14 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
-	"pggat/lib/gat"
-	"pggat/lib/gat/metrics"
-	"pggat/lib/gat/modules/cloud_sql_discovery"
-	"pggat/lib/gat/modules/digitalocean_discovery"
-	"pggat/lib/gat/modules/pgbouncer"
-	"pggat/lib/gat/modules/ssl_endpoint"
-	"pggat/lib/gat/modules/zalando"
-	"pggat/lib/gat/modules/zalando_operator_discovery"
+	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/cloud_sql_discovery"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/digitalocean_discovery"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/pgbouncer"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/ssl_endpoint"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/zalando"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/zalando_operator_discovery"
 )
 
 func loadModule(mode string) (gat.Module, error) {

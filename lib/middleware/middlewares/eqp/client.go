@@ -1,8 +1,8 @@
 package eqp
 
 import (
-	"pggat/lib/fed"
-	"pggat/lib/middleware"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/middleware"
 )
 
 type Client struct {

@@ -1,10 +1,10 @@
 package bouncers
 
 import (
-	"pggat/lib/bouncer/backends/v0"
-	"pggat/lib/fed"
-	packets "pggat/lib/fed/packets/v3.0"
-	"pggat/lib/perror"
+	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
 func clientFail(ctx *backends.Context, client fed.ReadWriter, err perror.Error) {

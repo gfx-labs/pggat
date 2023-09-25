@@ -1,9 +1,9 @@
 package interceptor
 
 import (
-	"pggat/lib/fed"
-	"pggat/lib/middleware"
-	"pggat/lib/util/decorator"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/middleware"
+	"gfx.cafe/gfx/pggat/lib/util/decorator"
 )
 
 type Context struct {

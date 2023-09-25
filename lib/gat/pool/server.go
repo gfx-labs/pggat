@@ -1,12 +1,12 @@
 package pool
 
 import (
-	"pggat/lib/fed"
-	"pggat/lib/middleware"
-	"pggat/lib/middleware/interceptor"
-	"pggat/lib/middleware/middlewares/eqp"
-	"pggat/lib/middleware/middlewares/ps"
-	"pggat/lib/util/strutil"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/middleware"
+	"gfx.cafe/gfx/pggat/lib/middleware/interceptor"
+	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/eqp"
+	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/ps"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type pooledServer struct {

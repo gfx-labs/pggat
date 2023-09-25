@@ -1,8 +1,8 @@
 package tests
 
 import (
-	"pggat/test"
-	"pggat/test/inst"
+	"gfx.cafe/gfx/pggat/test"
+	"gfx.cafe/gfx/pggat/test/inst"
 )
 
 var CopyIn0 = test.Test{

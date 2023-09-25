@@ -1,6 +1,6 @@
 package frontends
 
-import "pggat/lib/fed"
+import "gfx.cafe/gfx/pggat/lib/fed"
 
 type AcceptContext struct {
 	Packet  fed.Packet

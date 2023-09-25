@@ -5,8 +5,8 @@ import (
 	"io"
 	"net"
 
-	"pggat/lib/bouncer/backends/v0"
-	"pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
+	"gfx.cafe/gfx/pggat/lib/fed"
 )
 
 type BackendAcceptOptions = backends.AcceptOptions

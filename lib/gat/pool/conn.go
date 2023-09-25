@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"pggat/lib/fed"
-	"pggat/lib/gat/metrics"
-	"pggat/lib/util/strutil"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type pooledConn struct {

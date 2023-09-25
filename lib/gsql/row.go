@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"strconv"
 
-	"pggat/lib/fed"
-	packets "pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 )
 
 type RowWriter struct {

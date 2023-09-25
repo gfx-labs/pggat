@@ -1,8 +1,8 @@
 package packets
 
 import (
-	"pggat/lib/fed"
-	"pggat/lib/util/slices"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
 type RowDescriptionField struct {

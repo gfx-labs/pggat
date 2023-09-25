@@ -1,11 +1,11 @@
 package ps
 
 import (
-	"pggat/lib/bouncer/backends/v0"
-	"pggat/lib/fed"
-	packets "pggat/lib/fed/packets/v3.0"
-	"pggat/lib/util/slices"
-	"pggat/lib/util/strutil"
+	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 func sync(tracking []strutil.CIString, client fed.ReadWriter, c *Client, server fed.ReadWriter, s *Server, name strutil.CIString) error {
