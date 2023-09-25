@@ -15,9 +15,8 @@ func NewModule(config Config) (*discovery.Module, error) {
 		return nil, err
 	}
 	m, err := discovery.NewModule(discovery.Config{
-		ReconcilePeriod: 1 * time.Minute,
-		Discoverer:      d,
-		ServerSSLMode:   bouncer.SSLModePrefer,
+		Discoverer:    d,
+		ServerSSLMode: bouncer.SSLModePrefer,
 		ServerSSLConfig: &tls.Config{
 			InsecureSkipVerify: true,
 		},

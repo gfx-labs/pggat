@@ -3,8 +3,8 @@ package zalando_operator_discovery
 import (
 	"context"
 	"fmt"
-	"math"
 	"strings"
+	"time"
 
 	acidzalando "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do"
 	acidv1 "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do/v1"
@@ -89,7 +89,7 @@ func (T *Discoverer) init() error {
 	T.informer = acidv1informer.NewPostgresqlInformer(
 		T.k8s.AcidV1ClientSet,
 		T.config.Namespace,
-		math.MaxInt64,
+		5*time.Minute,
 		cache.Indexers{},
 	)
 
@@ -188,22 +188,7 @@ func (T *Discoverer) postgresqlToCluster(cluster acidv1.Postgresql) (discovery.C
 }
 
 func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
-	clusters, err := T.k8s.Postgresqls(T.config.Namespace).List(context.Background(), metav1.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	res := make([]discovery.Cluster, 0, len(clusters.Items))
-	for _, cluster := range clusters.Items {
-		c, err := T.postgresqlToCluster(cluster)
-		if err != nil {
-			return nil, err
-		}
-
-		res = append(res, c)
-	}
-
-	return res, nil
+	return nil, nil
 }
 
 func (T *Discoverer) Added() <-chan discovery.Cluster {
