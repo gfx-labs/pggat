@@ -7,7 +7,6 @@ import (
 	_ "gfx.cafe/gfx/pggat/lib/gat/modules/cloud_sql_discovery"
 	_ "gfx.cafe/gfx/pggat/lib/gat/modules/digitalocean_discovery"
 	_ "gfx.cafe/gfx/pggat/lib/gat/modules/pgbouncer"
-	_ "gfx.cafe/gfx/pggat/lib/gat/modules/ssl_endpoint"
 	_ "gfx.cafe/gfx/pggat/lib/gat/modules/zalando"
 	_ "gfx.cafe/gfx/pggat/lib/gat/modules/zalando_operator_discovery"
 )

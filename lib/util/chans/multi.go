@@ -10,8 +10,12 @@ type MultiRecv[T any] struct {
 	cases []reflect.SelectCase
 }
 
-func NewMultiRecv[T any](cases []<-chan T) *MultiRecv[T] {
-	c := make([]reflect.SelectCase, 0, len(cases))
+func NewMultiRecv[T any](cases []<-chan T, done <-chan struct{}) *MultiRecv[T] {
+	c := make([]reflect.SelectCase, 0, len(cases)+1)
+	c = append(c, reflect.SelectCase{
+		Dir:  reflect.SelectRecv,
+		Chan: reflect.ValueOf(done),
+	})
 	for _, ch := range cases {
 		c = append(c, reflect.SelectCase{
 			Dir:  reflect.SelectRecv,
@@ -25,12 +29,12 @@ func NewMultiRecv[T any](cases []<-chan T) *MultiRecv[T] {
 
 func (c *MultiRecv[T]) Recv() (T, bool) {
 	for {
-		if len(c.cases) == 0 {
-			return *new(T), false
-		}
-
 		idx, value, ok := reflect.Select(c.cases)
 		if !ok {
+			if idx == 0 {
+				// done triggered
+				return *new(T), false
+			}
 			c.cases = slices.DeleteIndex(c.cases, idx)
 			continue
 		}

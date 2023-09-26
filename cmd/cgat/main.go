@@ -25,13 +25,14 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-func addSSLEndpoint(server *gat.Server) error {
+func createSSLModule() (gat.Module, error) {
 	// back up ssl endpoint (for modules that don't have endpoints by default such as discovery)
 	cert, err := certs.SelfSign()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	server.AddModule(&net_listener.Module{
+
+	return &net_listener.Module{
 		Config: net_listener.Config{
 			Network: "tcp",
 			Address: ":5432",
@@ -51,75 +52,68 @@ func addSSLEndpoint(server *gat.Server) error {
 				},
 			},
 		},
-	})
-
-	return nil
+	}, nil
 }
 
-func addEnvModule(server *gat.Server, mode string) error {
+func loadModule(mode string) (gat.Module, error) {
 	switch mode {
 	case "pggat":
 		conf, err := pgbouncer.Load(os.Args[1])
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		server.AddModule(&pgbouncer.Module{
+		return &pgbouncer.Module{
 			Config: conf,
-		})
+		}, nil
 	case "pgbouncer":
 		conf, err := pgbouncer.Load(os.Args[1])
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		server.AddModule(&pgbouncer.Module{
+		return &pgbouncer.Module{
 			Config: conf,
-		})
+		}, nil
 	case "pgbouncer_spilo":
 		conf, err := zalando.Load()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		server.AddModule(&zalando.Module{
+		return &zalando.Module{
 			Config: conf,
-		})
+		}, nil
 	case "zalando_kubernetes_operator":
 		conf, err := zalando_operator_discovery.Load()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		server.AddModule(&zalando_operator_discovery.Module{
+		return &zalando_operator_discovery.Module{
 			Config: conf,
-		})
-		return addSSLEndpoint(server)
+		}, nil
 	case "google_cloud_sql":
 		conf, err := cloud_sql_discovery.Load()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		server.AddModule(&cloud_sql_discovery.Module{
+		return &cloud_sql_discovery.Module{
 			Config: conf,
-		})
-		return addSSLEndpoint(server)
+		}, nil
 	case "digitalocean_databases":
 		conf, err := digitalocean_discovery.Load()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		server.AddModule(&digitalocean_discovery.Module{
+		return &digitalocean_discovery.Module{
 			Config: conf,
-		})
-		return addSSLEndpoint(server)
+		}, nil
 	default:
-		return errors.New("Unknown PGGAT_RUN_MODE: " + mode)
+		return nil, errors.New("Unknown PGGAT_RUN_MODE: " + mode)
 	}
-
-	return nil
 }
 
 func main() {
@@ -134,7 +128,24 @@ func main() {
 
 	log.Printf("Starting pggat (%s)...", runMode)
 
-	var server gat.Server
+	// load modules
+	var modules []gat.Module
+
+	module, err := loadModule(runMode)
+	if err != nil {
+		panic(err)
+	}
+	modules = append(modules, module)
+
+	if _, ok := module.(gat.Listener); !ok {
+		endpoint, err := createSSLModule()
+		if err != nil {
+			panic(err)
+		}
+		modules = append(modules, endpoint)
+	}
+
+	server := gat.NewServer(modules...)
 
 	// handle interrupts
 	c := make(chan os.Signal, 2)
@@ -149,11 +160,6 @@ func main() {
 
 		os.Exit(0)
 	}()
-
-	// load and add main module
-	if err := addEnvModule(&server, runMode); err != nil {
-		panic(err)
-	}
 
 	go func() {
 		var m metrics.Server

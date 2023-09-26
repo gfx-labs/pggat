@@ -20,23 +20,31 @@ type Server struct {
 	starters  []Starter
 	stoppers  []Stopper
 
+	done chan struct{}
+
 	keys maps.RWLocked[[8]byte, *Pool]
 }
 
-func (T *Server) AddModule(module Module) {
-	T.modules = append(T.modules, module)
-	if provider, ok := module.(Provider); ok {
-		T.providers = append(T.providers, provider)
+func NewServer(modules ...Module) *Server {
+	server := new(Server)
+
+	for _, module := range modules {
+		server.modules = append(server.modules, module)
+		if provider, ok := module.(Provider); ok {
+			server.providers = append(server.providers, provider)
+		}
+		if listener, ok := module.(Listener); ok {
+			server.listeners = append(server.listeners, listener)
+		}
+		if starter, ok := module.(Starter); ok {
+			server.starters = append(server.starters, starter)
+		}
+		if stopper, ok := module.(Stopper); ok {
+			server.stoppers = append(server.stoppers, stopper)
+		}
 	}
-	if listener, ok := module.(Listener); ok {
-		T.listeners = append(T.listeners, listener)
-	}
-	if starter, ok := module.(Starter); ok {
-		T.starters = append(T.starters, starter)
-	}
-	if stopper, ok := module.(Stopper); ok {
-		T.stoppers = append(T.stoppers, stopper)
-	}
+
+	return server
 }
 
 func (T *Server) cancel(key [8]byte) error {
@@ -110,28 +118,32 @@ func (T *Server) Start() error {
 		}
 	}
 
+	T.done = make(chan struct{})
+
+	go T.acceptLoop()
+
+	return nil
+}
+
+func (T *Server) acceptLoop() {
 	var accept []<-chan AcceptedConn
 
 	for _, listener := range T.listeners {
 		accept = append(accept, listener.Accept()...)
 	}
 
-	go func() {
-		acceptor := chans.NewMultiRecv(accept)
-		for {
-			accepted, ok := acceptor.Recv()
-			if !ok {
-				break
-			}
-			go func() {
-				if err := T.serve(accepted.Conn, accepted.Params); err != nil && !errors.Is(err, io.EOF) {
-					log.Printf("failed to serve client: %v", err)
-				}
-			}()
+	acceptor := chans.NewMultiRecv(accept, T.done)
+	for {
+		accepted, ok := acceptor.Recv()
+		if !ok {
+			break
 		}
-	}()
-
-	return nil
+		go func() {
+			if err := T.serve(accepted.Conn, accepted.Params); err != nil && !errors.Is(err, io.EOF) {
+				log.Printf("failed to serve client: %v", err)
+			}
+		}()
+	}
 }
 
 func (T *Server) Stop() error {
@@ -141,6 +153,8 @@ func (T *Server) Stop() error {
 			err = err2
 		}
 	}
+
+	close(T.done)
 
 	return err
 }

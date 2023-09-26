@@ -40,7 +40,10 @@ func (T *Module) Start() error {
 }
 
 func (T *Module) Stop() error {
-	return T.listener.Close()
+	if err := T.listener.Close(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (T *Module) Addr() net.Addr {
@@ -79,7 +82,7 @@ func (T *Module) acceptLoop() {
 			continue
 		}
 
-		T.accept(conn)
+		go T.accept(conn)
 	}
 }
 

@@ -25,8 +25,6 @@ import (
 
 func daisyChain(creds auth.Credentials, control recipe.Dialer, n int) (recipe.Dialer, error) {
 	for i := 0; i < n; i++ {
-		var server gat.Server
-
 		var options = pool.Options{
 			Credentials: creds,
 		}
@@ -44,7 +42,6 @@ func daisyChain(creds auth.Credentials, control recipe.Dialer, n int) (recipe.Di
 
 		m := new(raw_pools.Module)
 		m.Add("runner", "pool", p)
-		server.AddModule(m)
 
 		l := &net_listener.Module{
 			Config: net_listener.Config{
@@ -56,7 +53,8 @@ func daisyChain(creds auth.Credentials, control recipe.Dialer, n int) (recipe.Di
 			return recipe.Dialer{}, err
 		}
 		port := l.Addr().(*net.TCPAddr).Port
-		server.AddModule(l)
+
+		server := gat.NewServer(m, l)
 
 		if err := server.Start(); err != nil {
 			panic(err)
@@ -109,8 +107,6 @@ func TestTester(t *testing.T) {
 		return
 	}
 
-	var server gat.Server
-
 	m := new(raw_pools.Module)
 	transactionPool := pool.NewPool(transaction.Apply(pool.Options{
 		Credentials: creds,
@@ -129,8 +125,6 @@ func TestTester(t *testing.T) {
 	}))
 	m.Add("runner", "session", sessionPool)
 
-	server.AddModule(m)
-
 	l := &net_listener.Module{
 		Config: net_listener.Config{
 			Network: "tcp",
@@ -143,7 +137,7 @@ func TestTester(t *testing.T) {
 	}
 	port := l.Addr().(*net.TCPAddr).Port
 
-	server.AddModule(l)
+	server := gat.NewServer(m, l)
 
 	if err = server.Start(); err != nil {
 		t.Error(err)
