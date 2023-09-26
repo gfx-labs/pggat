@@ -15,6 +15,7 @@ type Module struct {
 	Config
 
 	listener net.Listener
+	closed   chan struct{}
 	accepted chan<- gat.AcceptedConn
 }
 
@@ -25,6 +26,8 @@ func (T *Module) Start() error {
 		// in case this listener was started early
 		return nil
 	}
+
+	T.closed = make(chan struct{})
 
 	var err error
 	T.listener, err = net.Listen(T.Network, T.Address)
@@ -40,6 +43,7 @@ func (T *Module) Stop() error {
 	if err := T.listener.Close(); err != nil {
 		return err
 	}
+	close(T.closed)
 	return nil
 }
 
@@ -61,10 +65,13 @@ func (T *Module) accept(raw net.Conn) {
 		log.Printf("failed to accept conn: %v", err)
 		return
 	}
-	_ = params // TODO(garet)
-	T.accepted <- gat.AcceptedConn{
+	select {
+	case T.accepted <- gat.AcceptedConn{
 		Conn:   conn,
 		Params: params,
+	}:
+	case <-T.closed:
+		_ = conn.Close()
 	}
 }
 
