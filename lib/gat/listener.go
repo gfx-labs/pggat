@@ -13,5 +13,5 @@ type AcceptedConn struct {
 type Listener interface {
 	Module
 
-	Accept() []<-chan AcceptedConn
+	Listen(chan<- AcceptedConn)
 }

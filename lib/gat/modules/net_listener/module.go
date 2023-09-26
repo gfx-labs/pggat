@@ -15,7 +15,7 @@ type Module struct {
 	Config
 
 	listener net.Listener
-	accepted chan gat.AcceptedConn
+	accepted chan<- gat.AcceptedConn
 }
 
 func (*Module) GatModule() {}
@@ -32,9 +32,6 @@ func (T *Module) Start() error {
 		return err
 	}
 	log.Printf("listening on %v", T.listener.Addr())
-
-	T.accepted = make(chan gat.AcceptedConn)
-	go T.acceptLoop()
 
 	return nil
 }
@@ -86,10 +83,9 @@ func (T *Module) acceptLoop() {
 	}
 }
 
-func (T *Module) Accept() []<-chan gat.AcceptedConn {
-	return []<-chan gat.AcceptedConn{
-		T.accepted,
-	}
+func (T *Module) Listen(ch chan<- gat.AcceptedConn) {
+	T.accepted = ch
+	go T.acceptLoop()
 }
 
 var _ gat.Module = (*Module)(nil)

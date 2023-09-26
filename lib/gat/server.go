@@ -9,7 +9,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
-	"gfx.cafe/gfx/pggat/lib/util/chans"
 	"gfx.cafe/gfx/pggat/lib/util/maps"
 )
 
@@ -126,23 +125,23 @@ func (T *Server) Start() error {
 }
 
 func (T *Server) acceptLoop() {
-	var accept []<-chan AcceptedConn
+	accept := make(chan AcceptedConn)
 
 	for _, listener := range T.listeners {
-		accept = append(accept, listener.Accept()...)
+		listener.Listen(accept)
 	}
 
-	acceptor := chans.NewMultiRecv(accept, T.done)
 	for {
-		accepted, ok := acceptor.Recv()
-		if !ok {
-			break
+		select {
+		case accepted := <-accept:
+			go func() {
+				if err := T.serve(accepted.Conn, accepted.Params); err != nil && !errors.Is(err, io.EOF) {
+					log.Printf("failed to serve client: %v", err)
+				}
+			}()
+		case <-T.done:
+			return
 		}
-		go func() {
-			if err := T.serve(accepted.Conn, accepted.Params); err != nil && !errors.Is(err, io.EOF) {
-				log.Printf("failed to serve client: %v", err)
-			}
-		}()
 	}
 }
 

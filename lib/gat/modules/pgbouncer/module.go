@@ -348,13 +348,11 @@ func (T *Module) ReadMetrics(metrics *metrics.Pools) {
 	})
 }
 
-func (T *Module) Accept() []<-chan gat.AcceptedConn {
-	var accept []<-chan gat.AcceptedConn
+func (T *Module) Listen(ch chan<- gat.AcceptedConn) {
 	if T.PgBouncer.ListenAddr != "" {
-		accept = append(accept, T.tcpListener.Accept()...)
+		T.tcpListener.Listen(ch)
 	}
-	accept = append(accept, T.unixListener.Accept()...)
-	return accept
+	T.unixListener.Listen(ch)
 }
 
 func (T *Module) GatModule() {}
