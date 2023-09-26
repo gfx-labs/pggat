@@ -31,29 +31,23 @@ type authQueryResult struct {
 }
 
 type Module struct {
-	config Config
+	Config
 
 	pools maps.TwoKey[string, string, *gat.Pool]
 }
 
-func NewModule(config Config) (*Module, error) {
-	return &Module{
-		config: config,
-	}, nil
-}
-
 func (T *Module) getPassword(user, database string) (string, bool) {
 	// try to get password
-	password, ok := T.config.PgBouncer.AuthFile[user]
+	password, ok := T.PgBouncer.AuthFile[user]
 	if !ok {
 		// try to run auth query
-		if T.config.PgBouncer.AuthQuery == "" {
+		if T.PgBouncer.AuthQuery == "" {
 			return "", false
 		}
 
-		authUser := T.config.Databases[database].AuthUser
+		authUser := T.Databases[database].AuthUser
 		if authUser == "" {
-			authUser = T.config.PgBouncer.AuthUser
+			authUser = T.PgBouncer.AuthUser
 			if authUser == "" {
 				return "", false
 			}
@@ -66,7 +60,7 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 
 		var result authQueryResult
 		client := new(gsql.Client)
-		err := gsql.ExtendedQuery(client, &result, T.config.PgBouncer.AuthQuery, user)
+		err := gsql.ExtendedQuery(client, &result, T.PgBouncer.AuthQuery, user)
 		if err != nil {
 			log.Println("auth query failed:", err)
 			return "", false
@@ -94,10 +88,10 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 }
 
 func (T *Module) tryCreate(user, database string) *gat.Pool {
-	db, ok := T.config.Databases[database]
+	db, ok := T.Databases[database]
 	if !ok {
 		// try wildcard
-		db, ok = T.config.Databases["*"]
+		db, ok = T.Databases["*"]
 		if !ok {
 			return nil
 		}
@@ -116,13 +110,13 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 		serverDatabase = database
 	}
 
-	configUser := T.config.Users[user]
+	configUser := T.Users[user]
 
 	poolMode := db.PoolMode
 	if poolMode == "" {
 		poolMode = configUser.PoolMode
 		if poolMode == "" {
-			poolMode = T.config.PgBouncer.PoolMode
+			poolMode = T.PgBouncer.PoolMode
 		}
 	}
 
@@ -132,15 +126,15 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 		strutil.MakeCIString("timezone"),
 		strutil.MakeCIString("standard_conforming_strings"),
 		strutil.MakeCIString("application_name"),
-	}, T.config.PgBouncer.TrackExtraParameters...)
+	}, T.PgBouncer.TrackExtraParameters...)
 
-	serverLoginRetry := time.Duration(T.config.PgBouncer.ServerLoginRetry * float64(time.Second))
+	serverLoginRetry := time.Duration(T.PgBouncer.ServerLoginRetry * float64(time.Second))
 
 	poolOptions := pool.Options{
 		Credentials:                creds,
 		TrackedParameters:          trackedParameters,
-		ServerResetQuery:           T.config.PgBouncer.ServerResetQuery,
-		ServerIdleTimeout:          time.Duration(T.config.PgBouncer.ServerIdleTimeout * float64(time.Second)),
+		ServerResetQuery:           T.PgBouncer.ServerResetQuery,
+		ServerIdleTimeout:          time.Duration(T.PgBouncer.ServerIdleTimeout * float64(time.Second)),
 		ServerReconnectInitialTime: serverLoginRetry,
 	}
 
@@ -148,7 +142,7 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 	case PoolModeSession:
 		poolOptions = session.Apply(poolOptions)
 	case PoolModeTransaction:
-		if T.config.PgBouncer.ServerResetQueryAlways == 0 {
+		if T.PgBouncer.ServerResetQueryAlways == 0 {
 			poolOptions.ServerResetQuery = ""
 		}
 		poolOptions = transaction.Apply(poolOptions)
@@ -168,7 +162,7 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 	}
 
 	acceptOptions := backends.AcceptOptions{
-		SSLMode: T.config.PgBouncer.ServerTLSSSLMode,
+		SSLMode: T.PgBouncer.ServerTLSSSLMode,
 		SSLConfig: &tls.Config{
 			InsecureSkipVerify: true, // TODO(garet)
 		},
@@ -219,10 +213,10 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 		MaxConnections: db.MaxDBConnections,
 	}
 	if recipeOptions.MinConnections == 0 {
-		recipeOptions.MinConnections = T.config.PgBouncer.MinPoolSize
+		recipeOptions.MinConnections = T.PgBouncer.MinPoolSize
 	}
 	if recipeOptions.MaxConnections == 0 {
-		recipeOptions.MaxConnections = T.config.PgBouncer.MaxDBConnections
+		recipeOptions.MaxConnections = T.PgBouncer.MaxDBConnections
 	}
 	r := recipe.NewRecipe(recipeOptions)
 
@@ -255,12 +249,12 @@ func (T *Module) Endpoints() []gat.Endpoint {
 		strutil.MakeCIString("timezone"),
 		strutil.MakeCIString("standard_conforming_strings"),
 		strutil.MakeCIString("application_name"),
-	}, T.config.PgBouncer.TrackExtraParameters...)
+	}, T.PgBouncer.TrackExtraParameters...)
 
-	allowedStartupParameters := append(trackedParameters, T.config.PgBouncer.IgnoreStartupParameters...)
+	allowedStartupParameters := append(trackedParameters, T.PgBouncer.IgnoreStartupParameters...)
 	var sslConfig *tls.Config
-	if T.config.PgBouncer.ClientTLSCertFile != "" && T.config.PgBouncer.ClientTLSKeyFile != "" {
-		certificate, err := tls.LoadX509KeyPair(T.config.PgBouncer.ClientTLSCertFile, T.config.PgBouncer.ClientTLSKeyFile)
+	if T.PgBouncer.ClientTLSCertFile != "" && T.PgBouncer.ClientTLSKeyFile != "" {
+		certificate, err := tls.LoadX509KeyPair(T.PgBouncer.ClientTLSCertFile, T.PgBouncer.ClientTLSKeyFile)
 		if err != nil {
 			log.Printf("error loading X509 keypair: %v", err)
 		} else {
@@ -273,20 +267,20 @@ func (T *Module) Endpoints() []gat.Endpoint {
 	}
 
 	acceptOptions := frontends.AcceptOptions{
-		SSLRequired:           T.config.PgBouncer.ClientTLSSSLMode.IsRequired(),
+		SSLRequired:           T.PgBouncer.ClientTLSSSLMode.IsRequired(),
 		SSLConfig:             sslConfig,
 		AllowedStartupOptions: allowedStartupParameters,
 	}
 
 	var endpoints []gat.Endpoint
 
-	if T.config.PgBouncer.ListenAddr != "" {
-		listenAddr := T.config.PgBouncer.ListenAddr
+	if T.PgBouncer.ListenAddr != "" {
+		listenAddr := T.PgBouncer.ListenAddr
 		if listenAddr == "*" {
 			listenAddr = ""
 		}
 
-		listen := net.JoinHostPort(listenAddr, strconv.Itoa(T.config.PgBouncer.ListenPort))
+		listen := net.JoinHostPort(listenAddr, strconv.Itoa(T.PgBouncer.ListenPort))
 
 		endpoints = append(endpoints, gat.Endpoint{
 			Network:       "tcp",
@@ -296,8 +290,8 @@ func (T *Module) Endpoints() []gat.Endpoint {
 	}
 
 	// listen on unix socket
-	dir := T.config.PgBouncer.UnixSocketDir
-	port := T.config.PgBouncer.ListenPort
+	dir := T.PgBouncer.UnixSocketDir
+	port := T.PgBouncer.ListenPort
 
 	if !strings.HasSuffix(dir, "/") {
 		dir = dir + "/"
@@ -317,4 +311,4 @@ func (T *Module) GatModule() {}
 
 var _ gat.Module = (*Module)(nil)
 var _ gat.Provider = (*Module)(nil)
-var _ gat.Listener = (*Module)(nil)
+var _ gat.Exposed = (*Module)(nil)

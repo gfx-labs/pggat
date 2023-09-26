@@ -1,6 +1,6 @@
 package gat
 
-type Listener interface {
+type Exposed interface {
 	Module
 
 	Endpoints() []Endpoint

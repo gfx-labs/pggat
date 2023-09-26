@@ -14,10 +14,6 @@ type Module struct {
 	mu    sync.RWMutex
 }
 
-func NewModule() (*Module, error) {
-	return &Module{}, nil
-}
-
 func (T *Module) GatModule() {}
 
 func (T *Module) Add(user, database string, p *pool.Pool) {

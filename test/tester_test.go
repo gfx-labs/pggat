@@ -42,21 +42,18 @@ func daisyChain(creds auth.Credentials, control recipe.Dialer, n int) (recipe.Di
 			Dialer: control,
 		}))
 
-		m, err := raw_pools.NewModule()
-		if err != nil {
-			return recipe.Dialer{}, err
-		}
+		m := new(raw_pools.Module)
 		m.Add("runner", "pool", p)
 		server.AddModule(m)
 
-		listener, err := server.Listen("tcp", ":0")
+		listener, err := server.listen("tcp", ":0")
 		if err != nil {
 			return recipe.Dialer{}, err
 		}
 		port := listener.Addr().(*net.TCPAddr).Port
 
 		go func() {
-			err := server.Serve(listener, frontends.AcceptOptions{})
+			err := server.serve(listener, frontends.AcceptOptions{})
 			if err != nil {
 				panic(err)
 			}
@@ -111,11 +108,7 @@ func TestTester(t *testing.T) {
 
 	var server gat.Server
 
-	m, err := raw_pools.NewModule()
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	m := new(raw_pools.Module)
 	transactionPool := pool.NewPool(transaction.Apply(pool.Options{
 		Credentials: creds,
 	}))
@@ -135,7 +128,7 @@ func TestTester(t *testing.T) {
 
 	server.AddModule(m)
 
-	listener, err := server.Listen("tcp", ":0")
+	listener, err := server.listen("tcp", ":0")
 	if err != nil {
 		t.Error(err)
 		return
@@ -143,7 +136,7 @@ func TestTester(t *testing.T) {
 	port := listener.Addr().(*net.TCPAddr).Port
 
 	go func() {
-		err := server.Serve(listener, frontends.AcceptOptions{})
+		err := server.serve(listener, frontends.AcceptOptions{})
 		if err != nil {
 			t.Error(err)
 		}

@@ -9,29 +9,38 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-func NewModule(config Config) (*discovery.Module, error) {
-	d, err := NewDiscoverer(config)
+type Module struct {
+	Config
+
+	discovery.Module `json:"-"`
+}
+
+func (T *Module) Start() error {
+	d, err := NewDiscoverer(T.Config)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return discovery.NewModule(discovery.Config{
-		ReconcilePeriod: 5 * time.Minute,
-		Discoverer:      d,
-		ServerSSLMode:   bouncer.SSLModeRequire,
-		ServerSSLConfig: &tls.Config{
-			InsecureSkipVerify: true,
+	T.Module = discovery.Module{
+		Config: discovery.Config{
+			ReconcilePeriod: 5 * time.Minute,
+			Discoverer:      d,
+			ServerSSLMode:   bouncer.SSLModeRequire,
+			ServerSSLConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+			ServerReconnectInitialTime: 5 * time.Second,
+			ServerReconnectMaxTime:     5 * time.Second,
+			ServerIdleTimeout:          5 * time.Minute,
+			TrackedParameters: []strutil.CIString{
+				strutil.MakeCIString("client_encoding"),
+				strutil.MakeCIString("datestyle"),
+				strutil.MakeCIString("timezone"),
+				strutil.MakeCIString("standard_conforming_strings"),
+				strutil.MakeCIString("application_name"),
+			},
+			PoolMode: "transaction", // TODO(garet)
 		},
-		ServerReconnectInitialTime: 5 * time.Second,
-		ServerReconnectMaxTime:     5 * time.Second,
-		ServerIdleTimeout:          5 * time.Minute,
-		TrackedParameters: []strutil.CIString{
-			strutil.MakeCIString("client_encoding"),
-			strutil.MakeCIString("datestyle"),
-			strutil.MakeCIString("timezone"),
-			strutil.MakeCIString("standard_conforming_strings"),
-			strutil.MakeCIString("application_name"),
-		},
-		PoolMode: "transaction", // TODO(garet)
-	})
+	}
+	return T.Module.Start()
 }

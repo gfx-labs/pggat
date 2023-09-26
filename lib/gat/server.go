@@ -10,7 +10,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
-	"gfx.cafe/gfx/pggat/lib/util/beforeexit"
 	"gfx.cafe/gfx/pggat/lib/util/flip"
 	"gfx.cafe/gfx/pggat/lib/util/maps"
 )
@@ -18,7 +17,11 @@ import (
 type Server struct {
 	modules   []Module
 	providers []Provider
-	listeners []Listener
+	exposed   []Exposed
+	starters  []Starter
+	stoppers  []Stopper
+
+	listeners []net.Listener
 
 	keys maps.RWLocked[[8]byte, *Pool]
 }
@@ -28,8 +31,14 @@ func (T *Server) AddModule(module Module) {
 	if provider, ok := module.(Provider); ok {
 		T.providers = append(T.providers, provider)
 	}
-	if listener, ok := module.(Listener); ok {
-		T.listeners = append(T.listeners, listener)
+	if listener, ok := module.(Exposed); ok {
+		T.exposed = append(T.exposed, listener)
+	}
+	if starter, ok := module.(Starter); ok {
+		T.starters = append(T.starters, starter)
+	}
+	if stopper, ok := module.(Stopper); ok {
+		T.stoppers = append(T.stoppers, stopper)
 	}
 }
 
@@ -115,23 +124,19 @@ func (T *Server) accept(raw net.Conn, acceptOptions FrontendAcceptOptions) {
 	}
 }
 
-func (T *Server) Listen(network, address string) (net.Listener, error) {
+func (T *Server) startListening(network, address string) (net.Listener, error) {
 	listener, err := net.Listen(network, address)
 	if err != nil {
 		return nil, err
 	}
-	if network == "unix" {
-		beforeexit.Run(func() {
-			_ = listener.Close()
-		})
-	}
+	T.listeners = append(T.listeners, listener)
 
 	log.Printf("listening on %s(%s)", network, address)
 
 	return listener, nil
 }
 
-func (T *Server) Serve(listener net.Listener, acceptOptions FrontendAcceptOptions) error {
+func (T *Server) listen(listener net.Listener, acceptOptions FrontendAcceptOptions) error {
 	for {
 		raw, err := listener.Accept()
 		if err != nil {
@@ -146,20 +151,20 @@ func (T *Server) Serve(listener net.Listener, acceptOptions FrontendAcceptOption
 	return nil
 }
 
-func (T *Server) ListenAndServe() error {
+func (T *Server) listenAndServe() error {
 	var b flip.Bank
 
-	if len(T.listeners) > 0 {
-		l := T.listeners[0]
+	if len(T.exposed) > 0 {
+		l := T.exposed[0]
 		endpoints := l.Endpoints()
 		for _, endpoint := range endpoints {
 			e := endpoint
 			b.Queue(func() error {
-				listener, err := T.Listen(e.Network, e.Address)
+				listener, err := T.startListening(e.Network, e.Address)
 				if err != nil {
 					return err
 				}
-				return T.Serve(listener, e.AcceptOptions)
+				return T.listen(listener, e.AcceptOptions)
 			})
 		}
 	}
@@ -171,4 +176,31 @@ func (T *Server) ReadMetrics(m *metrics.Server) {
 	for _, provider := range T.providers {
 		provider.ReadMetrics(&m.Pools)
 	}
+}
+
+func (T *Server) Start() error {
+	for _, starter := range T.starters {
+		if err := starter.Start(); err != nil {
+			return err
+		}
+	}
+
+	return T.listenAndServe()
+}
+
+func (T *Server) Stop() error {
+	var err error
+	for _, listener := range T.listeners {
+		if err2 := listener.Close(); err2 != nil {
+			err = err2
+		}
+	}
+
+	for _, stopper := range T.stoppers {
+		if err2 := stopper.Stop(); err2 != nil {
+			err = err2
+		}
+	}
+
+	return err
 }

@@ -20,10 +20,6 @@ type Module struct {
 	config *tls.Config
 }
 
-func NewModule() (*Module, error) {
-	return &Module{}, nil
-}
-
 func (T *Module) generateKeys() error {
 	// generate private key
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -106,4 +102,4 @@ func (T *Module) Endpoints() []gat.Endpoint {
 }
 
 var _ gat.Module = (*Module)(nil)
-var _ gat.Listener = (*Module)(nil)
+var _ gat.Exposed = (*Module)(nil)

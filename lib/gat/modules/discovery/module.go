@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -19,7 +20,9 @@ import (
 )
 
 type Module struct {
-	config Config
+	Config
+
+	closed chan struct{}
 
 	// this is fine to have no locking because it is only accessed by discoverLoop
 	clusters map[string]Cluster
@@ -28,15 +31,25 @@ type Module struct {
 	mu    sync.RWMutex
 }
 
-func NewModule(config Config) (*Module, error) {
-	m := &Module{
-		config: config,
+func (T *Module) Start() error {
+	if T.closed != nil {
+		return errors.New("start called multiple times")
 	}
-	if err := m.reconcile(); err != nil {
-		return nil, err
+	T.closed = make(chan struct{})
+
+	if err := T.reconcile(); err != nil {
+		return err
 	}
-	go m.discoverLoop()
-	return m, nil
+	go T.discoverLoop()
+	return nil
+}
+
+func (T *Module) Stop() error {
+	if T.closed == nil {
+		return errors.New("discoverer not running")
+	}
+	close(T.closed)
+	return nil
 }
 
 func (T *Module) replicaUsername(username string) string {
@@ -51,32 +64,32 @@ func (T *Module) creds(user User) (primary, replica auth.Credentials) {
 
 func (T *Module) backendAcceptOptions(username string, creds auth.Credentials, database string) recipe.BackendAcceptOptions {
 	return recipe.BackendAcceptOptions{
-		SSLMode:           T.config.ServerSSLMode,
-		SSLConfig:         T.config.ServerSSLConfig,
+		SSLMode:           T.ServerSSLMode,
+		SSLConfig:         T.ServerSSLConfig,
 		Username:          username,
 		Credentials:       creds,
 		Database:          database,
-		StartupParameters: T.config.ServerStartupParameters,
+		StartupParameters: T.ServerStartupParameters,
 	}
 }
 
 func (T *Module) poolOptions(creds auth.Credentials) pool.Options {
 	options := pool.Options{
 		Credentials:                creds,
-		ServerReconnectInitialTime: T.config.ServerReconnectInitialTime,
-		ServerReconnectMaxTime:     T.config.ServerReconnectMaxTime,
-		ServerIdleTimeout:          T.config.ServerIdleTimeout,
-		TrackedParameters:          T.config.TrackedParameters,
-		ServerResetQuery:           T.config.ServerResetQuery,
+		ServerReconnectInitialTime: T.ServerReconnectInitialTime,
+		ServerReconnectMaxTime:     T.ServerReconnectMaxTime,
+		ServerIdleTimeout:          T.ServerIdleTimeout,
+		TrackedParameters:          T.TrackedParameters,
+		ServerResetQuery:           T.ServerResetQuery,
 	}
 
-	switch T.config.PoolMode {
+	switch T.PoolMode {
 	case "session":
 		options = session.Apply(options)
 	case "transaction":
 		options = transaction.Apply(options)
 	default:
-		log.Printf("unknown pool mode: %s", T.config.PoolMode)
+		log.Printf("unknown pool mode: %s", T.PoolMode)
 	}
 
 	return options
@@ -385,7 +398,7 @@ func (T *Module) removed(id string) {
 }
 
 func (T *Module) reconcile() error {
-	clusters, err := T.config.Discoverer.Clusters()
+	clusters, err := T.Discoverer.Clusters()
 	if err != nil {
 		return err
 	}
@@ -415,19 +428,19 @@ outer:
 
 func (T *Module) discoverLoop() {
 	var reconcile <-chan time.Time
-	if T.config.ReconcilePeriod != 0 {
-		r := time.NewTicker(T.config.ReconcilePeriod)
+	if T.ReconcilePeriod != 0 {
+		r := time.NewTicker(T.ReconcilePeriod)
 		defer r.Stop()
 
 		reconcile = r.C
 	}
 	for {
 		select {
-		case cluster := <-T.config.Discoverer.Added():
+		case cluster := <-T.Discoverer.Added():
 			T.added(cluster)
-		case id := <-T.config.Discoverer.Removed():
+		case id := <-T.Discoverer.Removed():
 			T.removed(id)
-		case next := <-T.config.Discoverer.Updated():
+		case next := <-T.Discoverer.Updated():
 			T.updated(T.clusters[next.ID], next)
 		case <-reconcile:
 			err := T.reconcile()
