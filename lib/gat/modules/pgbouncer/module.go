@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"tuxpa.in/a/zlog/log"
@@ -16,6 +17,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/net_listener"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/pool/pools/session"
 	"gfx.cafe/gfx/pggat/lib/gat/pool/pools/transaction"
@@ -34,6 +36,106 @@ type Module struct {
 	Config
 
 	pools maps.TwoKey[string, string, *gat.Pool]
+	mu    sync.RWMutex
+
+	tcpListener  net_listener.Module
+	unixListener net_listener.Module
+}
+
+func (T *Module) Start() error {
+	trackedParameters := append([]strutil.CIString{
+		strutil.MakeCIString("client_encoding"),
+		strutil.MakeCIString("datestyle"),
+		strutil.MakeCIString("timezone"),
+		strutil.MakeCIString("standard_conforming_strings"),
+		strutil.MakeCIString("application_name"),
+	}, T.PgBouncer.TrackExtraParameters...)
+
+	allowedStartupParameters := append(trackedParameters, T.PgBouncer.IgnoreStartupParameters...)
+	var sslConfig *tls.Config
+	if T.PgBouncer.ClientTLSCertFile != "" && T.PgBouncer.ClientTLSKeyFile != "" {
+		certificate, err := tls.LoadX509KeyPair(T.PgBouncer.ClientTLSCertFile, T.PgBouncer.ClientTLSKeyFile)
+		if err != nil {
+			log.Printf("error loading X509 keypair: %v", err)
+		} else {
+			sslConfig = &tls.Config{
+				Certificates: []tls.Certificate{
+					certificate,
+				},
+			}
+		}
+	}
+
+	acceptOptions := frontends.AcceptOptions{
+		SSLRequired:           T.PgBouncer.ClientTLSSSLMode.IsRequired(),
+		SSLConfig:             sslConfig,
+		AllowedStartupOptions: allowedStartupParameters,
+	}
+
+	if T.PgBouncer.ListenAddr != "" {
+		listenAddr := T.PgBouncer.ListenAddr
+		if listenAddr == "*" {
+			listenAddr = ""
+		}
+
+		listen := net.JoinHostPort(listenAddr, strconv.Itoa(T.PgBouncer.ListenPort))
+
+		T.tcpListener = net_listener.Module{
+			Config: net_listener.Config{
+				Network:       "tcp",
+				Address:       listen,
+				AcceptOptions: acceptOptions,
+			},
+		}
+		if err := T.tcpListener.Start(); err != nil {
+			return err
+		}
+	}
+
+	// listen on unix socket
+	dir := T.PgBouncer.UnixSocketDir
+	port := T.PgBouncer.ListenPort
+
+	if !strings.HasSuffix(dir, "/") {
+		dir = dir + "/"
+	}
+	dir = dir + ".s.PGSQL." + strconv.Itoa(port)
+
+	T.unixListener = net_listener.Module{
+		Config: net_listener.Config{
+			Network:       "unix",
+			Address:       dir,
+			AcceptOptions: acceptOptions,
+		},
+	}
+	if err := T.unixListener.Start(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (T *Module) Stop() error {
+	var err error
+	if T.PgBouncer.ListenAddr != "" {
+		if err2 := T.tcpListener.Stop(); err2 != nil {
+			err = err2
+		}
+	}
+
+	if err2 := T.unixListener.Stop(); err2 != nil {
+		err = err2
+	}
+
+	T.mu.Lock()
+	defer T.mu.Unlock()
+	T.pools.Range(func(user string, database string, p *gat.Pool) bool {
+		p.Close()
+		T.pools.Delete(user, database)
+		return true
+	})
+
+	return err
 }
 
 func (T *Module) getPassword(user, database string) (string, bool) {
@@ -151,6 +253,8 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 	}
 	p := pool.NewPool(poolOptions)
 
+	T.mu.Lock()
+	defer T.mu.Unlock()
 	T.pools.Store(user, database, p)
 
 	var d recipe.Dialer
@@ -236,79 +340,27 @@ func (T *Module) Lookup(user, database string) *gat.Pool {
 }
 
 func (T *Module) ReadMetrics(metrics *metrics.Pools) {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
 	T.pools.Range(func(_ string, _ string, p *gat.Pool) bool {
 		p.ReadMetrics(&metrics.Pool)
 		return true
 	})
 }
 
-func (T *Module) Endpoints() []gat.Endpoint {
-	trackedParameters := append([]strutil.CIString{
-		strutil.MakeCIString("client_encoding"),
-		strutil.MakeCIString("datestyle"),
-		strutil.MakeCIString("timezone"),
-		strutil.MakeCIString("standard_conforming_strings"),
-		strutil.MakeCIString("application_name"),
-	}, T.PgBouncer.TrackExtraParameters...)
-
-	allowedStartupParameters := append(trackedParameters, T.PgBouncer.IgnoreStartupParameters...)
-	var sslConfig *tls.Config
-	if T.PgBouncer.ClientTLSCertFile != "" && T.PgBouncer.ClientTLSKeyFile != "" {
-		certificate, err := tls.LoadX509KeyPair(T.PgBouncer.ClientTLSCertFile, T.PgBouncer.ClientTLSKeyFile)
-		if err != nil {
-			log.Printf("error loading X509 keypair: %v", err)
-		} else {
-			sslConfig = &tls.Config{
-				Certificates: []tls.Certificate{
-					certificate,
-				},
-			}
-		}
-	}
-
-	acceptOptions := frontends.AcceptOptions{
-		SSLRequired:           T.PgBouncer.ClientTLSSSLMode.IsRequired(),
-		SSLConfig:             sslConfig,
-		AllowedStartupOptions: allowedStartupParameters,
-	}
-
-	var endpoints []gat.Endpoint
-
+func (T *Module) Accept() []<-chan gat.AcceptedConn {
+	var accept []<-chan gat.AcceptedConn
 	if T.PgBouncer.ListenAddr != "" {
-		listenAddr := T.PgBouncer.ListenAddr
-		if listenAddr == "*" {
-			listenAddr = ""
-		}
-
-		listen := net.JoinHostPort(listenAddr, strconv.Itoa(T.PgBouncer.ListenPort))
-
-		endpoints = append(endpoints, gat.Endpoint{
-			Network:       "tcp",
-			Address:       listen,
-			AcceptOptions: acceptOptions,
-		})
+		accept = append(accept, T.tcpListener.Accept()...)
 	}
-
-	// listen on unix socket
-	dir := T.PgBouncer.UnixSocketDir
-	port := T.PgBouncer.ListenPort
-
-	if !strings.HasSuffix(dir, "/") {
-		dir = dir + "/"
-	}
-	dir = dir + ".s.PGSQL." + strconv.Itoa(port)
-
-	endpoints = append(endpoints, gat.Endpoint{
-		Network:       "unix",
-		Address:       dir,
-		AcceptOptions: acceptOptions,
-	})
-
-	return endpoints
+	accept = append(accept, T.unixListener.Accept()...)
+	return accept
 }
 
 func (T *Module) GatModule() {}
 
 var _ gat.Module = (*Module)(nil)
 var _ gat.Provider = (*Module)(nil)
-var _ gat.Exposed = (*Module)(nil)
+var _ gat.Listener = (*Module)(nil)
+var _ gat.Starter = (*Module)(nil)
+var _ gat.Stopper = (*Module)(nil)

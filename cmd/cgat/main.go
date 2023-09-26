@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"errors"
 	"net/http"
 	_ "net/http/pprof"
@@ -11,69 +12,114 @@ import (
 
 	"tuxpa.in/a/zlog/log"
 
+	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/gat/modules/cloud_sql_discovery"
 	"gfx.cafe/gfx/pggat/lib/gat/modules/digitalocean_discovery"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/net_listener"
 	"gfx.cafe/gfx/pggat/lib/gat/modules/pgbouncer"
-	"gfx.cafe/gfx/pggat/lib/gat/modules/ssl_endpoint"
 	"gfx.cafe/gfx/pggat/lib/gat/modules/zalando"
 	"gfx.cafe/gfx/pggat/lib/gat/modules/zalando_operator_discovery"
+	"gfx.cafe/gfx/pggat/lib/util/certs"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-func loadModule(mode string) (gat.Module, error) {
+func addSSLEndpoint(server *gat.Server) error {
+	// back up ssl endpoint (for modules that don't have endpoints by default such as discovery)
+	cert, err := certs.SelfSign()
+	if err != nil {
+		return err
+	}
+	server.AddModule(&net_listener.Module{
+		Config: net_listener.Config{
+			Network: "tcp",
+			Address: ":5432",
+			AcceptOptions: frontends.AcceptOptions{
+				SSLRequired: false,
+				SSLConfig: &tls.Config{
+					Certificates: []tls.Certificate{cert},
+				},
+				AllowedStartupOptions: []strutil.CIString{
+					strutil.MakeCIString("client_encoding"),
+					strutil.MakeCIString("datestyle"),
+					strutil.MakeCIString("timezone"),
+					strutil.MakeCIString("standard_conforming_strings"),
+					strutil.MakeCIString("application_name"),
+					strutil.MakeCIString("extra_float_digits"),
+					strutil.MakeCIString("options"),
+				},
+			},
+		},
+	})
+
+	return nil
+}
+
+func addEnvModule(server *gat.Server, mode string) error {
 	switch mode {
 	case "pggat":
 		conf, err := pgbouncer.Load(os.Args[1])
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return &pgbouncer.Module{
+
+		server.AddModule(&pgbouncer.Module{
 			Config: conf,
-		}, nil
+		})
 	case "pgbouncer":
 		conf, err := pgbouncer.Load(os.Args[1])
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return &pgbouncer.Module{
+
+		server.AddModule(&pgbouncer.Module{
 			Config: conf,
-		}, nil
+		})
 	case "pgbouncer_spilo":
 		conf, err := zalando.Load()
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return &zalando.Module{
+
+		server.AddModule(&zalando.Module{
 			Config: conf,
-		}, nil
+		})
 	case "zalando_kubernetes_operator":
 		conf, err := zalando_operator_discovery.Load()
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return &zalando_operator_discovery.Module{
+
+		server.AddModule(&zalando_operator_discovery.Module{
 			Config: conf,
-		}, nil
+		})
+		return addSSLEndpoint(server)
 	case "google_cloud_sql":
 		conf, err := cloud_sql_discovery.Load()
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return &cloud_sql_discovery.Module{
+
+		server.AddModule(&cloud_sql_discovery.Module{
 			Config: conf,
-		}, nil
+		})
+		return addSSLEndpoint(server)
 	case "digitalocean_databases":
 		conf, err := digitalocean_discovery.Load()
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return &digitalocean_discovery.Module{
+
+		server.AddModule(&digitalocean_discovery.Module{
 			Config: conf,
-		}, nil
+		})
+		return addSSLEndpoint(server)
 	default:
-		return nil, errors.New("Unknown PGGAT_RUN_MODE: " + mode)
+		return errors.New("Unknown PGGAT_RUN_MODE: " + mode)
 	}
+
+	return nil
 }
 
 func main() {
@@ -89,12 +135,8 @@ func main() {
 	log.Printf("Starting pggat (%s)...", runMode)
 
 	var server gat.Server
-	defer func() {
-		if err := server.Stop(); err != nil {
-			log.Printf("error stopping: %v", err)
-		}
-	}()
 
+	// handle interrupts
 	c := make(chan os.Signal, 2)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
@@ -104,17 +146,14 @@ func main() {
 		if err := server.Stop(); err != nil {
 			log.Printf("error stopping: %v", err)
 		}
+
+		os.Exit(0)
 	}()
 
 	// load and add main module
-	module, err := loadModule(runMode)
-	if err != nil {
+	if err := addEnvModule(&server, runMode); err != nil {
 		panic(err)
 	}
-	server.AddModule(module)
-
-	// back up ssl endpoint (for modules that don't have endpoints by default such as discovery)
-	server.AddModule(&ssl_endpoint.Module{})
 
 	go func() {
 		var m metrics.Server
@@ -126,9 +165,9 @@ func main() {
 		}
 	}()
 
-	err = server.Start()
-	if err != nil {
+	if err := server.Start(); err != nil {
 		panic(err)
 	}
-	return
+
+	select {}
 }

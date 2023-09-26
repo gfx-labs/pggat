@@ -12,8 +12,8 @@ import (
 	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
-	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/net_listener"
 	"gfx.cafe/gfx/pggat/lib/gat/modules/raw_pools"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/pool/pools/session"
@@ -46,18 +46,21 @@ func daisyChain(creds auth.Credentials, control recipe.Dialer, n int) (recipe.Di
 		m.Add("runner", "pool", p)
 		server.AddModule(m)
 
-		listener, err := server.listen("tcp", ":0")
-		if err != nil {
+		l := &net_listener.Module{
+			Config: net_listener.Config{
+				Network: "tcp",
+				Address: ":0",
+			},
+		}
+		if err := l.Start(); err != nil {
 			return recipe.Dialer{}, err
 		}
-		port := listener.Addr().(*net.TCPAddr).Port
+		port := l.Addr().(*net.TCPAddr).Port
+		server.AddModule(l)
 
-		go func() {
-			err := server.serve(listener, frontends.AcceptOptions{})
-			if err != nil {
-				panic(err)
-			}
-		}()
+		if err := server.Start(); err != nil {
+			panic(err)
+		}
 
 		control = recipe.Dialer{
 			Network: "tcp",
@@ -128,19 +131,24 @@ func TestTester(t *testing.T) {
 
 	server.AddModule(m)
 
-	listener, err := server.listen("tcp", ":0")
-	if err != nil {
+	l := &net_listener.Module{
+		Config: net_listener.Config{
+			Network: "tcp",
+			Address: ":0",
+		},
+	}
+	if err = l.Start(); err != nil {
 		t.Error(err)
 		return
 	}
-	port := listener.Addr().(*net.TCPAddr).Port
+	port := l.Addr().(*net.TCPAddr).Port
 
-	go func() {
-		err := server.serve(listener, frontends.AcceptOptions{})
-		if err != nil {
-			t.Error(err)
-		}
-	}()
+	server.AddModule(l)
+
+	if err = server.Start(); err != nil {
+		t.Error(err)
+		return
+	}
 
 	transactionDialer := recipe.Dialer{
 		Network: "tcp",

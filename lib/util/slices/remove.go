@@ -8,7 +8,12 @@ func Remove[T comparable](slice []T, item T) []T {
 	if i == -1 {
 		return slice
 	}
-	copy(slice[i:], slice[i+1:])
+	return RemoveIndex(slice, i)
+}
+
+func RemoveIndex[T any](slice []T, idx int) []T {
+	item := slice[idx]
+	copy(slice[idx:], slice[idx+1:])
 	slice[len(slice)-1] = item
 	return slice[:len(slice)-1]
 }
@@ -19,7 +24,11 @@ func Delete[T comparable](slice []T, item T) []T {
 	if i == -1 {
 		return slice
 	}
-	copy(slice[i:], slice[i+1:])
+	return DeleteIndex(slice, i)
+}
+
+func DeleteIndex[T any](slice []T, idx int) []T {
+	copy(slice[idx:], slice[idx+1:])
 	slice[len(slice)-1] = *new(T)
 	return slice[:len(slice)-1]
 }

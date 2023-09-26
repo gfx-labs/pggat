@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gfx.cafe/gfx/pggat/lib/bouncer"
+	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/modules/discovery"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
@@ -45,3 +46,5 @@ func (T *Module) Start() error {
 
 	return T.Module.Start()
 }
+
+var _ gat.Starter = (*Module)(nil)

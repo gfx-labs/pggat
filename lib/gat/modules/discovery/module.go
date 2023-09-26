@@ -49,6 +49,14 @@ func (T *Module) Stop() error {
 		return errors.New("discoverer not running")
 	}
 	close(T.closed)
+
+	T.mu.Lock()
+	defer T.mu.Unlock()
+	T.pools.Range(func(user string, database string, p *pool.Pool) bool {
+		p.Close()
+		T.pools.Delete(user, database)
+		return true
+	})
 	return nil
 }
 
@@ -494,3 +502,5 @@ func (T *Module) Lookup(user, database string) *gat.Pool {
 
 var _ gat.Module = (*Module)(nil)
 var _ gat.Provider = (*Module)(nil)
+var _ gat.Starter = (*Module)(nil)
+var _ gat.Stopper = (*Module)(nil)

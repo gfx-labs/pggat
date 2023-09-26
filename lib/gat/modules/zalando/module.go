@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"gfx.cafe/gfx/pggat/lib/bouncer"
+	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/modules/pgbouncer"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
@@ -64,5 +65,7 @@ func (T *Module) Start() error {
 		Config: pgb,
 	}
 
-	return nil
+	return T.Module.Start()
 }
+
+var _ gat.Starter = (*Module)(nil)
