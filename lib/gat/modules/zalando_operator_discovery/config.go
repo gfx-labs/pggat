@@ -6,11 +6,11 @@ import (
 )
 
 type Config struct {
-	Namespace                   string `env:"PGGAT_NAMESPACE" default:"default"`
-	ConfigMapName               string `env:"CONFIG_MAP_NAME"`
-	OperatorConfigurationObject string `env:"POSTGRES_OPERATOR_CONFIGURATION_OBJECT"`
+	Namespace                   string `env:"PGGAT_NAMESPACE" default:"default" json:"namespace"`
+	ConfigMapName               string `env:"CONFIG_MAP_NAME" json:"config_map_name"`
+	OperatorConfigurationObject string `env:"POSTGRES_OPERATOR_CONFIGURATION_OBJECT" json:"operator_configuration_object"`
 
-	Rest *rest.Config
+	Rest *rest.Config `json:"-"`
 }
 
 func Load() (Config, error) {

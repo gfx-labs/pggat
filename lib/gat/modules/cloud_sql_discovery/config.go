@@ -7,10 +7,10 @@ import (
 )
 
 type Config struct {
-	Project       string `env:"PGGAT_GC_PROJECT"`
-	IpAddressType string `env:"PGGAT_GC_IP_ADDR_TYPE" default:"PRIMARY"`
-	AuthUser      string `env:"PGGAT_GC_AUTH_USER" default:"pggat"`
-	AuthPassword  string `env:"PGGAT_GC_AUTH_PASSWORD"`
+	Project       string `env:"PGGAT_GC_PROJECT" json:"project"`
+	IpAddressType string `env:"PGGAT_GC_IP_ADDR_TYPE" default:"PRIMARY" json:"ip_address_type"`
+	AuthUser      string `env:"PGGAT_GC_AUTH_USER" default:"pggat" json:"auth_user"`
+	AuthPassword  string `env:"PGGAT_GC_AUTH_PASSWORD" json:"auth_password"`
 }
 
 func Load() (Config, error) {

@@ -16,4 +16,4 @@ COPY entrypoint.sh .
 COPY --from=GOBUILDER /src/cgat /usr/bin/pggat
 
 ENTRYPOINT ["/entrypoint.sh"]
-cmd ["pggat"]
+CMD ["pggat"]
