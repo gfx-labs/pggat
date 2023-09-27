@@ -1,8 +1,0 @@
-:5432, :5431, test@:5430 {
-	digitalocean_databases {
-		"api_key": "dop_v1_061d79431bde02f3ddaddf7aefa118b58ce691dd476bea158d2bbbdb2d7d0bc3",
-		"private": false,
-		"pool_mode": "transaction"
-	}
-	listen tcp :5432
-}

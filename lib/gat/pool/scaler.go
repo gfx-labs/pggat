@@ -20,11 +20,11 @@ type scaler struct {
 func newScaler(pool *Pool) *scaler {
 	s := &scaler{
 		pool:    pool,
-		backoff: pool.options.ServerReconnectInitialTime,
+		backoff: pool.options.ServerReconnectInitialTime.Duration(),
 	}
 
 	if pool.options.ServerIdleTimeout != 0 {
-		s.idle = time.NewTimer(pool.options.ServerIdleTimeout)
+		s.idle = time.NewTimer(pool.options.ServerIdleTimeout.Duration())
 	}
 
 	return s
@@ -36,14 +36,14 @@ func (T *scaler) idleTimeout(now time.Time) {
 
 	var idlest *pooledServer
 	var idleStart time.Time
-	for idlest, idleStart = T.pool.idlest(); idlest != nil && now.Sub(idleStart) > T.pool.options.ServerIdleTimeout; idlest, idleStart = T.pool.idlest() {
+	for idlest, idleStart = T.pool.idlest(); idlest != nil && now.Sub(idleStart) > T.pool.options.ServerIdleTimeout.Duration(); idlest, idleStart = T.pool.idlest() {
 		T.pool.removeServer(idlest)
 	}
 
 	if idlest == nil {
-		wait = T.pool.options.ServerIdleTimeout
+		wait = T.pool.options.ServerIdleTimeout.Duration()
 	} else {
-		wait = idleStart.Add(T.pool.options.ServerIdleTimeout).Sub(now)
+		wait = idleStart.Add(T.pool.options.ServerIdleTimeout.Duration()).Sub(now)
 	}
 
 	T.idle.Reset(wait)
@@ -52,8 +52,8 @@ func (T *scaler) idleTimeout(now time.Time) {
 func (T *scaler) pendingTimeout() {
 	if T.backingOff {
 		T.backoff *= 2
-		if T.pool.options.ServerReconnectMaxTime != 0 && T.backoff > T.pool.options.ServerReconnectMaxTime {
-			T.backoff = T.pool.options.ServerReconnectMaxTime
+		if T.pool.options.ServerReconnectMaxTime != 0 && T.backoff > T.pool.options.ServerReconnectMaxTime.Duration() {
+			T.backoff = T.pool.options.ServerReconnectMaxTime.Duration()
 		}
 	}
 
@@ -61,14 +61,14 @@ func (T *scaler) pendingTimeout() {
 		// pending loop for scaling up
 		if T.pool.scaleUp() {
 			// scale up successful, see if we need to scale up more
-			T.backoff = T.pool.options.ServerReconnectInitialTime
+			T.backoff = T.pool.options.ServerReconnectInitialTime.Duration()
 			T.backingOff = false
 			continue
 		}
 
 		if T.backoff == 0 {
 			// no backoff
-			T.backoff = T.pool.options.ServerReconnectInitialTime
+			T.backoff = T.pool.options.ServerReconnectInitialTime.Duration()
 			T.backingOff = false
 			continue
 		}

@@ -67,11 +67,7 @@ func startup0(
 
 			sslServer, ok := ctx.Conn.(fed.SSLServer)
 			if !ok {
-				err = perror.New(
-					perror.FATAL,
-					perror.FeatureNotSupported,
-					"SSL is not supported",
-				)
+				err = perror.Wrap(byteWriter.WriteByte('N'))
 				return
 			}
 
