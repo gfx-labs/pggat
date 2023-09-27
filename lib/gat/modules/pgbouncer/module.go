@@ -32,6 +32,10 @@ type authQueryResult struct {
 	Password string `sql:"1"`
 }
 
+func init() {
+	gat.RegisterModule((*Module)(nil))
+}
+
 type Module struct {
 	Config
 
@@ -40,6 +44,15 @@ type Module struct {
 
 	tcpListener  net_listener.Module
 	unixListener net_listener.Module
+}
+
+func (*Module) GatModule() gat.ModuleInfo {
+	return gat.ModuleInfo{
+		ID: "pgbouncer",
+		New: func() gat.Module {
+			return new(Module)
+		},
+	}
 }
 
 func (T *Module) Start() error {
@@ -354,8 +367,6 @@ func (T *Module) Listen(ch chan<- gat.AcceptedConn) {
 	}
 	T.unixListener.Listen(ch)
 }
-
-func (T *Module) GatModule() {}
 
 var _ gat.Module = (*Module)(nil)
 var _ gat.Provider = (*Module)(nil)

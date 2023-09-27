@@ -4,10 +4,5 @@
 		"private": false,
 		"pool_mode": "transaction"
 	}
-}
-
-admin@:6432 {
-	pgbouncer {
-		"foo": "bar"
-	}
+	listen tcp :5432
 }

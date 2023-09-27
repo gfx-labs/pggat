@@ -6,6 +6,8 @@ import (
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
+
+	"gfx.cafe/gfx/pggat/lib/gat"
 )
 
 func init() {
@@ -22,7 +24,13 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 
 	for _, block := range blocks {
 		var server Server
-		// TODO(garet) populate server
+		for _, segment := range block.Segments {
+			if info, ok := gat.GetModule(segment.Directive()); ok {
+				server.Modules = append(server.Modules, ServerModule{
+					Type: info.ID,
+				})
+			}
+		}
 
 		server.Listen = make([]ServerSlug, 0, len(block.Keys))
 		for _, key := range block.Keys {

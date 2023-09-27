@@ -19,6 +19,10 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
+func init() {
+	gat.RegisterModule((*Module)(nil))
+}
+
 type Module struct {
 	Config
 
@@ -29,6 +33,15 @@ type Module struct {
 
 	pools maps.TwoKey[string, string, *pool.Pool]
 	mu    sync.RWMutex
+}
+
+func (*Module) GatModule() gat.ModuleInfo {
+	return gat.ModuleInfo{
+		ID: "discovery",
+		New: func() gat.Module {
+			return new(Module)
+		},
+	}
 }
 
 func (T *Module) Start() error {
@@ -481,8 +494,6 @@ func (T *Module) removePool(user, database string) {
 	log.Printf("removed pool user=%s database=%s", user, database)
 	T.pools.Delete(user, database)
 }
-
-func (T *Module) GatModule() {}
 
 func (T *Module) ReadMetrics(metrics *metrics.Pools) {
 	T.mu.RLock()

@@ -11,6 +11,10 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat"
 )
 
+func init() {
+	gat.RegisterModule((*Module)(nil))
+}
+
 type Module struct {
 	Config
 
@@ -19,7 +23,14 @@ type Module struct {
 	accepted chan<- gat.AcceptedConn
 }
 
-func (*Module) GatModule() {}
+func (*Module) GatModule() gat.ModuleInfo {
+	return gat.ModuleInfo{
+		ID: "net_listener",
+		New: func() gat.Module {
+			return new(Module)
+		},
+	}
+}
 
 func (T *Module) Start() error {
 	if T.listener != nil {

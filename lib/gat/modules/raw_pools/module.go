@@ -9,12 +9,23 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/maps"
 )
 
+func init() {
+	gat.RegisterModule((*Module)(nil))
+}
+
 type Module struct {
 	pools maps.TwoKey[string, string, *pool.Pool]
 	mu    sync.RWMutex
 }
 
-func (T *Module) GatModule() {}
+func (*Module) GatModule() gat.ModuleInfo {
+	return gat.ModuleInfo{
+		ID: "raw_pools",
+		New: func() gat.Module {
+			return new(Module)
+		},
+	}
+}
 
 func (T *Module) Add(user, database string, p *pool.Pool) {
 	T.mu.Lock()

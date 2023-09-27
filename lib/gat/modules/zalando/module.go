@@ -9,10 +9,23 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
+func init() {
+	gat.RegisterModule((*Module)(nil))
+}
+
 type Module struct {
 	Config
 
 	pgbouncer.Module `json:"-"`
+}
+
+func (*Module) GatModule() gat.ModuleInfo {
+	return gat.ModuleInfo{
+		ID: "zalando",
+		New: func() gat.Module {
+			return new(Module)
+		},
+	}
 }
 
 func (T *Module) Start() error {
