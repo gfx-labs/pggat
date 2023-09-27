@@ -1,25 +1,28 @@
 package interceptor
 
 import (
+	"net"
+
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/middleware"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type Interceptor struct {
 	middlewares []middleware.Middleware
 	context     Context
-	rw          fed.Conn
+	conn        fed.Conn
 }
 
-func NewInterceptor(rw fed.Conn, middlewares ...middleware.Middleware) *Interceptor {
-	if v, ok := rw.(*Interceptor); ok {
+func NewInterceptor(conn fed.Conn, middlewares ...middleware.Middleware) *Interceptor {
+	if v, ok := conn.(*Interceptor); ok {
 		v.middlewares = append(v.middlewares, middlewares...)
 		return v
 	}
 	return &Interceptor{
 		middlewares: middlewares,
-		context:     makeContext(rw),
-		rw:          rw,
+		context:     makeContext(conn),
+		conn:        conn,
 	}
 }
 
@@ -27,7 +30,7 @@ func (T *Interceptor) ReadPacket(typed bool, packet fed.Packet) (fed.Packet, err
 outer:
 	for {
 		var err error
-		packet, err = T.rw.ReadPacket(typed, packet)
+		packet, err = T.conn.ReadPacket(typed, packet)
 		if err != nil {
 			return packet, err
 		}
@@ -59,11 +62,35 @@ func (T *Interceptor) WritePacket(packet fed.Packet) error {
 		}
 	}
 
-	return T.rw.WritePacket(packet)
+	return T.conn.WritePacket(packet)
+}
+
+func (T *Interceptor) LocalAddr() net.Addr {
+	return T.conn.LocalAddr()
+}
+
+func (T *Interceptor) RemoteAddr() net.Addr {
+	return T.conn.RemoteAddr()
+}
+
+func (T *Interceptor) SSLEnabled() bool {
+	return T.conn.SSLEnabled()
+}
+
+func (T *Interceptor) User() string {
+	return T.conn.User()
+}
+
+func (T *Interceptor) Database() string {
+	return T.conn.Database()
+}
+
+func (T *Interceptor) InitialParameters() map[strutil.CIString]string {
+	return T.conn.InitialParameters()
 }
 
 func (T *Interceptor) Close() error {
-	return T.rw.Close()
+	return T.conn.Close()
 }
 
 var _ fed.Conn = (*Interceptor)(nil)

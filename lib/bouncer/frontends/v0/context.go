@@ -2,14 +2,14 @@ package frontends
 
 import "gfx.cafe/gfx/pggat/lib/fed"
 
-type AcceptContext struct {
+type acceptContext struct {
 	Packet  fed.Packet
-	Conn    fed.Conn
-	Options AcceptOptions
+	Conn    fed.ReadWriter
+	Options acceptOptions
 }
 
-type AuthenticateContext struct {
+type authenticateContext struct {
 	Packet  fed.Packet
-	Conn    fed.Conn
-	Options AuthenticateOptions
+	Conn    fed.ReadWriter
+	Options authenticateOptions
 }

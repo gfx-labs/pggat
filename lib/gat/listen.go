@@ -7,6 +7,8 @@ import (
 
 	"github.com/caddyserver/caddy/v2"
 	"tuxpa.in/a/zlog/log"
+
+	"gfx.cafe/gfx/pggat/lib/fed"
 )
 
 type ListenerConfig struct {
@@ -21,6 +23,14 @@ type Listener struct {
 	ssl SSLServer
 
 	listener net.Listener
+}
+
+func (T *Listener) accept() (*fed.NetConn, error) {
+	raw, err := T.listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	return fed.WrapNetConn(raw), nil
 }
 
 func (T *Listener) Provision(ctx caddy.Context) error {

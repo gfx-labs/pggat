@@ -2,8 +2,9 @@ package frontends
 
 import "gfx.cafe/gfx/pggat/lib/util/strutil"
 
-type AcceptParams struct {
-	CancelKey [8]byte
+type acceptParams struct {
+	CancelKey   [8]byte
+	IsCanceling bool
 
 	// or
 
@@ -13,6 +14,6 @@ type AcceptParams struct {
 	InitialParameters map[strutil.CIString]string
 }
 
-type AuthenticateParams struct {
+type authenticateParams struct {
 	BackendKey [8]byte
 }

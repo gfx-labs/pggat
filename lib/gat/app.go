@@ -1,10 +1,23 @@
 package gat
 
 import (
-	"github.com/caddyserver/caddy/v2"
+	"crypto/tls"
+	"errors"
+	"fmt"
+	"net"
 
+	"github.com/caddyserver/caddy/v2"
+	"tuxpa.in/a/zlog/log"
+
+	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
+	"gfx.cafe/gfx/pggat/lib/fed"
+	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/middleware/interceptor"
+	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/unterminate"
+	"gfx.cafe/gfx/pggat/lib/perror"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
 	"gfx.cafe/gfx/pggat/lib/util/maps"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
 type Config struct {
@@ -61,12 +74,124 @@ func (T *App) Provision(ctx caddy.Context) error {
 	return nil
 }
 
+func (T *App) cancel(key [8]byte) {
+	p, _ := T.keys.Load(key)
+	if p == nil {
+		return
+	}
+
+	_ = p.Cancel(key)
+}
+
+func (T *App) serve(server *Server, conn fed.Conn) {
+	initialParameters := conn.InitialParameters()
+	for key := range initialParameters {
+		if !slices.Contains(server.AllowedStartupParameters, key) {
+			errResp := packets.ErrorResponse{
+				Error: perror.New(
+					perror.FATAL,
+					perror.FeatureNotSupported,
+					fmt.Sprintf(`Startup parameter "%s" is not allowed`, key),
+				),
+			}
+			_ = conn.WritePacket(errResp.IntoPacket(nil))
+			return
+		}
+	}
+
+	p := server.lookup(conn)
+	if p == nil {
+		log.Printf("pool not found for client: user=%s database=%s", conn.User(), conn.Database())
+		return
+	}
+
+	backendKey, err := frontends.Authenticate(conn, p.Credentials())
+	if err != nil {
+		log.Printf("error authenticating client: %v", err)
+		return
+	}
+
+	T.keys.Store(backendKey, p)
+	defer T.keys.Delete(backendKey)
+
+	if err2 := p.Serve(conn, backendKey); err2 != nil {
+		log.Printf("error serving client: %v", err2)
+		return
+	}
+}
+
+func (T *App) accept(listener *Listener, conn *fed.NetConn) {
+	defer func() {
+		_ = conn.Close()
+	}()
+
+	var tlsConfig *tls.Config
+	if listener.ssl != nil {
+		tlsConfig = listener.ssl.ServerTLSConfig()
+	}
+
+	cancelKey, isCanceling, _, user, database, initialParameters, err := frontends.Accept(conn, tlsConfig)
+	if err != nil {
+		log.Printf("error accepting client: %v", err)
+		return
+	}
+
+	if isCanceling {
+		T.cancel(cancelKey)
+		return
+	}
+
+	conn.SetUser(user)
+	conn.SetDatabase(database)
+	conn.SetInitialParameters(initialParameters)
+
+	for _, server := range T.servers {
+		if server.match == nil || server.match.Matches(conn) {
+			T.serve(server, interceptor.NewInterceptor(conn, unterminate.Unterminate))
+			return
+		}
+	}
+
+	log.Printf("server not found for client: user=%s database=%s", conn.User(), conn.Database())
+
+	errResp := packets.ErrorResponse{
+		Error: perror.New(
+			perror.FATAL,
+			perror.InternalError,
+			"No server is available to handle your request",
+		),
+	}
+	_ = conn.WritePacket(errResp.IntoPacket(nil))
+}
+
+func (T *App) acceptFrom(listener *Listener) bool {
+	conn, err := listener.accept()
+	if err != nil {
+		if errors.Is(err, net.ErrClosed) {
+			return false
+		}
+		log.Printf("error accepting client: %v", err)
+		return true
+	}
+
+	go T.accept(listener, conn)
+	return true
+}
+
 func (T *App) Start() error {
 	// start listeners
 	for _, listener := range T.listen {
 		if err := listener.Start(); err != nil {
 			return err
 		}
+
+		go func(listener *Listener) {
+			for {
+				if !T.acceptFrom(listener) {
+					break
+				}
+			}
+		}(listener)
 	}
 
 	return nil

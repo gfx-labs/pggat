@@ -3,6 +3,7 @@ package matchers
 import (
 	"github.com/caddyserver/caddy/v2"
 
+	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat"
 )
 
@@ -21,6 +22,10 @@ func (T *Network) CaddyModule() caddy.ModuleInfo {
 			return new(Network)
 		},
 	}
+}
+
+func (T *Network) Matches(conn fed.Conn) bool {
+	return conn.LocalAddr().Network() == T.Network
 }
 
 var _ gat.Matcher = (*Network)(nil)

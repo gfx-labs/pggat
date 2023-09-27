@@ -6,6 +6,7 @@ import (
 
 	"github.com/caddyserver/caddy/v2"
 
+	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat"
 )
 
@@ -42,6 +43,15 @@ func (T *Or) Provision(ctx caddy.Context) error {
 	}
 
 	return nil
+}
+
+func (T *Or) Matches(conn fed.Conn) bool {
+	for _, matcher := range T.or {
+		if matcher.Matches(conn) {
+			return true
+		}
+	}
+	return false
 }
 
 var _ gat.Matcher = (*Or)(nil)

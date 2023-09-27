@@ -1,21 +1,20 @@
 package frontends
 
 import (
-	"fmt"
+	"crypto/tls"
 	"io"
 	"strings"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/perror"
-	"gfx.cafe/gfx/pggat/lib/util/slices"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 func startup0(
-	ctx *AcceptContext,
-	params *AcceptParams,
-) (done bool, err perror.Error) {
+	ctx *acceptContext,
+	params *acceptParams,
+) (cancelling bool, done bool, err perror.Error) {
 	var err2 error
 	ctx.Packet, err2 = ctx.Conn.ReadPacket(false, ctx.Packet)
 	if err2 != nil {
@@ -34,18 +33,7 @@ func startup0(
 		case 5678:
 			// Cancel
 			p.ReadBytes(params.CancelKey[:])
-
-			if params.CancelKey == [8]byte{} {
-				// very rare that this would ever happen
-				// and it's ok if we don't honor cancel requests
-				err = perror.New(
-					perror.FATAL,
-					perror.ProtocolViolation,
-					"cancel key cannot be null",
-				)
-				return
-			}
-
+			cancelling = true
 			done = true
 			return
 		case 5679:
@@ -150,15 +138,6 @@ func startup0(
 
 					ikey := strutil.MakeCIString(key)
 
-					if !slices.Contains(ctx.Options.AllowedStartupOptions, ikey) {
-						err = perror.New(
-							perror.FATAL,
-							perror.FeatureNotSupported,
-							fmt.Sprintf(`Startup parameter "%s" is not allowed`, key),
-						)
-						return
-					}
-
 					if params.InitialParameters == nil {
 						params.InitialParameters = make(map[strutil.CIString]string)
 					}
@@ -185,15 +164,6 @@ func startup0(
 				unsupportedOptions = append(unsupportedOptions, key)
 			} else {
 				ikey := strutil.MakeCIString(key)
-
-				if !slices.Contains(ctx.Options.AllowedStartupOptions, ikey) {
-					err = perror.New(
-						perror.FATAL,
-						perror.FeatureNotSupported,
-						fmt.Sprintf(`Startup parameter "%s" is not allowed`, key),
-					)
-					return
-				}
 
 				if params.InitialParameters == nil {
 					params.InitialParameters = make(map[strutil.CIString]string)
@@ -232,12 +202,12 @@ func startup0(
 	return
 }
 
-func accept(
-	ctx *AcceptContext,
-) (params AcceptParams, err perror.Error) {
+func accept0(
+	ctx *acceptContext,
+) (params acceptParams, err perror.Error) {
 	for {
 		var done bool
-		done, err = startup0(ctx, &params)
+		params.IsCanceling, done, err = startup0(ctx, &params)
 		if err != nil {
 			return
 		}
@@ -246,23 +216,10 @@ func accept(
 		}
 	}
 
-	if params.CancelKey != [8]byte{} {
-		return
-	}
-
-	if ctx.Options.SSLRequired && !params.SSLEnabled {
-		err = perror.New(
-			perror.FATAL,
-			perror.InvalidPassword,
-			"SSL is required",
-		)
-		return
-	}
-
 	return
 }
 
-func fail(packet fed.Packet, client fed.Conn, err perror.Error) {
+func fail(packet fed.Packet, client fed.ReadWriter, err perror.Error) {
 	resp := packets.ErrorResponse{
 		Error: err,
 	}
@@ -270,11 +227,37 @@ func fail(packet fed.Packet, client fed.Conn, err perror.Error) {
 	_ = client.WritePacket(packet)
 }
 
-func Accept(ctx *AcceptContext) (AcceptParams, perror.Error) {
-	params, err := accept(ctx)
+func accept(ctx *acceptContext) (acceptParams, perror.Error) {
+	params, err := accept0(ctx)
 	if err != nil {
 		fail(ctx.Packet, ctx.Conn, err)
-		return AcceptParams{}, err
+		return acceptParams{}, err
 	}
 	return params, nil
+}
+
+func Accept(conn fed.ReadWriter, tlsConfig *tls.Config) (
+	cancelKey [8]byte,
+	isCanceling bool,
+	sslEnabled bool,
+	user string,
+	database string,
+	initialParameters map[strutil.CIString]string,
+	err perror.Error,
+) {
+	ctx := acceptContext{
+		Conn: conn,
+		Options: acceptOptions{
+			SSLConfig: tlsConfig,
+		},
+	}
+	var params acceptParams
+	params, err = accept(&ctx)
+	cancelKey = params.CancelKey
+	isCanceling = params.IsCanceling
+	sslEnabled = params.SSLEnabled
+	user = params.User
+	database = params.Database
+	initialParameters = params.InitialParameters
+	return
 }

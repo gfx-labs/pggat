@@ -9,24 +9,38 @@ import (
 	"net"
 
 	"gfx.cafe/gfx/pggat/lib/util/slices"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type Conn interface {
 	ReadWriter
 
+	LocalAddr() net.Addr
+	RemoteAddr() net.Addr
+
+	SSLEnabled() bool
+	User() string
+	Database() string
+	InitialParameters() map[strutil.CIString]string
+
 	Close() error
 }
 
-type netConn struct {
-	conn   net.Conn
-	writer bufio.Writer
-	reader bufio.Reader
+type NetConn struct {
+	conn       net.Conn
+	writer     bufio.Writer
+	reader     bufio.Reader
+	sslEnabled bool
+
+	user              string
+	database          string
+	initialParameters map[strutil.CIString]string
 
 	headerBuf [5]byte
 }
 
-func WrapNetConn(conn net.Conn) Conn {
-	c := &netConn{
+func WrapNetConn(conn net.Conn) *NetConn {
+	c := &NetConn{
 		conn: conn,
 	}
 	c.writer.Reset(conn)
@@ -34,7 +48,50 @@ func WrapNetConn(conn net.Conn) Conn {
 	return c
 }
 
-func (T *netConn) EnableSSLClient(config *tls.Config) error {
+func (T *NetConn) LocalAddr() net.Addr {
+	return T.conn.LocalAddr()
+}
+
+func (T *NetConn) RemoteAddr() net.Addr {
+	return T.conn.RemoteAddr()
+}
+
+func (T *NetConn) SSLEnabled() bool {
+	return T.sslEnabled
+}
+
+func (T *NetConn) User() string {
+	return T.user
+}
+
+func (T *NetConn) SetUser(user string) {
+	T.user = user
+}
+
+func (T *NetConn) Database() string {
+	return T.database
+}
+
+func (T *NetConn) SetDatabase(database string) {
+	T.database = database
+}
+
+func (T *NetConn) InitialParameters() map[strutil.CIString]string {
+	return T.initialParameters
+}
+
+func (T *NetConn) SetInitialParameters(initialParameters map[strutil.CIString]string) {
+	T.initialParameters = initialParameters
+}
+
+var errSSLAlreadyEnabled = errors.New("ssl is already enabled")
+
+func (T *NetConn) EnableSSLClient(config *tls.Config) error {
+	if T.sslEnabled {
+		return errSSLAlreadyEnabled
+	}
+	T.sslEnabled = true
+
 	if err := T.writer.Flush(); err != nil {
 		return err
 	}
@@ -48,7 +105,12 @@ func (T *netConn) EnableSSLClient(config *tls.Config) error {
 	return sslConn.Handshake()
 }
 
-func (T *netConn) EnableSSLServer(config *tls.Config) error {
+func (T *NetConn) EnableSSLServer(config *tls.Config) error {
+	if T.sslEnabled {
+		return errSSLAlreadyEnabled
+	}
+	T.sslEnabled = true
+
 	if err := T.writer.Flush(); err != nil {
 		return err
 	}
@@ -62,14 +124,14 @@ func (T *netConn) EnableSSLServer(config *tls.Config) error {
 	return sslConn.Handshake()
 }
 
-func (T *netConn) ReadByte() (byte, error) {
+func (T *NetConn) ReadByte() (byte, error) {
 	if err := T.writer.Flush(); err != nil {
 		return 0, err
 	}
 	return T.reader.ReadByte()
 }
 
-func (T *netConn) ReadPacket(typed bool, buffer Packet) (packet Packet, err error) {
+func (T *NetConn) ReadPacket(typed bool, buffer Packet) (packet Packet, err error) {
 	packet = buffer
 
 	if err = T.writer.Flush(); err != nil {
@@ -100,24 +162,24 @@ func (T *netConn) ReadPacket(typed bool, buffer Packet) (packet Packet, err erro
 	return
 }
 
-func (T *netConn) WriteByte(b byte) error {
+func (T *NetConn) WriteByte(b byte) error {
 	return T.writer.WriteByte(b)
 }
 
-func (T *netConn) WritePacket(packet Packet) error {
+func (T *NetConn) WritePacket(packet Packet) error {
 	_, err := T.writer.Write(packet.Bytes())
 	return err
 }
 
-func (T *netConn) Close() error {
+func (T *NetConn) Close() error {
 	if err := T.writer.Flush(); err != nil {
 		return err
 	}
 	return T.conn.Close()
 }
 
-var _ Conn = (*netConn)(nil)
-var _ SSLServer = (*netConn)(nil)
-var _ SSLClient = (*netConn)(nil)
-var _ io.ByteReader = (*netConn)(nil)
-var _ io.ByteWriter = (*netConn)(nil)
+var _ Conn = (*NetConn)(nil)
+var _ SSLServer = (*NetConn)(nil)
+var _ SSLClient = (*NetConn)(nil)
+var _ io.ByteReader = (*NetConn)(nil)
+var _ io.ByteWriter = (*NetConn)(nil)

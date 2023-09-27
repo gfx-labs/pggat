@@ -6,11 +6,12 @@ import (
 	"io"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
+	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
-func authenticationSASLInitial(ctx *AuthenticateContext, creds auth.SASLServer) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {
+func authenticationSASLInitial(ctx *authenticateContext, creds auth.SASLServer) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {
 	// check which authentication method the client wants
 	var err2 error
 	ctx.Packet, err2 = ctx.Conn.ReadPacket(true, ctx.Packet)
@@ -42,7 +43,7 @@ func authenticationSASLInitial(ctx *AuthenticateContext, creds auth.SASLServer) 
 	return
 }
 
-func authenticationSASLContinue(ctx *AuthenticateContext, tool auth.SASLVerifier) (resp []byte, done bool, err perror.Error) {
+func authenticationSASLContinue(ctx *authenticateContext, tool auth.SASLVerifier) (resp []byte, done bool, err perror.Error) {
 	var err2 error
 	ctx.Packet, err2 = ctx.Conn.ReadPacket(true, ctx.Packet)
 	if err2 != nil {
@@ -67,7 +68,7 @@ func authenticationSASLContinue(ctx *AuthenticateContext, tool auth.SASLVerifier
 	return
 }
 
-func authenticationSASL(ctx *AuthenticateContext, creds auth.SASLServer) perror.Error {
+func authenticationSASL(ctx *authenticateContext, creds auth.SASLServer) perror.Error {
 	saslInitial := packets.AuthenticationSASL{
 		Mechanisms: creds.SupportedSASLMechanisms(),
 	}
@@ -109,7 +110,7 @@ func authenticationSASL(ctx *AuthenticateContext, creds auth.SASLServer) perror.
 	return nil
 }
 
-func authenticationMD5(ctx *AuthenticateContext, creds auth.MD5Server) perror.Error {
+func authenticationMD5(ctx *authenticateContext, creds auth.MD5Server) perror.Error {
 	var salt [4]byte
 	_, err := rand.Read(salt[:])
 	if err != nil {
@@ -141,7 +142,7 @@ func authenticationMD5(ctx *AuthenticateContext, creds auth.MD5Server) perror.Er
 	return nil
 }
 
-func authenticate(ctx *AuthenticateContext) (params AuthenticateParams, err perror.Error) {
+func authenticate0(ctx *authenticateContext) (params authenticateParams, err perror.Error) {
 	if ctx.Options.Credentials != nil {
 		if credsSASL, ok := ctx.Options.Credentials.(auth.SASLServer); ok {
 			err = authenticationSASL(ctx, credsSASL)
@@ -184,11 +185,24 @@ func authenticate(ctx *AuthenticateContext) (params AuthenticateParams, err perr
 	return
 }
 
-func Authenticate(ctx *AuthenticateContext) (AuthenticateParams, perror.Error) {
-	params, err := authenticate(ctx)
+func authenticate(ctx *authenticateContext) (authenticateParams, perror.Error) {
+	params, err := authenticate0(ctx)
 	if err != nil {
 		fail(ctx.Packet, ctx.Conn, err)
-		return AuthenticateParams{}, err
+		return authenticateParams{}, err
 	}
 	return params, nil
+}
+
+func Authenticate(conn fed.ReadWriter, creds auth.Credentials) (backendKey [8]byte, err perror.Error) {
+	ctx := authenticateContext{
+		Conn: conn,
+		Options: authenticateOptions{
+			Credentials: creds,
+		},
+	}
+	var params authenticateParams
+	params, err = authenticate(&ctx)
+	backendKey = params.BackendKey
+	return
 }

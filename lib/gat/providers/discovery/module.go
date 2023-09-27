@@ -10,6 +10,7 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
+	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
@@ -230,7 +231,7 @@ func (T *Module) replacePrimary(users []User, databases []string, endpoint Endpo
 				AcceptOptions: acceptOptions,
 			}
 
-			p := T.Lookup(user.Username, database)
+			p := T.lookup(user.Username, database)
 			if p == nil {
 				continue
 			}
@@ -284,7 +285,7 @@ func (T *Module) addReplica(users []User, databases []string, id string, endpoin
 		for _, database := range databases {
 			acceptOptions := T.backendAcceptOptions(user.Username, primaryCreds, database)
 
-			p := T.Lookup(replicaUsername, database)
+			p := T.lookup(replicaUsername, database)
 			if p == nil {
 				continue
 			}
@@ -305,7 +306,7 @@ func (T *Module) removeReplica(users []User, databases []string, id string) {
 	for _, user := range users {
 		username := T.replicaUsername(user.Username)
 		for _, database := range databases {
-			p := T.Lookup(username, database)
+			p := T.lookup(username, database)
 			if p == nil {
 				continue
 			}
@@ -508,11 +509,15 @@ func (T *Module) ReadMetrics(metrics *metrics.Pools) {
 	})
 }
 
-func (T *Module) Lookup(user, database string) *gat.Pool {
+func (T *Module) lookup(user, database string) *gat.Pool {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 	p, _ := T.pools.Load(user, database)
 	return p
+}
+
+func (T *Module) Lookup(conn fed.Conn) *gat.Pool {
+	return T.lookup(conn.User(), conn.Database())
 }
 
 var _ gat.Provider = (*Module)(nil)

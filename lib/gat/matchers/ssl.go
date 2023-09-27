@@ -3,6 +3,7 @@ package matchers
 import (
 	"github.com/caddyserver/caddy/v2"
 
+	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat"
 )
 
@@ -21,6 +22,10 @@ func (T *SSL) CaddyModule() caddy.ModuleInfo {
 			return new(SSL)
 		},
 	}
+}
+
+func (T *SSL) Matches(conn fed.Conn) bool {
+	return conn.SSLEnabled() == T.SSL
 }
 
 var _ gat.Matcher = (*SSL)(nil)

@@ -6,6 +6,8 @@ import (
 
 	"github.com/caddyserver/caddy/v2"
 
+	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/gat/pool"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -40,6 +42,21 @@ func (T *Server) Provision(ctx caddy.Context) error {
 			return err
 		}
 		T.routes = append(T.routes, route)
+	}
+
+	return nil
+}
+
+func (T *Server) lookup(conn fed.Conn) *pool.Pool {
+	for _, route := range T.routes {
+		if route.match != nil && !route.match.Matches(conn) {
+			continue
+		}
+
+		p := route.provide.Lookup(conn)
+		if p != nil {
+			return p
+		}
 	}
 
 	return nil

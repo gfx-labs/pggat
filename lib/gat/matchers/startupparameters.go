@@ -3,7 +3,9 @@ package matchers
 import (
 	"github.com/caddyserver/caddy/v2"
 
+	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 func init() {
@@ -12,6 +14,8 @@ func init() {
 
 type StartupParameters struct {
 	Parameters map[string]string `json:"startup_parameters"`
+
+	parameters map[strutil.CIString]string
 }
 
 func (T *StartupParameters) CaddyModule() caddy.ModuleInfo {
@@ -23,5 +27,25 @@ func (T *StartupParameters) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
+func (T *StartupParameters) Provision(ctx caddy.Context) error {
+	T.parameters = make(map[strutil.CIString]string, len(T.Parameters))
+	for key, value := range T.Parameters {
+		T.parameters[strutil.MakeCIString(key)] = value
+	}
+
+	return nil
+}
+
+func (T *StartupParameters) Matches(conn fed.Conn) bool {
+	initialParameters := conn.InitialParameters()
+	for key, value := range T.parameters {
+		if initialParameters[key] != value {
+			return false
+		}
+	}
+	return true
+}
+
 var _ gat.Matcher = (*StartupParameters)(nil)
 var _ caddy.Module = (*StartupParameters)(nil)
+var _ caddy.Provisioner = (*StartupParameters)(nil)

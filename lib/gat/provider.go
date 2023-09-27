@@ -1,9 +1,12 @@
 package gat
 
-import "gfx.cafe/gfx/pggat/lib/gat/metrics"
+import (
+	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+)
 
 // Provider provides pool to the server
 type Provider interface {
-	Lookup(user, database string) *Pool
+	Lookup(conn fed.Conn) *Pool
 	ReadMetrics(metrics *metrics.Pools)
 }

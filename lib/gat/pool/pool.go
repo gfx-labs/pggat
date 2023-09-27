@@ -16,7 +16,6 @@ import (
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
-	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type Pool struct {
@@ -79,7 +78,7 @@ func (T *Pool) idlest() (server *pooledServer, at time.Time) {
 	return
 }
 
-func (T *Pool) GetCredentials() auth.Credentials {
+func (T *Pool) Credentials() auth.Credentials {
 	return T.options.Credentials
 }
 
@@ -284,7 +283,6 @@ func (T *Pool) releaseServer(server *pooledServer) {
 
 func (T *Pool) Serve(
 	conn fed.Conn,
-	initialParameters map[strutil.CIString]string,
 	backendKey [8]byte,
 ) error {
 	defer func() {
@@ -294,7 +292,6 @@ func (T *Pool) Serve(
 	client := newClient(
 		T.options,
 		conn,
-		initialParameters,
 		backendKey,
 	)
 
@@ -313,7 +310,6 @@ func (T *Pool) ServeBot(
 	client := newClient(
 		T.options,
 		conn,
-		nil,
 		[8]byte{},
 	)
 

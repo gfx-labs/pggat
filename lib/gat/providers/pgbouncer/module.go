@@ -13,6 +13,7 @@ import (
 	"github.com/caddyserver/caddy/v2"
 	"tuxpa.in/a/zlog/log"
 
+	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/poolers/session"
 	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
@@ -90,7 +91,7 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 			}
 		}
 
-		authPool := T.Lookup(authUser, database)
+		authPool := T.lookup(authUser, database)
 		if authPool == nil {
 			return "", false
 		}
@@ -266,7 +267,7 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 	return p
 }
 
-func (T *Module) Lookup(user, database string) *gat.Pool {
+func (T *Module) lookup(user, database string) *gat.Pool {
 	p, _ := T.pools.Load(user, database)
 	if p != nil {
 		return p
@@ -274,6 +275,10 @@ func (T *Module) Lookup(user, database string) *gat.Pool {
 
 	// try to create pool
 	return T.tryCreate(user, database)
+}
+
+func (T *Module) Lookup(conn fed.Conn) *gat.Pool {
+	return T.lookup(conn.User(), conn.Database())
 }
 
 func (T *Module) ReadMetrics(metrics *metrics.Pools) {

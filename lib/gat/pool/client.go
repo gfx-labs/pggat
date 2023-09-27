@@ -7,7 +7,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/eqp"
 	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/ps"
 	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/unterminate"
-	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type pooledClient struct {
@@ -20,12 +19,13 @@ type pooledClient struct {
 func newClient(
 	options Options,
 	conn fed.Conn,
-	initialParameters map[strutil.CIString]string,
 	backendKey [8]byte,
 ) *pooledClient {
 	middlewares := []middleware.Middleware{
 		unterminate.Unterminate,
 	}
+
+	initialParameters := conn.InitialParameters()
 
 	var psClient *ps.Client
 	if options.ParameterStatusSync == ParameterStatusSyncDynamic {

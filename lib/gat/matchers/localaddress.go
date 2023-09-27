@@ -3,6 +3,7 @@ package matchers
 import (
 	"github.com/caddyserver/caddy/v2"
 
+	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat"
 )
 
@@ -21,6 +22,11 @@ func (T *LocalAddress) CaddyModule() caddy.ModuleInfo {
 			return new(LocalAddress)
 		},
 	}
+}
+
+func (T *LocalAddress) Matches(conn fed.Conn) bool {
+	// TODO(garet)
+	return true
 }
 
 var _ gat.Matcher = (*LocalAddress)(nil)
