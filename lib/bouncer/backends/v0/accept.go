@@ -122,6 +122,7 @@ func authentication(ctx *acceptContext) (done bool, err error) {
 	switch method {
 	case 0:
 		// we're good to go, that was easy
+		ctx.Conn.Authenticated = true
 		return true, nil
 	case 2:
 		err = errors.New("kerberos v5 is not supported")

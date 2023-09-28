@@ -13,6 +13,7 @@ import (
 	"github.com/caddyserver/caddy/v2"
 	"go.uber.org/zap"
 
+	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/poolers/session"
 	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
@@ -49,7 +50,7 @@ type Module struct {
 
 func (*Module) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
-		ID: "pggat.providers.pgbouncer",
+		ID: "pggat.handlers.pgbouncer",
 		New: func() caddy.Module {
 			return new(Module)
 		},
@@ -273,11 +274,20 @@ func (T *Module) lookup(user, database string) *gat.Pool {
 	return T.tryCreate(user, database)
 }
 
-func (T *Module) Lookup(conn *fed.Conn) *gat.Pool {
-	return T.lookup(conn.User, conn.Database)
+func (T *Module) Handle(conn *fed.Conn) error {
+	p := T.lookup(conn.User, conn.Database)
+	if p == nil {
+		return nil
+	}
+
+	if err := frontends.Authenticate(conn, p.Credentials()); err != nil {
+		return err
+	}
+
+	return p.Serve(conn)
 }
 
-func (T *Module) ReadMetrics(metrics *metrics.Pools) {
+func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 	T.pools.Range(func(_ string, _ string, p *gat.Pool) bool {
@@ -286,7 +296,18 @@ func (T *Module) ReadMetrics(metrics *metrics.Pools) {
 	})
 }
 
-var _ gat.Provider = (*Module)(nil)
+func (T *Module) Cancel(key [8]byte) {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+	T.pools.Range(func(_ string, _ string, p *gat.Pool) bool {
+		p.Cancel(key)
+		return true
+	})
+}
+
+var _ gat.Handler = (*Module)(nil)
+var _ gat.MetricsHandler = (*Module)(nil)
+var _ gat.CancellableHandler = (*Module)(nil)
 var _ caddy.Module = (*Module)(nil)
 var _ caddy.Provisioner = (*Module)(nil)
 var _ caddy.CleanerUpper = (*Module)(nil)

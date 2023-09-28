@@ -10,11 +10,12 @@ import (
 	"github.com/caddyserver/caddy/v2"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery"
+
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
 	"gfx.cafe/gfx/pggat/lib/bouncer"
 	"gfx.cafe/gfx/pggat/lib/bouncer/bouncers/v2"
 	"gfx.cafe/gfx/pggat/lib/fed"
-	"gfx.cafe/gfx/pggat/lib/gat/providers/discovery"
 	"gfx.cafe/gfx/pggat/lib/gsql"
 )
 
@@ -35,7 +36,7 @@ type Discoverer struct {
 
 func (T *Discoverer) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
-		ID: "pggat.providers.discovery.discoverers.google_cloud_sql",
+		ID: "pggat.handlers.discovery.discoverers.google_cloud_sql",
 		New: func() caddy.Module {
 			return new(Discoverer)
 		},

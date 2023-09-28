@@ -2,8 +2,6 @@ package recipe
 
 import (
 	"crypto/tls"
-	"errors"
-	"io"
 	"net"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
@@ -50,10 +48,10 @@ func (T Dialer) Dial() (*fed.Conn, error) {
 	return conn, nil
 }
 
-func (T Dialer) Cancel(key [8]byte) error {
+func (T Dialer) Cancel(key [8]byte) {
 	c, err := net.Dial(T.Network, T.Address)
 	if err != nil {
-		return err
+		return
 	}
 	conn := fed.NewConn(
 		fed.NewNetConn(c),
@@ -62,13 +60,9 @@ func (T Dialer) Cancel(key [8]byte) error {
 		_ = conn.Close()
 	}()
 	if err = backends.Cancel(conn, key); err != nil {
-		return err
+		return
 	}
 
 	// wait for server to close the connection, this means that the server received it ok
-	_, err = conn.ReadPacket(true, nil)
-	if err != nil && !errors.Is(err, io.EOF) {
-		return err
-	}
-	return nil
+	_, _ = conn.ReadPacket(true, nil)
 }

@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
-	"gfx.cafe/gfx/pggat/lib/gat/providers/discovery"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery"
 )
 
 func init() {
@@ -45,7 +45,7 @@ type Discoverer struct {
 
 func (T *Discoverer) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
-		ID: "pggat.providers.discovery.discoverers.zalando_operator",
+		ID: "pggat.handlers.discovery.discoverers.zalando_operator",
 		New: func() caddy.Module {
 			return new(Discoverer)
 		},

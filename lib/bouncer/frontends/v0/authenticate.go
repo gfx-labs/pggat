@@ -142,7 +142,7 @@ func authenticationMD5(ctx *authenticateContext, creds auth.MD5Server) perror.Er
 	return nil
 }
 
-func authenticate0(ctx *authenticateContext) (err perror.Error) {
+func authenticate(ctx *authenticateContext) (err perror.Error) {
 	if ctx.Options.Credentials != nil {
 		if credsSASL, ok := ctx.Options.Credentials.(auth.SASLServer); ok {
 			err = authenticationSASL(ctx, credsSASL)
@@ -166,6 +166,7 @@ func authenticate0(ctx *authenticateContext) (err perror.Error) {
 	if err = perror.Wrap(ctx.Conn.WritePacket(ctx.Packet)); err != nil {
 		return
 	}
+	ctx.Conn.Authenticated = true
 
 	// send backend key data
 	_, err2 := rand.Read(ctx.Conn.BackendKey[:])
@@ -185,16 +186,12 @@ func authenticate0(ctx *authenticateContext) (err perror.Error) {
 	return
 }
 
-func authenticate(ctx *authenticateContext) perror.Error {
-	err := authenticate0(ctx)
-	if err != nil {
-		fail(ctx.Packet, ctx.Conn, err)
-		return err
-	}
-	return nil
-}
-
 func Authenticate(conn *fed.Conn, creds auth.Credentials) (err perror.Error) {
+	if conn.Authenticated {
+		// already authenticated
+		return
+	}
+
 	ctx := authenticateContext{
 		Conn: conn,
 		Options: authenticateOptions{

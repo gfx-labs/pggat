@@ -13,15 +13,15 @@ import (
 	// ssl clients
 	_ "gfx.cafe/gfx/pggat/lib/gat/ssl/clients/insecure_skip_verify"
 
-	// providers
-	_ "gfx.cafe/gfx/pggat/lib/gat/providers/discovery"
-	_ "gfx.cafe/gfx/pggat/lib/gat/providers/pgbouncer"
-	_ "gfx.cafe/gfx/pggat/lib/gat/providers/zalando"
+	// handlers
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/zalando"
 
 	// discovery
-	_ "gfx.cafe/gfx/pggat/lib/gat/providers/discovery/discoverers/digitalocean"
-	_ "gfx.cafe/gfx/pggat/lib/gat/providers/discovery/discoverers/google_cloud_sql"
-	_ "gfx.cafe/gfx/pggat/lib/gat/providers/discovery/discoverers/zalando_operator"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/digitalocean"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/google_cloud_sql"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/zalando_operator"
 
 	// poolers
 	_ "gfx.cafe/gfx/pggat/lib/gat/poolers/session"

@@ -8,7 +8,7 @@ import (
 	"github.com/caddyserver/caddy/v2"
 	"github.com/digitalocean/godo"
 
-	"gfx.cafe/gfx/pggat/lib/gat/providers/discovery"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery"
 )
 
 func init() {
@@ -23,7 +23,7 @@ type Discoverer struct {
 
 func (T *Discoverer) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
-		ID: "pggat.providers.discovery.discoverers.digitalocean",
+		ID: "pggat.handlers.discovery.discoverers.digitalocean",
 		New: func() caddy.Module {
 			return new(Discoverer)
 		},

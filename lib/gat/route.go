@@ -8,15 +8,15 @@ import (
 )
 
 type RouteConfig struct {
-	Match   json.RawMessage `json:"match" caddy:"namespace=pggat.matchers inline_key=matcher"`
-	Provide json.RawMessage `json:"provide" caddy:"namespace=pggat.providers inline_key=provider"`
+	Match  json.RawMessage `json:"match" caddy:"namespace=pggat.matchers inline_key=matcher"`
+	Handle json.RawMessage `json:"handle" caddy:"namespace=pggat.handlers inline_key=handler"`
 }
 
 type Route struct {
 	RouteConfig
 
-	match   Matcher
-	provide Provider
+	match  Matcher
+	handle Handler
 }
 
 func (T *Route) Provision(ctx caddy.Context) error {
@@ -27,12 +27,12 @@ func (T *Route) Provision(ctx caddy.Context) error {
 		}
 		T.match = val.(Matcher)
 	}
-	if T.Provide != nil {
-		val, err := ctx.LoadModule(T, "Provide")
+	if T.Handle != nil {
+		val, err := ctx.LoadModule(T, "Handle")
 		if err != nil {
-			return fmt.Errorf("loading provider module: %v", err)
+			return fmt.Errorf("loading handle module: %v", err)
 		}
-		T.provide = val.(Provider)
+		T.handle = val.(Handler)
 	}
 	return nil
 }

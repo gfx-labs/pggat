@@ -3,8 +3,6 @@ package gat
 import (
 	"crypto/tls"
 	"errors"
-	"fmt"
-	"io"
 	"net"
 	"time"
 
@@ -17,8 +15,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/perror"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
-	"gfx.cafe/gfx/pggat/lib/util/maps"
-	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
 type Config struct {
@@ -36,8 +32,6 @@ type App struct {
 
 	listen  []*Listener
 	servers []*Server
-
-	keys maps.RWLocked[[8]byte, *Pool]
 
 	closed chan struct{}
 
@@ -81,49 +75,10 @@ func (T *App) Provision(ctx caddy.Context) error {
 	return nil
 }
 
-func (T *App) cancel(key [8]byte) {
-	p, _ := T.keys.Load(key)
-	if p == nil {
-		return
-	}
-
-	_ = p.Cancel(key)
-}
-
-func (T *App) serve(server *Server, conn *fed.Conn) {
-	for key := range conn.InitialParameters {
-		if !slices.Contains(server.AllowedStartupParameters, key) {
-			errResp := packets.ErrorResponse{
-				Error: perror.New(
-					perror.FATAL,
-					perror.FeatureNotSupported,
-					fmt.Sprintf(`Startup parameter "%s" is not allowed`, key),
-				),
-			}
-			_ = conn.WritePacket(errResp.IntoPacket(nil))
-			return
-		}
-	}
-
-	p := server.lookup(conn)
-	if p == nil {
-		T.log.Warn("database not found", zap.String("user", conn.User), zap.String("database", conn.Database))
-		return
-	}
-
-	err := frontends.Authenticate(conn, p.Credentials())
-	if err != nil {
-		T.log.Warn("error authenticating client", zap.Error(err))
-		return
-	}
-	conn.Authenticated = true
-
-	T.keys.Store(conn.BackendKey, p)
-	defer T.keys.Delete(conn.BackendKey)
-
-	if err2 := p.Serve(conn); err2 != nil && !errors.Is(err2, io.EOF) {
-		T.log.Warn("error serving client", zap.Error(err2))
-		return
+func (T *App) Cancel(key [8]byte) {
+	// TODO(garet) make this better (it's probably good enough for now)
+	for _, server := range T.servers {
+		server.Cancel(key)
 	}
 }
 
@@ -147,15 +102,17 @@ func (T *App) accept(listener *Listener, conn *fed.Conn) {
 	}
 
 	if isCanceling {
-		T.cancel(cancelKey)
+		T.Cancel(cancelKey)
 		return
 	}
 
 	for _, server := range T.servers {
-		if server.match == nil || server.match.Matches(conn) {
-			T.serve(server, conn)
-			return
+		if server.match != nil && !server.match.Matches(conn) {
+			continue
 		}
+
+		server.Serve(conn)
+		return
 	}
 
 	T.log.Warn("server not found", zap.String("user", conn.User), zap.String("database", conn.Database))
@@ -193,9 +150,7 @@ func (T *App) statLogLoop() {
 		select {
 		case <-t.C:
 			for _, server := range T.servers {
-				for _, route := range server.routes {
-					route.provide.ReadMetrics(&stats.Pools)
-				}
+				server.ReadMetrics(&stats)
 			}
 			T.log.Info(stats.String())
 			stats.Clear()

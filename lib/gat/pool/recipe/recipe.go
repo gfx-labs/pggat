@@ -70,6 +70,6 @@ func (T *Recipe) Dial() (*fed.Conn, error) {
 	return T.config.Dialer.Dial()
 }
 
-func (T *Recipe) Cancel(key [8]byte) error {
-	return T.config.Dialer.Cancel(key)
+func (T *Recipe) Cancel(key [8]byte) {
+	T.config.Dialer.Cancel(key)
 }

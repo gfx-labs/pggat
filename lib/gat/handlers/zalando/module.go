@@ -5,7 +5,7 @@ import (
 
 	"github.com/caddyserver/caddy/v2"
 
-	"gfx.cafe/gfx/pggat/lib/gat/providers/pgbouncer"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer"
 
 	"gfx.cafe/gfx/pggat/lib/bouncer"
 	"gfx.cafe/gfx/pggat/lib/gat"
@@ -25,7 +25,7 @@ type Module struct {
 
 func (*Module) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
-		ID: "pggat.providers.zalando",
+		ID: "pggat.handlers.zalando",
 		New: func() caddy.Module {
 			return new(Module)
 		},
@@ -85,6 +85,6 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	return nil
 }
 
-var _ gat.Provider = (*Module)(nil)
+var _ gat.Handler = (*Module)(nil)
 var _ caddy.Module = (*Module)(nil)
 var _ caddy.Provisioner = (*Module)(nil)

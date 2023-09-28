@@ -11,7 +11,7 @@ type Config struct {
 	// ReconcilePeriod is how often the module should check for changes. 0 = disable
 	ReconcilePeriod dur.Duration `json:"reconcile_period"`
 
-	Discoverer json.RawMessage `json:"discoverer" caddy:"namespace=pggat.providers.discovery.discoverers inline_key=discoverer"`
+	Discoverer json.RawMessage `json:"discoverer" caddy:"namespace=pggat.handlers.discovery.discoverers inline_key=discoverer"`
 
 	Pooler json.RawMessage `json:"pooler" caddy:"namespace=pggat.poolers inline_key=pooler"`
 

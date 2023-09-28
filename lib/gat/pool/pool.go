@@ -414,23 +414,23 @@ func (T *Pool) removeClientL1(client *pooledClient) {
 	delete(T.clientsByKey, client.GetBackendKey())
 }
 
-func (T *Pool) Cancel(key [8]byte) error {
+func (T *Pool) Cancel(key [8]byte) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 
 	client, ok := T.clientsByKey[key]
 	if !ok {
-		return nil
+		return
 	}
 
 	state, peer, _ := client.GetState()
 	if state != metrics.ConnStateActive {
-		return nil
+		return
 	}
 
 	server, ok := T.servers[peer]
 	if !ok {
-		return nil
+		return
 	}
 
 	// prevent state from changing by RLocking the server
@@ -439,15 +439,15 @@ func (T *Pool) Cancel(key [8]byte) error {
 
 	// make sure peer is still set
 	if server.peer != peer {
-		return nil
+		return
 	}
 
 	r, ok := T.recipes[server.recipe]
 	if !ok {
-		return nil
+		return
 	}
 
-	return r.Cancel(server.GetBackendKey())
+	r.Cancel(server.GetBackendKey())
 }
 
 func (T *Pool) ReadMetrics(m *metrics.Pool) {
