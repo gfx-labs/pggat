@@ -89,6 +89,10 @@ func (T *Interceptor) InitialParameters() map[strutil.CIString]string {
 	return T.conn.InitialParameters()
 }
 
+func (T *Interceptor) BackendKey() [8]byte {
+	return T.conn.BackendKey()
+}
+
 func (T *Interceptor) Close() error {
 	return T.conn.Close()
 }

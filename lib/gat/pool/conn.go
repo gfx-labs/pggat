@@ -19,9 +19,6 @@ type pooledConn struct {
 	// please someone fix runtime.convI2I
 	rw fed.ReadWriter
 
-	initialParameters map[strutil.CIString]string
-	backendKey        [8]byte
-
 	// metrics
 
 	transactionCount atomic.Int64
@@ -39,15 +36,11 @@ type pooledConn struct {
 
 func makeConn(
 	conn fed.Conn,
-	initialParameters map[strutil.CIString]string,
-	backendKey [8]byte,
 ) pooledConn {
 	return pooledConn{
-		id:                uuid.New(),
-		conn:              conn,
-		rw:                conn,
-		initialParameters: initialParameters,
-		backendKey:        backendKey,
+		id:   uuid.New(),
+		conn: conn,
+		rw:   conn,
 
 		since: time.Now(),
 	}
@@ -67,11 +60,11 @@ func (T *pooledConn) GetReadWriter() fed.ReadWriter {
 }
 
 func (T *pooledConn) GetInitialParameters() map[strutil.CIString]string {
-	return T.initialParameters
+	return T.conn.InitialParameters()
 }
 
 func (T *pooledConn) GetBackendKey() [8]byte {
-	return T.backendKey
+	return T.conn.BackendKey()
 }
 
 func (T *pooledConn) TransactionComplete() {

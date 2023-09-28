@@ -22,6 +22,7 @@ type Conn interface {
 	User() string
 	Database() string
 	InitialParameters() map[strutil.CIString]string
+	BackendKey() [8]byte
 
 	Close() error
 }
@@ -35,6 +36,7 @@ type NetConn struct {
 	user              string
 	database          string
 	initialParameters map[strutil.CIString]string
+	backendKey        [8]byte
 
 	headerBuf [5]byte
 }
@@ -82,6 +84,14 @@ func (T *NetConn) InitialParameters() map[strutil.CIString]string {
 
 func (T *NetConn) SetInitialParameters(initialParameters map[strutil.CIString]string) {
 	T.initialParameters = initialParameters
+}
+
+func (T *NetConn) BackendKey() [8]byte {
+	return T.backendKey
+}
+
+func (T *NetConn) SetBackendKey(backendKey [8]byte) {
+	T.backendKey = backendKey
 }
 
 var errSSLAlreadyEnabled = errors.New("ssl is already enabled")

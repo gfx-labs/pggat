@@ -19,18 +19,15 @@ type pooledClient struct {
 func newClient(
 	options Config,
 	conn fed.Conn,
-	backendKey [8]byte,
 ) *pooledClient {
 	middlewares := []middleware.Middleware{
 		unterminate.Unterminate,
 	}
 
-	initialParameters := conn.InitialParameters()
-
 	var psClient *ps.Client
 	if options.ParameterStatusSync == ParameterStatusSyncDynamic {
 		// add ps middleware
-		psClient = ps.NewClient(initialParameters)
+		psClient = ps.NewClient(conn.InitialParameters())
 		middlewares = append(middlewares, psClient)
 	}
 
@@ -49,8 +46,6 @@ func newClient(
 	return &pooledClient{
 		pooledConn: makeConn(
 			conn,
-			initialParameters,
-			backendKey,
 		),
 		ps:  psClient,
 		eqp: eqpClient,

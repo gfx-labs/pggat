@@ -21,16 +21,13 @@ func newServer(
 	options Config,
 	recipe string,
 	conn fed.Conn,
-	backendKey [8]byte,
 ) *pooledServer {
 	var middlewares []middleware.Middleware
-
-	initialParameters := conn.InitialParameters()
 
 	var psServer *ps.Server
 	if options.ParameterStatusSync == ParameterStatusSyncDynamic {
 		// add ps middleware
-		psServer = ps.NewServer(initialParameters)
+		psServer = ps.NewServer(conn.InitialParameters())
 		middlewares = append(middlewares, psServer)
 	}
 
@@ -51,8 +48,6 @@ func newServer(
 	return &pooledServer{
 		pooledConn: makeConn(
 			conn,
-			initialParameters,
-			backendKey,
 		),
 		recipe: recipe,
 		ps:     psServer,

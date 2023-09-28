@@ -15,8 +15,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
-	"gfx.cafe/gfx/pggat/lib/middleware/interceptor"
-	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/unterminate"
 	"gfx.cafe/gfx/pggat/lib/perror"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
 	"gfx.cafe/gfx/pggat/lib/util/maps"
@@ -92,7 +90,7 @@ func (T *App) cancel(key [8]byte) {
 	_ = p.Cancel(key)
 }
 
-func (T *App) serve(server *Server, conn fed.Conn) {
+func (T *App) serve(server *Server, conn *fed.NetConn) {
 	initialParameters := conn.InitialParameters()
 	for key := range initialParameters {
 		if !slices.Contains(server.AllowedStartupParameters, key) {
@@ -120,10 +118,12 @@ func (T *App) serve(server *Server, conn fed.Conn) {
 		return
 	}
 
+	conn.SetBackendKey(backendKey)
+
 	T.keys.Store(backendKey, p)
 	defer T.keys.Delete(backendKey)
 
-	if err2 := p.Serve(conn, backendKey); err2 != nil && !errors.Is(err2, io.EOF) {
+	if err2 := p.Serve(conn); err2 != nil && !errors.Is(err2, io.EOF) {
 		T.log.Warn("error serving client", zap.Error(err2))
 		return
 	}
@@ -156,7 +156,7 @@ func (T *App) accept(listener *Listener, conn *fed.NetConn) {
 
 	for _, server := range T.servers {
 		if server.match == nil || server.match.Matches(conn) {
-			T.serve(server, interceptor.NewInterceptor(conn, unterminate.Unterminate))
+			T.serve(server, conn)
 			return
 		}
 	}

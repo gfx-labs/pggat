@@ -152,7 +152,7 @@ func (T *Pool) scaleUpL0() (string, *Recipe) {
 }
 
 func (T *Pool) scaleUpL1(name string, r *Recipe) error {
-	conn, backendKey, err := r.Dial()
+	conn, err := r.Dial()
 	if err != nil {
 		// failed to dial
 		r.Free()
@@ -172,7 +172,6 @@ func (T *Pool) scaleUpL1(name string, r *Recipe) error {
 			T.config,
 			name,
 			conn,
-			backendKey,
 		)
 
 		if T.servers == nil {
@@ -282,7 +281,6 @@ func (T *Pool) releaseServer(server *pooledServer) {
 
 func (T *Pool) Serve(
 	conn fed.Conn,
-	backendKey [8]byte,
 ) error {
 	defer func() {
 		_ = conn.Close()
@@ -291,7 +289,6 @@ func (T *Pool) Serve(
 	client := newClient(
 		T.config,
 		conn,
-		backendKey,
 	)
 
 	return T.serve(client, false)
@@ -309,7 +306,6 @@ func (T *Pool) ServeBot(
 	client := newClient(
 		T.config,
 		conn,
-		[8]byte{},
 	)
 
 	return T.serve(client, true)
@@ -449,7 +445,7 @@ func (T *Pool) Cancel(key [8]byte) error {
 		return nil
 	}
 
-	return r.Cancel(server.backendKey)
+	return r.Cancel(server.GetBackendKey())
 }
 
 func (T *Pool) ReadMetrics(m *metrics.Pool) {

@@ -2,9 +2,10 @@ package google_cloud_sql
 
 import (
 	"crypto/tls"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
 	"net"
 	"strings"
+
+	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
 
 	"github.com/caddyserver/caddy/v2"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
@@ -115,7 +116,7 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 		} else {
 			// dial admin connection
 			if admin == nil {
-				admin, _, err = recipe.Dialer{
+				admin, err = recipe.Dialer{
 					Network: "tcp",
 					Address: primaryAddress,
 					SSLMode: bouncer.SSLModePrefer,

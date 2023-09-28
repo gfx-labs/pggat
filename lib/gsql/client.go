@@ -168,4 +168,8 @@ func (T *Client) InitialParameters() map[strutil.CIString]string {
 	return nil
 }
 
+func (T *Client) BackendKey() [8]byte {
+	return [8]byte{}
+}
+
 var _ fed.Conn = (*Client)(nil)

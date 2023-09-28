@@ -66,7 +66,7 @@ func (T *Recipe) Free() {
 	T.count--
 }
 
-func (T *Recipe) Dial() (fed.Conn, [8]byte, error) {
+func (T *Recipe) Dial() (fed.Conn, error) {
 	return T.config.Dialer.Dial()
 }
 
