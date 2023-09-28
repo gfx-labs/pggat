@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"github.com/caddyserver/caddy/v2"
+	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/gat"
@@ -21,6 +22,8 @@ func init() {
 
 type Pool struct {
 	pool.ManagementOptions
+
+	log *zap.Logger
 }
 
 func (T *Pool) CaddyModule() caddy.ModuleInfo {
@@ -32,6 +35,11 @@ func (T *Pool) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
+func (T *Pool) Provision(ctx caddy.Context) error {
+	T.log = ctx.Logger()
+	return nil
+}
+
 func (T *Pool) NewPool(creds auth.Credentials) *gat.Pool {
 	return pool.NewPool(pool.Options{
 		Credentials: creds,
@@ -39,6 +47,8 @@ func (T *Pool) NewPool(creds auth.Credentials) *gat.Pool {
 		PoolingOptions: PoolingOptions,
 
 		ManagementOptions: T.ManagementOptions,
+
+		Logger: T.log,
 	})
 }
 

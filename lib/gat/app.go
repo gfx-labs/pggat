@@ -4,10 +4,11 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 
 	"github.com/caddyserver/caddy/v2"
-	"tuxpa.in/a/zlog/log"
+	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
@@ -37,6 +38,8 @@ type App struct {
 	servers []*Server
 
 	keys maps.RWLocked[[8]byte, *Pool]
+
+	log *zap.Logger
 }
 
 func (T *App) CaddyModule() caddy.ModuleInfo {
@@ -49,6 +52,8 @@ func (T *App) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *App) Provision(ctx caddy.Context) error {
+	T.log = ctx.Logger()
+
 	T.listen = make([]*Listener, 0, len(T.Listen))
 	for _, config := range T.Listen {
 		listener := &Listener{
@@ -101,21 +106,21 @@ func (T *App) serve(server *Server, conn fed.Conn) {
 
 	p := server.lookup(conn)
 	if p == nil {
-		log.Printf("pool not found for client: user=%s database=%s", conn.User(), conn.Database())
+		T.log.Warn("database not found", zap.String("user", conn.User()), zap.String("database", conn.Database()))
 		return
 	}
 
 	backendKey, err := frontends.Authenticate(conn, p.Credentials())
 	if err != nil {
-		log.Printf("error authenticating client: %v", err)
+		T.log.Warn("error authenticating client", zap.Error(err))
 		return
 	}
 
 	T.keys.Store(backendKey, p)
 	defer T.keys.Delete(backendKey)
 
-	if err2 := p.Serve(conn, backendKey); err2 != nil {
-		log.Printf("error serving client: %v", err2)
+	if err2 := p.Serve(conn, backendKey); err2 != nil && !errors.Is(err2, io.EOF) {
+		T.log.Warn("error serving client", zap.Error(err2))
 		return
 	}
 }
@@ -132,7 +137,7 @@ func (T *App) accept(listener *Listener, conn *fed.NetConn) {
 
 	cancelKey, isCanceling, _, user, database, initialParameters, err := frontends.Accept(conn, tlsConfig)
 	if err != nil {
-		log.Printf("error accepting client: %v", err)
+		T.log.Warn("error accepting client", zap.Error(err))
 		return
 	}
 
@@ -152,7 +157,7 @@ func (T *App) accept(listener *Listener, conn *fed.NetConn) {
 		}
 	}
 
-	log.Printf("server not found for client: user=%s database=%s", conn.User(), conn.Database())
+	T.log.Warn("server not found", zap.String("user", conn.User()), zap.String("database", conn.Database()))
 
 	errResp := packets.ErrorResponse{
 		Error: perror.New(
@@ -170,7 +175,7 @@ func (T *App) acceptFrom(listener *Listener) bool {
 		if errors.Is(err, net.ErrClosed) {
 			return false
 		}
-		log.Printf("error accepting client: %v", err)
+		T.log.Warn("error accepting client", zap.Error(err))
 		return true
 	}
 

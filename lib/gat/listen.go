@@ -6,7 +6,7 @@ import (
 	"net"
 
 	"github.com/caddyserver/caddy/v2"
-	"tuxpa.in/a/zlog/log"
+	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
 )
@@ -23,6 +23,8 @@ type Listener struct {
 	ssl SSLServer
 
 	listener net.Listener
+
+	log *zap.Logger
 }
 
 func (T *Listener) accept() (*fed.NetConn, error) {
@@ -34,6 +36,8 @@ func (T *Listener) accept() (*fed.NetConn, error) {
 }
 
 func (T *Listener) Provision(ctx caddy.Context) error {
+	T.log = ctx.Logger()
+
 	if T.SSL != nil {
 		val, err := ctx.LoadModule(T, "SSL")
 		if err != nil {
@@ -52,7 +56,7 @@ func (T *Listener) Start() error {
 		return err
 	}
 
-	log.Printf("listening on %v", T.listener.Addr())
+	T.log.Info("listening", zap.String("address", T.listener.Addr().String()))
 
 	return nil
 }

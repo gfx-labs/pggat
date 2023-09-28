@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"tuxpa.in/a/zlog/log"
+	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
@@ -103,7 +103,7 @@ func (T *Pool) AddRecipe(name string, r *Recipe) {
 	count := r.AllocateInitial()
 	for i := 0; i < count; i++ {
 		if err := T.scaleUpL1(name, r); err != nil {
-			log.Printf("failed to dial server: %v", err)
+			T.options.Logger.Warn("failed to dial server", zap.Error(err))
 			for j := i; j < count; j++ {
 				r.Free()
 			}
@@ -208,7 +208,7 @@ func (T *Pool) scaleUp() bool {
 
 	err := T.scaleUpL1(name, r)
 	if err != nil {
-		log.Printf("failed to dial server: %v", err)
+		T.options.Logger.Warn("failed to dial server", zap.Error(err))
 		return false
 	}
 
@@ -230,9 +230,12 @@ func (T *Pool) removeServerL1(server *pooledServer) {
 		name := server.GetRecipe()
 		T.serversByRecipe[name] = slices.Delete(T.serversByRecipe[name], server)
 		// update order
-		T.recipeScaleOrder.Update(slices.Index(T.recipeScaleOrder, name), func(n string) int {
-			return len(T.serversByRecipe[n])
-		})
+		index := slices.Index(T.recipeScaleOrder, name)
+		if index != -1 {
+			T.recipeScaleOrder.Update(index, func(n string) int {
+				return len(T.serversByRecipe[n])
+			})
+		}
 	}
 }
 

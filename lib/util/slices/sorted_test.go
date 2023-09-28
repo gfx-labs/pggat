@@ -1,10 +1,9 @@
 package slices
 
 import (
+	"log"
 	"sort"
 	"testing"
-
-	"tuxpa.in/a/zlog/log"
 )
 
 func TestSorted_Insert(t *testing.T) {

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
-	"tuxpa.in/a/zlog/log"
+	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/poolers/session"
@@ -44,6 +44,8 @@ type Module struct {
 
 	pools maps.TwoKey[string, string, *gat.Pool]
 	mu    sync.RWMutex
+
+	log *zap.Logger
 }
 
 func (*Module) CaddyModule() caddy.ModuleInfo {
@@ -56,6 +58,8 @@ func (*Module) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *Module) Provision(ctx caddy.Context) error {
+	T.log = ctx.Logger()
+
 	var err error
 	T.Config, err = Load(T.ConfigFile)
 	return err
@@ -100,17 +104,17 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 		client := new(gsql.Client)
 		err := gsql.ExtendedQuery(client, &result, T.Config.PgBouncer.AuthQuery, user)
 		if err != nil {
-			log.Println("auth query failed:", err)
+			T.log.Warn("auth query failed", zap.Error(err))
 			return "", false
 		}
 		err = client.Close()
 		if err != nil {
-			log.Println("auth query failed:", err)
+			T.log.Warn("auth query failed", zap.Error(err))
 			return "", false
 		}
 		err = authPool.ServeBot(client)
 		if err != nil && !errors.Is(err, io.EOF) {
-			log.Println("auth query failed:", err)
+			T.log.Warn("auth query failed", zap.Error(err))
 			return "", false
 		}
 
@@ -176,6 +180,7 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 			ServerIdleTimeout:          dur.Duration(T.Config.PgBouncer.ServerIdleTimeout * float64(time.Second)),
 			ServerReconnectInitialTime: serverLoginRetry,
 		},
+		Logger: T.log,
 	}
 
 	switch poolMode {

@@ -4,7 +4,6 @@ go 1.20
 
 require (
 	gfx.cafe/ghalliday1/scram v0.0.2
-	gfx.cafe/util/go/gun v0.0.0-20230721185457-c559e86c829c
 	github.com/caddyserver/caddy/v2 v2.7.4
 	github.com/digitalocean/godo v1.102.1
 	github.com/google/uuid v1.3.0
@@ -12,7 +11,6 @@ require (
 	google.golang.org/api v0.126.0
 	k8s.io/apimachinery v0.27.4
 	k8s.io/client-go v0.27.4
-	tuxpa.in/a/zlog v1.61.0
 )
 
 require (

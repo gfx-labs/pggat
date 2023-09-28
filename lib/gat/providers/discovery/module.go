@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
-	"tuxpa.in/a/zlog/log"
+	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
@@ -41,6 +41,8 @@ type Module struct {
 
 	pools maps.TwoKey[string, string, *pool.Pool]
 	mu    sync.RWMutex
+
+	log *zap.Logger
 }
 
 func (*Module) CaddyModule() caddy.ModuleInfo {
@@ -53,6 +55,8 @@ func (*Module) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *Module) Provision(ctx caddy.Context) error {
+	T.log = ctx.Logger()
+
 	if T.Discoverer != nil {
 		val, err := ctx.LoadModule(T, "Discoverer")
 		if err != nil {
@@ -471,7 +475,7 @@ func (T *Module) discoverLoop() {
 		case <-reconcile:
 			err := T.reconcile()
 			if err != nil {
-				log.Printf("failed to reconcile: %v", err)
+				T.log.Warn("failed to reconcile", zap.Error(err))
 			}
 		}
 	}
@@ -480,7 +484,7 @@ func (T *Module) discoverLoop() {
 func (T *Module) addPool(user, database string, p *pool.Pool) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
-	log.Printf("added pool user=%s database=%s", user, database)
+	T.log.Info("added pool", zap.String("user", user), zap.String("database", database))
 	if old, ok := T.pools.Load(user, database); ok {
 		// shouldn't normally get here
 		old.Close()
@@ -496,7 +500,7 @@ func (T *Module) removePool(user, database string) {
 		return
 	}
 	p.Close()
-	log.Printf("removed pool user=%s database=%s", user, database)
+	T.log.Info("removed pool", zap.String("user", user), zap.String("database", database))
 	T.pools.Delete(user, database)
 }
 

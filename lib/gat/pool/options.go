@@ -1,6 +1,8 @@
 package pool
 
 import (
+	"go.uber.org/zap"
+
 	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
@@ -57,4 +59,6 @@ type Options struct {
 	PoolingOptions
 
 	ManagementOptions
+
+	Logger *zap.Logger
 }

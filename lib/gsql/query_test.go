@@ -1,10 +1,9 @@
 package gsql
 
 import (
+	"log"
 	"net"
 	"testing"
-
-	"tuxpa.in/a/zlog/log"
 
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"

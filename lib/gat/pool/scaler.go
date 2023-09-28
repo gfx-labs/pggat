@@ -3,7 +3,7 @@ package pool
 import (
 	"time"
 
-	"tuxpa.in/a/zlog/log"
+	"go.uber.org/zap"
 )
 
 type scaler struct {
@@ -80,7 +80,7 @@ func (T *scaler) pendingTimeout() {
 			T.pending.Reset(T.backoff)
 		}
 
-		log.Printf("failed to dial server. trying again in %v", T.backoff)
+		T.pool.options.Logger.Warn("failed to dial server", zap.Duration("backoff", T.backoff))
 
 		return
 	}
