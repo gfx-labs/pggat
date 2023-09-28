@@ -13,6 +13,13 @@ import (
 	// ssl clients
 	_ "gfx.cafe/gfx/pggat/lib/gat/ssl/clients/insecure_skip_verify"
 
+	// middlewares
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/allowed_startup_parameters"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_database"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_parameters"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_password"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_user"
+
 	// handlers
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer"
