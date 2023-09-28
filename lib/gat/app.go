@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"github.com/caddyserver/caddy/v2"
 	"go.uber.org/zap"
@@ -13,6 +14,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/middleware/interceptor"
 	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/unterminate"
 	"gfx.cafe/gfx/pggat/lib/perror"
@@ -38,6 +40,8 @@ type App struct {
 	servers []*Server
 
 	keys maps.RWLocked[[8]byte, *Pool]
+
+	closed chan struct{}
 
 	log *zap.Logger
 }
@@ -183,7 +187,33 @@ func (T *App) acceptFrom(listener *Listener) bool {
 	return true
 }
 
+func (T *App) statLogLoop() {
+	t := time.NewTicker(T.StatLogPeriod.Duration())
+	defer t.Stop()
+
+	var stats metrics.Server
+	for {
+		select {
+		case <-t.C:
+			for _, server := range T.servers {
+				for _, route := range server.routes {
+					route.provide.ReadMetrics(&stats.Pools)
+				}
+			}
+			T.log.Info(stats.String())
+			stats.Clear()
+		case <-T.closed:
+			return
+		}
+	}
+}
+
 func (T *App) Start() error {
+	T.closed = make(chan struct{})
+	if T.StatLogPeriod != 0 {
+		go T.statLogLoop()
+	}
+
 	// start listeners
 	for _, listener := range T.listen {
 		if err := listener.Start(); err != nil {
@@ -203,6 +233,8 @@ func (T *App) Start() error {
 }
 
 func (T *App) Stop() error {
+	close(T.closed)
+
 	// stop listeners
 	for _, listener := range T.listen {
 		if err := listener.Stop(); err != nil {
