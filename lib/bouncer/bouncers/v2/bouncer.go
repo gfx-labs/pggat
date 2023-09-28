@@ -7,7 +7,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
-func clientFail(packet fed.Packet, client fed.ReadWriter, err perror.Error) fed.Packet {
+func clientFail(packet fed.Packet, client *fed.Conn, err perror.Error) fed.Packet {
 	// send fatal error to client
 	resp := packets.ErrorResponse{
 		Error: err,
@@ -17,7 +17,7 @@ func clientFail(packet fed.Packet, client fed.ReadWriter, err perror.Error) fed.
 	return packet
 }
 
-func Bounce(client, server fed.ReadWriter, initialPacket fed.Packet) (packet fed.Packet, clientError error, serverError error) {
+func Bounce(client, server *fed.Conn, initialPacket fed.Packet) (packet fed.Packet, clientError error, serverError error) {
 	serverError, clientError, packet = backends.Transaction(server, client, initialPacket)
 
 	if clientError != nil {

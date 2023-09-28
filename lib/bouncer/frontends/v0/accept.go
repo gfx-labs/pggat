@@ -37,7 +37,7 @@ func startup0(
 			done = true
 			return
 		case 5679:
-			byteWriter, ok := ctx.Conn.(io.ByteWriter)
+			byteWriter, ok := ctx.Conn.ReadWriteCloser.(io.ByteWriter)
 			if !ok {
 				err = perror.New(
 					perror.FATAL,
@@ -53,7 +53,7 @@ func startup0(
 				return
 			}
 
-			sslServer, ok := ctx.Conn.(fed.SSLServer)
+			sslServer, ok := ctx.Conn.ReadWriteCloser.(fed.SSLServer)
 			if !ok {
 				err = perror.Wrap(byteWriter.WriteByte('N'))
 				return
@@ -66,10 +66,9 @@ func startup0(
 			if err = perror.Wrap(sslServer.EnableSSLServer(ctx.Options.SSLConfig)); err != nil {
 				return
 			}
-			params.SSLEnabled = true
 			return
 		case 5680:
-			byteWriter, ok := ctx.Conn.(io.ByteWriter)
+			byteWriter, ok := ctx.Conn.ReadWriteCloser.(io.ByteWriter)
 			if !ok {
 				err = perror.New(
 					perror.FATAL,
@@ -115,9 +114,9 @@ func startup0(
 
 		switch key {
 		case "user":
-			params.User = value
+			ctx.Conn.User = value
 		case "database":
-			params.Database = value
+			ctx.Conn.Database = value
 		case "options":
 			fields := strings.Fields(value)
 			for i := 0; i < len(fields); i++ {
@@ -138,10 +137,10 @@ func startup0(
 
 					ikey := strutil.MakeCIString(key)
 
-					if params.InitialParameters == nil {
-						params.InitialParameters = make(map[strutil.CIString]string)
+					if ctx.Conn.InitialParameters == nil {
+						ctx.Conn.InitialParameters = make(map[strutil.CIString]string)
 					}
-					params.InitialParameters[ikey] = value
+					ctx.Conn.InitialParameters[ikey] = value
 				default:
 					err = perror.New(
 						perror.FATAL,
@@ -165,10 +164,10 @@ func startup0(
 			} else {
 				ikey := strutil.MakeCIString(key)
 
-				if params.InitialParameters == nil {
-					params.InitialParameters = make(map[strutil.CIString]string)
+				if ctx.Conn.InitialParameters == nil {
+					ctx.Conn.InitialParameters = make(map[strutil.CIString]string)
 				}
-				params.InitialParameters[ikey] = value
+				ctx.Conn.InitialParameters[ikey] = value
 			}
 		}
 	}
@@ -186,7 +185,7 @@ func startup0(
 		}
 	}
 
-	if params.User == "" {
+	if ctx.Conn.User == "" {
 		err = perror.New(
 			perror.FATAL,
 			perror.InvalidAuthorizationSpecification,
@@ -194,8 +193,8 @@ func startup0(
 		)
 		return
 	}
-	if params.Database == "" {
-		params.Database = params.User
+	if ctx.Conn.Database == "" {
+		ctx.Conn.Database = ctx.Conn.User
 	}
 
 	done = true
@@ -236,13 +235,9 @@ func accept(ctx *acceptContext) (acceptParams, perror.Error) {
 	return params, nil
 }
 
-func Accept(conn fed.ReadWriter, tlsConfig *tls.Config) (
+func Accept(conn *fed.Conn, tlsConfig *tls.Config) (
 	cancelKey [8]byte,
 	isCanceling bool,
-	sslEnabled bool,
-	user string,
-	database string,
-	initialParameters map[strutil.CIString]string,
 	err perror.Error,
 ) {
 	ctx := acceptContext{
@@ -255,9 +250,5 @@ func Accept(conn fed.ReadWriter, tlsConfig *tls.Config) (
 	params, err = accept(&ctx)
 	cancelKey = params.CancelKey
 	isCanceling = params.IsCanceling
-	sslEnabled = params.SSLEnabled
-	user = params.User
-	database = params.Database
-	initialParameters = params.InitialParameters
 	return
 }

@@ -111,8 +111,7 @@ func (T *App) serve(server *Server, conn *fed.Conn) {
 		return
 	}
 
-	var err error
-	conn.BackendKey, err = frontends.Authenticate(conn.ReadWriteCloser, p.Credentials())
+	err := frontends.Authenticate(conn, p.Credentials())
 	if err != nil {
 		T.log.Warn("error authenticating client", zap.Error(err))
 		return
@@ -141,7 +140,7 @@ func (T *App) accept(listener *Listener, conn *fed.Conn) {
 	var cancelKey [8]byte
 	var isCanceling bool
 	var err error
-	cancelKey, isCanceling, _, conn.User, conn.Database, conn.InitialParameters, err = frontends.Accept(conn.ReadWriteCloser, tlsConfig)
+	cancelKey, isCanceling, err = frontends.Accept(conn, tlsConfig)
 	if err != nil {
 		T.log.Warn("error accepting client", zap.Error(err))
 		return

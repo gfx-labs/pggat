@@ -106,7 +106,7 @@ func queryString(ctx *context, q string) error {
 	return query(ctx)
 }
 
-func QueryString(server, peer fed.ReadWriter, buffer fed.Packet, query string) (err, peerError error, packet fed.Packet) {
+func QueryString(server, peer *fed.Conn, buffer fed.Packet, query string) (err, peerError error, packet fed.Packet) {
 	ctx := context{
 		Server: server,
 		Peer:   peer,
@@ -118,7 +118,7 @@ func QueryString(server, peer fed.ReadWriter, buffer fed.Packet, query string) (
 	return
 }
 
-func SetParameter(server, peer fed.ReadWriter, buffer fed.Packet, name strutil.CIString, value string) (err, peerError error, packet fed.Packet) {
+func SetParameter(server, peer *fed.Conn, buffer fed.Packet, name strutil.CIString, value string) (err, peerError error, packet fed.Packet) {
 	return QueryString(
 		server,
 		peer,
@@ -213,7 +213,7 @@ func sync(ctx *context) (bool, error) {
 	}
 }
 
-func Sync(server, peer fed.ReadWriter, buffer fed.Packet) (err, peerErr error, packet fed.Packet) {
+func Sync(server, peer *fed.Conn, buffer fed.Packet) (err, peerErr error, packet fed.Packet) {
 	ctx := context{
 		Server: server,
 		Peer:   peer,
@@ -305,7 +305,7 @@ func transaction(ctx *context) error {
 	}
 }
 
-func Transaction(server, peer fed.ReadWriter, initialPacket fed.Packet) (err, peerError error, packet fed.Packet) {
+func Transaction(server, peer *fed.Conn, initialPacket fed.Packet) (err, peerError error, packet fed.Packet) {
 	ctx := context{
 		Server: server,
 		Peer:   peer,

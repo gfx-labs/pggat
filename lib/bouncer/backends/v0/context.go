@@ -6,14 +6,14 @@ import (
 
 type acceptContext struct {
 	Packet  fed.Packet
-	Conn    fed.ReadWriter
+	Conn    *fed.Conn
 	Options acceptOptions
 }
 
 type context struct {
-	Server    fed.ReadWriter
+	Server    *fed.Conn
 	Packet    fed.Packet
-	Peer      fed.ReadWriter
+	Peer      *fed.Conn
 	PeerError error
 	TxState   byte
 }

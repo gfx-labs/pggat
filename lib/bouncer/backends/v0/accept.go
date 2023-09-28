@@ -199,7 +199,7 @@ func startup0(ctx *acceptContext) (done bool, err error) {
 	}
 }
 
-func startup1(ctx *acceptContext, params *acceptParams) (done bool, err error) {
+func startup1(ctx *acceptContext) (done bool, err error) {
 	ctx.Packet, err = ctx.Conn.ReadPacket(true, ctx.Packet)
 	if err != nil {
 		return
@@ -207,7 +207,7 @@ func startup1(ctx *acceptContext, params *acceptParams) (done bool, err error) {
 
 	switch ctx.Packet.Type() {
 	case packets.TypeBackendKeyData:
-		ctx.Packet.ReadBytes(params.BackendKey[:])
+		ctx.Packet.ReadBytes(ctx.Conn.BackendKey[:])
 		return false, nil
 	case packets.TypeParameterStatus:
 		var ps packets.ParameterStatus
@@ -216,10 +216,10 @@ func startup1(ctx *acceptContext, params *acceptParams) (done bool, err error) {
 			return
 		}
 		ikey := strutil.MakeCIString(ps.Key)
-		if params.InitialParameters == nil {
-			params.InitialParameters = make(map[strutil.CIString]string)
+		if ctx.Conn.InitialParameters == nil {
+			ctx.Conn.InitialParameters = make(map[strutil.CIString]string)
 		}
-		params.InitialParameters[ikey] = ps.Value
+		ctx.Conn.InitialParameters[ikey] = ps.Value
 		return false, nil
 	case packets.TypeReadyForQuery:
 		return true, nil
@@ -248,7 +248,7 @@ func enableSSL(ctx *acceptContext) (bool, error) {
 		return false, err
 	}
 
-	byteReader, ok := ctx.Conn.(io.ByteReader)
+	byteReader, ok := ctx.Conn.ReadWriteCloser.(io.ByteReader)
 	if !ok {
 		return false, errors.New("server must be io.ByteReader to enable ssl")
 	}
@@ -264,7 +264,7 @@ func enableSSL(ctx *acceptContext) (bool, error) {
 		return false, nil
 	}
 
-	sslClient, ok := ctx.Conn.(fed.SSLClient)
+	sslClient, ok := ctx.Conn.ReadWriteCloser.(fed.SSLClient)
 	if !ok {
 		return false, errors.New("server must be fed.SSLClient to enable ssl")
 	}
@@ -276,23 +276,20 @@ func enableSSL(ctx *acceptContext) (bool, error) {
 	return true, nil
 }
 
-func accept(ctx *acceptContext) (acceptParams, error) {
+func accept(ctx *acceptContext) error {
 	username := ctx.Options.Username
 
 	if ctx.Options.Database == "" {
 		ctx.Options.Database = username
 	}
 
-	var params acceptParams
-
 	if ctx.Options.SSLMode.ShouldAttempt() {
-		var err error
-		params.SSLEnabled, err = enableSSL(ctx)
+		sslEnabled, err := enableSSL(ctx)
 		if err != nil {
-			return acceptParams{}, err
+			return err
 		}
-		if !params.SSLEnabled && ctx.Options.SSLMode.IsRequired() {
-			return acceptParams{}, errors.New("server rejected SSL encryption")
+		if !sslEnabled && ctx.Options.SSLMode.IsRequired() {
+			return errors.New("server rejected SSL encryption")
 		}
 	}
 
@@ -317,14 +314,14 @@ func accept(ctx *acceptContext) (acceptParams, error) {
 
 	err := ctx.Conn.WritePacket(ctx.Packet)
 	if err != nil {
-		return acceptParams{}, err
+		return err
 	}
 
 	for {
 		var done bool
 		done, err = startup0(ctx)
 		if err != nil {
-			return acceptParams{}, err
+			return err
 		}
 		if done {
 			break
@@ -333,9 +330,9 @@ func accept(ctx *acceptContext) (acceptParams, error) {
 
 	for {
 		var done bool
-		done, err = startup1(ctx, &params)
+		done, err = startup1(ctx)
 		if err != nil {
-			return acceptParams{}, err
+			return err
 		}
 		if done {
 			break
@@ -343,23 +340,18 @@ func accept(ctx *acceptContext) (acceptParams, error) {
 	}
 
 	// startup complete, connection is ready for queries
-	return params, nil
+	return nil
 }
 
 func Accept(
-	conn fed.ReadWriter,
+	conn *fed.Conn,
 	sslMode bouncer.SSLMode,
 	sslConfig *tls.Config,
 	username string,
 	credentials auth.Credentials,
 	database string,
 	startupParameters map[strutil.CIString]string,
-) (
-	sslEnabled bool,
-	initialParameters map[strutil.CIString]string,
-	backendKey [8]byte,
-	err error,
-) {
+) error {
 	ctx := acceptContext{
 		Conn: conn,
 		Options: acceptOptions{
@@ -371,10 +363,5 @@ func Accept(
 			StartupParameters: startupParameters,
 		},
 	}
-	var params acceptParams
-	params, err = accept(&ctx)
-	sslEnabled = params.SSLEnabled
-	initialParameters = params.InitialParameters
-	backendKey = params.BackendKey
-	return
+	return accept(&ctx)
 }

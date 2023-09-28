@@ -147,7 +147,7 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 			if err != nil {
 				return discovery.Cluster{}, err
 			}
-			_, err, err2 := bouncers.Bounce(client, admin, initialPacket)
+			_, err, err2 := bouncers.Bounce(fed.NewConn(client), admin, initialPacket)
 			if err != nil {
 				return discovery.Cluster{}, err
 			}

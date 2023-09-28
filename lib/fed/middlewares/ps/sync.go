@@ -8,7 +8,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-func sync(tracking []strutil.CIString, client fed.ReadWriter, c *Client, server fed.ReadWriter, s *Server, name strutil.CIString) error {
+func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.Conn, s *Server, name strutil.CIString) error {
 	value, hasValue := c.parameters[name]
 	expected, hasExpected := s.parameters[name]
 
@@ -59,7 +59,7 @@ func sync(tracking []strutil.CIString, client fed.ReadWriter, c *Client, server 
 	return nil
 }
 
-func Sync(tracking []strutil.CIString, client fed.ReadWriter, c *Client, server fed.ReadWriter, s *Server) (clientErr, serverErr error) {
+func Sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.Conn, s *Server) (clientErr, serverErr error) {
 	for name := range c.parameters {
 		if serverErr = sync(tracking, client, c, server, s, name); serverErr != nil {
 			return

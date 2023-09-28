@@ -142,7 +142,7 @@ func authenticationMD5(ctx *authenticateContext, creds auth.MD5Server) perror.Er
 	return nil
 }
 
-func authenticate0(ctx *authenticateContext) (params authenticateParams, err perror.Error) {
+func authenticate0(ctx *authenticateContext) (err perror.Error) {
 	if ctx.Options.Credentials != nil {
 		if credsSASL, ok := ctx.Options.Credentials.(auth.SASLServer); ok {
 			err = authenticationSASL(ctx, credsSASL)
@@ -168,14 +168,14 @@ func authenticate0(ctx *authenticateContext) (params authenticateParams, err per
 	}
 
 	// send backend key data
-	_, err2 := rand.Read(params.BackendKey[:])
+	_, err2 := rand.Read(ctx.Conn.BackendKey[:])
 	if err2 != nil {
 		err = perror.Wrap(err2)
 		return
 	}
 
 	keyData := packets.BackendKeyData{
-		CancellationKey: params.BackendKey,
+		CancellationKey: ctx.Conn.BackendKey,
 	}
 	ctx.Packet = keyData.IntoPacket(ctx.Packet)
 	if err = perror.Wrap(ctx.Conn.WritePacket(ctx.Packet)); err != nil {
@@ -185,24 +185,22 @@ func authenticate0(ctx *authenticateContext) (params authenticateParams, err per
 	return
 }
 
-func authenticate(ctx *authenticateContext) (authenticateParams, perror.Error) {
-	params, err := authenticate0(ctx)
+func authenticate(ctx *authenticateContext) perror.Error {
+	err := authenticate0(ctx)
 	if err != nil {
 		fail(ctx.Packet, ctx.Conn, err)
-		return authenticateParams{}, err
+		return err
 	}
-	return params, nil
+	return nil
 }
 
-func Authenticate(conn fed.ReadWriter, creds auth.Credentials) (backendKey [8]byte, err perror.Error) {
+func Authenticate(conn *fed.Conn, creds auth.Credentials) (err perror.Error) {
 	ctx := authenticateContext{
 		Conn: conn,
 		Options: authenticateOptions{
 			Credentials: creds,
 		},
 	}
-	var params authenticateParams
-	params, err = authenticate(&ctx)
-	backendKey = params.BackendKey
+	err = authenticate(&ctx)
 	return
 }

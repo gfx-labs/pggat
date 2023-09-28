@@ -35,8 +35,8 @@ func (T Dialer) Dial() (*fed.Conn, error) {
 	)
 	conn.User = T.Username
 	conn.Database = T.Database
-	_, conn.InitialParameters, conn.BackendKey, err = backends.Accept(
-		conn.ReadWriteCloser,
+	err = backends.Accept(
+		conn,
 		T.SSLMode,
 		T.SSLConfig,
 		T.Username,
@@ -55,7 +55,9 @@ func (T Dialer) Cancel(key [8]byte) error {
 	if err != nil {
 		return err
 	}
-	conn := fed.NewNetConn(c)
+	conn := fed.NewConn(
+		fed.NewNetConn(c),
+	)
 	defer func() {
 		_ = conn.Close()
 	}()

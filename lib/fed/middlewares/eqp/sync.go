@@ -6,7 +6,7 @@ import (
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 )
 
-func Sync(c *Client, server fed.ReadWriter, s *Server) error {
+func Sync(c *Client, server *fed.Conn, s *Server) error {
 	var needsBackendSync bool
 
 	// close all portals on server
