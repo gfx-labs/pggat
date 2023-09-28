@@ -8,8 +8,8 @@ import (
 )
 
 type RouteConfig struct {
-	Match  json.RawMessage `json:"match" caddy:"namespace=pggat.matchers inline_key=matcher"`
-	Handle json.RawMessage `json:"handle" caddy:"namespace=pggat.handlers inline_key=handler"`
+	Match  json.RawMessage `json:"match,omitempty" caddy:"namespace=pggat.matchers inline_key=matcher"`
+	Handle json.RawMessage `json:"handle,omitempty" caddy:"namespace=pggat.handlers inline_key=handler"`
 }
 
 type Route struct {

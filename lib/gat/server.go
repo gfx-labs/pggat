@@ -16,8 +16,8 @@ import (
 )
 
 type ServerConfig struct {
-	Match  json.RawMessage `json:"match" caddy:"namespace=pggat.matchers inline_key=matcher"`
-	Routes []RouteConfig   `json:"routes"`
+	Match  json.RawMessage `json:"match,omitempty" caddy:"namespace=pggat.matchers inline_key=matcher"`
+	Routes []RouteConfig   `json:"routes,omitempty"`
 }
 
 type Server struct {
@@ -80,6 +80,9 @@ func (T *Server) Serve(conn *fed.Conn) {
 			continue
 		}
 
+		if route.handle == nil {
+			continue
+		}
 		err := route.handle.Handle(conn)
 		if err != nil {
 			if errors.Is(err, io.EOF) {

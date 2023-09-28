@@ -18,9 +18,9 @@ import (
 )
 
 type Config struct {
-	StatLogPeriod dur.Duration     `json:"stat_log_period"`
-	Listen        []ListenerConfig `json:"listen"`
-	Servers       []ServerConfig   `json:"servers"`
+	StatLogPeriod dur.Duration     `json:"stat_log_period,omitempty"`
+	Listen        []ListenerConfig `json:"listen,omitempty"`
+	Servers       []ServerConfig   `json:"servers,omitempty"`
 }
 
 func init() {
