@@ -152,7 +152,7 @@ func (T *Pool) scaleUpL0() (string, *Recipe) {
 }
 
 func (T *Pool) scaleUpL1(name string, r *Recipe) error {
-	conn, params, err := r.Dial()
+	conn, backendKey, err := r.Dial()
 	if err != nil {
 		// failed to dial
 		r.Free()
@@ -172,8 +172,7 @@ func (T *Pool) scaleUpL1(name string, r *Recipe) error {
 			T.options,
 			name,
 			conn,
-			params.InitialParameters,
-			params.BackendKey,
+			backendKey,
 		)
 
 		if T.servers == nil {
@@ -269,10 +268,7 @@ func (T *Pool) releaseServer(server *pooledServer) {
 	if T.options.ServerResetQuery != "" {
 		server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
 
-		ctx := backends.Context{
-			Server: server.GetReadWriter(),
-		}
-		err := backends.QueryString(&ctx, T.options.ServerResetQuery)
+		err, _, _ := backends.QueryString(server.GetReadWriter(), nil, nil, T.options.ServerResetQuery)
 		if err != nil {
 			T.removeServer(server)
 			return

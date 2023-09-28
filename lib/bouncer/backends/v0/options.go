@@ -8,7 +8,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-type AcceptOptions struct {
+type acceptOptions struct {
 	SSLMode           bouncer.SSLMode
 	SSLConfig         *tls.Config
 	Username          string

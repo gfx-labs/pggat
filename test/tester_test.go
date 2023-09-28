@@ -9,15 +9,16 @@ import (
 	"strconv"
 	"testing"
 
+	"gfx.cafe/gfx/pggat/lib/gat/modules/net_listener"
+	"gfx.cafe/gfx/pggat/lib/gat/modules/raw_pools"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/pools/session"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/pools/transaction"
+
 	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/gat"
-	"gfx.cafe/gfx/pggat/lib/gat/modules/net_listener"
-	"gfx.cafe/gfx/pggat/lib/gat/modules/raw_pools"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/pools/session"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/pools/transaction"
 	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
 	"gfx.cafe/gfx/pggat/test"
 	"gfx.cafe/gfx/pggat/test/tests"
@@ -63,7 +64,7 @@ func daisyChain(creds auth.Credentials, control recipe.Dialer, n int) (recipe.Di
 		control = recipe.Dialer{
 			Network: "tcp",
 			Address: ":" + strconv.Itoa(port),
-			AcceptOptions: backends.AcceptOptions{
+			AcceptOptions: backends.acceptOptions{
 				Username:    "runner",
 				Credentials: creds,
 				Database:    "pool",
@@ -78,7 +79,7 @@ func TestTester(t *testing.T) {
 	control := recipe.Dialer{
 		Network: "tcp",
 		Address: "localhost:5432",
-		AcceptOptions: backends.AcceptOptions{
+		AcceptOptions: backends.acceptOptions{
 			Username: "postgres",
 			Credentials: credentials.Cleartext{
 				Username: "postgres",
@@ -147,7 +148,7 @@ func TestTester(t *testing.T) {
 	transactionDialer := recipe.Dialer{
 		Network: "tcp",
 		Address: ":" + strconv.Itoa(port),
-		AcceptOptions: backends.AcceptOptions{
+		AcceptOptions: backends.acceptOptions{
 			Username:    "runner",
 			Credentials: creds,
 			Database:    "transaction",
@@ -156,7 +157,7 @@ func TestTester(t *testing.T) {
 	sessionDialer := recipe.Dialer{
 		Network: "tcp",
 		Address: ":" + strconv.Itoa(port),
-		AcceptOptions: backends.AcceptOptions{
+		AcceptOptions: backends.acceptOptions{
 			Username:    "runner",
 			Credentials: creds,
 			Database:    "session",

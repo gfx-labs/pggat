@@ -1,16 +1,18 @@
 package backends
 
 import (
+	"crypto/tls"
 	"errors"
 	"io"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
+	"gfx.cafe/gfx/pggat/lib/bouncer"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-func authenticationSASLChallenge(ctx *AcceptContext, encoder auth.SASLEncoder) (done bool, err error) {
+func authenticationSASLChallenge(ctx *acceptContext, encoder auth.SASLEncoder) (done bool, err error) {
 	ctx.Packet, err = ctx.Conn.ReadPacket(true, ctx.Packet)
 	if err != nil {
 		return
@@ -54,7 +56,7 @@ func authenticationSASLChallenge(ctx *AcceptContext, encoder auth.SASLEncoder) (
 	}
 }
 
-func authenticationSASL(ctx *AcceptContext, mechanisms []string, creds auth.SASLClient) error {
+func authenticationSASL(ctx *acceptContext, mechanisms []string, creds auth.SASLClient) error {
 	mechanism, encoder, err := creds.EncodeSASL(mechanisms)
 	if err != nil {
 		return err
@@ -89,7 +91,7 @@ func authenticationSASL(ctx *AcceptContext, mechanisms []string, creds auth.SASL
 	return nil
 }
 
-func authenticationMD5(ctx *AcceptContext, salt [4]byte, creds auth.MD5Client) error {
+func authenticationMD5(ctx *acceptContext, salt [4]byte, creds auth.MD5Client) error {
 	pw := packets.PasswordMessage{
 		Password: creds.EncodeMD5(salt),
 	}
@@ -101,7 +103,7 @@ func authenticationMD5(ctx *AcceptContext, salt [4]byte, creds auth.MD5Client) e
 	return nil
 }
 
-func authenticationCleartext(ctx *AcceptContext, creds auth.CleartextClient) error {
+func authenticationCleartext(ctx *acceptContext, creds auth.CleartextClient) error {
 	pw := packets.PasswordMessage{
 		Password: creds.EncodeCleartext(),
 	}
@@ -113,7 +115,7 @@ func authenticationCleartext(ctx *AcceptContext, creds auth.CleartextClient) err
 	return nil
 }
 
-func authentication(ctx *AcceptContext) (done bool, err error) {
+func authentication(ctx *acceptContext) (done bool, err error) {
 	var method int32
 	ctx.Packet.ReadInt32(&method)
 	// they have more authentication methods than there are pokemon
@@ -170,7 +172,7 @@ func authentication(ctx *AcceptContext) (done bool, err error) {
 	}
 }
 
-func startup0(ctx *AcceptContext) (done bool, err error) {
+func startup0(ctx *acceptContext) (done bool, err error) {
 	ctx.Packet, err = ctx.Conn.ReadPacket(true, ctx.Packet)
 	if err != nil {
 		return
@@ -197,7 +199,7 @@ func startup0(ctx *AcceptContext) (done bool, err error) {
 	}
 }
 
-func startup1(ctx *AcceptContext, params *AcceptParams) (done bool, err error) {
+func startup1(ctx *acceptContext, params *acceptParams) (done bool, err error) {
 	ctx.Packet, err = ctx.Conn.ReadPacket(true, ctx.Packet)
 	if err != nil {
 		return
@@ -238,7 +240,7 @@ func startup1(ctx *AcceptContext, params *AcceptParams) (done bool, err error) {
 	}
 }
 
-func enableSSL(ctx *AcceptContext) (bool, error) {
+func enableSSL(ctx *acceptContext) (bool, error) {
 	ctx.Packet = ctx.Packet.Reset(0, 4)
 	ctx.Packet = ctx.Packet.AppendUint16(1234)
 	ctx.Packet = ctx.Packet.AppendUint16(5679)
@@ -274,23 +276,23 @@ func enableSSL(ctx *AcceptContext) (bool, error) {
 	return true, nil
 }
 
-func Accept(ctx *AcceptContext) (AcceptParams, error) {
+func accept(ctx *acceptContext) (acceptParams, error) {
 	username := ctx.Options.Username
 
 	if ctx.Options.Database == "" {
 		ctx.Options.Database = username
 	}
 
-	var params AcceptParams
+	var params acceptParams
 
 	if ctx.Options.SSLMode.ShouldAttempt() {
 		var err error
 		params.SSLEnabled, err = enableSSL(ctx)
 		if err != nil {
-			return AcceptParams{}, err
+			return acceptParams{}, err
 		}
 		if !params.SSLEnabled && ctx.Options.SSLMode.IsRequired() {
-			return AcceptParams{}, errors.New("server rejected SSL encryption")
+			return acceptParams{}, errors.New("server rejected SSL encryption")
 		}
 	}
 
@@ -315,14 +317,14 @@ func Accept(ctx *AcceptContext) (AcceptParams, error) {
 
 	err := ctx.Conn.WritePacket(ctx.Packet)
 	if err != nil {
-		return AcceptParams{}, err
+		return acceptParams{}, err
 	}
 
 	for {
 		var done bool
 		done, err = startup0(ctx)
 		if err != nil {
-			return AcceptParams{}, err
+			return acceptParams{}, err
 		}
 		if done {
 			break
@@ -333,7 +335,7 @@ func Accept(ctx *AcceptContext) (AcceptParams, error) {
 		var done bool
 		done, err = startup1(ctx, &params)
 		if err != nil {
-			return AcceptParams{}, err
+			return acceptParams{}, err
 		}
 		if done {
 			break
@@ -342,4 +344,37 @@ func Accept(ctx *AcceptContext) (AcceptParams, error) {
 
 	// startup complete, connection is ready for queries
 	return params, nil
+}
+
+func Accept(
+	conn fed.ReadWriter,
+	sslMode bouncer.SSLMode,
+	sslConfig *tls.Config,
+	username string,
+	credentials auth.Credentials,
+	database string,
+	startupParameters map[strutil.CIString]string,
+) (
+	sslEnabled bool,
+	initialParameters map[strutil.CIString]string,
+	backendKey [8]byte,
+	err error,
+) {
+	ctx := acceptContext{
+		Conn: conn,
+		Options: acceptOptions{
+			SSLMode:           sslMode,
+			SSLConfig:         sslConfig,
+			Username:          username,
+			Credentials:       credentials,
+			Database:          database,
+			StartupParameters: startupParameters,
+		},
+	}
+	var params acceptParams
+	params, err = accept(&ctx)
+	sslEnabled = params.SSLEnabled
+	initialParameters = params.InitialParameters
+	backendKey = params.BackendKey
+	return
 }

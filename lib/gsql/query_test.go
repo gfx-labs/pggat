@@ -24,9 +24,9 @@ func TestQuery(t *testing.T) {
 		return
 	}
 	server := fed.WrapNetConn(s)
-	ctx := backends.AcceptContext{
+	ctx := backends.acceptContext{
 		Conn: server,
-		Options: backends.AcceptOptions{
+		Options: backends.acceptOptions{
 			Username: "postgres",
 			Credentials: credentials.Cleartext{
 				Username: "postgres",
@@ -35,7 +35,7 @@ func TestQuery(t *testing.T) {
 			Database: "postgres",
 		},
 	}
-	_, err = backends.Accept(&ctx)
+	_, err = backends.accept(&ctx)
 	if err != nil {
 		t.Error(err)
 		return

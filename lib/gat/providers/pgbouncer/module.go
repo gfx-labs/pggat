@@ -208,7 +208,7 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 		serverCreds = credentials.FromString(user, db.Password)
 	}
 
-	acceptOptions := backends.AcceptOptions{
+	acceptOptions := backends.acceptOptions{
 		SSLMode: T.Config.PgBouncer.ServerTLSSSLMode,
 		SSLConfig: &tls.Config{
 			InsecureSkipVerify: true, // TODO(garet)

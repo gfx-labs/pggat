@@ -1,38 +1,52 @@
 package recipe
 
 import (
+	"crypto/tls"
 	"errors"
 	"io"
 	"net"
 
+	"gfx.cafe/gfx/pggat/lib/auth"
+	"gfx.cafe/gfx/pggat/lib/bouncer"
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
-
-type BackendAcceptOptions = backends.AcceptOptions
 
 type Dialer struct {
 	Network string
 	Address string
 
-	AcceptOptions BackendAcceptOptions
+	SSLMode           bouncer.SSLMode
+	SSLConfig         *tls.Config
+	Username          string
+	Credentials       auth.Credentials
+	Database          string
+	StartupParameters map[strutil.CIString]string
 }
 
-func (T Dialer) Dial() (fed.Conn, backends.AcceptParams, error) {
+func (T Dialer) Dial() (fed.Conn, [8]byte, error) {
 	c, err := net.Dial(T.Network, T.Address)
 	if err != nil {
-		return nil, backends.AcceptParams{}, err
+		return nil, [8]byte{}, err
 	}
 	conn := fed.WrapNetConn(c)
-	ctx := backends.AcceptContext{
-		Conn:    conn,
-		Options: T.AcceptOptions,
-	}
-	params, err := backends.Accept(&ctx)
+	conn.SetUser(T.Username)
+	conn.SetDatabase(T.Database)
+	_, initialParameters, backendKey, err := backends.Accept(
+		conn,
+		T.SSLMode,
+		T.SSLConfig,
+		T.Username,
+		T.Credentials,
+		T.Database,
+		T.StartupParameters,
+	)
 	if err != nil {
-		return nil, backends.AcceptParams{}, err
+		return nil, [8]byte{}, err
 	}
-	return conn, params, nil
+	conn.SetInitialParameters(initialParameters)
+	return conn, backendKey, nil
 }
 
 func (T Dialer) Cancel(key [8]byte) error {

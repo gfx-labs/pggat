@@ -3,11 +3,12 @@ package backends
 import (
 	"fmt"
 
+	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-func CopyIn(ctx *Context) error {
+func copyIn(ctx *context) error {
 	ctx.PeerWrite()
 
 	for {
@@ -32,7 +33,7 @@ func CopyIn(ctx *Context) error {
 	}
 }
 
-func CopyOut(ctx *Context) error {
+func copyOut(ctx *context) error {
 	ctx.PeerWrite()
 
 	for {
@@ -56,7 +57,7 @@ func CopyOut(ctx *Context) error {
 	}
 }
 
-func Query(ctx *Context) error {
+func query(ctx *context) error {
 	if err := ctx.ServerWrite(); err != nil {
 		return err
 	}
@@ -78,11 +79,11 @@ func Query(ctx *Context) error {
 			packets.TypeNotificationResponse:
 			ctx.PeerWrite()
 		case packets.TypeCopyInResponse:
-			if err = CopyIn(ctx); err != nil {
+			if err = copyIn(ctx); err != nil {
 				return err
 			}
 		case packets.TypeCopyOutResponse:
-			if err = CopyOut(ctx); err != nil {
+			if err = copyOut(ctx); err != nil {
 				return err
 			}
 		case packets.TypeReadyForQuery:
@@ -99,20 +100,34 @@ func Query(ctx *Context) error {
 	}
 }
 
-func QueryString(ctx *Context, query string) error {
-	q := packets.Query(query)
-	ctx.Packet = q.IntoPacket(ctx.Packet)
-	return Query(ctx)
+func queryString(ctx *context, q string) error {
+	qq := packets.Query(q)
+	ctx.Packet = qq.IntoPacket(ctx.Packet)
+	return query(ctx)
 }
 
-func SetParameter(ctx *Context, name strutil.CIString, value string) error {
+func QueryString(server, peer fed.ReadWriter, buffer fed.Packet, query string) (err, peerError error, packet fed.Packet) {
+	ctx := context{
+		Server: server,
+		Peer:   peer,
+		Packet: buffer,
+	}
+	err = queryString(&ctx, query)
+	peerError = ctx.PeerError
+	packet = ctx.Packet
+	return
+}
+
+func SetParameter(server, peer fed.ReadWriter, buffer fed.Packet, name strutil.CIString, value string) (err, peerError error, packet fed.Packet) {
 	return QueryString(
-		ctx,
+		server,
+		peer,
+		buffer,
 		fmt.Sprintf(`SET "%s" = '%s'`, strutil.Escape(name.String(), '"'), strutil.Escape(value, '\'')),
 	)
 }
 
-func FunctionCall(ctx *Context) error {
+func functionCall(ctx *context) error {
 	if err := ctx.ServerWrite(); err != nil {
 		return err
 	}
@@ -144,7 +159,7 @@ func FunctionCall(ctx *Context) error {
 	}
 }
 
-func Sync(ctx *Context) (bool, error) {
+func sync(ctx *context) (bool, error) {
 	ctx.Packet = ctx.Packet.Reset(packets.TypeSync)
 	if err := ctx.ServerWrite(); err != nil {
 		return false, err
@@ -175,13 +190,13 @@ func Sync(ctx *Context) (bool, error) {
 			packets.TypeNotificationResponse:
 			ctx.PeerWrite()
 		case packets.TypeCopyInResponse:
-			if err = CopyIn(ctx); err != nil {
+			if err = copyIn(ctx); err != nil {
 				return false, err
 			}
 			// why
 			return false, nil
 		case packets.TypeCopyOutResponse:
-			if err = CopyOut(ctx); err != nil {
+			if err = copyOut(ctx); err != nil {
 				return false, err
 			}
 		case packets.TypeReadyForQuery:
@@ -198,7 +213,19 @@ func Sync(ctx *Context) (bool, error) {
 	}
 }
 
-func EQP(ctx *Context) error {
+func Sync(server, peer fed.ReadWriter, buffer fed.Packet) (err, peerErr error, packet fed.Packet) {
+	ctx := context{
+		Server: server,
+		Peer:   peer,
+		Packet: buffer,
+	}
+	_, err = sync(&ctx)
+	peerErr = ctx.PeerError
+	packet = ctx.Packet
+	return
+}
+
+func eqp(ctx *context) error {
 	if err := ctx.ServerWrite(); err != nil {
 		return err
 	}
@@ -206,7 +233,7 @@ func EQP(ctx *Context) error {
 	for {
 		if !ctx.PeerRead() {
 			for {
-				ok, err := Sync(ctx)
+				ok, err := sync(ctx)
 				if err != nil {
 					return err
 				}
@@ -218,7 +245,7 @@ func EQP(ctx *Context) error {
 
 		switch ctx.Packet.Type() {
 		case packets.TypeSync:
-			ok, err := Sync(ctx)
+			ok, err := sync(ctx)
 			if err != nil {
 				return err
 			}
@@ -235,18 +262,15 @@ func EQP(ctx *Context) error {
 	}
 }
 
-func Transaction(ctx *Context) error {
-	if ctx.TxState == '\x00' {
-		ctx.TxState = 'I'
-	}
+func transaction(ctx *context) error {
 	for {
 		switch ctx.Packet.Type() {
 		case packets.TypeQuery:
-			if err := Query(ctx); err != nil {
+			if err := query(ctx); err != nil {
 				return err
 			}
 		case packets.TypeFunctionCall:
-			if err := FunctionCall(ctx); err != nil {
+			if err := functionCall(ctx); err != nil {
 				return err
 			}
 		case packets.TypeSync:
@@ -255,7 +279,7 @@ func Transaction(ctx *Context) error {
 			ctx.Packet = rfq.IntoPacket(ctx.Packet)
 			ctx.PeerWrite()
 		case packets.TypeParse, packets.TypeBind, packets.TypeClose, packets.TypeDescribe, packets.TypeExecute, packets.TypeFlush:
-			if err := EQP(ctx); err != nil {
+			if err := eqp(ctx); err != nil {
 				return err
 			}
 		default:
@@ -268,7 +292,7 @@ func Transaction(ctx *Context) error {
 
 		if !ctx.PeerRead() {
 			// abort tx
-			err := QueryString(ctx, "ABORT;")
+			err := queryString(ctx, "ABORT;")
 			if err != nil {
 				return err
 			}
@@ -279,4 +303,16 @@ func Transaction(ctx *Context) error {
 			return nil
 		}
 	}
+}
+
+func Transaction(server, peer fed.ReadWriter, initialPacket fed.Packet) (err, peerError error, packet fed.Packet) {
+	ctx := context{
+		Server: server,
+		Peer:   peer,
+		Packet: initialPacket,
+	}
+	err = transaction(&ctx)
+	peerError = ctx.PeerError
+	packet = ctx.Packet
+	return
 }

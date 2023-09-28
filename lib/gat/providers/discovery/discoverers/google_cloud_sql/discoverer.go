@@ -120,9 +120,9 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 					return discovery.Cluster{}, err
 				}
 				admin = fed.WrapNetConn(raw)
-				_, err = backends.Accept(&backends.AcceptContext{
+				_, err = backends.accept(&backends.acceptContext{
 					Conn: admin,
-					Options: backends.AcceptOptions{
+					Options: backends.acceptOptions{
 						SSLMode: bouncer.SSLModePrefer,
 						SSLConfig: &tls.Config{
 							InsecureSkipVerify: true,

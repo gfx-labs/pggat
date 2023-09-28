@@ -7,31 +7,24 @@ import (
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
-func clientFail(ctx *backends.Context, client fed.ReadWriter, err perror.Error) {
+func clientFail(packet fed.Packet, client fed.ReadWriter, err perror.Error) fed.Packet {
 	// send fatal error to client
 	resp := packets.ErrorResponse{
 		Error: err,
 	}
-	ctx.Packet = resp.IntoPacket(ctx.Packet)
-	_ = client.WritePacket(ctx.Packet)
+	packet = resp.IntoPacket(packet)
+	_ = client.WritePacket(packet)
+	return packet
 }
 
 func Bounce(client, server fed.ReadWriter, initialPacket fed.Packet) (packet fed.Packet, clientError error, serverError error) {
-	ctx := backends.Context{
-		Server: server,
-		Packet: initialPacket,
-		Peer:   client,
-	}
-	serverError = backends.Transaction(&ctx)
-	clientError = ctx.PeerError
+	serverError, clientError, packet = backends.Transaction(server, client, initialPacket)
 
 	if clientError != nil {
-		clientFail(&ctx, client, perror.Wrap(clientError))
+		packet = clientFail(packet, client, perror.Wrap(clientError))
 	} else if serverError != nil {
-		clientFail(&ctx, client, perror.Wrap(serverError))
+		packet = clientFail(packet, client, perror.Wrap(serverError))
 	}
-
-	packet = ctx.Packet
 
 	return
 }

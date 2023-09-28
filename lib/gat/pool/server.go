@@ -6,7 +6,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/middleware/interceptor"
 	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/eqp"
 	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/ps"
-	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type pooledServer struct {
@@ -22,10 +21,11 @@ func newServer(
 	options Options,
 	recipe string,
 	conn fed.Conn,
-	initialParameters map[strutil.CIString]string,
 	backendKey [8]byte,
 ) *pooledServer {
 	var middlewares []middleware.Middleware
+
+	initialParameters := conn.InitialParameters()
 
 	var psServer *ps.Server
 	if options.ParameterStatusSync == ParameterStatusSyncDynamic {

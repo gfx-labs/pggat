@@ -83,11 +83,8 @@ func Sync(c *Client, server fed.ReadWriter, s *Server) error {
 	}
 
 	if needsBackendSync {
-		ctx := backends.Context{
-			Packet: packet,
-			Server: server,
-		}
-		_, err := backends.Sync(&ctx)
+		var err error
+		err, _, packet = backends.Sync(server, nil, packet)
 		return err
 	}
 

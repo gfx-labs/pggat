@@ -4,13 +4,13 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 )
 
-type AcceptContext struct {
+type acceptContext struct {
 	Packet  fed.Packet
-	Conn    fed.Conn
-	Options AcceptOptions
+	Conn    fed.ReadWriter
+	Options acceptOptions
 }
 
-type Context struct {
+type context struct {
 	Server    fed.ReadWriter
 	Packet    fed.Packet
 	Peer      fed.ReadWriter
@@ -18,24 +18,24 @@ type Context struct {
 	TxState   byte
 }
 
-func (T *Context) ServerRead() error {
+func (T *context) ServerRead() error {
 	var err error
 	T.Packet, err = T.Server.ReadPacket(true, T.Packet)
 	return err
 }
 
-func (T *Context) ServerWrite() error {
+func (T *context) ServerWrite() error {
 	return T.Server.WritePacket(T.Packet)
 }
 
-func (T *Context) PeerOK() bool {
+func (T *context) PeerOK() bool {
 	if T == nil {
 		return false
 	}
 	return T.Peer != nil && T.PeerError == nil
 }
 
-func (T *Context) PeerFail(err error) {
+func (T *context) PeerFail(err error) {
 	if T == nil {
 		return
 	}
@@ -43,7 +43,7 @@ func (T *Context) PeerFail(err error) {
 	T.PeerError = err
 }
 
-func (T *Context) PeerRead() bool {
+func (T *context) PeerRead() bool {
 	if T == nil {
 		return false
 	}
@@ -59,7 +59,7 @@ func (T *Context) PeerRead() bool {
 	return true
 }
 
-func (T *Context) PeerWrite() {
+func (T *context) PeerWrite() {
 	if T == nil {
 		return
 	}

@@ -80,15 +80,10 @@ func syncInitialParameters(options Options, client *pooledClient, server *pooled
 			continue
 		}
 
-		ctx := backends.Context{
-			Packet: packet,
-			Server: server.GetReadWriter(),
-		}
-		serverErr = backends.SetParameter(&ctx, key, value)
+		serverErr, _, packet = backends.SetParameter(server.GetReadWriter(), nil, packet, key, value)
 		if serverErr != nil {
 			return
 		}
-		packet = ctx.Packet
 	}
 
 	for key, value := range serverParams {

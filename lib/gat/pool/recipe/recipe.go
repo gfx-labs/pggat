@@ -3,7 +3,6 @@ package recipe
 import (
 	"sync"
 
-	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 )
 
@@ -67,7 +66,7 @@ func (T *Recipe) Free() {
 	T.count--
 }
 
-func (T *Recipe) Dial() (fed.Conn, backends.AcceptParams, error) {
+func (T *Recipe) Dial() (fed.Conn, [8]byte, error) {
 	return T.options.Dialer.Dial()
 }
 
