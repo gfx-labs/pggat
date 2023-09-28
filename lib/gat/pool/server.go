@@ -2,10 +2,8 @@ package pool
 
 import (
 	"gfx.cafe/gfx/pggat/lib/fed"
-	"gfx.cafe/gfx/pggat/lib/middleware"
-	"gfx.cafe/gfx/pggat/lib/middleware/interceptor"
-	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/eqp"
-	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/ps"
+	"gfx.cafe/gfx/pggat/lib/fed/middlewares/eqp"
+	"gfx.cafe/gfx/pggat/lib/fed/middlewares/ps"
 )
 
 type pooledServer struct {
@@ -20,29 +18,20 @@ type pooledServer struct {
 func newServer(
 	options Config,
 	recipe string,
-	conn fed.Conn,
+	conn *fed.Conn,
 ) *pooledServer {
-	var middlewares []middleware.Middleware
-
 	var psServer *ps.Server
 	if options.ParameterStatusSync == ParameterStatusSyncDynamic {
 		// add ps middleware
-		psServer = ps.NewServer(conn.InitialParameters())
-		middlewares = append(middlewares, psServer)
+		psServer = ps.NewServer(conn.InitialParameters)
+		conn.Middleware = append(conn.Middleware, psServer)
 	}
 
 	var eqpServer *eqp.Server
 	if options.ExtendedQuerySync {
 		// add eqp middleware
 		eqpServer = eqp.NewServer()
-		middlewares = append(middlewares, eqpServer)
-	}
-
-	if len(middlewares) > 0 {
-		conn = interceptor.NewInterceptor(
-			conn,
-			middlewares...,
-		)
+		conn.Middleware = append(conn.Middleware, eqpServer)
 	}
 
 	return &pooledServer{

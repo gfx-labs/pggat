@@ -36,10 +36,9 @@ func (T *StartupParameters) Provision(ctx caddy.Context) error {
 	return nil
 }
 
-func (T *StartupParameters) Matches(conn fed.Conn) bool {
-	initialParameters := conn.InitialParameters()
+func (T *StartupParameters) Matches(conn *fed.Conn) bool {
 	for key, value := range T.parameters {
-		if initialParameters[key] != value {
+		if conn.InitialParameters[key] != value {
 			return false
 		}
 	}

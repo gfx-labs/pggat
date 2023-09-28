@@ -524,8 +524,8 @@ func (T *Module) lookup(user, database string) *gat.Pool {
 	return p
 }
 
-func (T *Module) Lookup(conn fed.Conn) *gat.Pool {
-	return T.lookup(conn.User(), conn.Database())
+func (T *Module) Lookup(conn *fed.Conn) *gat.Pool {
+	return T.lookup(conn.User, conn.Database)
 }
 
 var _ gat.Provider = (*Module)(nil)

@@ -47,7 +47,7 @@ func (T *Server) Provision(ctx caddy.Context) error {
 	return nil
 }
 
-func (T *Server) lookup(conn fed.Conn) *pool.Pool {
+func (T *Server) lookup(conn *fed.Conn) *pool.Pool {
 	for _, route := range T.routes {
 		if route.match != nil && !route.match.Matches(conn) {
 			continue

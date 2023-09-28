@@ -27,12 +27,14 @@ type Listener struct {
 	log *zap.Logger
 }
 
-func (T *Listener) accept() (*fed.NetConn, error) {
+func (T *Listener) accept() (*fed.Conn, error) {
 	raw, err := T.listener.Accept()
 	if err != nil {
 		return nil, err
 	}
-	return fed.WrapNetConn(raw), nil
+	return fed.NewConn(
+		fed.NewNetConn(raw),
+	), nil
 }
 
 func (T *Listener) Provision(ctx caddy.Context) error {

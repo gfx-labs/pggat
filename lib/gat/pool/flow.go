@@ -3,10 +3,10 @@ package pool
 import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/fed/middlewares/eqp"
+	"gfx.cafe/gfx/pggat/lib/fed/middlewares/ps"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
-	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/eqp"
-	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/ps"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
@@ -23,7 +23,7 @@ func pair(options Config, client *pooledClient, server *pooledServer) (clientErr
 
 	switch options.ParameterStatusSync {
 	case ParameterStatusSyncDynamic:
-		clientErr, serverErr = ps.Sync(options.TrackedParameters, client.GetReadWriter(), client.GetPS(), server.GetReadWriter(), server.GetPS())
+		clientErr, serverErr = ps.Sync(options.TrackedParameters, client.GetConn(), client.GetPS(), server.GetConn(), server.GetPS())
 	case ParameterStatusSyncInitial:
 		clientErr, serverErr = syncInitialParameters(options, client, server)
 	}
@@ -33,7 +33,7 @@ func pair(options Config, client *pooledClient, server *pooledServer) (clientErr
 	}
 
 	if options.ExtendedQuerySync {
-		serverErr = eqp.Sync(client.GetEQP(), server.GetReadWriter(), server.GetEQP())
+		serverErr = eqp.Sync(client.GetEQP(), server.GetConn(), server.GetEQP())
 	}
 
 	return
@@ -80,7 +80,7 @@ func syncInitialParameters(options Config, client *pooledClient, server *pooledS
 			continue
 		}
 
-		serverErr, _, packet = backends.SetParameter(server.GetReadWriter(), nil, packet, key, value)
+		serverErr, _, packet = backends.SetParameter(server.GetConn(), nil, packet, key, value)
 		if serverErr != nil {
 			return
 		}

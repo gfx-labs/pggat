@@ -25,16 +25,18 @@ type Dialer struct {
 	StartupParameters map[strutil.CIString]string
 }
 
-func (T Dialer) Dial() (fed.Conn, error) {
+func (T Dialer) Dial() (*fed.Conn, error) {
 	c, err := net.Dial(T.Network, T.Address)
 	if err != nil {
 		return nil, err
 	}
-	conn := fed.WrapNetConn(c)
-	conn.SetUser(T.Username)
-	conn.SetDatabase(T.Database)
-	_, initialParameters, backendKey, err := backends.Accept(
-		conn,
+	conn := fed.NewConn(
+		fed.NewNetConn(c),
+	)
+	conn.User = T.Username
+	conn.Database = T.Database
+	_, conn.InitialParameters, conn.BackendKey, err = backends.Accept(
+		conn.ReadWriteCloser,
 		T.SSLMode,
 		T.SSLConfig,
 		T.Username,
@@ -45,8 +47,6 @@ func (T Dialer) Dial() (fed.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn.SetInitialParameters(initialParameters)
-	conn.SetBackendKey(backendKey)
 	return conn, nil
 }
 
@@ -55,7 +55,7 @@ func (T Dialer) Cancel(key [8]byte) error {
 	if err != nil {
 		return err
 	}
-	conn := fed.WrapNetConn(c)
+	conn := fed.NewNetConn(c)
 	defer func() {
 		_ = conn.Close()
 	}()

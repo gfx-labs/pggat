@@ -45,7 +45,7 @@ func (T *Or) Provision(ctx caddy.Context) error {
 	return nil
 }
 
-func (T *Or) Matches(conn fed.Conn) bool {
+func (T *Or) Matches(conn *fed.Conn) bool {
 	for _, matcher := range T.or {
 		if matcher.Matches(conn) {
 			return true

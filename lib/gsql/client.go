@@ -8,7 +8,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/util/ring"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
-	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type batch struct {
@@ -144,32 +143,4 @@ func (T *Client) Close() error {
 	return nil
 }
 
-func (T *Client) LocalAddr() net.Addr {
-	return Addr{}
-}
-
-func (T *Client) RemoteAddr() net.Addr {
-	return Addr{}
-}
-
-func (T *Client) SSLEnabled() bool {
-	return false
-}
-
-func (T *Client) User() string {
-	return ""
-}
-
-func (T *Client) Database() string {
-	return ""
-}
-
-func (T *Client) InitialParameters() map[strutil.CIString]string {
-	return nil
-}
-
-func (T *Client) BackendKey() [8]byte {
-	return [8]byte{}
-}
-
-var _ fed.Conn = (*Client)(nil)
+var _ fed.ReadWriteCloser = (*Client)(nil)

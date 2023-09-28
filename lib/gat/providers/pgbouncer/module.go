@@ -273,8 +273,8 @@ func (T *Module) lookup(user, database string) *gat.Pool {
 	return T.tryCreate(user, database)
 }
 
-func (T *Module) Lookup(conn fed.Conn) *gat.Pool {
-	return T.lookup(conn.User(), conn.Database())
+func (T *Module) Lookup(conn *fed.Conn) *gat.Pool {
+	return T.lookup(conn.User, conn.Database)
 }
 
 func (T *Module) ReadMetrics(metrics *metrics.Pools) {

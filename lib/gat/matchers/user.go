@@ -24,8 +24,8 @@ func (T *User) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *User) Matches(conn fed.Conn) bool {
-	return conn.User() == T.User
+func (T *User) Matches(conn *fed.Conn) bool {
+	return conn.User == T.User
 }
 
 var _ gat.Matcher = (*User)(nil)

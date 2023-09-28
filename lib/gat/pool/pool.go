@@ -267,7 +267,7 @@ func (T *Pool) releaseServer(server *pooledServer) {
 	if T.config.ServerResetQuery != "" {
 		server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
 
-		err, _, _ := backends.QueryString(server.GetReadWriter(), nil, nil, T.config.ServerResetQuery)
+		err, _, _ := backends.QueryString(server.GetConn(), nil, nil, T.config.ServerResetQuery)
 		if err != nil {
 			T.removeServer(server)
 			return
@@ -280,7 +280,7 @@ func (T *Pool) releaseServer(server *pooledServer) {
 }
 
 func (T *Pool) Serve(
-	conn fed.Conn,
+	conn *fed.Conn,
 ) error {
 	defer func() {
 		_ = conn.Close()
@@ -297,7 +297,7 @@ func (T *Pool) Serve(
 // ServeBot is for clients that don't need initial parameters, cancelling queries, and are ready now. Use Serve for
 // real clients
 func (T *Pool) ServeBot(
-	conn fed.Conn,
+	conn fed.ReadWriteCloser,
 ) error {
 	defer func() {
 		_ = conn.Close()
@@ -305,7 +305,9 @@ func (T *Pool) ServeBot(
 
 	client := newClient(
 		T.config,
-		conn,
+		&fed.Conn{
+			ReadWriteCloser: conn,
+		},
 	)
 
 	return T.serve(client, true)
@@ -369,7 +371,7 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 			err, serverErr = pair(T.config, client, server)
 		}
 		if err == nil && serverErr == nil {
-			packet, err, serverErr = bouncers.Bounce(client.GetReadWriter(), server.GetReadWriter(), packet)
+			packet, err, serverErr = bouncers.Bounce(client.GetConn(), server.GetConn(), packet)
 		}
 		if serverErr != nil {
 			return serverErr

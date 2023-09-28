@@ -5,7 +5,6 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
-	"gfx.cafe/gfx/pggat/lib/middleware"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -19,12 +18,12 @@ func NewServer(parameters map[strutil.CIString]string) *Server {
 	}
 }
 
-func (T *Server) Read(_ middleware.Context, packet fed.Packet) error {
+func (T *Server) ReadPacket(packet fed.Packet) (fed.Packet, error) {
 	switch packet.Type() {
 	case packets.TypeParameterStatus:
 		var ps packets.ParameterStatus
 		if !ps.ReadFromPacket(packet) {
-			return errors.New("bad packet format j")
+			return packet, errors.New("bad packet format j")
 		}
 		ikey := strutil.MakeCIString(ps.Key)
 		if T.parameters == nil {
@@ -32,11 +31,11 @@ func (T *Server) Read(_ middleware.Context, packet fed.Packet) error {
 		}
 		T.parameters[ikey] = ps.Value
 	}
-	return nil
+	return packet, nil
 }
 
-func (T *Server) Write(_ middleware.Context, _ fed.Packet) error {
-	return nil
+func (T *Server) WritePacket(packet fed.Packet) (fed.Packet, error) {
+	return packet, nil
 }
 
-var _ middleware.Middleware = (*Server)(nil)
+var _ fed.Middleware = (*Server)(nil)

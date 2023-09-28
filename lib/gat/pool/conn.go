@@ -15,9 +15,7 @@ import (
 type pooledConn struct {
 	id uuid.UUID
 
-	conn fed.Conn
-	// please someone fix runtime.convI2I
-	rw fed.ReadWriter
+	conn *fed.Conn
 
 	// metrics
 
@@ -35,12 +33,11 @@ type pooledConn struct {
 }
 
 func makeConn(
-	conn fed.Conn,
+	conn *fed.Conn,
 ) pooledConn {
 	return pooledConn{
 		id:   uuid.New(),
 		conn: conn,
-		rw:   conn,
 
 		since: time.Now(),
 	}
@@ -50,21 +47,16 @@ func (T *pooledConn) GetID() uuid.UUID {
 	return T.id
 }
 
-func (T *pooledConn) GetConn() fed.Conn {
+func (T *pooledConn) GetConn() *fed.Conn {
 	return T.conn
 }
 
-// GetReadWriter is the exact same as GetConn but bypasses the runtime.convI2I
-func (T *pooledConn) GetReadWriter() fed.ReadWriter {
-	return T.rw
-}
-
 func (T *pooledConn) GetInitialParameters() map[strutil.CIString]string {
-	return T.conn.InitialParameters()
+	return T.conn.InitialParameters
 }
 
 func (T *pooledConn) GetBackendKey() [8]byte {
-	return T.conn.BackendKey()
+	return T.conn.BackendKey
 }
 
 func (T *pooledConn) TransactionComplete() {

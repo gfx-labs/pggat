@@ -24,8 +24,12 @@ func (T *SSL) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *SSL) Matches(conn fed.Conn) bool {
-	return conn.SSLEnabled() == T.SSL
+func (T *SSL) Matches(conn *fed.Conn) bool {
+	sslConn, ok := conn.ReadWriteCloser.(fed.SSL)
+	if !ok {
+		return T.SSL == false
+	}
+	return sslConn.SSL() == T.SSL
 }
 
 var _ gat.Matcher = (*SSL)(nil)

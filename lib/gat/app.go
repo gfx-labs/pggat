@@ -90,9 +90,8 @@ func (T *App) cancel(key [8]byte) {
 	_ = p.Cancel(key)
 }
 
-func (T *App) serve(server *Server, conn *fed.NetConn) {
-	initialParameters := conn.InitialParameters()
-	for key := range initialParameters {
+func (T *App) serve(server *Server, conn *fed.Conn) {
+	for key := range conn.InitialParameters {
 		if !slices.Contains(server.AllowedStartupParameters, key) {
 			errResp := packets.ErrorResponse{
 				Error: perror.New(
@@ -108,20 +107,20 @@ func (T *App) serve(server *Server, conn *fed.NetConn) {
 
 	p := server.lookup(conn)
 	if p == nil {
-		T.log.Warn("database not found", zap.String("user", conn.User()), zap.String("database", conn.Database()))
+		T.log.Warn("database not found", zap.String("user", conn.User), zap.String("database", conn.Database))
 		return
 	}
 
-	backendKey, err := frontends.Authenticate(conn, p.Credentials())
+	var err error
+	conn.BackendKey, err = frontends.Authenticate(conn.ReadWriteCloser, p.Credentials())
 	if err != nil {
 		T.log.Warn("error authenticating client", zap.Error(err))
 		return
 	}
+	conn.Authenticated = true
 
-	conn.SetBackendKey(backendKey)
-
-	T.keys.Store(backendKey, p)
-	defer T.keys.Delete(backendKey)
+	T.keys.Store(conn.BackendKey, p)
+	defer T.keys.Delete(conn.BackendKey)
 
 	if err2 := p.Serve(conn); err2 != nil && !errors.Is(err2, io.EOF) {
 		T.log.Warn("error serving client", zap.Error(err2))
@@ -129,7 +128,7 @@ func (T *App) serve(server *Server, conn *fed.NetConn) {
 	}
 }
 
-func (T *App) accept(listener *Listener, conn *fed.NetConn) {
+func (T *App) accept(listener *Listener, conn *fed.Conn) {
 	defer func() {
 		_ = conn.Close()
 	}()
@@ -139,7 +138,10 @@ func (T *App) accept(listener *Listener, conn *fed.NetConn) {
 		tlsConfig = listener.ssl.ServerTLSConfig()
 	}
 
-	cancelKey, isCanceling, _, user, database, initialParameters, err := frontends.Accept(conn, tlsConfig)
+	var cancelKey [8]byte
+	var isCanceling bool
+	var err error
+	cancelKey, isCanceling, _, conn.User, conn.Database, conn.InitialParameters, err = frontends.Accept(conn.ReadWriteCloser, tlsConfig)
 	if err != nil {
 		T.log.Warn("error accepting client", zap.Error(err))
 		return
@@ -150,10 +152,6 @@ func (T *App) accept(listener *Listener, conn *fed.NetConn) {
 		return
 	}
 
-	conn.SetUser(user)
-	conn.SetDatabase(database)
-	conn.SetInitialParameters(initialParameters)
-
 	for _, server := range T.servers {
 		if server.match == nil || server.match.Matches(conn) {
 			T.serve(server, conn)
@@ -161,7 +159,7 @@ func (T *App) accept(listener *Listener, conn *fed.NetConn) {
 		}
 	}
 
-	T.log.Warn("server not found", zap.String("user", conn.User()), zap.String("database", conn.Database()))
+	T.log.Warn("server not found", zap.String("user", conn.User), zap.String("database", conn.Database))
 
 	errResp := packets.ErrorResponse{
 		Error: perror.New(

@@ -7,6 +7,6 @@ import (
 
 // Provider provides pool to the server
 type Provider interface {
-	Lookup(conn fed.Conn) *Pool
+	Lookup(conn *fed.Conn) *Pool
 	ReadMetrics(metrics *metrics.Pools)
 }
