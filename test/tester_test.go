@@ -26,7 +26,7 @@ import (
 
 func daisyChain(creds auth.Credentials, control recipe.Dialer, n int) (recipe.Dialer, error) {
 	for i := 0; i < n; i++ {
-		var options = pool.Options{
+		var options = pool.Config{
 			Credentials: creds,
 		}
 		if i%2 == 0 {
@@ -37,7 +37,7 @@ func daisyChain(creds auth.Credentials, control recipe.Dialer, n int) (recipe.Di
 		}
 
 		p := pool.NewPool(options)
-		p.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
+		p.AddRecipe("runner", recipe.NewRecipe(recipe.Config{
 			Dialer: control,
 		}))
 
@@ -109,19 +109,19 @@ func TestTester(t *testing.T) {
 	}
 
 	m := new(raw_pools.Module)
-	transactionPool := pool.NewPool(transaction.Apply(pool.Options{
+	transactionPool := pool.NewPool(transaction.Apply(pool.Config{
 		Credentials: creds,
 	}))
-	transactionPool.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
+	transactionPool.AddRecipe("runner", recipe.NewRecipe(recipe.Config{
 		Dialer: parent,
 	}))
 	m.Add("runner", "transaction", transactionPool)
 
-	sessionPool := pool.NewPool(session.Apply(pool.Options{
+	sessionPool := pool.NewPool(session.Apply(pool.Config{
 		Credentials:      creds,
 		ServerResetQuery: "discard all",
 	}))
-	sessionPool.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
+	sessionPool.AddRecipe("runner", recipe.NewRecipe(recipe.Config{
 		Dialer: parent,
 	}))
 	m.Add("runner", "session", sessionPool)

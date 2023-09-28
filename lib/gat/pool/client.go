@@ -17,7 +17,7 @@ type pooledClient struct {
 }
 
 func newClient(
-	options Options,
+	options Config,
 	conn fed.Conn,
 	backendKey [8]byte,
 ) *pooledClient {

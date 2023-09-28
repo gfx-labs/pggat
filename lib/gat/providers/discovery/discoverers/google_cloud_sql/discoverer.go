@@ -2,6 +2,7 @@ package google_cloud_sql
 
 import (
 	"crypto/tls"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
 	"net"
 	"strings"
 
@@ -10,7 +11,6 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
 	"gfx.cafe/gfx/pggat/lib/bouncer"
-	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/bouncer/bouncers/v2"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/providers/discovery"
@@ -115,23 +115,17 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 		} else {
 			// dial admin connection
 			if admin == nil {
-				raw, err := net.Dial("tcp", primaryAddress)
-				if err != nil {
-					return discovery.Cluster{}, err
-				}
-				admin = fed.WrapNetConn(raw)
-				_, err = backends.accept(&backends.acceptContext{
-					Conn: admin,
-					Options: backends.acceptOptions{
-						SSLMode: bouncer.SSLModePrefer,
-						SSLConfig: &tls.Config{
-							InsecureSkipVerify: true,
-						},
-						Username:    T.AuthUser,
-						Credentials: credentials.FromString(T.AuthUser, T.AuthPassword),
-						Database:    c.Databases[0],
+				admin, _, err = recipe.Dialer{
+					Network: "tcp",
+					Address: primaryAddress,
+					SSLMode: bouncer.SSLModePrefer,
+					SSLConfig: &tls.Config{
+						InsecureSkipVerify: true,
 					},
-				})
+					Username:    T.AuthUser,
+					Credentials: credentials.FromString(T.AuthUser, T.AuthPassword),
+					Database:    c.Databases[0],
+				}.Dial()
 				if err != nil {
 					return discovery.Cluster{}, err
 				}

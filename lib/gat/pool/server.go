@@ -18,7 +18,7 @@ type pooledServer struct {
 }
 
 func newServer(
-	options Options,
+	options Config,
 	recipe string,
 	conn fed.Conn,
 	backendKey [8]byte,

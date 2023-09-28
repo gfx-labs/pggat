@@ -10,7 +10,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
-func pair(options Options, client *pooledClient, server *pooledServer) (clientErr, serverErr error) {
+func pair(options Config, client *pooledClient, server *pooledServer) (clientErr, serverErr error) {
 	defer func() {
 		client.SetState(metrics.ConnStateActive, server.GetID())
 		server.SetState(metrics.ConnStateActive, client.GetID())
@@ -39,7 +39,7 @@ func pair(options Options, client *pooledClient, server *pooledServer) (clientEr
 	return
 }
 
-func syncInitialParameters(options Options, client *pooledClient, server *pooledServer) (clientErr, serverErr error) {
+func syncInitialParameters(options Config, client *pooledClient, server *pooledServer) (clientErr, serverErr error) {
 	clientParams := client.GetInitialParameters()
 	serverParams := server.GetInitialParameters()
 

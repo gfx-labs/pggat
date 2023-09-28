@@ -19,7 +19,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/dur"
 
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
-	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
@@ -172,9 +171,9 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 
 	serverLoginRetry := dur.Duration(T.Config.PgBouncer.ServerLoginRetry * float64(time.Second))
 
-	poolOptions := pool.Options{
+	poolOptions := pool.Config{
 		Credentials: creds,
-		ManagementOptions: pool.ManagementOptions{
+		ManagementConfig: pool.ManagementConfig{
 			TrackedParameters:          trackedParameters,
 			ServerResetQuery:           T.Config.PgBouncer.ServerResetQuery,
 			ServerIdleTimeout:          dur.Duration(T.Config.PgBouncer.ServerIdleTimeout * float64(time.Second)),
@@ -185,12 +184,12 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 
 	switch poolMode {
 	case PoolModeSession:
-		poolOptions.PoolingOptions = session.PoolingOptions
+		poolOptions.PoolingConfig = session.PoolingOptions
 	case PoolModeTransaction:
 		if T.Config.PgBouncer.ServerResetQueryAlways == 0 {
 			poolOptions.ServerResetQuery = ""
 		}
-		poolOptions.PoolingOptions = transaction.PoolingOptions
+		poolOptions.PoolingConfig = transaction.PoolingOptions
 	default:
 		return nil
 	}
@@ -200,15 +199,13 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 	defer T.mu.Unlock()
 	T.pools.Store(user, database, p)
 
-	var d recipe.Dialer
-
 	serverCreds := creds
 	if db.Password != "" {
 		// lookup password
 		serverCreds = credentials.FromString(user, db.Password)
 	}
 
-	acceptOptions := backends.acceptOptions{
+	dialer := recipe.Dialer{
 		SSLMode: T.Config.PgBouncer.ServerTLSSSLMode,
 		SSLConfig: &tls.Config{
 			InsecureSkipVerify: true, // TODO(garet)
@@ -233,11 +230,8 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 
 		dir = dir + ".s.PGSQL." + strconv.Itoa(port)
 
-		d = recipe.Dialer{
-			Network:       "unix",
-			Address:       dir,
-			AcceptOptions: acceptOptions,
-		}
+		dialer.Network = "unix"
+		dialer.Address = dir
 	} else {
 		var address string
 		if db.Port == 0 {
@@ -247,15 +241,12 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 		}
 
 		// connect over tcp
-		d = recipe.Dialer{
-			Network:       "tcp",
-			Address:       address,
-			AcceptOptions: acceptOptions,
-		}
+		dialer.Network = "tcp"
+		dialer.Address = address
 	}
 
-	recipeOptions := recipe.Options{
-		Dialer:         d,
+	recipeOptions := recipe.Config{
+		Dialer:         dialer,
 		MinConnections: db.MinPoolSize,
 		MaxConnections: db.MaxDBConnections,
 	}

@@ -123,17 +123,6 @@ func (T *Module) creds(user User) (primary, replica auth.Credentials) {
 	return
 }
 
-func (T *Module) backendAcceptOptions(username string, creds auth.Credentials, database string) recipe.BackendAcceptOptions {
-	return recipe.BackendAcceptOptions{
-		SSLMode:           T.ServerSSLMode,
-		SSLConfig:         T.ssl.ClientTLSConfig(),
-		Username:          username,
-		Credentials:       creds,
-		Database:          database,
-		StartupParameters: T.serverStartupParameters,
-	}
-}
-
 func (T *Module) added(cluster Cluster) {
 	if T.clusters == nil {
 		T.clusters = make(map[string]Cluster)
@@ -227,12 +216,15 @@ func (T *Module) replacePrimary(users []User, databases []string, endpoint Endpo
 	for _, user := range users {
 		primaryCreds, _ := T.creds(user)
 		for _, database := range databases {
-			acceptOptions := T.backendAcceptOptions(user.Username, primaryCreds, database)
-
 			primary := recipe.Dialer{
-				Network:       endpoint.Network,
-				Address:       endpoint.Address,
-				AcceptOptions: acceptOptions,
+				Network:           endpoint.Network,
+				Address:           endpoint.Address,
+				Username:          user.Username,
+				Credentials:       primaryCreds,
+				Database:          database,
+				SSLMode:           T.ServerSSLMode,
+				SSLConfig:         T.ssl.ClientTLSConfig(),
+				StartupParameters: T.serverStartupParameters,
 			}
 
 			p := T.lookup(user.Username, database)
@@ -241,7 +233,7 @@ func (T *Module) replacePrimary(users []User, databases []string, endpoint Endpo
 			}
 
 			p.RemoveRecipe("primary")
-			p.AddRecipe("primary", recipe.NewRecipe(recipe.Options{
+			p.AddRecipe("primary", recipe.NewRecipe(recipe.Config{
 				Dialer: primary,
 			}))
 		}
@@ -253,17 +245,20 @@ func (T *Module) addReplicas(replicas map[string]Endpoint, users []User, databas
 		replicaUsername := T.replicaUsername(user.Username)
 		primaryCreds, replicaCreds := T.creds(user)
 		for _, database := range databases {
-			acceptOptions := T.backendAcceptOptions(user.Username, primaryCreds, database)
-
 			replicaPool := T.pooler.NewPool(replicaCreds)
 
 			for id, r := range replicas {
 				replica := recipe.Dialer{
-					Network:       r.Network,
-					Address:       r.Address,
-					AcceptOptions: acceptOptions,
+					Network:           r.Network,
+					Address:           r.Address,
+					Username:          user.Username,
+					Credentials:       primaryCreds,
+					Database:          database,
+					SSLMode:           T.ServerSSLMode,
+					SSLConfig:         T.ssl.ClientTLSConfig(),
+					StartupParameters: T.serverStartupParameters,
 				}
-				replicaPool.AddRecipe(id, recipe.NewRecipe(recipe.Options{
+				replicaPool.AddRecipe(id, recipe.NewRecipe(recipe.Config{
 					Dialer: replica,
 				}))
 			}
@@ -287,19 +282,22 @@ func (T *Module) addReplica(users []User, databases []string, id string, endpoin
 		replicaUsername := T.replicaUsername(user.Username)
 		primaryCreds, _ := T.creds(user)
 		for _, database := range databases {
-			acceptOptions := T.backendAcceptOptions(user.Username, primaryCreds, database)
-
 			p := T.lookup(replicaUsername, database)
 			if p == nil {
 				continue
 			}
 
 			replica := recipe.Dialer{
-				Network:       endpoint.Network,
-				Address:       endpoint.Address,
-				AcceptOptions: acceptOptions,
+				Network:           endpoint.Network,
+				Address:           endpoint.Address,
+				Username:          user.Username,
+				Credentials:       primaryCreds,
+				Database:          database,
+				SSLMode:           T.ServerSSLMode,
+				SSLConfig:         T.ssl.ClientTLSConfig(),
+				StartupParameters: T.serverStartupParameters,
 			}
-			p.AddRecipe(id, recipe.NewRecipe(recipe.Options{
+			p.AddRecipe(id, recipe.NewRecipe(recipe.Config{
 				Dialer: replica,
 			}))
 		}
@@ -323,16 +321,21 @@ func (T *Module) addUser(primaryEndpoint Endpoint, replicas map[string]Endpoint,
 	replicaUsername := T.replicaUsername(user.Username)
 	primaryCreds, replicaCreds := T.creds(user)
 	for _, database := range databases {
-		acceptOptions := T.backendAcceptOptions(user.Username, primaryCreds, database)
-
-		primary := recipe.Dialer{
-			Network:       primaryEndpoint.Network,
-			Address:       primaryEndpoint.Address,
-			AcceptOptions: acceptOptions,
+		base := recipe.Dialer{
+			Username:          user.Username,
+			Credentials:       primaryCreds,
+			Database:          database,
+			SSLMode:           T.ServerSSLMode,
+			SSLConfig:         T.ssl.ClientTLSConfig(),
+			StartupParameters: T.serverStartupParameters,
 		}
 
+		primary := base
+		primary.Network = primaryEndpoint.Network
+		primary.Address = primaryEndpoint.Address
+
 		primaryPool := T.pooler.NewPool(primaryCreds)
-		primaryPool.AddRecipe("primary", recipe.NewRecipe(recipe.Options{
+		primaryPool.AddRecipe("primary", recipe.NewRecipe(recipe.Config{
 			Dialer: primary,
 		}))
 		T.addPool(user.Username, database, primaryPool)
@@ -341,12 +344,10 @@ func (T *Module) addUser(primaryEndpoint Endpoint, replicas map[string]Endpoint,
 			replicaPool := T.pooler.NewPool(replicaCreds)
 
 			for id, r := range replicas {
-				replica := recipe.Dialer{
-					Network:       r.Network,
-					Address:       r.Address,
-					AcceptOptions: acceptOptions,
-				}
-				replicaPool.AddRecipe(id, recipe.NewRecipe(recipe.Options{
+				replica := base
+				replica.Network = r.Network
+				replica.Address = r.Address
+				replicaPool.AddRecipe(id, recipe.NewRecipe(recipe.Config{
 					Dialer: replica,
 				}))
 			}
@@ -373,16 +374,21 @@ func (T *Module) addDatabase(primaryEndpoint Endpoint, replicas map[string]Endpo
 		replicaUsername := T.replicaUsername(user.Username)
 		primaryCreds, replicaCreds := T.creds(user)
 
-		acceptOptions := T.backendAcceptOptions(user.Username, primaryCreds, database)
-
-		primary := recipe.Dialer{
-			Network:       primaryEndpoint.Network,
-			Address:       primaryEndpoint.Address,
-			AcceptOptions: acceptOptions,
+		base := recipe.Dialer{
+			Username:          user.Username,
+			Credentials:       primaryCreds,
+			Database:          database,
+			SSLMode:           T.ServerSSLMode,
+			SSLConfig:         T.ssl.ClientTLSConfig(),
+			StartupParameters: T.serverStartupParameters,
 		}
 
+		primary := base
+		primary.Network = primaryEndpoint.Network
+		primary.Address = primaryEndpoint.Address
+
 		primaryPool := T.pooler.NewPool(primaryCreds)
-		primaryPool.AddRecipe("primary", recipe.NewRecipe(recipe.Options{
+		primaryPool.AddRecipe("primary", recipe.NewRecipe(recipe.Config{
 			Dialer: primary,
 		}))
 		T.addPool(user.Username, database, primaryPool)
@@ -391,12 +397,10 @@ func (T *Module) addDatabase(primaryEndpoint Endpoint, replicas map[string]Endpo
 			replicaPool := T.pooler.NewPool(replicaCreds)
 
 			for id, r := range replicas {
-				replica := recipe.Dialer{
-					Network:       r.Network,
-					Address:       r.Address,
-					AcceptOptions: acceptOptions,
-				}
-				replicaPool.AddRecipe(id, recipe.NewRecipe(recipe.Options{
+				replica := base
+				replica.Network = r.Network
+				replica.Address = r.Address
+				replicaPool.AddRecipe(id, recipe.NewRecipe(recipe.Config{
 					Dialer: replica,
 				}))
 			}

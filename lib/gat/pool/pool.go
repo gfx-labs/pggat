@@ -19,8 +19,8 @@ import (
 )
 
 type Pool struct {
-	options Options
-	pooler  Pooler
+	config Config
+	pooler Pooler
 
 	closed chan struct{}
 
@@ -36,18 +36,18 @@ type Pool struct {
 	mu               sync.RWMutex
 }
 
-func NewPool(options Options) *Pool {
-	if options.NewPooler == nil {
+func NewPool(config Config) *Pool {
+	if config.NewPooler == nil {
 		panic("expected new pooler func")
 	}
-	pooler := options.NewPooler()
+	pooler := config.NewPooler()
 	if pooler == nil {
 		panic("expected pooler")
 	}
 
 	p := &Pool{
-		options: options,
-		pooler:  pooler,
+		config: config,
+		pooler: pooler,
 
 		closed:  make(chan struct{}),
 		pending: make(chan struct{}, 1),
@@ -79,7 +79,7 @@ func (T *Pool) idlest() (server *pooledServer, at time.Time) {
 }
 
 func (T *Pool) Credentials() auth.Credentials {
-	return T.options.Credentials
+	return T.config.Credentials
 }
 
 func (T *Pool) AddRecipe(name string, r *Recipe) {
@@ -103,7 +103,7 @@ func (T *Pool) AddRecipe(name string, r *Recipe) {
 	count := r.AllocateInitial()
 	for i := 0; i < count; i++ {
 		if err := T.scaleUpL1(name, r); err != nil {
-			T.options.Logger.Warn("failed to dial server", zap.Error(err))
+			T.config.Logger.Warn("failed to dial server", zap.Error(err))
 			for j := i; j < count; j++ {
 				r.Free()
 			}
@@ -169,7 +169,7 @@ func (T *Pool) scaleUpL1(name string, r *Recipe) error {
 		}
 
 		server := newServer(
-			T.options,
+			T.config,
 			name,
 			conn,
 			backendKey,
@@ -207,7 +207,7 @@ func (T *Pool) scaleUp() bool {
 
 	err := T.scaleUpL1(name, r)
 	if err != nil {
-		T.options.Logger.Warn("failed to dial server", zap.Error(err))
+		T.config.Logger.Warn("failed to dial server", zap.Error(err))
 		return false
 	}
 
@@ -265,10 +265,10 @@ func (T *Pool) acquireServer(client *pooledClient) *pooledServer {
 }
 
 func (T *Pool) releaseServer(server *pooledServer) {
-	if T.options.ServerResetQuery != "" {
+	if T.config.ServerResetQuery != "" {
 		server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
 
-		err, _, _ := backends.QueryString(server.GetReadWriter(), nil, nil, T.options.ServerResetQuery)
+		err, _, _ := backends.QueryString(server.GetReadWriter(), nil, nil, T.config.ServerResetQuery)
 		if err != nil {
 			T.removeServer(server)
 			return
@@ -289,7 +289,7 @@ func (T *Pool) Serve(
 	}()
 
 	client := newClient(
-		T.options,
+		T.config,
 		conn,
 		backendKey,
 	)
@@ -307,7 +307,7 @@ func (T *Pool) ServeBot(
 	}()
 
 	client := newClient(
-		T.options,
+		T.config,
 		conn,
 		[8]byte{},
 	)
@@ -339,7 +339,7 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 	if !initialized {
 		server = T.acquireServer(client)
 
-		err, serverErr = pair(T.options, client, server)
+		err, serverErr = pair(T.config, client, server)
 		if serverErr != nil {
 			return serverErr
 		}
@@ -356,7 +356,7 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 	}
 
 	for {
-		if server != nil && T.options.ReleaseAfterTransaction {
+		if server != nil && T.config.ReleaseAfterTransaction {
 			client.SetState(metrics.ConnStateIdle, uuid.Nil)
 			T.releaseServer(server)
 			server = nil
@@ -370,7 +370,7 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 		if server == nil {
 			server = T.acquireServer(client)
 
-			err, serverErr = pair(T.options, client, server)
+			err, serverErr = pair(T.config, client, server)
 		}
 		if err == nil && serverErr == nil {
 			packet, err, serverErr = bouncers.Bounce(client.GetReadWriter(), server.GetReadWriter(), packet)

@@ -1,6 +1,6 @@
 package recipe
 
-type Options struct {
+type Config struct {
 	Dialer Dialer
 
 	MinConnections int

@@ -21,7 +21,7 @@ const (
 	ParameterStatusSyncDynamic
 )
 
-type PoolingOptions struct {
+type PoolingConfig struct {
 	NewPooler func() Pooler
 	// ReleaseAfterTransaction toggles whether servers should be released and re acquired after each transaction.
 	// Use false for lower latency
@@ -37,7 +37,7 @@ type PoolingOptions struct {
 	ExtendedQuerySync bool
 }
 
-type ManagementOptions struct {
+type ManagementConfig struct {
 	ServerResetQuery string `json:"server_reset_query,omitempty"`
 	// ServerIdleTimeout defines how long a server may be idle before it is disconnected
 	ServerIdleTimeout dur.Duration `json:"server_idle_timeout,omitempty"`
@@ -53,12 +53,12 @@ type ManagementOptions struct {
 	TrackedParameters []strutil.CIString `json:"tracked_parameters,omitempty"`
 }
 
-type Options struct {
+type Config struct {
 	Credentials auth.Credentials
 
-	PoolingOptions
+	PoolingConfig
 
-	ManagementOptions
+	ManagementConfig
 
 	Logger *zap.Logger
 }

@@ -9,7 +9,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
 )
 
-var PoolingOptions = pool.PoolingOptions{
+var PoolingOptions = pool.PoolingConfig{
 	NewPooler:               NewPooler,
 	ReleaseAfterTransaction: true,
 	ParameterStatusSync:     pool.ParameterStatusSyncDynamic,
@@ -21,7 +21,7 @@ func init() {
 }
 
 type Pool struct {
-	pool.ManagementOptions
+	pool.ManagementConfig
 
 	log *zap.Logger
 }
@@ -41,12 +41,12 @@ func (T *Pool) Provision(ctx caddy.Context) error {
 }
 
 func (T *Pool) NewPool(creds auth.Credentials) *gat.Pool {
-	return pool.NewPool(pool.Options{
+	return pool.NewPool(pool.Config{
 		Credentials: creds,
 
-		PoolingOptions: PoolingOptions,
+		PoolingConfig: PoolingOptions,
 
-		ManagementOptions: T.ManagementOptions,
+		ManagementConfig: T.ManagementConfig,
 
 		Logger: T.log,
 	})
