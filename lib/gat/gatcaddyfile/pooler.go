@@ -27,29 +27,89 @@ var defaultPoolManagementConfig = pool.ManagementConfig{
 	},
 }
 
+func unmarshalPoolConfig(d *caddyfile.Dispenser) (pool.ManagementConfig, error) {
+	var config = defaultPoolManagementConfig
+
+	if !d.NextBlock(d.Nesting()) {
+		return config, nil
+	}
+
+	config.TrackedParameters = nil
+
+	for {
+		if d.Val() == "}" {
+			break
+		}
+
+		directive := d.Val()
+		switch directive {
+		case "idle_timeout":
+			if !d.NextArg() {
+				return config, d.ArgErr()
+			}
+
+			val, err := time.ParseDuration(d.Val())
+			if err != nil {
+				return config, d.WrapErr(err)
+			}
+			config.ServerIdleTimeout = dur.Duration(val)
+		case "reconnect":
+			if !d.NextArg() {
+				return config, d.ArgErr()
+			}
+
+			initialTime, err := time.ParseDuration(d.Val())
+			if err != nil {
+				return config, d.WrapErr(err)
+			}
+
+			maxTime := initialTime
+			if d.NextArg() {
+				maxTime, err = time.ParseDuration(d.Val())
+				if err != nil {
+					return config, d.WrapErr(err)
+				}
+			}
+
+			config.ServerReconnectInitialTime = dur.Duration(initialTime)
+			config.ServerReconnectMaxTime = dur.Duration(maxTime)
+		case "track":
+			if !d.NextArg() {
+				return config, d.ArgErr()
+			}
+
+			config.TrackedParameters = append(config.TrackedParameters, strutil.MakeCIString(d.Val()))
+		default:
+			return config, d.ArgErr()
+		}
+
+		if !d.NextLine() {
+			return config, d.EOFErr()
+		}
+	}
+
+	return config, nil
+}
+
 func init() {
 	RegisterDirective(Pooler, "transaction", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
-		module := transaction.Pool{
-			ManagementConfig: defaultPoolManagementConfig,
+		config, err := unmarshalPoolConfig(d)
+		if err != nil {
+			return nil, err
 		}
 
-		if !d.NextBlock(d.Nesting()) {
-			return &module, nil
-		}
-
-		// TODO(garet)
-		panic("TODO(garet)")
+		return &transaction.Pool{
+			ManagementConfig: config,
+		}, nil
 	})
 	RegisterDirective(Pooler, "session", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
-		module := session.Pool{
-			ManagementConfig: defaultPoolManagementConfig,
+		config, err := unmarshalPoolConfig(d)
+		if err != nil {
+			return nil, err
 		}
 
-		if !d.NextBlock(d.Nesting()) {
-			return &module, nil
-		}
-
-		// TODO(garet)
-		panic("TODO(garet)")
+		return &session.Pool{
+			ManagementConfig: config,
+		}, nil
 	})
 }

@@ -235,6 +235,8 @@ func init() {
 						module.ServerStartupParameters = make(map[string]string)
 					}
 					module.ServerStartupParameters[key] = value
+				default:
+					return nil, d.ArgErr()
 				}
 
 				if !d.NextLine() {
