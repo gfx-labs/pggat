@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
@@ -9,44 +8,38 @@ import (
 	caddycmd "github.com/caddyserver/caddy/v2/cmd"
 
 	"gfx.cafe/gfx/pggat/lib/gat"
-	"gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer_spilo"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
+
+	"gfx.cafe/util/go/gun"
 )
 
 func init() {
 	caddycmd.RegisterCommand(caddycmd.Command{
-		Name:  "pgbouncer",
-		Usage: "<config file>",
-		Short: "Runs in pgbouncer compatibility mode",
-		Func:  runPgbouncer,
+		Name:  "pgbouncer-spilo",
+		Short: "Runs in pgbouncer-spilo compatibility mode",
+		Func:  runPgbouncerSpilo,
 	})
 }
 
-func runPgbouncer(flags caddycmd.Flags) (int, error) {
+func runPgbouncerSpilo(flags caddycmd.Flags) (int, error) {
 	caddy.TrapSignals()
 
-	file := flags.Arg(0)
-	if file == "" {
-		return caddy.ExitCodeFailedStartup, errors.New("usage: pgbouncer <config file>")
-	}
-
-	config, err := pgbouncer.Load(file)
-	if err != nil {
-		return caddy.ExitCodeFailedStartup, err
-	}
+	var config pgbouncer_spilo.Config
+	gun.Load(&config)
 
 	var pggat gat.Config
-	pggat.StatLogPeriod = dur.Duration(time.Second)
+	pggat.StatLogPeriod = dur.Duration(1 * time.Minute)
 
 	var server gat.ServerConfig
 	server.Listen = config.Listen()
 	server.Routes = append(server.Routes, gat.RouteConfig{
 		Handle: caddyconfig.JSONModuleObject(
-			pgbouncer.Module{
-				ConfigFile: file,
+			pgbouncer_spilo.Module{
+				Config: config,
 			},
 			"handler",
-			"pgbouncer",
+			"pgbouncer_spilo",
 			nil,
 		),
 	})
@@ -58,7 +51,7 @@ func runPgbouncer(flags caddycmd.Flags) (int, error) {
 		},
 	}
 
-	if err = caddy.Run(&caddyConfig); err != nil {
+	if err := caddy.Run(&caddyConfig); err != nil {
 		return caddy.ExitCodeFailedStartup, err
 	}
 

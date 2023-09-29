@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	gfx.cafe/ghalliday1/scram v0.0.2
+	gfx.cafe/util/go/gun v0.0.0-20230721185457-c559e86c829c
 	github.com/caddyserver/caddy/v2 v2.7.4
 	github.com/digitalocean/godo v1.102.1
 	github.com/google/uuid v1.3.0
@@ -22,6 +23,8 @@ require (
 	github.com/caddyserver/certmagic v0.19.2 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
+	github.com/cristalhq/aconfig v0.18.3 // indirect
+	github.com/cristalhq/aconfig/aconfigdotenv v0.17.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/go-logr/logr v1.2.4 // indirect
@@ -45,6 +48,7 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.4 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/joho/godotenv v1.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect

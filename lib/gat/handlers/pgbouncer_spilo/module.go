@@ -1,4 +1,4 @@
-package zalando
+package pgbouncer_spilo
 
 import (
 	"fmt"
@@ -25,7 +25,7 @@ type Module struct {
 
 func (*Module) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
-		ID: "pggat.handlers.zalando",
+		ID: "pggat.handlers.pgbouncer_spilo",
 		New: func() caddy.Module {
 			return new(Module)
 		},
@@ -38,19 +38,19 @@ func (T *Module) Provision(ctx caddy.Context) error {
 		pgb.Databases = make(map[string]pgbouncer.Database)
 	}
 	pgb.Databases["*"] = pgbouncer.Database{
-		Host:     T.PGHost,
-		Port:     T.PGPort,
-		AuthUser: T.PGUser,
+		Host:     T.Host,
+		Port:     T.Port,
+		AuthUser: T.User,
 	}
 	pgb.PgBouncer.PoolMode = pgbouncer.PoolMode(T.PoolerMode)
 	pgb.PgBouncer.ListenPort = T.PoolerPort
 	pgb.PgBouncer.ListenAddr = "*"
 	pgb.PgBouncer.AuthType = "md5"
 	pgb.PgBouncer.AuthFile = pgbouncer.AuthFile{
-		T.PGUser: T.PGPassword,
+		T.User: T.Password,
 	}
-	pgb.PgBouncer.AdminUsers = []string{T.PGUser}
-	pgb.PgBouncer.AuthQuery = fmt.Sprintf("SELECT * FROM %s.user_lookup($1)", T.PGSchema)
+	pgb.PgBouncer.AdminUsers = []string{T.User}
+	pgb.PgBouncer.AuthQuery = fmt.Sprintf("SELECT * FROM %s.user_lookup($1)", T.Schema)
 	pgb.PgBouncer.LogFile = "/var/log/pgbouncer/pgbouncer.log"
 	pgb.PgBouncer.PidFile = "/var/run/pgbouncer/pgbouncer.pid"
 
