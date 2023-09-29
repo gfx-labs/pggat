@@ -3,6 +3,7 @@ package gatcaddyfile
 import (
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
@@ -11,6 +12,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/matchers"
 	"gfx.cafe/gfx/pggat/lib/gat/ssl/servers/self_signed"
+	"gfx.cafe/gfx/pggat/lib/util/dur"
 )
 
 func init() {
@@ -23,9 +25,45 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 	var config caddy.Config
 	var warnings []caddyconfig.Warning
 
-	var app gat.App
+	app := gat.App{
+		Config: gat.Config{
+			StatLogPeriod: dur.Duration(1 * time.Minute),
+		},
+	}
 
-	for _, block := range blocks {
+	for i, block := range blocks {
+		if i == 0 && len(block.Keys) == 0 {
+			// global options
+			for _, segment := range block.Segments {
+				d := caddyfile.NewDispenser(segment)
+				if !d.Next() {
+					continue
+				}
+				directive := d.Val()
+				switch {
+				case directive == "stat_log_period":
+					if !d.NextArg() {
+						return nil, nil, d.ArgErr()
+					}
+
+					period, err := time.ParseDuration(d.Val())
+					if err != nil {
+						return nil, nil, d.WrapErr(err)
+					}
+
+					app.StatLogPeriod = dur.Duration(period)
+				default:
+					return nil, nil, d.SyntaxErr("global options")
+				}
+
+				if d.CountRemainingArgs() > 0 {
+					return nil, nil, d.ArgErr()
+				}
+			}
+
+			continue
+		}
+
 		var server gat.ServerConfig
 
 		server.Listen = make([]gat.ListenerConfig, 0, len(block.Keys))
