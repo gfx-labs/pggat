@@ -9,6 +9,7 @@ import (
 
 	// ssl servers
 	_ "gfx.cafe/gfx/pggat/lib/gat/ssl/servers/self_signed"
+	_ "gfx.cafe/gfx/pggat/lib/gat/ssl/servers/x509_key_pair"
 
 	// ssl clients
 	_ "gfx.cafe/gfx/pggat/lib/gat/ssl/clients/insecure_skip_verify"

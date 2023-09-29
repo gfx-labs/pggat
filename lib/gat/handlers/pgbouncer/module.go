@@ -60,9 +60,12 @@ func (*Module) CaddyModule() caddy.ModuleInfo {
 func (T *Module) Provision(ctx caddy.Context) error {
 	T.log = ctx.Logger()
 
-	var err error
-	T.Config, err = Load(T.ConfigFile)
-	return err
+	if T.ConfigFile != "" {
+		var err error
+		T.Config, err = Load(T.ConfigFile)
+		return err
+	}
+	return nil
 }
 
 func (T *Module) Cleanup() error {

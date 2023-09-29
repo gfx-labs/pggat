@@ -1,7 +1,16 @@
 package pgbouncer
 
 import (
+	"encoding/json"
+	"net"
+	"strconv"
+	"strings"
+
+	"github.com/caddyserver/caddy/v2/caddyconfig"
+
 	"gfx.cafe/gfx/pggat/lib/bouncer"
+	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/ssl/servers/x509_key_pair"
 	"gfx.cafe/gfx/pggat/lib/util/encoding/ini"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
@@ -238,4 +247,50 @@ func Load(config string) (Config, error) {
 	var c = Default
 	err = ini.Unmarshal(conf, &c)
 	return c, err
+}
+
+func (T Config) Listen() []gat.ListenerConfig {
+	var ssl json.RawMessage
+	if T.PgBouncer.ClientTLSCertFile != "" && T.PgBouncer.ClientTLSKeyFile != "" {
+		ssl = caddyconfig.JSONModuleObject(
+			x509_key_pair.Server{
+				CertFile: T.PgBouncer.ClientTLSCertFile,
+				KeyFile:  T.PgBouncer.ClientTLSKeyFile,
+			},
+			"provider",
+			"x509_key_pair",
+			nil,
+		)
+	}
+
+	var listeners []gat.ListenerConfig
+
+	if T.PgBouncer.ListenAddr != "" {
+		listenAddr := T.PgBouncer.ListenAddr
+		if listenAddr == "*" {
+			listenAddr = ""
+		}
+
+		listen := net.JoinHostPort(listenAddr, strconv.Itoa(T.PgBouncer.ListenPort))
+
+		listeners = append(listeners, gat.ListenerConfig{
+			Address: listen,
+		})
+	}
+
+	// listen on unix socket
+	dir := T.PgBouncer.UnixSocketDir
+	port := T.PgBouncer.ListenPort
+
+	if !strings.HasSuffix(dir, "/") {
+		dir = dir + "/"
+	}
+	dir = dir + ".s.PGSQL." + strconv.Itoa(port)
+
+	listeners = append(listeners, gat.ListenerConfig{
+		Address: dir,
+		SSL:     ssl,
+	})
+
+	return listeners
 }
