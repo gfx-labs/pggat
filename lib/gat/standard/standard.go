@@ -17,7 +17,7 @@ import (
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/allowed_startup_parameters"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/require_ssl"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_database"
-	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_parameters"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_parameter"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_password"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_user"
 

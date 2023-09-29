@@ -2,7 +2,6 @@ package gatcaddyfile
 
 import (
 	"encoding/json"
-	"log"
 	"strings"
 
 	"github.com/caddyserver/caddy/v2"
@@ -66,15 +65,10 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 						&warnings,
 					)
 				} else {
-					unmarshaller, ok := sslServers[d.Val()]
-					if !ok {
-						return nil, nil, d.Errf(`unknown ssl server "%s"`, d.Val())
-					}
-
 					var err error
-					val, err = unmarshaller.JSONModuleObject(
+					val, err = UnmarshalDirectiveJSONModuleObject(
 						d,
-						"pggat.ssl.servers",
+						SSLServer,
 						"provider",
 						&warnings,
 					)
@@ -105,25 +99,56 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 				// read named matcher
 				if d.NextArg() {
 					// inline
+					var err error
+					matcher, err = UnmarshalDirectiveJSONModuleObject(
+						d,
+						Matcher,
+						"matcher",
+						&warnings,
+					)
+					if err != nil {
+						return nil, nil, err
+					}
 				} else {
 					// block
 					if !d.NextBlock(0) {
 						return nil, nil, d.ArgErr()
 					}
 
+					var and matchers.And
+
 					for {
 						if d.Val() == "}" {
 							break
 						}
 
-						log.Println(d.Val())
-						for d.NextArg() {
-							log.Println(d.Val())
+						cond, err := UnmarshalDirectiveJSONModuleObject(
+							d,
+							Matcher,
+							"matcher",
+							&warnings,
+						)
+						if err != nil {
+							return nil, nil, err
 						}
+						and.And = append(and.And, cond)
 
 						if !d.NextLine() {
 							return nil, nil, d.EOFErr()
 						}
+					}
+
+					if len(and.And) == 0 {
+						matcher = nil
+					} else if len(and.And) == 1 {
+						matcher = and.And[0]
+					} else {
+						matcher = caddyconfig.JSONModuleObject(
+							and,
+							Matcher,
+							"matcher",
+							&warnings,
+						)
 					}
 				}
 
@@ -136,7 +161,7 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 				}
 				namedMatchers[name] = matcher
 			default:
-				unmarshaller, ok := handlers[d.Val()]
+				unmarshaller, ok := LookupDirective(Handler, d.Val())
 				if !ok {
 					return nil, nil, d.Errf(`unknown handler "%s"`, d.Val())
 				}
@@ -169,7 +194,7 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 				var err error
 				route.Handle, err = unmarshaller.JSONModuleObject(
 					d,
-					"pggat.handlers",
+					Handler,
 					"handler",
 					&warnings,
 				)

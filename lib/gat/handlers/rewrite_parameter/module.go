@@ -1,4 +1,4 @@
-package rewrite_parameters
+package rewrite_parameter
 
 import (
 	"github.com/caddyserver/caddy/v2"
@@ -13,42 +13,27 @@ func init() {
 }
 
 type Module struct {
-	Parameters map[string]string `json:"parameters"`
-
-	parameters map[strutil.CIString]string
+	Key   strutil.CIString `json:"key"`
+	Value string           `json:"value"`
 }
 
 func (T *Module) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
-		ID: "pggat.handlers.rewrite_parameters",
+		ID: "pggat.handlers.rewrite_parameter",
 		New: func() caddy.Module {
 			return new(Module)
 		},
 	}
 }
 
-func (T *Module) Provision(ctx caddy.Context) error {
-	T.parameters = make(map[strutil.CIString]string, len(T.Parameters))
-
-	for key, value := range T.Parameters {
-		T.parameters[strutil.MakeCIString(key)] = value
-	}
-
-	return nil
-}
-
 func (T *Module) Handle(conn *fed.Conn) error {
 	if conn.InitialParameters == nil {
 		conn.InitialParameters = make(map[strutil.CIString]string)
 	}
-
-	for key, value := range T.parameters {
-		conn.InitialParameters[key] = value
-	}
+	conn.InitialParameters[T.Key] = T.Value
 
 	return nil
 }
 
 var _ gat.Handler = (*Module)(nil)
 var _ caddy.Module = (*Module)(nil)
-var _ caddy.Provisioner = (*Module)(nil)
