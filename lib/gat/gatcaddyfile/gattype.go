@@ -100,29 +100,41 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 					return nil, nil, d.Errf(`duplicate named matcher "%s"`, name)
 				}
 
+				var matcher json.RawMessage
+
 				// read named matcher
-				if !d.NextBlock(0) {
-					return nil, nil, d.ArgErr()
-				}
-
-				for {
-					if d.Val() == "}" {
-						break
+				if d.NextArg() {
+					// inline
+				} else {
+					// block
+					if !d.NextBlock(0) {
+						return nil, nil, d.ArgErr()
 					}
 
-					log.Println(d.Val())
-					for d.NextArg() {
+					for {
+						if d.Val() == "}" {
+							break
+						}
+
 						log.Println(d.Val())
-					}
+						for d.NextArg() {
+							log.Println(d.Val())
+						}
 
-					if !d.NextLine() {
-						return nil, nil, d.EOFErr()
+						if !d.NextLine() {
+							return nil, nil, d.EOFErr()
+						}
 					}
 				}
 
 				if d.CountRemainingArgs() > 0 {
 					return nil, nil, d.ArgErr()
 				}
+
+				if namedMatchers == nil {
+					namedMatchers = make(map[string]json.RawMessage)
+				}
+				namedMatchers[name] = matcher
 			default:
 				unmarshaller, ok := handlers[d.Val()]
 				if !ok {
