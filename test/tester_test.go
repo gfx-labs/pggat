@@ -9,11 +9,6 @@ import (
 	"strconv"
 	"testing"
 
-	"gfx.cafe/gfx/pggat/lib/gat/modules/net_listener"
-	"gfx.cafe/gfx/pggat/lib/gat/modules/raw_pools"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/pools/session"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/pools/transaction"
-
 	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
