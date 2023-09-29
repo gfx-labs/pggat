@@ -7,6 +7,7 @@ require (
 	github.com/caddyserver/caddy/v2 v2.7.4
 	github.com/digitalocean/godo v1.102.1
 	github.com/google/uuid v1.3.0
+	github.com/libp2p/go-reuseport v0.4.0
 	github.com/zalando/postgres-operator v1.8.2
 	go.uber.org/zap v1.25.0
 	google.golang.org/api v0.126.0

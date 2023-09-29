@@ -186,6 +186,8 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 							"database",
 							&warnings,
 						)
+					case matcher == "*":
+						route.Match = nil // wildcard
 					default:
 						d.Prev()
 					}

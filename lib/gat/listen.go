@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/caddyserver/caddy/v2"
+	"github.com/libp2p/go-reuseport"
 	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
@@ -53,7 +54,7 @@ func (T *Listener) Provision(ctx caddy.Context) error {
 
 func (T *Listener) Start() error {
 	var err error
-	T.listener, err = net.Listen(T.Network, T.Address)
+	T.listener, err = reuseport.Listen(T.Network, T.Address)
 	if err != nil {
 		return err
 	}
