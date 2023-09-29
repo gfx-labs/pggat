@@ -7,6 +7,7 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 
 	"gfx.cafe/gfx/pggat/lib/gat/matchers"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 func MatcherFromConnectionStrings(strs []string, warnings *[]caddyconfig.Warning) json.RawMessage {
@@ -47,9 +48,9 @@ func MatcherFromConnectionString(str string, warnings *[]caddyconfig.Warning) js
 	var and matchers.And
 
 	var parametersString string
-	str, parametersString, _ = strings.Cut(str, "?")
+	str, parametersString, _ = strutil.CutRight(str, "?")
 
-	if parametersString != "" {
+	if parametersString != "" && parametersString != "*" {
 		var parameters matchers.StartupParameters
 		parameters.Parameters = make(map[string]string)
 		kvs := strings.Split(parametersString, "&")
@@ -69,8 +70,8 @@ func MatcherFromConnectionString(str string, warnings *[]caddyconfig.Warning) js
 	}
 
 	var database matchers.Database
-	str, database.Database, _ = strings.Cut(str, "/")
-	if database.Database != "" {
+	str, database.Database, _ = strutil.CutRight(str, "/")
+	if database.Database != "" && database.Database != "*" {
 		and.And = append(
 			and.And,
 			caddyconfig.JSONModuleObject(
@@ -82,16 +83,10 @@ func MatcherFromConnectionString(str string, warnings *[]caddyconfig.Warning) js
 		)
 	}
 
-	var address = matchers.LocalAddress{
-		Network: "tcp",
-	}
+	var address matchers.LocalAddress
 	var user matchers.User
-	var ok bool
-	user.User, address.Address, ok = strings.Cut(str, "@")
-	if !ok {
-		address.Address = user.User
-		user.User = ""
-	} else if user.User != "" {
+	user.User, address.Address, _ = strutil.CutLeft(str, "@")
+	if user.User != "" && user.User != "*" {
 		and.And = append(
 			and.And,
 			caddyconfig.JSONModuleObject(
@@ -102,7 +97,12 @@ func MatcherFromConnectionString(str string, warnings *[]caddyconfig.Warning) js
 			),
 		)
 	}
-	if address.Address != "" {
+	if address.Address != "" && address.Address != "*" {
+		if strings.HasPrefix(address.Address, "/") {
+			address.Network = "unix"
+		} else {
+			address.Network = "tcp"
+		}
 		and.And = append(
 			and.And,
 			caddyconfig.JSONModuleObject(

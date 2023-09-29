@@ -1,4 +1,4 @@
-package module
+package allowed_startup_parameters
 
 import (
 	"fmt"
