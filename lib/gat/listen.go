@@ -14,7 +14,7 @@ import (
 type ListenerConfig struct {
 	Network string          `json:"network"`
 	Address string          `json:"address"`
-	SSL     json.RawMessage `json:"ssl" caddy:"namespace=pggat.ssl.servers inline_key=provider"`
+	SSL     json.RawMessage `json:"ssl,omitempty" caddy:"namespace=pggat.ssl.servers inline_key=provider"`
 }
 
 type Listener struct {

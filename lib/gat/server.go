@@ -1,14 +1,16 @@
 package gat
 
 import (
-	"encoding/json"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 
 	"github.com/caddyserver/caddy/v2"
 	"go.uber.org/zap"
 
+	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
@@ -16,14 +18,14 @@ import (
 )
 
 type ServerConfig struct {
-	Match  json.RawMessage `json:"match,omitempty" caddy:"namespace=pggat.matchers inline_key=matcher"`
-	Routes []RouteConfig   `json:"routes,omitempty"`
+	Listen []ListenerConfig `json:"listen,omitempty"`
+	Routes []RouteConfig    `json:"routes,omitempty"`
 }
 
 type Server struct {
 	ServerConfig
 
-	match               Matcher
+	listen              []*Listener
 	routes              []*Route
 	cancellableHandlers []CancellableHandler
 	metricsHandlers     []MetricsHandler
@@ -34,12 +36,15 @@ type Server struct {
 func (T *Server) Provision(ctx caddy.Context) error {
 	T.log = ctx.Logger()
 
-	if T.Match != nil {
-		val, err := ctx.LoadModule(T, "Match")
-		if err != nil {
-			return fmt.Errorf("loading matcher module: %v", err)
+	T.listen = make([]*Listener, 0, len(T.Listen))
+	for _, config := range T.Listen {
+		listener := &Listener{
+			ListenerConfig: config,
 		}
-		T.match = val.(Matcher)
+		if err := listener.Provision(ctx); err != nil {
+			return err
+		}
+		T.listen = append(T.listen, listener)
 	}
 
 	T.routes = make([]*Route, 0, len(T.Routes))
@@ -57,6 +62,34 @@ func (T *Server) Provision(ctx caddy.Context) error {
 			T.metricsHandlers = append(T.metricsHandlers, metricsHandler)
 		}
 		T.routes = append(T.routes, route)
+	}
+
+	return nil
+}
+
+func (T *Server) Start() error {
+	for _, listener := range T.listen {
+		if err := listener.Start(); err != nil {
+			return err
+		}
+
+		go func(listener *Listener) {
+			for {
+				if !T.acceptFrom(listener) {
+					break
+				}
+			}
+		}(listener)
+	}
+
+	return nil
+}
+
+func (T *Server) Stop() error {
+	for _, listen := range T.listen {
+		if err := listen.Stop(); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -108,6 +141,47 @@ func (T *Server) Serve(conn *fed.Conn) {
 	}
 	_ = conn.WritePacket(errResp.IntoPacket(nil))
 	T.log.Warn("database not found", zap.String("user", conn.User), zap.String("database", conn.Database))
+}
+
+func (T *Server) accept(listener *Listener, conn *fed.Conn) {
+	defer func() {
+		_ = conn.Close()
+	}()
+
+	var tlsConfig *tls.Config
+	if listener.ssl != nil {
+		tlsConfig = listener.ssl.ServerTLSConfig()
+	}
+
+	var cancelKey [8]byte
+	var isCanceling bool
+	var err error
+	cancelKey, isCanceling, err = frontends.Accept(conn, tlsConfig)
+	if err != nil {
+		T.log.Warn("error accepting client", zap.Error(err))
+		return
+	}
+
+	if isCanceling {
+		T.Cancel(cancelKey)
+		return
+	}
+
+	T.Serve(conn)
+}
+
+func (T *Server) acceptFrom(listener *Listener) bool {
+	conn, err := listener.accept()
+	if err != nil {
+		if errors.Is(err, net.ErrClosed) {
+			return false
+		}
+		T.log.Warn("error accepting client", zap.Error(err))
+		return true
+	}
+
+	go T.accept(listener, conn)
+	return true
 }
 
 var _ caddy.Provisioner = (*Server)(nil)
