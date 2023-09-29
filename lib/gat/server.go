@@ -173,8 +173,11 @@ func (T *Server) accept(listener *Listener, conn *fed.Conn) {
 func (T *Server) acceptFrom(listener *Listener) bool {
 	conn, err := listener.accept()
 	if err != nil {
-		if errors.Is(err, net.ErrClosed) {
-			return false
+		if netErr, ok := err.(*net.OpError); ok {
+			// why can't they just expose this error
+			if netErr.Err.Error() == "listener 'closed' 😉" {
+				return false
+			}
 		}
 		T.log.Warn("error accepting client", zap.Error(err))
 		return true

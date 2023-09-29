@@ -1,19 +1,18 @@
 package gat
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
 
 	"github.com/caddyserver/caddy/v2"
-	"github.com/libp2p/go-reuseport"
 	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
 )
 
 type ListenerConfig struct {
-	Network string          `json:"network"`
 	Address string          `json:"address"`
 	SSL     json.RawMessage `json:"ssl,omitempty" caddy:"namespace=pggat.ssl.servers inline_key=provider"`
 }
@@ -21,7 +20,8 @@ type ListenerConfig struct {
 type Listener struct {
 	ListenerConfig
 
-	ssl SSLServer
+	networkAddress caddy.NetworkAddress
+	ssl            SSLServer
 
 	listener net.Listener
 
@@ -41,8 +41,15 @@ func (T *Listener) accept() (*fed.Conn, error) {
 func (T *Listener) Provision(ctx caddy.Context) error {
 	T.log = ctx.Logger()
 
+	var err error
+	T.networkAddress, err = caddy.ParseNetworkAddressWithDefaults(T.Address, "tcp", 5432)
+	if err != nil {
+		return fmt.Errorf("parsing address: %v", err)
+	}
+
 	if T.SSL != nil {
-		val, err := ctx.LoadModule(T, "SSL")
+		var val any
+		val, err = ctx.LoadModule(T, "SSL")
 		if err != nil {
 			return fmt.Errorf("loading ssl module: %v", err)
 		}
@@ -53,11 +60,11 @@ func (T *Listener) Provision(ctx caddy.Context) error {
 }
 
 func (T *Listener) Start() error {
-	var err error
-	T.listener, err = reuseport.Listen(T.Network, T.Address)
+	listener, err := T.networkAddress.Listen(context.Background(), 0, net.ListenConfig{})
 	if err != nil {
 		return err
 	}
+	T.listener = listener.(net.Listener)
 
 	T.log.Info("listening", zap.String("address", T.listener.Addr().String()))
 

@@ -68,17 +68,8 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 
 		server.Listen = make([]gat.ListenerConfig, 0, len(block.Keys))
 		for _, key := range block.Keys {
-			var listen gat.ListenerConfig
-			if strings.HasPrefix(key, "/") {
-				listen = gat.ListenerConfig{
-					Network: "unix",
-					Address: key,
-				}
-			} else {
-				listen = gat.ListenerConfig{
-					Network: "tcp",
-					Address: key,
-				}
+			listen := gat.ListenerConfig{
+				Address: key,
 			}
 			server.Listen = append(server.Listen, listen)
 		}
