@@ -45,7 +45,7 @@ func runPgBouncer(flags caddycmd.Flags) (int, error) {
 	server.Routes = append(server.Routes, gat.RouteConfig{
 		Handle: caddyconfig.JSONModuleObject(
 			pgbouncer.Module{
-				Config: config,
+				ConfigFile: file,
 			},
 			"handler",
 			"pgbouncer",

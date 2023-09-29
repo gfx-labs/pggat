@@ -3,6 +3,7 @@ package pgbouncer
 import (
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -17,7 +18,9 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/poolers/session"
 	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
+	"gfx.cafe/gfx/pggat/lib/perror"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
 
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
 	"gfx.cafe/gfx/pggat/lib/gat"
@@ -278,6 +281,48 @@ func (T *Module) lookup(user, database string) *gat.Pool {
 }
 
 func (T *Module) Handle(conn *fed.Conn) error {
+	// check ssl
+	if T.Config.PgBouncer.ClientTLSSSLMode.IsRequired() {
+		var ssl bool
+		netConn, ok := conn.ReadWriteCloser.(*fed.NetConn)
+		if ok {
+			ssl = netConn.SSL()
+		}
+
+		if !ssl {
+			return perror.New(
+				perror.FATAL,
+				perror.InvalidPassword,
+				"SSL is required",
+			)
+		}
+	}
+
+	// check startup parameters
+	for key := range conn.InitialParameters {
+		if slices.Contains([]strutil.CIString{
+			strutil.MakeCIString("client_encoding"),
+			strutil.MakeCIString("datestyle"),
+			strutil.MakeCIString("timezone"),
+			strutil.MakeCIString("standard_conforming_strings"),
+			strutil.MakeCIString("application_name"),
+		}, key) {
+			continue
+		}
+		if slices.Contains(T.Config.PgBouncer.TrackExtraParameters, key) {
+			continue
+		}
+		if slices.Contains(T.Config.PgBouncer.IgnoreStartupParameters, key) {
+			continue
+		}
+
+		return perror.New(
+			perror.FATAL,
+			perror.FeatureNotSupported,
+			fmt.Sprintf(`Startup parameter "%s" is not supported`, key.String()),
+		)
+	}
+
 	p := T.lookup(conn.User, conn.Database)
 	if p == nil {
 		return nil
