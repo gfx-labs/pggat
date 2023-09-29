@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 
 	"github.com/caddyserver/caddy/v2"
 	"go.uber.org/zap"
@@ -41,15 +43,35 @@ func (T *Listener) accept() (*fed.Conn, error) {
 func (T *Listener) Provision(ctx caddy.Context) error {
 	T.log = ctx.Logger()
 
-	var err error
-	T.networkAddress, err = caddy.ParseNetworkAddressWithDefaults(T.Address, "tcp", 5432)
-	if err != nil {
-		return fmt.Errorf("parsing address: %v", err)
+	if strings.HasPrefix(T.Address, "/") {
+		// unix address
+		T.networkAddress = caddy.NetworkAddress{
+			Network: "unix",
+			Host:    T.Address,
+		}
+	} else {
+		// tcp address
+		host, rawPort, ok := strings.Cut(T.Address, ":")
+
+		var port = 5432
+		if ok {
+			var err error
+			port, err = strconv.Atoi(rawPort)
+			if err != nil {
+				return fmt.Errorf("parsing port: %v", err)
+			}
+		}
+
+		T.networkAddress = caddy.NetworkAddress{
+			Network:   "tcp",
+			Host:      host,
+			StartPort: uint(port),
+			EndPort:   uint(port),
+		}
 	}
 
 	if T.SSL != nil {
-		var val any
-		val, err = ctx.LoadModule(T, "SSL")
+		val, err := ctx.LoadModule(T, "SSL")
 		if err != nil {
 			return fmt.Errorf("loading ssl module: %v", err)
 		}
