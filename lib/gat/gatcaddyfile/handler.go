@@ -1,6 +1,8 @@
 package gatcaddyfile
 
 import (
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer_spilo"
+	"strconv"
 	"strings"
 	"time"
 
@@ -242,6 +244,121 @@ func init() {
 				if !d.NextLine() {
 					return nil, d.EOFErr()
 				}
+			}
+		}
+
+		return &module, nil
+	})
+	RegisterDirective(Handler, "pgbouncer_spilo", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
+		module := pgbouncer_spilo.Module{}
+
+		if !d.NextBlock(d.Nesting()) {
+			return nil, d.ArgErr()
+		}
+
+		for {
+			if d.Val() == "}" {
+				break
+			}
+
+			directive := d.Val()
+			switch directive {
+			case "host":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				module.Host = d.Val()
+			case "port":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				var err error
+				module.Port, err = strconv.Atoi(d.Val())
+				if err != nil {
+					return nil, d.WrapErr(err)
+				}
+			case "user":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				module.User = d.Val()
+			case "schema":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				module.Schema = d.Val()
+			case "password":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				module.Password = d.Val()
+			case "mode":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				module.Mode = d.Val()
+			case "default_size":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				var err error
+				module.DefaultSize, err = strconv.Atoi(d.Val())
+				if err != nil {
+					return nil, d.WrapErr(err)
+				}
+			case "min_size":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				var err error
+				module.MinSize, err = strconv.Atoi(d.Val())
+				if err != nil {
+					return nil, d.WrapErr(err)
+				}
+			case "reserve_size":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				var err error
+				module.ReserveSize, err = strconv.Atoi(d.Val())
+				if err != nil {
+					return nil, d.WrapErr(err)
+				}
+			case "max_client_conn":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				var err error
+				module.MaxClientConn, err = strconv.Atoi(d.Val())
+				if err != nil {
+					return nil, d.WrapErr(err)
+				}
+			case "max_db_conn":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				var err error
+				module.MaxDBConn, err = strconv.Atoi(d.Val())
+				if err != nil {
+					return nil, d.WrapErr(err)
+				}
+			default:
+				return nil, d.ArgErr()
+			}
+
+			if !d.NextLine() {
+				return nil, d.EOFErr()
 			}
 		}
 

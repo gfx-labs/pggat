@@ -42,9 +42,7 @@ func (T *Module) Provision(ctx caddy.Context) error {
 		Port:     T.Port,
 		AuthUser: T.User,
 	}
-	pgb.PgBouncer.PoolMode = pgbouncer.PoolMode(T.PoolerMode)
-	pgb.PgBouncer.ListenPort = T.PoolerPort
-	pgb.PgBouncer.ListenAddr = "*"
+	pgb.PgBouncer.PoolMode = pgbouncer.PoolMode(T.Mode)
 	pgb.PgBouncer.AuthType = "md5"
 	pgb.PgBouncer.AuthFile = pgbouncer.AuthFile{
 		T.User: T.Password,
@@ -66,10 +64,10 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	pgb.PgBouncer.LogConnections = 0
 	pgb.PgBouncer.LogDisconnections = 0
 
-	pgb.PgBouncer.DefaultPoolSize = T.PoolerDefaultSize
-	pgb.PgBouncer.ReservePoolSize = T.PoolerReserveSize
-	pgb.PgBouncer.MaxClientConn = T.PoolerMaxClientConn
-	pgb.PgBouncer.MaxDBConnections = T.PoolerMaxDBConn
+	pgb.PgBouncer.DefaultPoolSize = T.DefaultSize
+	pgb.PgBouncer.ReservePoolSize = T.ReserveSize
+	pgb.PgBouncer.MaxClientConn = T.MaxClientConn
+	pgb.PgBouncer.MaxDBConnections = T.MaxDBConn
 	pgb.PgBouncer.IdleTransactionTimeout = 600
 	pgb.PgBouncer.ServerLoginRetry = 5
 
