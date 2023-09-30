@@ -1,0 +1,5 @@
+:5432 {
+	ssl
+
+	discovery zalando_operator {$POSTGRES_OPERATOR_CONFIGURATION_OBJECT}
+}

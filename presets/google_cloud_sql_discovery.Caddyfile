@@ -1,0 +1,5 @@
+:5432 {
+	ssl
+
+	discovery google_cloud_sql {$PGGAT_GC_PROJECT} {$PGGAT_GC_AUTH_USER:pggat} {$PGGAT_GC_AUTH_PASSWORD}
+}

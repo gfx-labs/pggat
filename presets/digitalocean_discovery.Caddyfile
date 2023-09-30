@@ -1,0 +1,5 @@
+:5432 {
+	ssl
+
+	discovery digitalocean {$PGGAT_DO_API_KEY}
+}
