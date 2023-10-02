@@ -125,6 +125,10 @@ func (T *Module) creds(user User) (primary, replica auth.Credentials) {
 }
 
 func (T *Module) added(cluster Cluster) {
+	if prev, ok := T.clusters[cluster.ID]; ok {
+		T.updated(prev, cluster)
+		return
+	}
 	if T.clusters == nil {
 		T.clusters = make(map[string]Cluster)
 	}
@@ -475,8 +479,6 @@ func (T *Module) discoverLoop() {
 			T.added(cluster)
 		case id := <-T.discoverer.Removed():
 			T.removed(id)
-		case next := <-T.discoverer.Updated():
-			T.updated(T.clusters[next.ID], next)
 		case <-reconcile:
 			err := T.reconcile()
 			if err != nil {

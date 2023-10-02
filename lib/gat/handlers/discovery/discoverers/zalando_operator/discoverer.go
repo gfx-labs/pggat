@@ -36,7 +36,6 @@ type Discoverer struct {
 	k8s k8sutil.KubernetesClient
 
 	added   chan discovery.Cluster
-	updated chan discovery.Cluster
 	removed chan string
 
 	done chan struct{}
@@ -107,7 +106,6 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 	)
 
 	T.added = make(chan discovery.Cluster)
-	T.updated = make(chan discovery.Cluster)
 	T.removed = make(chan string)
 
 	_, err = T.informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -131,7 +129,7 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 			if err != nil {
 				return
 			}
-			T.updated <- cluster
+			T.added <- cluster
 		},
 		DeleteFunc: func(obj interface{}) {
 			psql, ok := obj.(*acidv1.Postgresql)
@@ -207,15 +205,25 @@ func (T *Discoverer) postgresqlToCluster(cluster acidv1.Postgresql) (discovery.C
 }
 
 func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
-	return nil, nil
+	clusters, err := T.k8s.Postgresqls(T.Namespace).List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]discovery.Cluster, 0, len(clusters.Items))
+	for _, cluster := range clusters.Items {
+		r, err := T.postgresqlToCluster(cluster)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, r)
+	}
+
+	return res, nil
 }
 
 func (T *Discoverer) Added() <-chan discovery.Cluster {
 	return T.added
-}
-
-func (T *Discoverer) Updated() <-chan discovery.Cluster {
-	return T.updated
 }
 
 func (T *Discoverer) Removed() <-chan string {

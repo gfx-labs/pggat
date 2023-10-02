@@ -100,10 +100,6 @@ func (T *Discoverer) Added() <-chan discovery.Cluster {
 	return nil
 }
 
-func (T *Discoverer) Updated() <-chan discovery.Cluster {
-	return nil
-}
-
 func (T *Discoverer) Removed() <-chan string {
 	return nil
 }
