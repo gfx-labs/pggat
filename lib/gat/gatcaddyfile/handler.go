@@ -1,6 +1,7 @@
 package gatcaddyfile
 
 import (
+	error_handler "gfx.cafe/gfx/pggat/lib/gat/handlers/error"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer_spilo"
 	"strconv"
 	"strings"
@@ -104,6 +105,17 @@ func init() {
 		return &rewrite_parameter.Module{
 			Key:   strutil.MakeCIString(key),
 			Value: value,
+		}, nil
+	})
+	RegisterDirective(Handler, "error", func(d *caddyfile.Dispenser, _ *[]caddyconfig.Warning) (caddy.Module, error) {
+		if !d.NextArg() {
+			return nil, d.ArgErr()
+		}
+
+		message := d.Val()
+
+		return &error_handler.Module{
+			Message: message,
 		}, nil
 	})
 	RegisterDirective(Handler, "pgbouncer", func(d *caddyfile.Dispenser, _ *[]caddyconfig.Warning) (caddy.Module, error) {
