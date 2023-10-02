@@ -17,4 +17,3 @@ COPY --from=GOBUILDER /src/presets /presets
 COPY --from=GOBUILDER /src/caddygat /usr/bin/pggat
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["pggat"]
