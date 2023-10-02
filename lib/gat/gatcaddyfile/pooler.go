@@ -98,7 +98,7 @@ func init() {
 			return nil, err
 		}
 
-		return &transaction.Pool{
+		return &transaction.Module{
 			ManagementConfig: config,
 		}, nil
 	})
@@ -108,7 +108,7 @@ func init() {
 			return nil, err
 		}
 
-		return &session.Pool{
+		return &session.Module{
 			ManagementConfig: config,
 		}, nil
 	})

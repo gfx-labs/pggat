@@ -1,11 +1,13 @@
 package gatcaddyfile
 
 import (
-	error_handler "gfx.cafe/gfx/pggat/lib/gat/handlers/error"
-	"gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer_spilo"
 	"strconv"
 	"strings"
 	"time"
+
+	error_handler "gfx.cafe/gfx/pggat/lib/gat/handlers/error"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer_spilo"
+	pool_handler "gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
@@ -132,7 +134,7 @@ func init() {
 			Config: discovery.Config{
 				ReconcilePeriod: dur.Duration(5 * time.Minute),
 				Pooler: JSONModuleObject(
-					&transaction.Pool{
+					&transaction.Module{
 						ManagementConfig: defaultPoolManagementConfig,
 					},
 					Pooler,
@@ -371,6 +373,143 @@ func init() {
 
 			if !d.NextLine() {
 				return nil, d.EOFErr()
+			}
+		}
+
+		return &module, nil
+	})
+	RegisterDirective(Handler, "pool", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
+		module := pool_handler.Module{
+			Config: pool_handler.Config{
+				Pooler: JSONModuleObject(
+					&transaction.Module{
+						ManagementConfig: defaultPoolManagementConfig,
+					},
+					Pooler,
+					"pooler",
+					warnings,
+				),
+
+				ServerSSLMode: bouncer.SSLModePrefer,
+				ServerSSL: JSONModuleObject(
+					&insecure_skip_verify.Client{},
+					SSLClient,
+					"provider",
+					warnings,
+				),
+			},
+		}
+
+		if d.NextArg() {
+			module.ServerAddress = d.Val()
+
+			if !d.NextArg() {
+				return nil, d.ArgErr()
+			}
+			module.ServerDatabase = d.Val()
+
+			if !d.NextArg() {
+				return nil, d.ArgErr()
+			}
+			module.ServerUsername = d.Val()
+
+			if !d.NextArg() {
+				return nil, d.ArgErr()
+			}
+			module.ServerPassword = d.Val()
+		} else {
+			if !d.NextBlock(d.Nesting()) {
+				return nil, d.ArgErr()
+			}
+
+			for {
+				if d.Val() == "}" {
+					break
+				}
+
+				directive := d.Val()
+				switch directive {
+				case "pooler":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					var err error
+					module.Pooler, err = UnmarshalDirectiveJSONModuleObject(
+						d,
+						Pooler,
+						"pooler",
+						warnings,
+					)
+					if err != nil {
+						return nil, err
+					}
+				case "address":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					module.ServerAddress = d.Val()
+				case "ssl":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					module.ServerSSLMode = bouncer.SSLMode(d.Val())
+
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					var err error
+					module.ServerSSL, err = UnmarshalDirectiveJSONModuleObject(
+						d,
+						SSLClient,
+						"provider",
+						warnings,
+					)
+					if err != nil {
+						return nil, err
+					}
+				case "username":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					module.ServerUsername = d.Val()
+				case "password":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					module.ServerPassword = d.Val()
+				case "database":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					module.ServerDatabase = d.Val()
+				case "parameter":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					keyValue := d.Val()
+					key, value, ok := strings.Cut(keyValue, "=")
+					if !ok {
+						return nil, d.SyntaxErr("key=value")
+					}
+					if module.ServerStartupParameters == nil {
+						module.ServerStartupParameters = make(map[string]string)
+					}
+					module.ServerStartupParameters[key] = value
+				default:
+					return nil, d.ArgErr()
+				}
+
+				if !d.NextLine() {
+					return nil, d.EOFErr()
+				}
 			}
 		}
 

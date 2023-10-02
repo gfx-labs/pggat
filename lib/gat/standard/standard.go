@@ -27,6 +27,7 @@ import (
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer_spilo"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 
 	// discovery
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/digitalocean"

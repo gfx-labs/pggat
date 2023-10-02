@@ -1,6 +1,7 @@
 package test_test
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -9,61 +10,53 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/caddyserver/caddy/v2"
+
 	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
-	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
+	"gfx.cafe/gfx/pggat/lib/gat/poolers/session"
+	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
 	"gfx.cafe/gfx/pggat/test"
 	"gfx.cafe/gfx/pggat/test/tests"
 )
 
 func daisyChain(creds auth.Credentials, control recipe.Dialer, n int) (recipe.Dialer, error) {
 	for i := 0; i < n; i++ {
-		var options = pool.Config{
-			Credentials: creds,
+		var server gat.ServerConfig
+
+		l, err := caddy.NetworkAddress{
+			Network: "tcp",
+		}.Listen(context.Background(), 0, net.ListenConfig{})
+		if err != nil {
+			return recipe.Dialer{}, nil
 		}
+		ls := l.(net.Listener)
+		port := ls.Addr().(*net.TCPAddr).Port
+
+		poolConfig := pool.ManagementConfig{}
+		var pooler gat.Pooler
 		if i%2 == 0 {
-			options = transaction.Apply(options)
+			pooler = &transaction.Module{
+				ManagementConfig: poolConfig,
+			}
 		} else {
-			options.ServerResetQuery = "DISCARD ALL"
-			options = session.Apply(options)
+			poolConfig.ServerResetQuery = "DISCARD ALL"
+			pooler = &session.Module{
+				ManagementConfig: poolConfig,
+			}
 		}
 
-		p := pool.NewPool(options)
-		p.AddRecipe("runner", recipe.NewRecipe(recipe.Config{
-			Dialer: control,
-		}))
-
-		m := new(raw_pools.Module)
-		m.Add("runner", "pool", p)
-
-		l := &net_listener.Module{
-			Config: net_listener.Config{
-				Network: "tcp",
-				Address: ":0",
-			},
-		}
-		if err := l.Start(); err != nil {
-			return recipe.Dialer{}, err
-		}
-		port := l.Addr().(*net.TCPAddr).Port
-
-		server := gat.NewServer(m, l)
-
-		if err := server.Start(); err != nil {
-			panic(err)
-		}
+		// TODO(garet) add handler to server that uses pooler and control to connect
 
 		control = recipe.Dialer{
-			Network: "tcp",
-			Address: ":" + strconv.Itoa(port),
-			AcceptOptions: backends.acceptOptions{
-				Username:    "runner",
-				Credentials: creds,
-				Database:    "pool",
-			},
+			Network:     "tcp",
+			Address:     ":" + strconv.Itoa(port),
+			Username:    "runner",
+			Credentials: creds,
+			Database:    "pool",
 		}
 	}
 
@@ -72,16 +65,14 @@ func daisyChain(creds auth.Credentials, control recipe.Dialer, n int) (recipe.Di
 
 func TestTester(t *testing.T) {
 	control := recipe.Dialer{
-		Network: "tcp",
-		Address: "localhost:5432",
-		AcceptOptions: backends.acceptOptions{
+		Network:  "tcp",
+		Address:  "localhost:5432",
+		Username: "postgres",
+		Credentials: credentials.Cleartext{
 			Username: "postgres",
-			Credentials: credentials.Cleartext{
-				Username: "postgres",
-				Password: "password",
-			},
-			Database: "postgres",
+			Password: "password",
 		},
+		Database: "postgres",
 	}
 
 	// generate random password for testing
@@ -141,22 +132,18 @@ func TestTester(t *testing.T) {
 	}
 
 	transactionDialer := recipe.Dialer{
-		Network: "tcp",
-		Address: ":" + strconv.Itoa(port),
-		AcceptOptions: backends.acceptOptions{
-			Username:    "runner",
-			Credentials: creds,
-			Database:    "transaction",
-		},
+		Network:     "tcp",
+		Address:     ":" + strconv.Itoa(port),
+		Username:    "runner",
+		Credentials: creds,
+		Database:    "transaction",
 	}
 	sessionDialer := recipe.Dialer{
-		Network: "tcp",
-		Address: ":" + strconv.Itoa(port),
-		AcceptOptions: backends.acceptOptions{
-			Username:    "runner",
-			Credentials: creds,
-			Database:    "session",
-		},
+		Network:     "tcp",
+		Address:     ":" + strconv.Itoa(port),
+		Username:    "runner",
+		Credentials: creds,
+		Database:    "session",
 	}
 
 	tester := test.NewTester(test.Config{

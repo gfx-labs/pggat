@@ -23,19 +23,19 @@ func TestQuery(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	server := fed.WrapNetConn(s)
-	ctx := backends.acceptContext{
-		Conn: server,
-		Options: backends.acceptOptions{
+	server := fed.NewConn(fed.NewNetConn(s))
+	err = backends.Accept(
+		server,
+		"",
+		nil,
+		"postgres",
+		credentials.Cleartext{
 			Username: "postgres",
-			Credentials: credentials.Cleartext{
-				Username: "postgres",
-				Password: "password",
-			},
-			Database: "postgres",
+			Password: "password",
 		},
-	}
-	_, err = backends.accept(&ctx)
+		"postgres",
+		nil,
+	)
 	if err != nil {
 		t.Error(err)
 		return
@@ -58,7 +58,7 @@ func TestQuery(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	_, clientErr, serverErr := bouncers.Bounce(client, server, initial)
+	_, clientErr, serverErr := bouncers.Bounce(fed.NewConn(client), server, initial)
 	if clientErr != nil {
 		t.Error(clientErr)
 	}

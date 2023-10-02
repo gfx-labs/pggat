@@ -45,7 +45,7 @@ type Module struct {
 	ConfigFile string `json:"config"`
 	Config     Config `json:"-"`
 
-	pools maps.TwoKey[string, string, *gat.Pool]
+	pools maps.TwoKey[string, string, pool.WithCredentials]
 	mu    sync.RWMutex
 
 	log *zap.Logger
@@ -75,7 +75,7 @@ func (T *Module) Cleanup() error {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	T.pools.Range(func(user string, database string, p *gat.Pool) bool {
+	T.pools.Range(func(user string, database string, p pool.WithCredentials) bool {
 		p.Close()
 		T.pools.Delete(user, database)
 		return true
@@ -101,8 +101,8 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 			}
 		}
 
-		authPool := T.lookup(authUser, database)
-		if authPool == nil {
+		authPool, ok := T.lookup(authUser, database)
+		if !ok {
 			return "", false
 		}
 
@@ -135,20 +135,20 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 	return password, true
 }
 
-func (T *Module) tryCreate(user, database string) *gat.Pool {
+func (T *Module) tryCreate(user, database string) (pool.WithCredentials, bool) {
 	db, ok := T.Config.Databases[database]
 	if !ok {
 		// try wildcard
 		db, ok = T.Config.Databases["*"]
 		if !ok {
-			return nil
+			return pool.WithCredentials{}, false
 		}
 	}
 
 	// try to get password
 	password, ok := T.getPassword(user, database)
 	if !ok {
-		return nil
+		return pool.WithCredentials{}, false
 	}
 
 	creds := credentials.FromString(user, password)
@@ -179,7 +179,6 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 	serverLoginRetry := dur.Duration(T.Config.PgBouncer.ServerLoginRetry * float64(time.Second))
 
 	poolOptions := pool.Config{
-		Credentials: creds,
 		ManagementConfig: pool.ManagementConfig{
 			TrackedParameters:          trackedParameters,
 			ServerResetQuery:           T.Config.PgBouncer.ServerResetQuery,
@@ -198,9 +197,12 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 		}
 		poolOptions.PoolingConfig = transaction.PoolingOptions
 	default:
-		return nil
+		return pool.WithCredentials{}, false
 	}
-	p := pool.NewPool(poolOptions)
+	p := pool.WithCredentials{
+		Pool:        pool.NewPool(poolOptions),
+		Credentials: creds,
+	}
 
 	T.mu.Lock()
 	defer T.mu.Unlock()
@@ -267,13 +269,13 @@ func (T *Module) tryCreate(user, database string) *gat.Pool {
 
 	p.AddRecipe("pgbouncer", r)
 
-	return p
+	return p, true
 }
 
-func (T *Module) lookup(user, database string) *gat.Pool {
-	p, _ := T.pools.Load(user, database)
-	if p != nil {
-		return p
+func (T *Module) lookup(user, database string) (pool.WithCredentials, bool) {
+	p, ok := T.pools.Load(user, database)
+	if ok {
+		return p, true
 	}
 
 	// try to create pool
@@ -323,12 +325,12 @@ func (T *Module) Handle(conn *fed.Conn) error {
 		)
 	}
 
-	p := T.lookup(conn.User, conn.Database)
-	if p == nil {
+	p, ok := T.lookup(conn.User, conn.Database)
+	if !ok {
 		return nil
 	}
 
-	if err := frontends.Authenticate(conn, p.Credentials()); err != nil {
+	if err := frontends.Authenticate(conn, p.Credentials); err != nil {
 		return err
 	}
 
@@ -338,7 +340,7 @@ func (T *Module) Handle(conn *fed.Conn) error {
 func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
-	T.pools.Range(func(_ string, _ string, p *gat.Pool) bool {
+	T.pools.Range(func(_ string, _ string, p pool.WithCredentials) bool {
 		p.ReadMetrics(&metrics.Pool)
 		return true
 	})
@@ -347,7 +349,7 @@ func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 func (T *Module) Cancel(key [8]byte) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
-	T.pools.Range(func(_ string, _ string, p *gat.Pool) bool {
+	T.pools.Range(func(_ string, _ string, p pool.WithCredentials) bool {
 		p.Cancel(key)
 		return true
 	})

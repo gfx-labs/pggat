@@ -40,7 +40,7 @@ type Module struct {
 	// this is fine to have no locking because it is only accessed by discoverLoop
 	clusters map[string]Cluster
 
-	pools maps.TwoKey[string, string, *pool.Pool]
+	pools maps.TwoKey[string, string, pool.WithCredentials]
 	mu    sync.RWMutex
 
 	log *zap.Logger
@@ -106,7 +106,7 @@ func (T *Module) Cleanup() error {
 
 	T.mu.Lock()
 	defer T.mu.Unlock()
-	T.pools.Range(func(user string, database string, p *pool.Pool) bool {
+	T.pools.Range(func(user string, database string, p pool.WithCredentials) bool {
 		p.Close()
 		T.pools.Delete(user, database)
 		return true
@@ -232,8 +232,8 @@ func (T *Module) replacePrimary(users []User, databases []string, endpoint Endpo
 				StartupParameters: T.serverStartupParameters,
 			}
 
-			p := T.lookup(user.Username, database)
-			if p == nil {
+			p, ok := T.lookup(user.Username, database)
+			if !ok {
 				continue
 			}
 
@@ -250,7 +250,10 @@ func (T *Module) addReplicas(replicas map[string]Endpoint, users []User, databas
 		replicaUsername := T.replicaUsername(user.Username)
 		primaryCreds, replicaCreds := T.creds(user)
 		for _, database := range databases {
-			replicaPool := T.pooler.NewPool(replicaCreds)
+			replicaPool := pool.WithCredentials{
+				Pool:        T.pooler.NewPool(),
+				Credentials: replicaCreds,
+			}
 
 			for id, r := range replicas {
 				replica := recipe.Dialer{
@@ -287,8 +290,8 @@ func (T *Module) addReplica(users []User, databases []string, id string, endpoin
 		replicaUsername := T.replicaUsername(user.Username)
 		primaryCreds, _ := T.creds(user)
 		for _, database := range databases {
-			p := T.lookup(replicaUsername, database)
-			if p == nil {
+			p, ok := T.lookup(replicaUsername, database)
+			if !ok {
 				continue
 			}
 
@@ -313,8 +316,8 @@ func (T *Module) removeReplica(users []User, databases []string, id string) {
 	for _, user := range users {
 		username := T.replicaUsername(user.Username)
 		for _, database := range databases {
-			p := T.lookup(username, database)
-			if p == nil {
+			p, ok := T.lookup(username, database)
+			if !ok {
 				continue
 			}
 			p.RemoveRecipe(id)
@@ -339,14 +342,20 @@ func (T *Module) addUser(primaryEndpoint Endpoint, replicas map[string]Endpoint,
 		primary.Network = primaryEndpoint.Network
 		primary.Address = primaryEndpoint.Address
 
-		primaryPool := T.pooler.NewPool(primaryCreds)
+		primaryPool := pool.WithCredentials{
+			Pool:        T.pooler.NewPool(),
+			Credentials: primaryCreds,
+		}
 		primaryPool.AddRecipe("primary", recipe.NewRecipe(recipe.Config{
 			Dialer: primary,
 		}))
 		T.addPool(user.Username, database, primaryPool)
 
 		if len(replicas) > 0 {
-			replicaPool := T.pooler.NewPool(replicaCreds)
+			replicaPool := pool.WithCredentials{
+				Pool:        T.pooler.NewPool(),
+				Credentials: replicaCreds,
+			}
 
 			for id, r := range replicas {
 				replica := base
@@ -392,14 +401,20 @@ func (T *Module) addDatabase(primaryEndpoint Endpoint, replicas map[string]Endpo
 		primary.Network = primaryEndpoint.Network
 		primary.Address = primaryEndpoint.Address
 
-		primaryPool := T.pooler.NewPool(primaryCreds)
+		primaryPool := pool.WithCredentials{
+			Pool:        T.pooler.NewPool(),
+			Credentials: primaryCreds,
+		}
 		primaryPool.AddRecipe("primary", recipe.NewRecipe(recipe.Config{
 			Dialer: primary,
 		}))
 		T.addPool(user.Username, database, primaryPool)
 
 		if len(replicas) > 0 {
-			replicaPool := T.pooler.NewPool(replicaCreds)
+			replicaPool := pool.WithCredentials{
+				Pool:        T.pooler.NewPool(),
+				Credentials: replicaCreds,
+			}
 
 			for id, r := range replicas {
 				replica := base
@@ -488,7 +503,7 @@ func (T *Module) discoverLoop() {
 	}
 }
 
-func (T *Module) addPool(user, database string, p *pool.Pool) {
+func (T *Module) addPool(user, database string, p pool.WithCredentials) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 	T.log.Info("added pool", zap.String("user", user), zap.String("database", database))
@@ -514,26 +529,25 @@ func (T *Module) removePool(user, database string) {
 func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
-	T.pools.Range(func(_ string, _ string, p *pool.Pool) bool {
+	T.pools.Range(func(_ string, _ string, p pool.WithCredentials) bool {
 		p.ReadMetrics(&metrics.Pool)
 		return true
 	})
 }
 
-func (T *Module) lookup(user, database string) *gat.Pool {
+func (T *Module) lookup(user, database string) (pool.WithCredentials, bool) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
-	p, _ := T.pools.Load(user, database)
-	return p
+	return T.pools.Load(user, database)
 }
 
 func (T *Module) Handle(conn *fed.Conn) error {
-	p := T.lookup(conn.User, conn.Database)
-	if p == nil {
+	p, ok := T.lookup(conn.User, conn.Database)
+	if !ok {
 		return nil
 	}
 
-	if err := frontends.Authenticate(conn, p.Credentials()); err != nil {
+	if err := frontends.Authenticate(conn, p.Credentials); err != nil {
 		return err
 	}
 
@@ -543,7 +557,7 @@ func (T *Module) Handle(conn *fed.Conn) error {
 func (T *Module) Cancel(key [8]byte) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
-	T.pools.Range(func(_ string, _ string, p *pool.Pool) bool {
+	T.pools.Range(func(_ string, _ string, p pool.WithCredentials) bool {
 		p.Cancel(key)
 		return true
 	})

@@ -4,7 +4,6 @@ import (
 	"github.com/caddyserver/caddy/v2"
 	"go.uber.org/zap"
 
-	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
 )
@@ -17,33 +16,31 @@ var PoolingOptions = pool.PoolingConfig{
 }
 
 func init() {
-	caddy.RegisterModule((*Pool)(nil))
+	caddy.RegisterModule((*Module)(nil))
 }
 
-type Pool struct {
+type Module struct {
 	pool.ManagementConfig
 
 	log *zap.Logger
 }
 
-func (T *Pool) CaddyModule() caddy.ModuleInfo {
+func (T *Module) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
 		ID: "pggat.poolers.session",
 		New: func() caddy.Module {
-			return new(Pool)
+			return new(Module)
 		},
 	}
 }
 
-func (T *Pool) Provision(ctx caddy.Context) error {
+func (T *Module) Provision(ctx caddy.Context) error {
 	T.log = ctx.Logger()
 	return nil
 }
 
-func (T *Pool) NewPool(creds auth.Credentials) *gat.Pool {
+func (T *Module) NewPool() *gat.Pool {
 	return pool.NewPool(pool.Config{
-		Credentials: creds,
-
 		PoolingConfig: PoolingOptions,
 
 		ManagementConfig: T.ManagementConfig,
@@ -52,6 +49,6 @@ func (T *Pool) NewPool(creds auth.Credentials) *gat.Pool {
 	})
 }
 
-var _ gat.Pooler = (*Pool)(nil)
-var _ caddy.Module = (*Pool)(nil)
-var _ caddy.Provisioner = (*Pool)(nil)
+var _ gat.Pooler = (*Module)(nil)
+var _ caddy.Module = (*Module)(nil)
+var _ caddy.Provisioner = (*Module)(nil)

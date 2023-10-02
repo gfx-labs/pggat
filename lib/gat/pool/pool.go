@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/bouncer/bouncers/v2"
 	"gfx.cafe/gfx/pggat/lib/fed"
@@ -76,10 +75,6 @@ func (T *Pool) idlest() (server *pooledServer, at time.Time) {
 	}
 
 	return
-}
-
-func (T *Pool) Credentials() auth.Credentials {
-	return T.config.Credentials
 }
 
 func (T *Pool) AddRecipe(name string, r *Recipe) {

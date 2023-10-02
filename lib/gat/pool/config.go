@@ -3,7 +3,6 @@ package pool
 import (
 	"go.uber.org/zap"
 
-	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
@@ -54,8 +53,6 @@ type ManagementConfig struct {
 }
 
 type Config struct {
-	Credentials auth.Credentials
-
 	PoolingConfig
 
 	ManagementConfig
