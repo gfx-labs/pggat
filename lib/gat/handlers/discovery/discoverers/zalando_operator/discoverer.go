@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/caddyserver/caddy/v2"
 	acidzalando "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do"
@@ -103,7 +102,7 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 	T.informer = acidv1informer.NewPostgresqlInformer(
 		T.k8s.AcidV1ClientSet,
 		T.Namespace,
-		5*time.Minute,
+		0,
 		cache.Indexers{},
 	)
 
