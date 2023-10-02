@@ -1,12 +1,14 @@
 package pool_handler
 
 import (
+	"crypto/tls"
 	"fmt"
 	"strings"
 
 	"github.com/caddyserver/caddy/v2"
 
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
+	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
@@ -40,11 +42,15 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	}
 	pooler := val.(gat.Pooler)
 
-	val, err = ctx.LoadModule(T, "ServerSSL")
-	if err != nil {
-		return fmt.Errorf("loading ssl module: %v", err)
+	var sslConfig *tls.Config
+	if T.ServerSSL != nil {
+		val, err = ctx.LoadModule(T, "ServerSSL")
+		if err != nil {
+			return fmt.Errorf("loading ssl module: %v", err)
+		}
+		ssl := val.(gat.SSLClient)
+		sslConfig = ssl.ClientTLSConfig()
 	}
-	ssl := val.(gat.SSLClient)
 
 	creds := credentials.FromString(T.ServerUsername, T.ServerPassword)
 	startupParameters := make(map[strutil.CIString]string, len(T.ServerStartupParameters))
@@ -63,7 +69,7 @@ func (T *Module) Provision(ctx caddy.Context) error {
 		Network:           network,
 		Address:           T.ServerAddress,
 		SSLMode:           T.ServerSSLMode,
-		SSLConfig:         ssl.ClientTLSConfig(),
+		SSLConfig:         sslConfig,
 		Username:          T.ServerUsername,
 		Credentials:       creds,
 		Database:          T.ServerDatabase,
@@ -84,6 +90,10 @@ func (T *Module) Cleanup() error {
 }
 
 func (T *Module) Handle(conn *fed.Conn) error {
+	if err := frontends.Authenticate(conn, nil); err != nil {
+		return err
+	}
+
 	return T.pool.Serve(conn)
 }
 

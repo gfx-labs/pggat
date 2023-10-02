@@ -11,8 +11,8 @@ type Config struct {
 
 	// Server connect options
 	ServerAddress string          `jsonn:"server_address"`
-	ServerSSLMode bouncer.SSLMode `json:"server_ssl_mode"`
-	ServerSSL     json.RawMessage `json:"server_ssl" caddy:"namespace=pggat.ssl.clients inline_key=provider"`
+	ServerSSLMode bouncer.SSLMode `json:"server_ssl_mode,omitempty"`
+	ServerSSL     json.RawMessage `json:"server_ssl,omitempty" caddy:"namespace=pggat.ssl.clients inline_key=provider"`
 
 	// Server routing options
 	ServerUsername          string            `json:"server_username"`

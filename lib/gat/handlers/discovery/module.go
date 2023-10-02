@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"crypto/tls"
 	"fmt"
 	"sync"
 	"time"
@@ -30,8 +31,8 @@ type Module struct {
 
 	discoverer Discoverer
 
-	pooler gat.Pooler
-	ssl    gat.SSLClient
+	pooler    gat.Pooler
+	sslConfig *tls.Config
 
 	serverStartupParameters map[strutil.CIString]string
 
@@ -77,7 +78,8 @@ func (T *Module) Provision(ctx caddy.Context) error {
 		if err != nil {
 			return fmt.Errorf("loading ssl module: %v", err)
 		}
-		T.ssl = val.(gat.SSLClient)
+		ssl := val.(gat.SSLClient)
+		T.sslConfig = ssl.ClientTLSConfig()
 	}
 	T.serverStartupParameters = make(map[strutil.CIString]string, len(T.ServerStartupParameters))
 	for key, value := range T.ServerStartupParameters {
@@ -228,7 +230,7 @@ func (T *Module) replacePrimary(users []User, databases []string, endpoint Endpo
 				Credentials:       primaryCreds,
 				Database:          database,
 				SSLMode:           T.ServerSSLMode,
-				SSLConfig:         T.ssl.ClientTLSConfig(),
+				SSLConfig:         T.sslConfig,
 				StartupParameters: T.serverStartupParameters,
 			}
 
@@ -263,7 +265,7 @@ func (T *Module) addReplicas(replicas map[string]Endpoint, users []User, databas
 					Credentials:       primaryCreds,
 					Database:          database,
 					SSLMode:           T.ServerSSLMode,
-					SSLConfig:         T.ssl.ClientTLSConfig(),
+					SSLConfig:         T.sslConfig,
 					StartupParameters: T.serverStartupParameters,
 				}
 				replicaPool.AddRecipe(id, recipe.NewRecipe(recipe.Config{
@@ -302,7 +304,7 @@ func (T *Module) addReplica(users []User, databases []string, id string, endpoin
 				Credentials:       primaryCreds,
 				Database:          database,
 				SSLMode:           T.ServerSSLMode,
-				SSLConfig:         T.ssl.ClientTLSConfig(),
+				SSLConfig:         T.sslConfig,
 				StartupParameters: T.serverStartupParameters,
 			}
 			p.AddRecipe(id, recipe.NewRecipe(recipe.Config{
@@ -334,7 +336,7 @@ func (T *Module) addUser(primaryEndpoint Endpoint, replicas map[string]Endpoint,
 			Credentials:       primaryCreds,
 			Database:          database,
 			SSLMode:           T.ServerSSLMode,
-			SSLConfig:         T.ssl.ClientTLSConfig(),
+			SSLConfig:         T.sslConfig,
 			StartupParameters: T.serverStartupParameters,
 		}
 
@@ -393,7 +395,7 @@ func (T *Module) addDatabase(primaryEndpoint Endpoint, replicas map[string]Endpo
 			Credentials:       primaryCreds,
 			Database:          database,
 			SSLMode:           T.ServerSSLMode,
-			SSLConfig:         T.ssl.ClientTLSConfig(),
+			SSLConfig:         T.sslConfig,
 			StartupParameters: T.serverStartupParameters,
 		}
 
