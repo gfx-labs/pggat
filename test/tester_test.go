@@ -2,75 +2,165 @@ package test_test
 
 import (
 	"crypto/rand"
-	"encoding/hex"
+	"encoding/base64"
 	"fmt"
-	"net"
 	_ "net/http/pprof"
 	"strconv"
+	"strings"
 	"testing"
 
-	"gfx.cafe/gfx/pggat/lib/auth"
+	"github.com/caddyserver/caddy/v2"
+	"github.com/caddyserver/caddy/v2/caddyconfig"
+
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
-	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
-	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/gat"
-	"gfx.cafe/gfx/pggat/lib/gat/modules/raw_pools"
+	"gfx.cafe/gfx/pggat/lib/gat/gatcaddyfile"
+	pool_handler "gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_password"
+	"gfx.cafe/gfx/pggat/lib/gat/matchers"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/pools/session"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/pools/transaction"
 	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
+	"gfx.cafe/gfx/pggat/lib/gat/poolers/session"
+	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
 	"gfx.cafe/gfx/pggat/test"
 	"gfx.cafe/gfx/pggat/test/tests"
 )
 
-func daisyChain(creds auth.Credentials, control recipe.Dialer, n int) (recipe.Dialer, error) {
-	for i := 0; i < n; i++ {
-		var server gat.Server
+type dialer struct {
+	Address  string
+	Username string
+	Password string
+	Database string
+}
 
-		var options = pool.Options{
-			Credentials: creds,
-		}
-		if i%2 == 0 {
-			options = transaction.Apply(options)
-		} else {
-			options.ServerResetQuery = "DISCARD ALL"
-			options = session.Apply(options)
-		}
+var nextPort int
 
-		p := pool.NewPool(options)
-		p.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
-			Dialer: control,
-		}))
+func randAddress() string {
+	nextPort++
+	return "/tmp/.s.PGGAT." + strconv.Itoa(nextPort)
+}
 
-		m, err := raw_pools.NewModule()
-		if err != nil {
-			return recipe.Dialer{}, err
-		}
-		m.Add("runner", "pool", p)
-		server.AddModule(m)
+func resolveNetwork(address string) string {
+	if strings.HasPrefix(address, "/") {
+		return "unix"
+	} else {
+		return "tcp"
+	}
+}
 
-		listener, err := server.Listen("tcp", ":0")
-		if err != nil {
-			return recipe.Dialer{}, err
-		}
-		port := listener.Addr().(*net.TCPAddr).Port
+func randPassword() (string, error) {
+	var b [20]byte
+	_, err := rand.Read(b[:])
+	if err != nil {
+		return "", err
+	}
 
-		go func() {
-			err := server.Serve(listener, frontends.AcceptOptions{})
-			if err != nil {
-				panic(err)
-			}
-		}()
+	return base64.StdEncoding.EncodeToString(b[:]), nil
+}
 
-		control = recipe.Dialer{
-			Network: "tcp",
-			Address: ":" + strconv.Itoa(port),
-			AcceptOptions: backends.AcceptOptions{
-				Username:    "runner",
-				Credentials: creds,
-				Database:    "pool",
+func createServer(parent dialer, poolers map[string]caddy.Module) (server gat.ServerConfig, dialers map[string]dialer, err error) {
+	address := randAddress()
+
+	server.Listen = []gat.ListenerConfig{
+		{
+			Address: address,
+		},
+	}
+
+	var password string
+	password, err = randPassword()
+	if err != nil {
+		return
+	}
+
+	server.Routes = append(
+		server.Routes,
+		gat.RouteConfig{
+			Handle: gatcaddyfile.JSONModuleObject(
+				&rewrite_password.Module{
+					Password: password,
+				},
+				gatcaddyfile.Handler,
+				"handler",
+				nil,
+			),
+		},
+	)
+
+	for name, pooler := range poolers {
+		p := pool_handler.Module{
+			Config: pool_handler.Config{
+				Pooler: gatcaddyfile.JSONModuleObject(
+					pooler,
+					gatcaddyfile.Pooler,
+					"pooler",
+					nil,
+				),
+
+				ServerAddress: parent.Address,
+
+				ServerUsername: parent.Username,
+				ServerPassword: parent.Password,
+				ServerDatabase: parent.Database,
 			},
 		}
+
+		server.Routes = append(server.Routes, gat.RouteConfig{
+			Match: gatcaddyfile.JSONModuleObject(
+				&matchers.Database{
+					Database: name,
+				},
+				gatcaddyfile.Matcher,
+				"matcher",
+				nil,
+			),
+			Handle: gatcaddyfile.JSONModuleObject(
+				&p,
+				gatcaddyfile.Handler,
+				"handler",
+				nil,
+			),
+		})
+
+		if dialers == nil {
+			dialers = make(map[string]dialer)
+		}
+		dialers[name] = dialer{
+			Address:  address,
+			Username: "pooler",
+			Password: password,
+			Database: name,
+		}
+	}
+
+	return
+}
+
+func daisyChain(config *gat.Config, control dialer, n int) (dialer, error) {
+	for i := 0; i < n; i++ {
+		poolConfig := pool.ManagementConfig{}
+		var pooler caddy.Module
+		if i%2 == 0 {
+			pooler = &transaction.Module{
+				ManagementConfig: poolConfig,
+			}
+		} else {
+			poolConfig.ServerResetQuery = "DISCARD ALL"
+			pooler = &session.Module{
+				ManagementConfig: poolConfig,
+			}
+		}
+
+		server, dialers, err := createServer(control, map[string]caddy.Module{
+			"pool": pooler,
+		})
+
+		if err != nil {
+			return dialer{}, err
+		}
+
+		control = dialers["pool"]
+		config.Servers = append(config.Servers, server)
 	}
 
 	return control, nil
@@ -78,95 +168,79 @@ func daisyChain(creds auth.Credentials, control recipe.Dialer, n int) (recipe.Di
 
 func TestTester(t *testing.T) {
 	control := recipe.Dialer{
-		Network: "tcp",
-		Address: "localhost:5432",
-		AcceptOptions: backends.AcceptOptions{
+		Network:  "tcp",
+		Address:  "localhost:5432",
+		Username: "postgres",
+		Credentials: credentials.Cleartext{
 			Username: "postgres",
-			Credentials: credentials.Cleartext{
-				Username: "postgres",
-				Password: "password",
-			},
-			Database: "postgres",
+			Password: "password",
 		},
+		Database: "postgres",
 	}
 
-	// generate random password for testing
-	var raw [32]byte
-	_, err := rand.Read(raw[:])
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	password := hex.EncodeToString(raw[:])
-	creds := credentials.Cleartext{
-		Username: "runner",
-		Password: password,
-	}
+	config := gat.Config{}
 
-	parent, err := daisyChain(creds, control, 16)
+	parent, err := daisyChain(&config, dialer{
+		Address:  "localhost:5432",
+		Username: "postgres",
+		Password: "password",
+		Database: "postgres",
+	}, 16)
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	var server gat.Server
-
-	m, err := raw_pools.NewModule()
+	server, dialers, err := createServer(parent, map[string]caddy.Module{
+		"transaction": &transaction.Module{},
+		"session": &session.Module{
+			ManagementConfig: pool.ManagementConfig{
+				ServerResetQuery: "discard all",
+			},
+		},
+	})
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	transactionPool := pool.NewPool(transaction.Apply(pool.Options{
-		Credentials: creds,
-	}))
-	transactionPool.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
-		Dialer: parent,
-	}))
-	m.Add("runner", "transaction", transactionPool)
 
-	sessionPool := pool.NewPool(session.Apply(pool.Options{
-		Credentials:      creds,
-		ServerResetQuery: "discard all",
-	}))
-	sessionPool.AddRecipe("runner", recipe.NewRecipe(recipe.Options{
-		Dialer: parent,
-	}))
-	m.Add("runner", "session", sessionPool)
-
-	server.AddModule(m)
-
-	listener, err := server.Listen("tcp", ":0")
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	port := listener.Addr().(*net.TCPAddr).Port
-
-	go func() {
-		err := server.Serve(listener, frontends.AcceptOptions{})
-		if err != nil {
-			t.Error(err)
-		}
-	}()
+	config.Servers = append(config.Servers, server)
 
 	transactionDialer := recipe.Dialer{
-		Network: "tcp",
-		Address: ":" + strconv.Itoa(port),
-		AcceptOptions: backends.AcceptOptions{
-			Username:    "runner",
-			Credentials: creds,
-			Database:    "transaction",
-		},
+		Network:  resolveNetwork(dialers["transaction"].Address),
+		Address:  dialers["transaction"].Address,
+		Username: dialers["transaction"].Username,
+		Credentials: credentials.FromString(
+			dialers["transaction"].Username,
+			dialers["transaction"].Password,
+		),
+		Database: "transaction",
 	}
 	sessionDialer := recipe.Dialer{
-		Network: "tcp",
-		Address: ":" + strconv.Itoa(port),
-		AcceptOptions: backends.AcceptOptions{
-			Username:    "runner",
-			Credentials: creds,
-			Database:    "session",
+		Network:  resolveNetwork(dialers["transaction"].Address),
+		Address:  dialers["session"].Address,
+		Username: dialers["session"].Username,
+		Credentials: credentials.FromString(
+			dialers["session"].Username,
+			dialers["session"].Password,
+		),
+		Database: "session",
+	}
+
+	caddyConfig := caddy.Config{
+		AppsRaw: caddy.ModuleMap{
+			"pggat": caddyconfig.JSON(config, nil),
 		},
 	}
+
+	if err = caddy.Run(&caddyConfig); err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer func() {
+		_ = caddy.Stop()
+	}()
 
 	tester := test.NewTester(test.Config{
 		Stress: 8,

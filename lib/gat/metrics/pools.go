@@ -1,6 +1,6 @@
 package metrics
 
-type Pools struct {
+type Handler struct {
 	// TODO(garet)
 	Pool
 }

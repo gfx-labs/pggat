@@ -89,8 +89,8 @@ func (T *Runner) prepare(client *gsql.Client, until int) []Capturer {
 	return results
 }
 
-func (T *Runner) runModeL1(dialer recipe.Dialer, client *gsql.Client) error {
-	server, _, err := dialer.Dial()
+func (T *Runner) runModeL1(dialer recipe.Dialer, client *fed.Conn) error {
+	server, err := dialer.Dial()
 	if err != nil {
 		return err
 	}
@@ -127,7 +127,7 @@ func (T *Runner) runModeOnce(dialer recipe.Dialer) ([]Capturer, error) {
 		return nil, err
 	}
 
-	if err := T.runModeL1(dialer, &client); err != nil {
+	if err := T.runModeL1(dialer, fed.NewConn(&client)); err != nil {
 		return nil, err
 	}
 
@@ -142,7 +142,7 @@ func (T *Runner) runModeFail(dialer recipe.Dialer) error {
 			return err
 		}
 
-		if err := T.runModeL1(dialer, &client); err != nil && !errors.Is(err, io.EOF) {
+		if err := T.runModeL1(dialer, fed.NewConn(&client)); err != nil && !errors.Is(err, io.EOF) {
 			return err
 		}
 	}

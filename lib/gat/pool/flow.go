@@ -3,14 +3,14 @@ package pool
 import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/fed/middlewares/eqp"
+	"gfx.cafe/gfx/pggat/lib/fed/middlewares/ps"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
-	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/eqp"
-	"gfx.cafe/gfx/pggat/lib/middleware/middlewares/ps"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
-func pair(options Options, client *pooledClient, server *pooledServer) (clientErr, serverErr error) {
+func pair(options Config, client *pooledClient, server *pooledServer) (clientErr, serverErr error) {
 	defer func() {
 		client.SetState(metrics.ConnStateActive, server.GetID())
 		server.SetState(metrics.ConnStateActive, client.GetID())
@@ -23,7 +23,7 @@ func pair(options Options, client *pooledClient, server *pooledServer) (clientEr
 
 	switch options.ParameterStatusSync {
 	case ParameterStatusSyncDynamic:
-		clientErr, serverErr = ps.Sync(options.TrackedParameters, client.GetReadWriter(), client.GetPS(), server.GetReadWriter(), server.GetPS())
+		clientErr, serverErr = ps.Sync(options.TrackedParameters, client.GetConn(), client.GetPS(), server.GetConn(), server.GetPS())
 	case ParameterStatusSyncInitial:
 		clientErr, serverErr = syncInitialParameters(options, client, server)
 	}
@@ -33,13 +33,13 @@ func pair(options Options, client *pooledClient, server *pooledServer) (clientEr
 	}
 
 	if options.ExtendedQuerySync {
-		serverErr = eqp.Sync(client.GetEQP(), server.GetReadWriter(), server.GetEQP())
+		serverErr = eqp.Sync(client.GetEQP(), server.GetConn(), server.GetEQP())
 	}
 
 	return
 }
 
-func syncInitialParameters(options Options, client *pooledClient, server *pooledServer) (clientErr, serverErr error) {
+func syncInitialParameters(options Config, client *pooledClient, server *pooledServer) (clientErr, serverErr error) {
 	clientParams := client.GetInitialParameters()
 	serverParams := server.GetInitialParameters()
 
@@ -80,15 +80,10 @@ func syncInitialParameters(options Options, client *pooledClient, server *pooled
 			continue
 		}
 
-		ctx := backends.Context{
-			Packet: packet,
-			Server: server.GetReadWriter(),
-		}
-		serverErr = backends.SetParameter(&ctx, key, value)
+		serverErr, _, packet = backends.SetParameter(server.GetConn(), nil, packet, key, value)
 		if serverErr != nil {
 			return
 		}
-		packet = ctx.Packet
 	}
 
 	for key, value := range serverParams {

@@ -1,0 +1,42 @@
+{
+	stat_log_period 1s
+}
+
+:6432 {
+	ssl self_signed
+	require_ssl
+
+	@bob {
+		user bob
+	}
+	password @bob password123
+
+	@jeff {
+		user jeff
+	}
+	password @jeff password456
+
+	@other {
+		not or {
+			user jeff
+			user bob
+		}
+	}
+
+	error @other "you are not bob or jeff"
+
+	pool /bobland localhost:5432 bobland postgres password
+	pool /jeffland {
+		pooler session
+
+		address localhost:5432
+		ssl require insecure_skip_verify
+
+		database jeffland
+		username postgres
+		password password
+
+		parameter TimeZone=America/Chicago
+		parameter myParameter=FooBarBaz
+	}
+}

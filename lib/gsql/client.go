@@ -143,4 +143,4 @@ func (T *Client) Close() error {
 	return nil
 }
 
-var _ fed.Conn = (*Client)(nil)
+var _ fed.ReadWriteCloser = (*Client)(nil)

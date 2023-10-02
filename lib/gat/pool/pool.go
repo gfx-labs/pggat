@@ -7,21 +7,19 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"tuxpa.in/a/zlog/log"
+	"go.uber.org/zap"
 
-	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/bouncer/bouncers/v2"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
-	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type Pool struct {
-	options Options
-	pooler  Pooler
+	config Config
+	pooler Pooler
 
 	closed chan struct{}
 
@@ -37,18 +35,18 @@ type Pool struct {
 	mu               sync.RWMutex
 }
 
-func NewPool(options Options) *Pool {
-	if options.NewPooler == nil {
+func NewPool(config Config) *Pool {
+	if config.NewPooler == nil {
 		panic("expected new pooler func")
 	}
-	pooler := options.NewPooler()
+	pooler := config.NewPooler()
 	if pooler == nil {
 		panic("expected pooler")
 	}
 
 	p := &Pool{
-		options: options,
-		pooler:  pooler,
+		config: config,
+		pooler: pooler,
 
 		closed:  make(chan struct{}),
 		pending: make(chan struct{}, 1),
@@ -79,10 +77,6 @@ func (T *Pool) idlest() (server *pooledServer, at time.Time) {
 	return
 }
 
-func (T *Pool) GetCredentials() auth.Credentials {
-	return T.options.Credentials
-}
-
 func (T *Pool) AddRecipe(name string, r *Recipe) {
 	func() {
 		T.mu.Lock()
@@ -104,7 +98,7 @@ func (T *Pool) AddRecipe(name string, r *Recipe) {
 	count := r.AllocateInitial()
 	for i := 0; i < count; i++ {
 		if err := T.scaleUpL1(name, r); err != nil {
-			log.Printf("failed to dial server: %v", err)
+			T.config.Logger.Warn("failed to dial server", zap.Error(err))
 			for j := i; j < count; j++ {
 				r.Free()
 			}
@@ -153,7 +147,7 @@ func (T *Pool) scaleUpL0() (string, *Recipe) {
 }
 
 func (T *Pool) scaleUpL1(name string, r *Recipe) error {
-	conn, params, err := r.Dial()
+	conn, err := r.Dial()
 	if err != nil {
 		// failed to dial
 		r.Free()
@@ -170,11 +164,9 @@ func (T *Pool) scaleUpL1(name string, r *Recipe) error {
 		}
 
 		server := newServer(
-			T.options,
+			T.config,
 			name,
 			conn,
-			params.InitialParameters,
-			params.BackendKey,
 		)
 
 		if T.servers == nil {
@@ -209,7 +201,7 @@ func (T *Pool) scaleUp() bool {
 
 	err := T.scaleUpL1(name, r)
 	if err != nil {
-		log.Printf("failed to dial server: %v", err)
+		T.config.Logger.Warn("failed to dial server", zap.Error(err))
 		return false
 	}
 
@@ -231,9 +223,12 @@ func (T *Pool) removeServerL1(server *pooledServer) {
 		name := server.GetRecipe()
 		T.serversByRecipe[name] = slices.Delete(T.serversByRecipe[name], server)
 		// update order
-		T.recipeScaleOrder.Update(slices.Index(T.recipeScaleOrder, name), func(n string) int {
-			return len(T.serversByRecipe[n])
-		})
+		index := slices.Index(T.recipeScaleOrder, name)
+		if index != -1 {
+			T.recipeScaleOrder.Update(index, func(n string) int {
+				return len(T.serversByRecipe[n])
+			})
+		}
 	}
 }
 
@@ -250,6 +245,9 @@ func (T *Pool) acquireServer(client *pooledClient) *pooledServer {
 			}
 			serverID = T.pooler.Acquire(client.GetID(), SyncModeBlocking)
 			T.pendingCount.Add(-1)
+			if serverID == uuid.Nil {
+				return nil
+			}
 		}
 
 		T.mu.RLock()
@@ -264,13 +262,10 @@ func (T *Pool) acquireServer(client *pooledClient) *pooledServer {
 }
 
 func (T *Pool) releaseServer(server *pooledServer) {
-	if T.options.ServerResetQuery != "" {
+	if T.config.ServerResetQuery != "" {
 		server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
 
-		ctx := backends.Context{
-			Server: server.GetReadWriter(),
-		}
-		err := backends.QueryString(&ctx, T.options.ServerResetQuery)
+		err, _, _ := backends.QueryString(server.GetConn(), nil, nil, T.config.ServerResetQuery)
 		if err != nil {
 			T.removeServer(server)
 			return
@@ -283,19 +278,15 @@ func (T *Pool) releaseServer(server *pooledServer) {
 }
 
 func (T *Pool) Serve(
-	conn fed.Conn,
-	initialParameters map[strutil.CIString]string,
-	backendKey [8]byte,
+	conn *fed.Conn,
 ) error {
 	defer func() {
 		_ = conn.Close()
 	}()
 
 	client := newClient(
-		T.options,
+		T.config,
 		conn,
-		initialParameters,
-		backendKey,
 	)
 
 	return T.serve(client, false)
@@ -304,17 +295,17 @@ func (T *Pool) Serve(
 // ServeBot is for clients that don't need initial parameters, cancelling queries, and are ready now. Use Serve for
 // real clients
 func (T *Pool) ServeBot(
-	conn fed.Conn,
+	conn fed.ReadWriteCloser,
 ) error {
 	defer func() {
 		_ = conn.Close()
 	}()
 
 	client := newClient(
-		T.options,
-		conn,
-		nil,
-		[8]byte{},
+		T.config,
+		&fed.Conn{
+			ReadWriteCloser: conn,
+		},
 	)
 
 	return T.serve(client, true)
@@ -343,8 +334,11 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 
 	if !initialized {
 		server = T.acquireServer(client)
+		if server == nil {
+			return ErrClosed
+		}
 
-		err, serverErr = pair(T.options, client, server)
+		err, serverErr = pair(T.config, client, server)
 		if serverErr != nil {
 			return serverErr
 		}
@@ -361,7 +355,7 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 	}
 
 	for {
-		if server != nil && T.options.ReleaseAfterTransaction {
+		if server != nil && T.config.ReleaseAfterTransaction {
 			client.SetState(metrics.ConnStateIdle, uuid.Nil)
 			T.releaseServer(server)
 			server = nil
@@ -374,11 +368,14 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 
 		if server == nil {
 			server = T.acquireServer(client)
+			if server == nil {
+				return ErrClosed
+			}
 
-			err, serverErr = pair(T.options, client, server)
+			err, serverErr = pair(T.config, client, server)
 		}
 		if err == nil && serverErr == nil {
-			packet, err, serverErr = bouncers.Bounce(client.GetReadWriter(), server.GetReadWriter(), packet)
+			packet, err, serverErr = bouncers.Bounce(client.GetConn(), server.GetConn(), packet)
 		}
 		if serverErr != nil {
 			return serverErr
@@ -421,23 +418,23 @@ func (T *Pool) removeClientL1(client *pooledClient) {
 	delete(T.clientsByKey, client.GetBackendKey())
 }
 
-func (T *Pool) Cancel(key [8]byte) error {
+func (T *Pool) Cancel(key [8]byte) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 
 	client, ok := T.clientsByKey[key]
 	if !ok {
-		return nil
+		return
 	}
 
 	state, peer, _ := client.GetState()
 	if state != metrics.ConnStateActive {
-		return nil
+		return
 	}
 
 	server, ok := T.servers[peer]
 	if !ok {
-		return nil
+		return
 	}
 
 	// prevent state from changing by RLocking the server
@@ -446,15 +443,15 @@ func (T *Pool) Cancel(key [8]byte) error {
 
 	// make sure peer is still set
 	if server.peer != peer {
-		return nil
+		return
 	}
 
 	r, ok := T.recipes[server.recipe]
 	if !ok {
-		return nil
+		return
 	}
 
-	return r.Cancel(server.backendKey)
+	r.Cancel(server.GetBackendKey())
 }
 
 func (T *Pool) ReadMetrics(m *metrics.Pool) {
@@ -483,6 +480,7 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 
 func (T *Pool) Close() {
 	close(T.closed)
+	T.pooler.Close()
 
 	T.mu.Lock()
 	defer T.mu.Unlock()

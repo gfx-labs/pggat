@@ -13,7 +13,8 @@ type ReadWriter interface {
 	Writer
 }
 
-type CombinedReadWriter struct {
-	Reader
-	Writer
+type ReadWriteCloser interface {
+	ReadWriter
+
+	Close() error
 }

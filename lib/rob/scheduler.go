@@ -28,4 +28,6 @@ type Scheduler interface {
 	// Release will release a worker.
 	// This should be called after acquire unless the worker is removed with RemoveWorker
 	Release(worker uuid.UUID)
+
+	Close()
 }

@@ -3,18 +3,4 @@ set -e
 
 EXEC_BIN_PATH=${PGGAT_BIN_PATH:=/usr/bin/pggat}
 
-pggat() {
-    exec $EXEC_BIN_PATH ${@}
-}
-
-
-case "${1}" in
-    "")
-        pggat ${@}
-        ;;
-    *)
-        export PGGAT_RUN_MODE=${1}
-        shift
-        pggat ${@}
-        ;;
-esac
+$EXEC_BIN_PATH run --adapter="caddyfile" --config="/presets/${PGGAT_RUN_MODE:=default}.Caddyfile"

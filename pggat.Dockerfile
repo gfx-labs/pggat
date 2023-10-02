@@ -5,7 +5,7 @@ WORKDIR /src
 COPY . .
 
 RUN go mod tidy
-RUN go build -o cgat ./cmd/cgat
+RUN go build -o caddygat ./cmd/caddygat
 
 FROM alpine:latest
 WORKDIR /
@@ -13,7 +13,7 @@ RUN apk add --no-cache bash
 
 COPY entrypoint.sh .
 
-COPY --from=GOBUILDER /src/cgat /usr/bin/pggat
+COPY --from=GOBUILDER /src/presets /presets
+COPY --from=GOBUILDER /src/caddygat /usr/bin/pggat
 
-ENTRYPOINT ["/entrypoint.sh"]
-cmd ["pggat"]
+CMD ["/entrypoint.sh"]

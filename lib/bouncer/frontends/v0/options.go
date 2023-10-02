@@ -4,15 +4,12 @@ import (
 	"crypto/tls"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
-	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-type AcceptOptions struct {
-	SSLRequired           bool
-	SSLConfig             *tls.Config
-	AllowedStartupOptions []strutil.CIString
+type acceptOptions struct {
+	SSLConfig *tls.Config
 }
 
-type AuthenticateOptions struct {
+type authenticateOptions struct {
 	Credentials auth.Credentials
 }
