@@ -47,4 +47,8 @@ func (T *Pooler) Release(server uuid.UUID) {
 	T.s.Release(server)
 }
 
+func (T *Pooler) Close() {
+	T.s.Close()
+}
+
 var _ pool.Pooler = (*Pooler)(nil)

@@ -13,6 +13,7 @@ type Pooler struct {
 	queue   []uuid.UUID
 	servers map[uuid.UUID]struct{}
 	ready   *sync.Cond
+	closed  bool
 	mu      sync.Mutex
 }
 
@@ -56,6 +57,10 @@ func (T *Pooler) TryAcquire() uuid.UUID {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
+	if T.closed {
+		return uuid.Nil
+	}
+
 	if len(T.queue) == 0 {
 		return uuid.Nil
 	}
@@ -69,11 +74,19 @@ func (T *Pooler) AcquireBlocking() uuid.UUID {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
+	if T.closed {
+		return uuid.Nil
+	}
+
 	for len(T.queue) == 0 {
 		if T.ready == nil {
 			T.ready = sync.NewCond(&T.mu)
 		}
 		T.ready.Wait()
+	}
+
+	if T.closed {
+		return uuid.Nil
 	}
 
 	server := T.queue[len(T.queue)-1]
@@ -102,6 +115,16 @@ func (T *Pooler) Release(server uuid.UUID) {
 	}
 
 	T.queue = append(T.queue, server)
+}
+
+func (T *Pooler) Close() {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	T.closed = true
+	if T.ready != nil {
+		T.ready.Broadcast()
+	}
 }
 
 var _ pool.Pooler = (*Pooler)(nil)

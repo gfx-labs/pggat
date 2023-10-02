@@ -18,4 +18,6 @@ type Pooler interface {
 
 	Acquire(client uuid.UUID, sync SyncMode) (server uuid.UUID)
 	Release(server uuid.UUID)
+
+	Close()
 }

@@ -245,6 +245,9 @@ func (T *Pool) acquireServer(client *pooledClient) *pooledServer {
 			}
 			serverID = T.pooler.Acquire(client.GetID(), SyncModeBlocking)
 			T.pendingCount.Add(-1)
+			if serverID == uuid.Nil {
+				return nil
+			}
 		}
 
 		T.mu.RLock()
@@ -331,6 +334,9 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 
 	if !initialized {
 		server = T.acquireServer(client)
+		if server == nil {
+			return ErrClosed
+		}
 
 		err, serverErr = pair(T.config, client, server)
 		if serverErr != nil {
@@ -362,6 +368,9 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 
 		if server == nil {
 			server = T.acquireServer(client)
+			if server == nil {
+				return ErrClosed
+			}
 
 			err, serverErr = pair(T.config, client, server)
 		}
@@ -471,6 +480,7 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 
 func (T *Pool) Close() {
 	close(T.closed)
+	T.pooler.Close()
 
 	T.mu.Lock()
 	defer T.mu.Unlock()

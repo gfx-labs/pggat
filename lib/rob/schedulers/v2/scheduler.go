@@ -1,13 +1,15 @@
 package schedulers
 
 import (
+	"sync"
+
+	"github.com/google/uuid"
+
 	"gfx.cafe/gfx/pggat/lib/rob"
 	"gfx.cafe/gfx/pggat/lib/rob/schedulers/v2/job"
 	"gfx.cafe/gfx/pggat/lib/rob/schedulers/v2/sink"
 	"gfx.cafe/gfx/pggat/lib/util/maps"
 	"gfx.cafe/gfx/pggat/lib/util/pools"
-	"github.com/google/uuid"
-	"sync"
 )
 
 type Scheduler struct {
@@ -20,6 +22,7 @@ type Scheduler struct {
 	backlog []job.Stalled
 	bmu     sync.Mutex
 	sinks   map[uuid.UUID]*sink.Sink
+	closed  bool
 	mu      sync.RWMutex
 }
 
@@ -102,6 +105,10 @@ func (T *Scheduler) TryAcquire(j job.Concurrent) uuid.UUID {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 
+	if T.closed {
+		return uuid.Nil
+	}
+
 	return T.tryAcquire(j)
 }
 
@@ -130,6 +137,13 @@ func (T *Scheduler) Enqueue(j ...job.Stalled) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 
+	if T.closed {
+		for _, jj := range j {
+			close(jj.Ready)
+			return
+		}
+	}
+
 	for _, jj := range j {
 		T.enqueue(jj)
 	}
@@ -146,7 +160,6 @@ func (T *Scheduler) Acquire(user uuid.UUID, mode rob.SyncMode) uuid.UUID {
 		if !ok {
 			ready = make(chan uuid.UUID, 1)
 		}
-		defer T.ready.Put(ready)
 
 		j := job.Stalled{
 			Concurrent: job.Concurrent{
@@ -156,7 +169,11 @@ func (T *Scheduler) Acquire(user uuid.UUID, mode rob.SyncMode) uuid.UUID {
 		}
 		T.Enqueue(j)
 
-		return <-ready
+		s, ok := <-ready
+		if ok {
+			T.ready.Put(ready)
+		}
+		return s
 	case rob.SyncModeTryNonBlocking:
 		if id := T.Acquire(user, rob.SyncModeNonBlocking); id != uuid.Nil {
 			return id
@@ -199,6 +216,29 @@ func (T *Scheduler) stealFor(worker uuid.UUID) {
 			return
 		}
 	}
+}
+
+func (T *Scheduler) Close() {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	T.closed = true
+
+	for worker, s := range T.sinks {
+		delete(T.sinks, worker)
+
+		// now we need to reschedule all the work that was scheduled to s (stalled only).
+		jobs := s.StealAll()
+
+		for _, j := range jobs {
+			close(j.Ready)
+		}
+	}
+
+	for _, j := range T.backlog {
+		close(j.Ready)
+	}
+	T.backlog = T.backlog[:0]
 }
 
 var _ rob.Scheduler = (*Scheduler)(nil)
