@@ -140,8 +140,8 @@ func (T *Scheduler) Enqueue(j ...job.Stalled) {
 	if T.closed {
 		for _, jj := range j {
 			close(jj.Ready)
-			return
 		}
+		return
 	}
 
 	for _, jj := range j {
