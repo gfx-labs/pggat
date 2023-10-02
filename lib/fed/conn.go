@@ -49,7 +49,7 @@ func (T *Conn) ReadPacket(typed bool, buffer Packet) (packet Packet, err error) 
 
 func (T *Conn) WritePacket(packet Packet) (err error) {
 	for _, middleware := range T.Middleware {
-		packet, err = middleware.ReadPacket(packet)
+		packet, err = middleware.WritePacket(packet)
 		if err != nil || len(packet) == 0 {
 			return
 		}
