@@ -1,18 +1,18 @@
 :{$CONNECTION_POOLER_PORT:5432} {
-    ssl x509_key_pair /etc/ssl/certs/pgbouncer.crt /etc/ssl/certs/pgbouncer.key
-    require_ssl
+	ssl x509_key_pair /etc/ssl/certs/pgbouncer.crt /etc/ssl/certs/pgbouncer.key
+	require_ssl
 
-    pgbouncer_spilo {
-        host {$PGHOST}
-        port {$PGPORT}
-        user {$PGUSER}
-        schema {$PGSCHEMA}
-        password {$PGPASSWORD}
-        mode {$CONNECTION_POOLER_MODE}
-        default_size {$CONNECTION_POOLER_DEFAULT_SIZE}
-        min_size {$CONNECTION_POOLER_MIN_SIZE}
-        reserve_size {$CONNECTION_POOLER_RESERVE_SIZE}
-        max_client_conn {$CONNECTION_POOLER_MAX_CLIENT_CONN}
-        max_db_conn {$CONNECTION_POOLER_MAX_DB_CONN}
-    }
+	pgbouncer_spilo {
+		host {$PGHOST}
+		port {$PGPORT}
+		user {$PGUSER}
+		schema {$PGSCHEMA}
+		password {$PGPASSWORD}
+		mode {$CONNECTION_POOLER_MODE}
+		default_size {$CONNECTION_POOLER_DEFAULT_SIZE}
+		min_size {$CONNECTION_POOLER_MIN_SIZE}
+		reserve_size {$CONNECTION_POOLER_RESERVE_SIZE}
+		max_client_conn {$CONNECTION_POOLER_MAX_CLIENT_CONN}
+		max_db_conn {$CONNECTION_POOLER_MAX_DB_CONN}
+	}
 }
