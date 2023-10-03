@@ -763,7 +763,7 @@ func configFileWithRespectToDefault(logger *zap.Logger, configFile string) (stri
 	const defaultGatfile = "Gatfile"
 
 	// if no input file was specified, try a default Gatfile if the Gatfile adapter is plugged in
-	if configFile == "" && caddyconfig.GetAdapter("caddyfile") != nil {
+	if configFile == "" && caddyconfig.GetAdapter("gatfile") != nil {
 		_, err := os.Stat(defaultGatfile)
 		if err == nil {
 			// default Gatfile exists

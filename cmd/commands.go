@@ -265,7 +265,7 @@ zero exit status will be returned.
 `,
 		CobraFunc: func(cmd *cobra.Command) {
 			cmd.Flags().StringP("config", "c", "", "Configuration file to adapt (required)")
-			cmd.Flags().StringP("adapter", "a", "caddyfile", "Name of config adapter")
+			cmd.Flags().StringP("adapter", "a", "gatfile", "Name of config adapter")
 			cmd.Flags().BoolP("pretty", "p", false, "Format the output for human readability")
 			cmd.Flags().BoolP("validate", "", false, "Validate the output")
 			cmd.RunE = WrapCommandFuncForCobra(cmdAdaptConfig)
