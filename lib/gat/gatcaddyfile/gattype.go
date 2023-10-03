@@ -16,7 +16,7 @@ import (
 )
 
 func init() {
-	caddyconfig.RegisterAdapter("caddyfile", caddyfile.Adapter{ServerType: ServerType{}})
+	caddyconfig.RegisterAdapter("gatfile", caddyfile.Adapter{ServerType: ServerType{}})
 }
 
 type ServerType struct{}

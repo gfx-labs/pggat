@@ -1,10 +1,9 @@
 package main
 
 import (
-	caddycmd "github.com/caddyserver/caddy/v2/cmd"
+	caddycmd "gfx.cafe/gfx/pggat/cmd"
 
 	_ "gfx.cafe/gfx/pggat/lib/gat/gatcaddyfile"
-
 	_ "gfx.cafe/gfx/pggat/lib/gat/standard"
 )
 
