@@ -8,7 +8,6 @@ import (
 
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 
-	"gfx.cafe/gfx/pggat/lib/bouncer"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/ssl/servers/x509_key_pair"
 	"gfx.cafe/gfx/pggat/lib/util/encoding/ini"
@@ -111,7 +110,7 @@ type PgBouncer struct {
 	DnsNxdomainTtl          float64            `ini:"dns_nxdomain_ttl"`
 	DnsZoneCheckPeriod      float64            `ini:"dns_zone_check_period"`
 	ResolvConf              string             `ini:"resolv.conf"`
-	ClientTLSSSLMode        bouncer.SSLMode    `ini:"client_tls_sslmode"`
+	ClientTLSSSLMode        bounce.SSLMode     `ini:"client_tls_sslmode"`
 	ClientTLSKeyFile        string             `ini:"client_tls_key_file"`
 	ClientTLSCertFile       string             `ini:"client_tls_cert_file"`
 	ClientTLSCaFile         string             `ini:"client_tls_ca_file"`
@@ -119,7 +118,7 @@ type PgBouncer struct {
 	ClientTLSCiphers        []TLSCipher        `ini:"client_tls_ciphers"`
 	ClientTLSECDHCurve      TLSECDHCurve       `ini:"client_tls_ecdhcurve"`
 	ClientTLSDHEParams      TLSDHEParams       `ini:"client_tls_dheparams"`
-	ServerTLSSSLMode        bouncer.SSLMode    `ini:"server_tls_sslmode"`
+	ServerTLSSSLMode        bounce.SSLMode     `ini:"server_tls_sslmode"`
 	ServerTLSCaFile         string             `ini:"server_tls_ca_file"`
 	ServerTLSKeyFile        string             `ini:"server_tls_key_file"`
 	ServerTLSCertFile       string             `ini:"server_tls_cert_file"`
@@ -211,7 +210,7 @@ var Default = Config{
 		AutodbIdleTimeout:    3600.0,
 		DnsMaxTtl:            15.0,
 		DnsNxdomainTtl:       15.0,
-		ClientTLSSSLMode:     bouncer.SSLModeDisable,
+		ClientTLSSSLMode:     bounce.SSLModeDisable,
 		ClientTLSProtocols: []TLSProtocol{
 			TLSProtocolSecure,
 		},
@@ -219,7 +218,7 @@ var Default = Config{
 			"fast",
 		},
 		ClientTLSECDHCurve: "auto",
-		ServerTLSSSLMode:   bouncer.SSLModePrefer,
+		ServerTLSSSLMode:   bounce.SSLModePrefer,
 		ServerTLSProtocols: []TLSProtocol{
 			TLSProtocolSecure,
 		},

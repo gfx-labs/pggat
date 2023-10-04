@@ -6,7 +6,6 @@ import (
 	"io"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
-	"gfx.cafe/gfx/pggat/lib/bouncer"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
@@ -346,7 +345,7 @@ func accept(ctx *acceptContext) error {
 
 func Accept(
 	conn *fed.Conn,
-	sslMode bouncer.SSLMode,
+	sslMode bounce.SSLMode,
 	sslConfig *tls.Config,
 	username string,
 	credentials auth.Credentials,

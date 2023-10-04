@@ -13,7 +13,6 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
 
-	"gfx.cafe/gfx/pggat/lib/bouncer"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/allowed_startup_parameters"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer"
@@ -141,7 +140,7 @@ func init() {
 					"pooler",
 					warnings,
 				),
-				ServerSSLMode: bouncer.SSLModePrefer,
+				ServerSSLMode: bounce.SSLModePrefer,
 				ServerSSL: JSONModuleObject(
 					&insecure_skip_verify.Client{},
 					SSLClient,
@@ -221,7 +220,7 @@ func init() {
 						return nil, d.ArgErr()
 					}
 
-					module.ServerSSLMode = bouncer.SSLMode(d.Val())
+					module.ServerSSLMode = bounce.SSLMode(d.Val())
 
 					if !d.NextArg() {
 						return nil, d.ArgErr()
@@ -390,7 +389,7 @@ func init() {
 					warnings,
 				),
 
-				ServerSSLMode: bouncer.SSLModePrefer,
+				ServerSSLMode: bounce.SSLModePrefer,
 				ServerSSL: JSONModuleObject(
 					&insecure_skip_verify.Client{},
 					SSLClient,
@@ -455,7 +454,7 @@ func init() {
 						return nil, d.ArgErr()
 					}
 
-					module.ServerSSLMode = bouncer.SSLMode(d.Val())
+					module.ServerSSLMode = bounce.SSLMode(d.Val())
 
 					if !d.NextArg() {
 						return nil, d.ArgErr()

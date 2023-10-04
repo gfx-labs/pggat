@@ -19,14 +19,15 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/poolers/session"
 	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
 	"gfx.cafe/gfx/pggat/lib/perror"
+	recipe2 "gfx.cafe/gfx/pggat/lib/pool/recipe"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
+
+	"gfx.cafe/gfx/pggat/lib/gat/pool"
 
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
-	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
 	"gfx.cafe/gfx/pggat/lib/gsql"
 	"gfx.cafe/gfx/pggat/lib/util/maps"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
@@ -214,7 +215,7 @@ func (T *Module) tryCreate(user, database string) (pool.WithCredentials, bool) {
 		serverCreds = credentials.FromString(user, db.Password)
 	}
 
-	dialer := recipe.Dialer{
+	dialer := recipe2.Dialer{
 		SSLMode: T.Config.PgBouncer.ServerTLSSSLMode,
 		SSLConfig: &tls.Config{
 			InsecureSkipVerify: true, // TODO(garet)
@@ -254,7 +255,7 @@ func (T *Module) tryCreate(user, database string) (pool.WithCredentials, bool) {
 		dialer.Address = address
 	}
 
-	recipeOptions := recipe.Config{
+	recipeOptions := recipe2.Config{
 		Dialer:         dialer,
 		MinConnections: db.MinPoolSize,
 		MaxConnections: db.MaxDBConnections,
@@ -265,7 +266,7 @@ func (T *Module) tryCreate(user, database string) (pool.WithCredentials, bool) {
 	if recipeOptions.MaxConnections == 0 {
 		recipeOptions.MaxConnections = T.Config.PgBouncer.MaxDBConnections
 	}
-	r := recipe.NewRecipe(recipeOptions)
+	r := recipe2.NewRecipe(recipeOptions)
 
 	p.AddRecipe("pgbouncer", r)
 

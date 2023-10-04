@@ -7,7 +7,6 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer"
 
-	"gfx.cafe/gfx/pggat/lib/bouncer"
 	"gfx.cafe/gfx/pggat/lib/gat"
 
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
@@ -52,12 +51,12 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	pgb.PgBouncer.LogFile = "/var/log/pgbouncer/pgbouncer.log"
 	pgb.PgBouncer.PidFile = "/var/run/pgbouncer/pgbouncer.pid"
 
-	pgb.PgBouncer.ServerTLSSSLMode = bouncer.SSLModeRequire
+	pgb.PgBouncer.ServerTLSSSLMode = bounce.SSLModeRequire
 	pgb.PgBouncer.ServerTLSCaFile = "/etc/ssl/certs/pgbouncer.crt"
 	pgb.PgBouncer.ServerTLSProtocols = []pgbouncer.TLSProtocol{
 		pgbouncer.TLSProtocolSecure,
 	}
-	pgb.PgBouncer.ClientTLSSSLMode = bouncer.SSLModeRequire
+	pgb.PgBouncer.ClientTLSSSLMode = bounce.SSLModeRequire
 	pgb.PgBouncer.ClientTLSKeyFile = "/etc/ssl/certs/pgbouncer.key"
 	pgb.PgBouncer.ClientTLSCertFile = "/etc/ssl/certs/pgbouncer.crt"
 
