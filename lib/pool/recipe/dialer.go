@@ -5,6 +5,8 @@ import (
 	"net"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
+	"gfx.cafe/gfx/pggat/lib/bounce"
+	"gfx.cafe/gfx/pggat/lib/bounce/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
