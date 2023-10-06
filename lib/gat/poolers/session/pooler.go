@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
+
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
