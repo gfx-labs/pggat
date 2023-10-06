@@ -14,6 +14,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/util/pools"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
@@ -311,6 +312,11 @@ func (T *Pool) ServeBot(
 	return T.serve(client, true)
 }
 
+var ppool pools.Locked[fed.Packet]
+
+// max 256kb per connection
+const maxPacketBufferSize = 256 * 1024
+
 func (T *Pool) serve(client *pooledClient, initialized bool) error {
 	T.addClient(client)
 	defer T.removeClient(client)
@@ -330,7 +336,10 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 		}
 	}()
 
-	var packet fed.Packet
+	packet, _ := ppool.Get()
+	defer func() {
+		ppool.Put(packet)
+	}()
 
 	if !initialized {
 		server = T.acquireServer(client)
@@ -377,6 +386,11 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 		if err == nil && serverErr == nil {
 			packet, err, serverErr = bouncers.Bounce(client.GetConn(), server.GetConn(), packet)
 		}
+
+		if len(packet) > maxPacketBufferSize {
+			packet = make(fed.Packet, 0, maxPacketBufferSize)
+		}
+
 		if serverErr != nil {
 			return serverErr
 		} else {
