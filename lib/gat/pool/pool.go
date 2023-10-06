@@ -338,7 +338,9 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 
 	packet, _ := ppool.Get()
 	defer func() {
-		ppool.Put(packet)
+		if len(packet) <= maxPacketBufferSize {
+			ppool.Put(packet)
+		}
 	}()
 
 	if !initialized {
@@ -370,6 +372,10 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 			server = nil
 		}
 
+		if len(packet) > maxPacketBufferSize {
+			packet = make(fed.Packet, 0, maxPacketBufferSize)
+		}
+
 		packet, err = client.GetConn().ReadPacket(true, packet)
 		if err != nil {
 			return err
@@ -385,10 +391,6 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 		}
 		if err == nil && serverErr == nil {
 			packet, err, serverErr = bouncers.Bounce(client.GetConn(), server.GetConn(), packet)
-		}
-
-		if len(packet) > maxPacketBufferSize {
-			packet = make(fed.Packet, 0, maxPacketBufferSize)
 		}
 
 		if serverErr != nil {
