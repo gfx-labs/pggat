@@ -4,16 +4,21 @@ import "gfx.cafe/gfx/pggat/lib/fed"
 
 type AuthenticationOk struct{}
 
-func (T *AuthenticationOk) ReadFromPacket(packet fed.Packet) bool {
-	if packet.Type() != TypeAuthentication {
-		return false
+func (T *AuthenticationOk) ReadFrom(packet fed.PacketDecoder) error {
+	if packet.Type != TypeAuthentication {
+		return ErrUnexpectedPacket
 	}
+
 	var method int32
-	packet.ReadInt32(&method)
-	if method != 0 {
-		return false
+	err := packet.Int32(&method).Error
+	if err != nil {
+		return err
 	}
-	return true
+
+	if method != 0 {
+		return ErrBadFormat
+	}
+	return nil
 }
 
 func (T *AuthenticationOk) IntoPacket(packet fed.Packet) fed.Packet {

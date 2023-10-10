@@ -2,18 +2,16 @@ package packets
 
 import (
 	"gfx.cafe/gfx/pggat/lib/fed"
-	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
 type AuthenticationResponse []byte
 
-func (T *AuthenticationResponse) ReadFromPacket(packet fed.Packet) bool {
-	if packet.Type() != TypeAuthenticationResponse {
-		return false
+func (T *AuthenticationResponse) ReadFrom(packet fed.PacketDecoder) error {
+	if packet.Type != TypeAuthenticationResponse {
+		return ErrUnexpectedPacket
 	}
-	*T = slices.Resize(*T, len(packet.Payload()))
-	packet.ReadBytes(*T)
-	return true
+
+	return packet.Remaining((*[]byte)(T)).Error
 }
 
 func (T *AuthenticationResponse) IntoPacket(packet fed.Packet) fed.Packet {

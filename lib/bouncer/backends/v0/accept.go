@@ -157,7 +157,7 @@ func authentication(ctx *acceptContext) (done bool, err error) {
 	case 10:
 		// read list of mechanisms
 		var sasl packets.AuthenticationSASL
-		if !sasl.ReadFromPacket(ctx.Packet) {
+		if !sasl.ReadFrom(ctx.Packet) {
 			err = ErrBadFormat
 			return
 		}

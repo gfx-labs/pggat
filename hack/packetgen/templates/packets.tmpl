@@ -1,0 +1,12 @@
+// automatically generated. do not edit
+
+{{range $name, $packet := .Packets -}}
+	{{template "preType" (list $name $packet)}}
+
+	type {{$name}} {{template "type" (list $name $packet)}}
+
+    {{template "decode" (list $name $packet)}}
+
+	{{template "encode" (list $name $packet)}}
+
+{{end}}

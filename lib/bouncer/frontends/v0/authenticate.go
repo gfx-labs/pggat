@@ -51,7 +51,7 @@ func authenticationSASLContinue(ctx *authenticateContext, tool auth.SASLVerifier
 		return
 	}
 	var authResp packets.AuthenticationResponse
-	if !authResp.ReadFromPacket(ctx.Packet) {
+	if !authResp.ReadFrom(ctx.Packet) {
 		err = packets.ErrBadFormat
 		return
 	}

@@ -6,25 +6,26 @@ type AuthenticationSASL struct {
 	Mechanisms []string
 }
 
-func (T *AuthenticationSASL) ReadFromPacket(packet fed.Packet) bool {
-	if packet.Type() != TypeAuthentication {
-		return false
+func (T *AuthenticationSASL) ReadFrom(packet fed.PacketDecoder) error {
+	if packet.Type != TypeAuthentication {
+		return ErrUnexpectedPacket
 	}
+
 	var method int32
-	p := packet.ReadInt32(&method)
+	p := packet.Int32(&method)
 	if method != 10 {
-		return false
+		return ErrBadFormat
 	}
 	T.Mechanisms = T.Mechanisms[:0]
 	for {
 		var mechanism string
-		p = p.ReadString(&mechanism)
+		p = p.String(&mechanism)
 		if mechanism == "" {
 			break
 		}
 		T.Mechanisms = append(T.Mechanisms, mechanism)
 	}
-	return true
+	return p.Error
 }
 
 func (T *AuthenticationSASL) IntoPacket(packet fed.Packet) fed.Packet {
