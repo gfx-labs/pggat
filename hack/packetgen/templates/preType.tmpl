@@ -11,16 +11,18 @@
 
 		type {{$itemName}} {{template "type" (list $itemName $item)}}
 
-		func (*{{$itemName}}) {{$ifaceName}}() {}
+		func (*{{$itemName}}) {{$ifaceName}}() {{template "type" (list $name $value.Map.Prefix)}} {
+			return {{$item.Type}}
+		}
 
 		func (T *{{$itemName}}) ReadFrom(decoder *fed.Decoder) (err error) {
-			{{template "decode" (list "(*T)" $item)}}
+			{{template "decode" (list $itemName "(*T)" $item)}}
 
 			return
 		}
 
 		func (T *{{$itemName}}) WriteTo(encoder *fed.Encoder) (err error) {
-			{{template "encode" (list "(*T)" $item)}}
+			{{template "encode" (list $itemName "(*T)" $item)}}
 
 			return
 		}
@@ -28,7 +30,7 @@
 	{{end -}}
 
 	type {{$ifaceName}} interface{
-		{{$ifaceName}}()
+		{{$ifaceName}}() {{template "type" (list $name $value.Map.Prefix)}}
 
 		ReadFrom(decoder *fed.Decoder) error
 		WriteTo(encoder *fed.Encoder) error

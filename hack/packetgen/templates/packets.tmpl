@@ -35,13 +35,13 @@ const (
 			}
 		{{end -}}
 
-		{{template "decode" (list "(*T)" $packet)}}
+		{{template "decode" (list $name "(*T)" $packet)}}
 
 		return
 	}
 
 	func (T *{{$name}}) WriteTo(encoder *fed.Encoder) (err error) {
-		{{template "encode" (list "(*T)" $packet)}}
+		{{template "encode" (list $name "(*T)" $packet)}}
 
 		return
 	}

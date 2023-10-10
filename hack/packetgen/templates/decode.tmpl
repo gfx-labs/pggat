@@ -1,117 +1,137 @@
 {{$name := index . 0 -}}
-{{$value := index . 1 -}}
+{{$pointer := index . 1 -}}
+{{$value := index . 2 -}}
 
 {{if some $value.Map -}}
-	err = {{$name}}.ReadFrom(decoder)
+	{{$prefixPointer := temp -}}
+
+	var {{$prefixPointer}} {{template "type" (list $name $value.Map.Prefix)}}
+
+	{{template "decode" (list $name $prefixPointer $value.Map.Prefix)}}
+
+	switch {{$prefixPointer}} {
+	{{range $n, $item := $value.Map.Items -}}
+        {{$itemName := printf "%s%s" $name $n -}}
+
+		case {{$item.Type}}:
+			{{$pointer}} = new({{$itemName}})
+	{{end -}}
+	}
+
+	err = {{$pointer}}.ReadFrom(decoder)
 	if err != nil {
 		return
 	}
 {{else if some $value.Remaining -}}
-	{{$name}} = {{$name}}[:0]
+	{{$pointer}} = {{$pointer}}[:0]
 
 	for {
 		if decoder.Position() >= decoder.Length() {
 			break
 		}
 
-		{{$name}} = slices.Resize({{$name}}, len({{$name}})+1)
+		{{$pointer}} = slices.Resize({{$pointer}}, len({{$pointer}})+1)
 
-		{{$targetName := printf "%s[len(%s)-1]" $name $name -}}
+		{{$targetPointer := printf "%s[len(%s)-1]" $pointer $pointer -}}
 
-		{{template "decode" (list $targetName $value.Remaining)}}
+		{{template "decode" (list $name $targetPointer $value.Remaining)}}
 	}
 {{else if some $value.Basic -}}
-	*(*{{$value.Basic}})(&({{$name}})), err = decoder.{{upperCamel $value.Basic}}()
+	*(*{{$value.Basic}})(&({{$pointer}})), err = decoder.{{upperCamel $value.Basic}}()
 	if err != nil {
 		return
 	}
 {{else if some $value.Array -}}
-	{{$indexName := temp -}}
+	{{$indexPointer := temp -}}
 
-	for {{$indexName}} := 0; {{$indexName}} < {{$value.Array.Length}}; {{$indexName}}++ {
-		{{$targetName := printf "%s[%s]" $name $indexName -}}
+	for {{$indexPointer}} := 0; {{$indexPointer}} < {{$value.Array.Length}}; {{$indexPointer}}++ {
+		{{$targetPointer := printf "%s[%s]" $pointer $indexPointer -}}
 
-		{{template "decode" (list $targetName $value.Array)}}
+		{{template "decode" (list $name $targetPointer $value.Array)}}
 	}
 {{else if some $value.Struct -}}
-	{{range $field := $value.Struct.Fields -}}
-        {{$fieldName := printf "%s.%s" $name $field.Name -}}
+	{{$structName := printf "%s%s" $name $value.Struct.Name -}}
 
-		{{template "decode" (list $fieldName $field) -}}
+	{{range $field := $value.Struct.Fields -}}
+        {{$fieldPointer := printf "%s.%s" $pointer $field.Name -}}
+
+		{{template "decode" (list $structName $fieldPointer $field) -}}
 	{{end -}}
 {{else if some $value.LengthPrefixedSlice -}}
-	{{$lengthName := temp -}}
+	{{$lengthPointer := temp -}}
 
-	var {{$lengthName}} {{template "type" (list "" $value.LengthPrefixedSlice.Prefix)}}
-	{{template "decode" (list $lengthName $value.LengthPrefixedSlice.Prefix)}}
+	var {{$lengthPointer}} {{template "type" (list $name $value.LengthPrefixedSlice.Prefix)}}
+	{{template "decode" (list $name $lengthPointer $value.LengthPrefixedSlice.Prefix)}}
 
-	{{$name}} = slices.Resize({{$name}}, int({{$lengthName}}))
+	{{$pointer}} = slices.Resize({{$pointer}}, int({{$lengthPointer}}))
 
-	{{$indexName := temp -}}
+	{{$indexPointer := temp -}}
 
-	for {{$indexName}} := 0; {{$indexName}} < int({{$lengthName}}); {{$indexName}}++ {
-		{{$targetName := printf "%s[%s]" $name $indexName -}}
+	for {{$indexPointer}} := 0; {{$indexPointer}} < int({{$lengthPointer}}); {{$indexPointer}}++ {
+		{{$targetPointer := printf "%s[%s]" $pointer $indexPointer -}}
 
-		{{template "decode" (list $targetName $value.LengthPrefixedSlice)}}
+		{{template "decode" (list $name $targetPointer $value.LengthPrefixedSlice)}}
 	}
 
 {{else if some $value.NullableLengthPrefixedSlice -}}
-    {{$lengthName := temp -}}
+    {{$lengthPointer := temp -}}
 
-	var {{$lengthName}} {{template "type" (list "" $value.NullableLengthPrefixedSlice.Prefix)}}
-    {{template "decode" (list $lengthName $value.NullableLengthPrefixedSlice.Prefix)}}
+	var {{$lengthPointer}} {{template "type" (list $name $value.NullableLengthPrefixedSlice.Prefix)}}
+    {{template "decode" (list $name $lengthPointer $value.NullableLengthPrefixedSlice.Prefix)}}
 
-	if {{$lengthName}} == -1 {
-		{{$name}} = nil
+	if {{$lengthPointer}} == -1 {
+		{{$pointer}} = nil
 	} else {
-		{{$name}} = slices.Resize({{$name}}, int({{$lengthName}}))
+		{{$pointer}} = slices.Resize({{$pointer}}, int({{$lengthPointer}}))
 
-		{{$indexName := temp -}}
+		{{$indexPointer := temp -}}
 
-		for {{$indexName}} := 0; {{$indexName}} < int({{$lengthName}}); {{$indexName}}++ {
-			{{$targetName := printf "%s[%s]" $name $indexName -}}
+		for {{$indexPointer}} := 0; {{$indexPointer}} < int({{$lengthPointer}}); {{$indexPointer}}++ {
+			{{$targetPointer := printf "%s[%s]" $pointer $indexPointer -}}
 
-			{{template "decode" (list $targetName $value.NullableLengthPrefixedSlice)}}
+			{{template "decode" (list $name $targetPointer $value.NullableLengthPrefixedSlice)}}
 		}
 	}
 
 {{else if some $value.ZeroByteTerminatedSlice -}}
-	{{$name}} = {{$name}}[:0]
+    {{$structName := printf "%s%s" $name $value.ZeroByteTerminatedSlice.Name -}}
+
+    {{$pointer}} = {{$pointer}}[:0]
 
 	for {
-	    {{$name}} = slices.Resize({{$name}}, len({{$name}})+1)
+	    {{$pointer}} = slices.Resize({{$pointer}}, len({{$pointer}})+1)
 
-		{{$targetName := printf "%s[len(%s)-1]" $name $name -}}
+		{{$targetPointer := printf "%s[len(%s)-1]" $pointer $pointer -}}
 
-		{{$keyName := printf "%s.%s" $targetName $value.ZeroByteTerminatedSlice.KeyName -}}
+		{{$keyPointer := printf "%s.%s" $targetPointer $value.ZeroByteTerminatedSlice.KeyName -}}
 
-		{{$keyName}}, err = decoder.Uint8()
+		{{$keyPointer}}, err = decoder.Uint8()
 		if err != nil {
 			return
 		}
-		if {{$keyName}} == 0 {
-			{{$name}} = {{$name}}[:len({{$name}})-1]
+		if {{$keyPointer}} == 0 {
+			{{$pointer}} = {{$pointer}}[:len({{$pointer}})-1]
 			break
 		}
 
 		{{range $field := $value.ZeroByteTerminatedSlice.Fields -}}
-			{{$fieldName := printf "%s.%s" $targetName $field.Name -}}
+			{{$fieldPointer := printf "%s.%s" $targetPointer $field.Name -}}
 
-			{{template "decode" (list $fieldName $field) -}}
+			{{template "decode" (list $structName $fieldPointer $field) -}}
 		{{end -}}
 	}
 {{else if some $value.ZeroTerminatedSlice -}}
-	{{$name}} = {{$name}}[:0]
+	{{$pointer}} = {{$pointer}}[:0]
 
 	for {
-		{{$name}} = slices.Resize({{$name}}, len({{$name}})+1)
+		{{$pointer}} = slices.Resize({{$pointer}}, len({{$pointer}})+1)
 
-		{{$targetName := printf "%s[len(%s)-1]" $name $name -}}
+		{{$targetPointer := printf "%s[len(%s)-1]" $pointer $pointer -}}
 
-		{{template "decode" (list $targetName $value.ZeroTerminatedSlice)}}
+		{{template "decode" (list $name $targetPointer $value.ZeroTerminatedSlice)}}
 
-		if {{$targetName}} == *new({{template "type" (list "" $value.ZeroTerminatedSlice)}}) {
-    		{{$name}} = {{$name}}[:len({{$name}})-1]
+		if {{$targetPointer}} == *new({{template "type" (list $name $value.ZeroTerminatedSlice)}}) {
+    		{{$pointer}} = {{$pointer}}[:len({{$pointer}})-1]
 			break
 		}
 	}
