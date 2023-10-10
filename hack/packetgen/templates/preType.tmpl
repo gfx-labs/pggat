@@ -13,9 +13,17 @@
 
 		func (*{{$itemName}}) {{$ifaceName}}() {}
 
-        {{template "decode" (list $itemName $item)}}
+		func (T *{{$itemName}}) ReadFrom(decoder *fed.Decoder) (err error) {
+			{{template "decode" (list "(*T)" $item)}}
 
-        {{template "encode" (list $itemName $item)}}
+			return
+		}
+
+		func (T *{{$itemName}}) WriteTo(encoder *fed.Encoder) (err error) {
+			{{template "encode" (list "(*T)" $item)}}
+
+			return
+		}
 
 	{{end -}}
 
@@ -38,10 +46,6 @@
 		{{end -}}
 	}
 
-    {{template "decode" (list $structName $value)}}
-
-    {{template "encode" (list $structName $value)}}
-
 {{else if some $value.LengthPrefixedSlice -}}
 	{{template "preType" (list $name $value.LengthPrefixedSlice) -}}
 {{else if some $value.NullableLengthPrefixedSlice -}}
@@ -60,9 +64,5 @@
 			{{$field.Name}} {{template "type" (list $structName $field) -}}
 		{{end -}}
 	}
-
-    {{template "decode" (list $structName $value)}}
-
-    {{template "encode" (list $structName $value)}}
 
 {{end -}}

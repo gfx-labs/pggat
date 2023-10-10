@@ -1,6 +1,94 @@
 {{$name := index . 0 -}}
 {{$value := index . 1 -}}
 
-func (T *{{$name}}) WriteTo(encoder *fed.Encoder) error {
-	panic("TODO") // TODO
-}
+{{if some $value.Map -}}
+	err = {{$name}}.WriteTo(encoder)
+	if err != nil {
+		return
+	}
+{{else if some $value.Remaining -}}
+	{{$itemName := temp -}}
+
+	for _, {{$itemName}} := range {{$name}} {
+		{{template "encode" (list $itemName $value.Remaining)}}
+	}
+{{else if some $value.Basic -}}
+	err = encoder.{{upperCamel $value.Basic}}({{$value.Basic}}({{$name}}))
+	if err != nil {
+		return
+	}
+{{else if some $value.Array -}}
+	{{$itemName := temp -}}
+
+	for _, {{$itemName}} := range {{$name}} {
+		{{template "encode" (list $itemName $value.Array)}}
+	}
+{{else if some $value.Struct -}}
+	{{range $field := $value.Struct.Fields -}}
+		{{$fieldName := printf "%s.%s" $name $field.Name -}}
+
+		{{template "encode" (list $fieldName $field)}}
+	{{end -}}
+{{else if some $value.LengthPrefixedSlice -}}
+	{{$lengthName := temp -}}
+
+	{{$lengthName}} := {{template "type" (list "" $value.LengthPrefixedSlice.Prefix)}}(len({{$name}}))
+
+	{{template "encode" (list $lengthName $value.LengthPrefixedSlice.Prefix)}}
+
+	{{$itemName := temp -}}
+
+	for _, {{$itemName}} := range {{$name}} {
+		{{template "encode" (list $itemName $value.LengthPrefixedSlice)}}
+	}
+{{else if some $value.NullableLengthPrefixedSlice -}}
+    {{$lengthName := temp -}}
+
+    {{$lengthName}} := {{template "type" (list "" $value.NullableLengthPrefixedSlice.Prefix)}}(len({{$name}}))
+
+	if {{$name}} == nil {
+		{{$lengthName}} = -1
+	}
+
+    {{template "encode" (list $lengthName $value.NullableLengthPrefixedSlice.Prefix)}}
+
+    {{$itemName := temp -}}
+
+	for _, {{$itemName}} := range {{$name}} {
+    	{{template "encode" (list $itemName $value.NullableLengthPrefixedSlice)}}
+	}
+{{else if some $value.ZeroByteTerminatedSlice -}}
+	{{$itemName := temp -}}
+
+	for _, {{$itemName}} := range {{$name}} {
+		{{$keyName := printf "%s.%s" $itemName $value.ZeroByteTerminatedSlice.KeyName -}}
+
+		err = encoder.Uint8({{$keyName}})
+		if err != nil {
+			return
+		}
+
+		{{range $field := $value.ZeroByteTerminatedSlice.Fields -}}
+			{{$fieldName := printf "%s.%s" $itemName $field.Name -}}
+
+			{{template "encode" (list $fieldName $field)}}
+		{{end -}}
+	}
+
+	err = encoder.Uint8(0)
+	if err != nil {
+		return
+	}
+{{else if some $value.ZeroTerminatedSlice -}}
+	{{$itemName := temp -}}
+
+	for _, {{$itemName}} := range {{$name}} {
+    	{{template "encode" (list $itemName $value.ZeroTerminatedSlice)}}
+	}
+
+	{{$doneName := temp -}}
+
+	var {{$doneName}} {{template "type" (list "" $value.ZeroTerminatedSlice)}}
+
+	{{template "encode" (list $doneName $value.ZeroTerminatedSlice)}}
+{{end -}}

@@ -1,6 +1,118 @@
 {{$name := index . 0 -}}
 {{$value := index . 1 -}}
 
-func (T *{{$name}}) ReadFrom(decoder *fed.Decoder) error {
-	panic("TODO") // TODO
-}
+{{if some $value.Map -}}
+	err = {{$name}}.ReadFrom(decoder)
+	if err != nil {
+		return
+	}
+{{else if some $value.Remaining -}}
+	{{$name}} = {{$name}}[:0]
+
+	for {
+		if decoder.Position() >= decoder.Length() {
+			break
+		}
+
+		{{$name}} = slices.Resize({{$name}}, len({{$name}})+1)
+
+		{{$targetName := printf "%s[len(%s)-1]" $name $name -}}
+
+		{{template "decode" (list $targetName $value.Remaining)}}
+	}
+{{else if some $value.Basic -}}
+	*(*{{$value.Basic}})(&({{$name}})), err = decoder.{{upperCamel $value.Basic}}()
+	if err != nil {
+		return
+	}
+{{else if some $value.Array -}}
+	{{$indexName := temp -}}
+
+	for {{$indexName}} := 0; {{$indexName}} < {{$value.Array.Length}}; {{$indexName}}++ {
+		{{$targetName := printf "%s[%s]" $name $indexName -}}
+
+		{{template "decode" (list $targetName $value.Array)}}
+	}
+{{else if some $value.Struct -}}
+	{{range $field := $value.Struct.Fields -}}
+        {{$fieldName := printf "%s.%s" $name $field.Name -}}
+
+		{{template "decode" (list $fieldName $field) -}}
+	{{end -}}
+{{else if some $value.LengthPrefixedSlice -}}
+	{{$lengthName := temp -}}
+
+	var {{$lengthName}} {{template "type" (list "" $value.LengthPrefixedSlice.Prefix)}}
+	{{template "decode" (list $lengthName $value.LengthPrefixedSlice.Prefix)}}
+
+	{{$name}} = slices.Resize({{$name}}, int({{$lengthName}}))
+
+	{{$indexName := temp -}}
+
+	for {{$indexName}} := 0; {{$indexName}} < int({{$lengthName}}); {{$indexName}}++ {
+		{{$targetName := printf "%s[%s]" $name $indexName -}}
+
+		{{template "decode" (list $targetName $value.LengthPrefixedSlice)}}
+	}
+
+{{else if some $value.NullableLengthPrefixedSlice -}}
+    {{$lengthName := temp -}}
+
+	var {{$lengthName}} {{template "type" (list "" $value.NullableLengthPrefixedSlice.Prefix)}}
+    {{template "decode" (list $lengthName $value.NullableLengthPrefixedSlice.Prefix)}}
+
+	if {{$lengthName}} == -1 {
+		{{$name}} = nil
+	} else {
+		{{$name}} = slices.Resize({{$name}}, int({{$lengthName}}))
+
+		{{$indexName := temp -}}
+
+		for {{$indexName}} := 0; {{$indexName}} < int({{$lengthName}}); {{$indexName}}++ {
+			{{$targetName := printf "%s[%s]" $name $indexName -}}
+
+			{{template "decode" (list $targetName $value.NullableLengthPrefixedSlice)}}
+		}
+	}
+
+{{else if some $value.ZeroByteTerminatedSlice -}}
+	{{$name}} = {{$name}}[:0]
+
+	for {
+	    {{$name}} = slices.Resize({{$name}}, len({{$name}})+1)
+
+		{{$targetName := printf "%s[len(%s)-1]" $name $name -}}
+
+		{{$keyName := printf "%s.%s" $targetName $value.ZeroByteTerminatedSlice.KeyName -}}
+
+		{{$keyName}}, err = decoder.Uint8()
+		if err != nil {
+			return
+		}
+		if {{$keyName}} == 0 {
+			{{$name}} = {{$name}}[:len({{$name}})-1]
+			break
+		}
+
+		{{range $field := $value.ZeroByteTerminatedSlice.Fields -}}
+			{{$fieldName := printf "%s.%s" $targetName $field.Name -}}
+
+			{{template "decode" (list $fieldName $field) -}}
+		{{end -}}
+	}
+{{else if some $value.ZeroTerminatedSlice -}}
+	{{$name}} = {{$name}}[:0]
+
+	for {
+		{{$name}} = slices.Resize({{$name}}, len({{$name}})+1)
+
+		{{$targetName := printf "%s[len(%s)-1]" $name $name -}}
+
+		{{template "decode" (list $targetName $value.ZeroTerminatedSlice)}}
+
+		if {{$targetName}} == *new({{template "type" (list "" $value.ZeroTerminatedSlice)}}) {
+    		{{$name}} = {{$name}}[:len({{$name}})-1]
+			break
+		}
+	}
+{{end -}}

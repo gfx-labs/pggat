@@ -1,4 +1,12 @@
 Packets:
+  StartupMessage:
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: MajorVersion
+          Basic: uint16
+        - Name: MinorVersion
+          Basic: uint16
   Authentication:
     Type: 'R'
     Struct:
@@ -7,7 +15,8 @@ Packets:
         - Name: Mode
           Map:
             Name: Mode
-            Prefix: int32
+            Prefix:
+              Basic: int32
             Items:
               Ok:
                 Type: 0
@@ -56,7 +65,8 @@ Packets:
           Basic: string
         - Name: InitialClientResponse
           NullableLengthPrefixedSlice:
-            Prefix: int32
+            Prefix:
+              Basic: int32
             Basic: uint8
   SASLResponse:
     Type: 'p'
@@ -82,17 +92,21 @@ Packets:
           Basic: string
         - Name: FormatCodes
           LengthPrefixedSlice:
-            Prefix: uint16
+            Prefix:
+              Basic: uint16
             Basic: int16
         - Name: Parameters
           LengthPrefixedSlice:
-            Prefix: uint16
+            Prefix:
+              Basic: uint16
             NullableLengthPrefixedSlice:
-              Prefix: int32
+              Prefix:
+                Basic: int32
               Basic: uint8
         - Name: ResultFormatCodes
           LengthPrefixedSlice:
-            Prefix: uint16
+            Prefix:
+              Basic: uint16
             Basic: int16
   BindComplete:
     Type: '2'
@@ -128,7 +142,8 @@ Packets:
           Basic: int8
         - Name: ColumnFormatCodes
           LengthPrefixedSlice:
-            Prefix: uint16
+            Prefix:
+              Basic: uint16
             Basic: int16
   CopyOutResponse:
     Type: 'H'
@@ -139,7 +154,8 @@ Packets:
           Basic: int8
         - Name: ColumnFormatCodes
           LengthPrefixedSlice:
-            Prefix: uint16
+            Prefix:
+              Basic: uint16
             Basic: int16
   CopyBothResponse:
     Type: 'W'
@@ -150,14 +166,17 @@ Packets:
           Basic: int8
         - Name: ColumnFormatCodes
           LengthPrefixedSlice:
-            Prefix: uint16
+            Prefix:
+              Basic: uint16
             Basic: int16
   DataRow:
     Type: 'D'
     LengthPrefixedSlice:
-      Prefix: uint16
+      Prefix:
+        Basic: uint16
       NullableLengthPrefixedSlice:
-        Prefix: int32
+        Prefix:
+          Basic: int32
         Basic: uint8
   Describe:
     Type: 'D'
@@ -198,20 +217,24 @@ Packets:
           Basic: int32
         - Name: ArgumentFormatCodes
           LengthPrefixedSlice:
-            Prefix: uint16
+            Prefix:
+              Basic: uint16
             Basic: int16
         - Name: Arguments
           LengthPrefixedSlice:
-            Prefix: uint16
+            Prefix:
+              Basic: uint16
             NullableLengthPrefixedSlice:
-              Prefix: int32
+              Prefix:
+                Basic: int32
               Basic: uint8
         - Name: ResultFormatCode
           Basic: int16
   FunctionCallResponse:
     Type: 'V'
     NullableLengthPrefixedSlice:
-      Prefix: int32
+      Prefix:
+        Basic: int32
       Basic: uint8
   NegotiateProtocolVersion:
     Type: 'v'
@@ -222,7 +245,8 @@ Packets:
           Basic: int32
         - Name: UnrecognizedProtocolOptions
           LengthPrefixedSlice:
-            Prefix: uint32
+            Prefix:
+              Basic: uint32
             Basic: string
   NoData:
     Type: 'n'
@@ -248,7 +272,8 @@ Packets:
   ParameterDescription:
     Type: 't'
     LengthPrefixedSlice:
-      Prefix: uint16
+      Prefix:
+        Basic: uint16
       Basic: int32
   ParameterStatus:
     Type: 'S'
@@ -270,7 +295,8 @@ Packets:
           Basic: string
         - Name: ParameterDataTypes
           LengthPrefixedSlice:
-            Prefix: uint16
+            Prefix:
+              Basic: uint16
             Basic: int32
   ParseComplete:
     Type: '1'
@@ -285,7 +311,8 @@ Packets:
   RowDescription:
     Type: 'T'
     LengthPrefixedSlice:
-      Prefix: uint16
+      Prefix:
+        Basic: uint16
       Struct:
         Name: Row
         Fields:
