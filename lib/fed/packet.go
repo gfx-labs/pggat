@@ -1,5 +1,7 @@
 package fed
 
+import "io"
+
 type Packet interface {
 	Type() Type
 	Length() int
@@ -26,12 +28,19 @@ func (T PendingPacket) Length() int {
 }
 
 func (T PendingPacket) WriteTo(encoder *Encoder) error {
-	// TODO(garet) this should be better
-	b, err := T.Decoder.Remaining()
-	if err != nil {
-		return err
+	count := T.Decoder.len - T.Decoder.pos
+	limited := io.LimitedReader{
+		R: &T.Decoder.Reader,
+		N: int64(count),
 	}
-	return encoder.Bytes(b)
+	for limited.N > 0 {
+		if _, err := encoder.Writer.ReadFrom(&limited); err != nil {
+			return err
+		}
+	}
+	T.Decoder.pos += count
+	encoder.pos += count
+	return nil
 }
 
 var _ Packet = PendingPacket{}
