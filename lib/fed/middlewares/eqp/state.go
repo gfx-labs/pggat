@@ -68,7 +68,8 @@ func (T *State) S2C(packet fed.Packet) (fed.Packet, error) {
 
 // Close is a pending close. Execute on Close C->S
 func (T *State) Close(packet fed.Packet) (fed.Packet, error) {
-	p, err := fed.ToConcrete[*packets.Close](packet)
+	var p packets.Close
+	err := fed.ToConcrete(&p, packet)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +89,7 @@ func (T *State) Close(packet fed.Packet) (fed.Packet, error) {
 		Target:  p.Name,
 	})
 
-	return p, nil
+	return &p, nil
 }
 
 // CloseComplete notifies that a close was successful. Execute on CloseComplete S->C
@@ -110,12 +111,13 @@ func (T *State) CloseComplete() {
 
 // Parse is a pending prepared statement. Execute on Parse C->S
 func (T *State) Parse(packet fed.Packet) (fed.Packet, error) {
-	p, err := fed.ToConcrete[*packets.Parse](packet)
+	var p packets.Parse
+	err := fed.ToConcrete(&p, packet)
 	if err != nil {
 		return nil, err
 	}
-	T.pendingPreparedStatements.PushBack(p)
-	return p, nil
+	T.pendingPreparedStatements.PushBack(&p)
+	return &p, nil
 }
 
 // ParseComplete notifies that a parse was successful. Execute on ParseComplete S->C
@@ -133,12 +135,13 @@ func (T *State) ParseComplete() {
 
 // Bind is a pending portal. Execute on Bind C->S
 func (T *State) Bind(packet fed.Packet) (fed.Packet, error) {
-	p, err := fed.ToConcrete[*packets.Bind](packet)
+	var p packets.Bind
+	err := fed.ToConcrete(&p, packet)
 	if err != nil {
 		return nil, err
 	}
-	T.pendingPortals.PushBack(p)
-	return p, nil
+	T.pendingPortals.PushBack(&p)
+	return &p, nil
 }
 
 // BindComplete notifies that a bind was successful. Execute on BindComplete S->C
@@ -162,12 +165,13 @@ func (T *State) Query() {
 
 // CommandComplete clobbers everything if DISCARD ALL | DEALLOCATE | CLOSE
 func (T *State) CommandComplete(packet fed.Packet) (fed.Packet, error) {
-	p, err := fed.ToConcrete[*packets.CommandComplete](packet)
+	var p packets.CommandComplete
+	err := fed.ToConcrete(&p, packet)
 	if err != nil {
 		return nil, err
 	}
 
-	if *p == "DISCARD ALL" {
+	if p == "DISCARD ALL" {
 		maps.Clear(T.preparedStatements)
 		maps.Clear(T.portals)
 		T.pendingPreparedStatements.Clear()
@@ -175,17 +179,18 @@ func (T *State) CommandComplete(packet fed.Packet) (fed.Packet, error) {
 		T.pendingCloses.Clear()
 	}
 
-	return p, nil
+	return &p, nil
 }
 
 // ReadyForQuery clobbers portals if state == 'I' and pending. Execute on ReadyForQuery S->C
 func (T *State) ReadyForQuery(packet fed.Packet) (fed.Packet, error) {
-	p, err := fed.ToConcrete[*packets.ReadyForQuery](packet)
+	var p packets.ReadyForQuery
+	err := fed.ToConcrete(&p, packet)
 	if err != nil {
 		return nil, err
 	}
 
-	if *p == 'I' {
+	if p == 'I' {
 		// clobber all portals
 		for name := range T.portals {
 			delete(T.portals, name)
@@ -197,5 +202,5 @@ func (T *State) ReadyForQuery(packet fed.Packet) (fed.Packet, error) {
 	T.pendingPortals.Clear()
 	T.pendingCloses.Clear()
 
-	return p, nil
+	return &p, nil
 }

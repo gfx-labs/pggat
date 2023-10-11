@@ -19,8 +19,8 @@ func authenticationSASLInitial(ctx *authenticateContext, creds auth.SASLServer) 
 	if err != nil {
 		return
 	}
-	var p *packets.SASLInitialResponse
-	p, err = fed.ToConcrete[*packets.SASLInitialResponse](packet)
+	var p packets.SASLInitialResponse
+	err = fed.ToConcrete(&p, packet)
 	if err != nil {
 		return
 	}
@@ -47,13 +47,13 @@ func authenticationSASLContinue(ctx *authenticateContext, tool auth.SASLVerifier
 	if err != nil {
 		return
 	}
-	var p *packets.SASLResponse
-	p, err = fed.ToConcrete[*packets.SASLResponse](packet)
+	var p packets.SASLResponse
+	err = fed.ToConcrete(&p, packet)
 	if err != nil {
 		return
 	}
 
-	resp, err = tool.Write(*p)
+	resp, err = tool.Write(p)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
 			done = true
@@ -138,13 +138,13 @@ func authenticationMD5(ctx *authenticateContext, creds auth.MD5Server) error {
 		return err
 	}
 
-	var pw *packets.PasswordMessage
-	pw, err = fed.ToConcrete[*packets.PasswordMessage](packet)
+	var pw packets.PasswordMessage
+	err = fed.ToConcrete(&pw, packet)
 	if err != nil {
 		return err
 	}
 
-	if err = creds.VerifyMD5(salt, string(*pw)); err != nil {
+	if err = creds.VerifyMD5(salt, string(pw)); err != nil {
 		return err
 	}
 

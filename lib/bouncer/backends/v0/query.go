@@ -85,13 +85,13 @@ func query(ctx *context) error {
 				return err
 			}
 		case packets.TypeReadyForQuery:
-			var p *packets.ReadyForQuery
-			p, err = fed.ToConcrete[*packets.ReadyForQuery](ctx.Packet)
+			var p packets.ReadyForQuery
+			err = fed.ToConcrete(&p, ctx.Packet)
 			if err != nil {
 				return err
 			}
-			ctx.Packet = p
-			ctx.TxState = byte(*p)
+			ctx.Packet = &p
+			ctx.TxState = byte(p)
 			ctx.PeerWrite()
 			return nil
 		default:
@@ -143,13 +143,13 @@ func functionCall(ctx *context) error {
 			packets.TypeNotificationResponse:
 			ctx.PeerWrite()
 		case packets.TypeReadyForQuery:
-			var p *packets.ReadyForQuery
-			p, err = fed.ToConcrete[*packets.ReadyForQuery](ctx.Packet)
+			var p packets.ReadyForQuery
+			err = fed.ToConcrete(&p, ctx.Packet)
 			if err != nil {
 				return err
 			}
-			ctx.Packet = p
-			ctx.TxState = byte(*p)
+			ctx.Packet = &p
+			ctx.TxState = byte(p)
 			ctx.PeerWrite()
 			return nil
 		default:
@@ -198,13 +198,13 @@ func sync(ctx *context) (bool, error) {
 				return false, err
 			}
 		case packets.TypeReadyForQuery:
-			var p *packets.ReadyForQuery
-			p, err = fed.ToConcrete[*packets.ReadyForQuery](ctx.Packet)
+			var p packets.ReadyForQuery
+			err = fed.ToConcrete(&p, ctx.Packet)
 			if err != nil {
 				return false, err
 			}
-			ctx.Packet = p
-			ctx.TxState = byte(*p)
+			ctx.Packet = &p
+			ctx.TxState = byte(p)
 			ctx.PeerWrite()
 			return true, nil
 		default:

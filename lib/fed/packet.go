@@ -36,14 +36,16 @@ func (T PendingPacket) WriteTo(encoder *Encoder) error {
 
 var _ Packet = PendingPacket{}
 
-func ToConcrete[T ReadablePacket](packet Packet) (T, error) {
+func ToConcrete[T any, PT interface {
+	ReadFrom(decoder *Decoder) error
+	*T
+}](value PT, packet Packet) error {
 	switch p := packet.(type) {
-	case T:
-		return p, nil
+	case PT:
+		*value = *p
+		return nil
 	case PendingPacket:
-		var res T
-		err := res.ReadFrom(p.Decoder)
-		return res, err
+		return value.ReadFrom(p.Decoder)
 	default:
 		panic("incompatible packet types")
 	}

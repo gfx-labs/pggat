@@ -20,8 +20,8 @@ func startup0(
 		return
 	}
 
-	var p *packets.Startup
-	p, err = fed.ToConcrete[*packets.Startup](packet)
+	var p packets.Startup
+	err = fed.ToConcrete(&p, packet)
 	if err != nil {
 		return
 	}

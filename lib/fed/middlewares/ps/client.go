@@ -24,7 +24,8 @@ func (T *Client) ReadPacket(packet fed.Packet) (fed.Packet, error) {
 func (T *Client) WritePacket(packet fed.Packet) (fed.Packet, error) {
 	switch packet.Type() {
 	case packets.TypeParameterStatus:
-		p, err := fed.ToConcrete[*packets.ParameterStatus](packet)
+		var p packets.ParameterStatus
+		err := fed.ToConcrete(&p, packet)
 		if err != nil {
 			return nil, err
 		}
@@ -37,7 +38,7 @@ func (T *Client) WritePacket(packet fed.Packet) (fed.Packet, error) {
 			T.parameters = make(map[strutil.CIString]string)
 		}
 		T.parameters[ikey] = p.Value
-		return p, nil
+		return &p, nil
 	default:
 		return packet, nil
 	}

@@ -25,8 +25,8 @@ func authenticationSASLChallenge(ctx *acceptContext, encoder auth.SASLEncoder) (
 		return
 	}
 
-	var p *packets.Authentication
-	p, err = fed.ToConcrete[*packets.Authentication](packet)
+	var p packets.Authentication
+	err = fed.ToConcrete(&p, packet)
 	if err != nil {
 		return
 	}
@@ -167,20 +167,20 @@ func startup0(ctx *acceptContext) (done bool, err error) {
 
 	switch packet.Type() {
 	case packets.TypeErrorResponse:
-		var p *packets.ErrorResponse
-		p, err = fed.ToConcrete[*packets.ErrorResponse](packet)
+		var p packets.ErrorResponse
+		err = fed.ToConcrete(&p, packet)
 		if err != nil {
 			return
 		}
-		err = perror.FromPacket(p)
+		err = perror.FromPacket(&p)
 		return
 	case packets.TypeAuthentication:
-		var p *packets.Authentication
-		p, err = fed.ToConcrete[*packets.Authentication](packet)
+		var p packets.Authentication
+		err = fed.ToConcrete(&p, packet)
 		if err != nil {
 			return
 		}
-		return authentication(ctx, p)
+		return authentication(ctx, &p)
 	case packets.TypeNegotiateProtocolVersion:
 		// we only support protocol 3.0 for now
 		err = errors.New("server wanted to negotiate protocol version")
@@ -200,8 +200,8 @@ func startup1(ctx *acceptContext) (done bool, err error) {
 
 	switch packet.Type() {
 	case packets.TypeBackendKeyData:
-		var p *packets.BackendKeyData
-		p, err = fed.ToConcrete[*packets.BackendKeyData](packet)
+		var p packets.BackendKeyData
+		err = fed.ToConcrete(&p, packet)
 		if err != nil {
 			return
 		}
@@ -210,8 +210,8 @@ func startup1(ctx *acceptContext) (done bool, err error) {
 
 		return false, nil
 	case packets.TypeParameterStatus:
-		var p *packets.ParameterStatus
-		p, err = fed.ToConcrete[*packets.ParameterStatus](packet)
+		var p packets.ParameterStatus
+		err = fed.ToConcrete(&p, packet)
 		if err != nil {
 			return
 		}
@@ -224,12 +224,12 @@ func startup1(ctx *acceptContext) (done bool, err error) {
 	case packets.TypeReadyForQuery:
 		return true, nil
 	case packets.TypeErrorResponse:
-		var p *packets.ErrorResponse
-		p, err = fed.ToConcrete[*packets.ErrorResponse](packet)
+		var p packets.ErrorResponse
+		err = fed.ToConcrete(&p, packet)
 		if err != nil {
 			return
 		}
-		err = perror.FromPacket(p)
+		err = perror.FromPacket(&p)
 		return
 	case packets.TypeNoticeResponse:
 		// TODO(garet) do something with notice

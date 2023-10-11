@@ -228,28 +228,29 @@ outer2:
 func (T *RowWriter) WritePacket(packet fed.Packet) error {
 	switch packet.Type() {
 	case packets.TypeRowDescription:
-		rd, err := fed.ToConcrete[*packets.RowDescription](packet)
+		err := fed.ToConcrete(&T.rd, packet)
 		if err != nil {
 			return err
 		}
-		T.rd = *rd
 	case packets.TypeDataRow:
-		dr, err := fed.ToConcrete[*packets.DataRow](packet)
+		var dr packets.DataRow
+		err := fed.ToConcrete(&dr, packet)
 		if err != nil {
 			return err
 		}
-		for i, col := range *dr {
+		for i, col := range dr {
 			if err = T.set(i, col); err != nil {
 				return err
 			}
 		}
 		T.row += 1
 	case packets.TypeErrorResponse:
-		p, err := fed.ToConcrete[*packets.ErrorResponse](packet)
+		var p packets.ErrorResponse
+		err := fed.ToConcrete(&p, packet)
 		if err != nil {
 			return err
 		}
-		return perror.FromPacket(p)
+		return perror.FromPacket(&p)
 	case packets.TypeCommandComplete:
 		T.done = true
 		return nil
