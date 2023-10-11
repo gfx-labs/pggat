@@ -9,12 +9,13 @@ import (
 
 var (
 	ErrUnexpectedPacket = errors.New("unexpected packet")
+	ErrInvalidFormat = errors.New("invalid packet format")
 )
 
 const (
 	{{range $name, $packet := .Packets -}}
 		{{if some $packet.Type -}}
-			{{$name}}Type = '{{$packet.Type}}'
+			Type{{$name}} = '{{$packet.Type}}'
 		{{end -}}
 	{{end -}}
 )
@@ -24,6 +25,14 @@ const (
 
 	type {{$name}} {{template "type" (list $name $packet)}}
 
+	func (T *{{$name}}) Type() fed.Type {
+		{{if some $packet.Type -}}
+			return Type{{$name}}
+		{{else -}}
+			return 0
+		{{end -}}
+	}
+
 	func (T *{{$name}}) Length() (length int) {
 		{{template "length" (list $name "(*T)" $packet)}}
 
@@ -31,15 +40,9 @@ const (
 	}
 
 	func (T *{{$name}}) ReadFrom(decoder *fed.Decoder) (err error) {
-		{{if some $packet.Type -}}
-			if decoder.Type() != {{$name}}Type {
-				return ErrUnexpectedPacket
-			}
-		{{else -}}
-			if decoder.Type() != 0 {
-				return ErrUnexpectedPacket
-			}
-		{{end -}}
+		if decoder.Type() != T.Type() {
+			return ErrUnexpectedPacket
+		}
 
 		{{template "decode" (list $name "(*T)" $packet)}}
 
@@ -51,5 +54,7 @@ const (
 
 		return
 	}
+
+	var _ fed.Packet = (*{{$name}})(nil)
 
 {{end}}

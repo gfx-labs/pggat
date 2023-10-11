@@ -27,6 +27,10 @@ func NewEncoder(w io.Writer) *Encoder {
 	return e
 }
 
+func (T *Encoder) Flush() error {
+	return T.Writer.Flush()
+}
+
 func (T *Encoder) Next(typ Type, length int) error {
 	if typ != 0 {
 		if err := T.Writer.WriteByte(typ); err != nil {

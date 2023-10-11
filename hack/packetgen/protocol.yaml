@@ -1,12 +1,53 @@
 Packets:
-  StartupMessage:
+  Startup:
     Struct:
       Name: Payload
       Fields:
-        - Name: MajorVersion
-          Basic: uint16
-        - Name: MinorVersion
-          Basic: uint16
+        - Name: Mode
+          Map:
+            Name: Mode
+            Prefix:
+              Basic: int16
+            Items:
+              Version3:
+                Type: 3
+                Struct:
+                  Name: Payload
+                  Fields:
+                    - Name: MinorVersion
+                      Basic: int16
+                    - Name: Parameters
+                      ZeroTerminatedSlice:
+                        Name: Parameter
+                        Fields:
+                          - Name: Key
+                            Basic: string
+                          - Name: Value
+                            Basic: string
+              Control:
+                Type: 1234
+                Struct:
+                  Name: Payload
+                  Fields:
+                    - Name: Mode
+                      Map:
+                        Name: Mode
+                        Prefix:
+                          Basic: int16
+                        Items:
+                          Cancel:
+                            Type: 5678
+                            Struct:
+                              Name: Key
+                              Fields:
+                                - Name: ProcessID
+                                  Basic: int32
+                                - Name: SecretKey
+                                  Basic: int32
+                          SSL:
+                            Type: 5679
+                          GSSAPI:
+                            Type: 5680
   Authentication:
     Type: 'R'
     Struct:
@@ -40,7 +81,10 @@ Packets:
               SASL:
                 Type: 10
                 ZeroTerminatedSlice:
-                  Basic: string
+                  Name: Method
+                  Fields:
+                    - Name: Method
+                      Basic: string
               SASLContinue:
                 Type: 11
                 Remaining:
@@ -191,10 +235,11 @@ Packets:
     Type: 'I'
   ErrorResponse:
     Type: 'E'
-    ZeroByteTerminatedSlice:
+    ZeroTerminatedSlice:
       Name: Field
-      KeyName: Code
       Fields:
+        - Name: Code
+          Basic: uint8
         - Name: Value
           Basic: string
   Execute:
@@ -252,10 +297,11 @@ Packets:
     Type: 'n'
   NoticeResponse:
     Type: 'N'
-    ZeroByteTerminatedSlice:
+    ZeroTerminatedSlice:
       Name: Field
-      KeyName: Code
       Fields:
+        - Name: Code
+          Basic: uint8
         - Name: Value
           Basic: string
   NotificationResponse:

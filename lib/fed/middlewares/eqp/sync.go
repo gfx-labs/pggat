@@ -16,15 +16,12 @@ func Sync(c *Client, server *fed.Conn, s *Server) error {
 		needsBackendSync = true
 	}
 
-	var packet fed.Packet
-
 	for name := range s.state.portals {
 		p := packets.Close{
-			Which:  'P',
-			Target: name,
+			Which: 'P',
+			Name:  name,
 		}
-		packet = p.IntoPacket(packet)
-		if err := server.WritePacket(packet); err != nil {
+		if err := server.WritePacket(&p); err != nil {
 			return err
 		}
 	}
@@ -32,10 +29,9 @@ func Sync(c *Client, server *fed.Conn, s *Server) error {
 	// close all prepared statements that don't match client
 	for name, preparedStatement := range s.state.preparedStatements {
 		if clientPreparedStatement, ok := c.state.preparedStatements[name]; ok {
-			if preparedStatement.Hash == clientPreparedStatement.Hash {
-				// the same
-				continue
-			}
+			// TODO(garet) do not overwrite prepared statements that match
+			_ = preparedStatement
+			_ = clientPreparedStatement
 
 			if name == "" {
 				// will be overwritten
@@ -44,11 +40,10 @@ func Sync(c *Client, server *fed.Conn, s *Server) error {
 		}
 
 		p := packets.Close{
-			Which:  'S',
-			Target: name,
+			Which: 'S',
+			Name:  name,
 		}
-		packet = p.IntoPacket(packet)
-		if err := server.WritePacket(packet); err != nil {
+		if err := server.WritePacket(&p); err != nil {
 			return err
 		}
 
@@ -58,13 +53,12 @@ func Sync(c *Client, server *fed.Conn, s *Server) error {
 	// parse all prepared statements that aren't on server
 	for name, preparedStatement := range c.state.preparedStatements {
 		if serverPreparedStatement, ok := s.state.preparedStatements[name]; ok {
-			if preparedStatement.Hash == serverPreparedStatement.Hash {
-				// the same
-				continue
-			}
+			// TODO(garet) do not overwrite prepared statements that match
+			_ = preparedStatement
+			_ = serverPreparedStatement
 		}
 
-		if err := server.WritePacket(preparedStatement.Packet); err != nil {
+		if err := server.WritePacket(preparedStatement); err != nil {
 			return err
 		}
 
@@ -77,14 +71,14 @@ func Sync(c *Client, server *fed.Conn, s *Server) error {
 	}
 
 	for _, portal := range c.state.portals {
-		if err := server.WritePacket(portal.Packet); err != nil {
+		if err := server.WritePacket(portal); err != nil {
 			return err
 		}
 	}
 
 	if needsBackendSync {
 		var err error
-		err, _, packet = backends.Sync(server, nil, packet)
+		err, _ = backends.Sync(server, nil)
 		return err
 	}
 

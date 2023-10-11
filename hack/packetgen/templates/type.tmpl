@@ -15,10 +15,8 @@
 	[]{{template "type" (list $name $value.LengthPrefixedSlice)}}
 {{- else if some $value.NullableLengthPrefixedSlice -}}
 	[]{{template "type" (list $name $value.NullableLengthPrefixedSlice)}}
-{{- else if some $value.ZeroByteTerminatedSlice -}}
-	[]{{printf "%s%s" $name $value.ZeroByteTerminatedSlice.Name}}
 {{- else if some $value.ZeroTerminatedSlice -}}
-	[]{{template "type" (list $name $value.ZeroTerminatedSlice)}}
+	[]{{printf "%s%s" $name $value.ZeroTerminatedSlice.Name}}
 {{- else -}}
 	struct{}
 {{- end -}}

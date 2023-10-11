@@ -16,6 +16,9 @@
 		case {{$item.Type}}:
 			{{$pointer}} = new({{$itemName}})
 	{{end -}}
+		default:
+			err = ErrInvalidFormat
+			return
 	}
 
 	err = {{$pointer}}.ReadFrom(decoder)
@@ -93,34 +96,9 @@
 		}
 	}
 
-{{else if some $value.ZeroByteTerminatedSlice -}}
-    {{$structName := printf "%s%s" $name $value.ZeroByteTerminatedSlice.Name -}}
-
-    {{$pointer}} = {{$pointer}}[:0]
-
-	for {
-	    {{$pointer}} = slices.Resize({{$pointer}}, len({{$pointer}})+1)
-
-		{{$targetPointer := printf "%s[len(%s)-1]" $pointer $pointer -}}
-
-		{{$keyPointer := printf "%s.%s" $targetPointer $value.ZeroByteTerminatedSlice.KeyName -}}
-
-		{{$keyPointer}}, err = decoder.Uint8()
-		if err != nil {
-			return
-		}
-		if {{$keyPointer}} == 0 {
-			{{$pointer}} = {{$pointer}}[:len({{$pointer}})-1]
-			break
-		}
-
-		{{range $field := $value.ZeroByteTerminatedSlice.Fields -}}
-			{{$fieldPointer := printf "%s.%s" $targetPointer $field.Name -}}
-
-			{{template "decode" (list $structName $fieldPointer $field) -}}
-		{{end -}}
-	}
 {{else if some $value.ZeroTerminatedSlice -}}
+    {{$structName := printf "%s%s" $name $value.ZeroTerminatedSlice.Name -}}
+
 	{{$pointer}} = {{$pointer}}[:0]
 
 	for {
@@ -128,11 +106,17 @@
 
 		{{$targetPointer := printf "%s[len(%s)-1]" $pointer $pointer -}}
 
-		{{template "decode" (list $name $targetPointer $value.ZeroTerminatedSlice)}}
+		{{range $i, $field := $value.ZeroTerminatedSlice.Fields -}}
+			{{$fieldPointer := printf "%s.%s" $targetPointer $field.Name -}}
 
-		if {{$targetPointer}} == *new({{template "type" (list $name $value.ZeroTerminatedSlice)}}) {
-    		{{$pointer}} = {{$pointer}}[:len({{$pointer}})-1]
-			break
-		}
+			{{template "decode" (list $structName $fieldPointer $field) -}}
+
+			{{if eq $i 0 -}}
+				if {{$fieldPointer}} == *new({{template "type" (list $structName $field)}}) {
+                	{{$pointer}} = {{$pointer}}[:len({{$pointer}})-1]
+					break
+				}
+			{{end -}}
+		{{end -}}
 	}
 {{end -}}

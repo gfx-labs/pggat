@@ -59,18 +59,16 @@
 	{{template "preType" (list $name $value.LengthPrefixedSlice) -}}
 {{else if some $value.NullableLengthPrefixedSlice -}}
     {{template "preType" (list $name $value.NullableLengthPrefixedSlice) -}}
-{{else if some $value.ZeroByteTerminatedSlice -}}
-	{{$structName := printf "%s%s" $name $value.ZeroByteTerminatedSlice.Name -}}
+{{else if some $value.ZeroTerminatedSlice -}}
+	{{$structName := printf "%s%s" $name $value.ZeroTerminatedSlice.Name -}}
 
-	{{range $field := $value.ZeroByteTerminatedSlice.Fields -}}
+	{{range $field := $value.ZeroTerminatedSlice.Fields -}}
 		{{template "preType" (list $structName $field) -}}
 	{{end -}}
 
 	type {{$structName}} struct{
-		{{$value.ZeroByteTerminatedSlice.KeyName}} byte
-
-		{{range $field := $value.ZeroByteTerminatedSlice.Fields -}}
-			{{$field.Name}} {{template "type" (list $structName $field) -}}
+		{{range $field := $value.ZeroTerminatedSlice.Fields -}}
+			{{$field.Name}} {{template "type" (list $structName $field)}}
 		{{end -}}
 	}
 

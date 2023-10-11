@@ -20,7 +20,7 @@ type context struct {
 
 func (T *context) ServerRead() error {
 	var err error
-	T.Packet, err = T.Server.ReadPacket(true, T.Packet)
+	T.Packet, err = T.Server.ReadPacket(true)
 	return err
 }
 
@@ -51,7 +51,7 @@ func (T *context) PeerRead() bool {
 		return false
 	}
 	var err error
-	T.Packet, err = T.Peer.ReadPacket(true, T.Packet)
+	T.Packet, err = T.Peer.ReadPacket(true)
 	if err != nil {
 		T.PeerFail(err)
 		return false

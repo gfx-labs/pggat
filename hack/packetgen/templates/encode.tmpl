@@ -66,40 +66,22 @@
 	for _, {{$itemPointer}} := range {{$pointer}} {
     	{{template "encode" (list $name $itemPointer $value.NullableLengthPrefixedSlice)}}
 	}
-{{else if some $value.ZeroByteTerminatedSlice -}}
-    {{$structName := printf "%s%s" $name $value.ZeroByteTerminatedSlice.Name -}}
+{{else if some $value.ZeroTerminatedSlice -}}
+    {{$structName := printf "%s%s" $name $value.ZeroTerminatedSlice.Name -}}
 
-    {{$itemPointer := temp -}}
+	{{$itemPointer := temp -}}
 
 	for _, {{$itemPointer}} := range {{$pointer}} {
-		{{$keyPointer := printf "%s.%s" $itemPointer $value.ZeroByteTerminatedSlice.KeyName -}}
-
-		err = encoder.Uint8({{$keyPointer}})
-		if err != nil {
-			return
-		}
-
-		{{range $field := $value.ZeroByteTerminatedSlice.Fields -}}
+		{{range $field := $value.ZeroTerminatedSlice.Fields -}}
 			{{$fieldPointer := printf "%s.%s" $itemPointer $field.Name -}}
 
 			{{template "encode" (list $structName $fieldPointer $field)}}
 		{{end -}}
 	}
 
-	err = encoder.Uint8(0)
-	if err != nil {
-		return
-	}
-{{else if some $value.ZeroTerminatedSlice -}}
-	{{$itemPointer := temp -}}
-
-	for _, {{$itemPointer}} := range {{$pointer}} {
-    	{{template "encode" (list $name $itemPointer $value.ZeroTerminatedSlice)}}
-	}
-
 	{{$donePointer := temp -}}
 
-	var {{$donePointer}} {{template "type" (list $name $value.ZeroTerminatedSlice)}}
+	var {{$donePointer}} {{template "type" (list $structName (index $value.ZeroTerminatedSlice.Fields 0))}}
 
-	{{template "encode" (list $name $donePointer $value.ZeroTerminatedSlice)}}
+	{{template "encode" (list $structName $donePointer (index $value.ZeroTerminatedSlice.Fields 0))}}
 {{end -}}

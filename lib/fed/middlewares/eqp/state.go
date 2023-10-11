@@ -1,52 +1,11 @@
 package eqp
 
 import (
-	"bytes"
-	"hash/maphash"
-
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/util/maps"
 	"gfx.cafe/gfx/pggat/lib/util/ring"
 )
-
-var seed = maphash.MakeSeed()
-
-type PreparedStatement struct {
-	Packet fed.Packet
-	Target string
-	Hash   uint64
-}
-
-func MakePreparedStatement(packet fed.Packet) PreparedStatement {
-	if packet.Type() != packets.TypeParse {
-		panic("unreachable")
-	}
-
-	var res PreparedStatement
-	packet.ReadString(&res.Target)
-	res.Packet = bytes.Clone(packet)
-	res.Hash = maphash.Bytes(seed, packet.Payload())
-
-	return res
-}
-
-type Portal struct {
-	Packet fed.Packet
-	Target string
-}
-
-func MakePortal(packet fed.Packet) Portal {
-	if packet.Type() != packets.TypeBind {
-		panic("unreachable")
-	}
-
-	var res Portal
-	packet.ReadString(&res.Target)
-	res.Packet = bytes.Clone(packet)
-
-	return res
-}
 
 type CloseVariant int
 
@@ -61,65 +20,75 @@ type Close struct {
 }
 
 type State struct {
-	preparedStatements map[string]PreparedStatement
-	portals            map[string]Portal
+	preparedStatements map[string]*packets.Parse
+	portals            map[string]*packets.Bind
 
-	pendingPreparedStatements ring.Ring[PreparedStatement]
-	pendingPortals            ring.Ring[Portal]
+	pendingPreparedStatements ring.Ring[*packets.Parse]
+	pendingPortals            ring.Ring[*packets.Bind]
 	pendingCloses             ring.Ring[Close]
 }
 
 // C2S is client to server packets
-func (T *State) C2S(packet fed.Packet) {
+func (T *State) C2S(packet fed.Packet) (fed.Packet, error) {
 	switch packet.Type() {
 	case packets.TypeClose:
-		T.Close(packet)
+		return T.Close(packet)
 	case packets.TypeParse:
-		T.Parse(packet)
+		return T.Parse(packet)
 	case packets.TypeBind:
-		T.Bind(packet)
+		return T.Bind(packet)
 	case packets.TypeQuery:
 		T.Query()
+		return packet, nil
+	default:
+		return packet, nil
 	}
 }
 
 // S2C is server to client packets
-func (T *State) S2C(packet fed.Packet) {
+func (T *State) S2C(packet fed.Packet) (fed.Packet, error) {
 	switch packet.Type() {
 	case packets.TypeCloseComplete:
 		T.CloseComplete()
+		return packet, nil
 	case packets.TypeParseComplete:
 		T.ParseComplete()
+		return packet, nil
 	case packets.TypeBindComplete:
 		T.BindComplete()
+		return packet, nil
 	case packets.TypeCommandComplete:
-		T.CommandComplete(packet)
+		return T.CommandComplete(packet)
 	case packets.TypeReadyForQuery:
-		T.ReadyForQuery(packet)
+		return T.ReadyForQuery(packet)
+	default:
+		return packet, nil
 	}
 }
 
 // Close is a pending close. Execute on Close C->S
-func (T *State) Close(packet fed.Packet) {
-	var which byte
-	p := packet.ReadUint8(&which)
-	var target string
-	p.ReadString(&target)
+func (T *State) Close(packet fed.Packet) (fed.Packet, error) {
+	p, err := fed.ToConcrete[*packets.Close](packet)
+	if err != nil {
+		return nil, err
+	}
 
 	var variant CloseVariant
-	switch which {
+	switch p.Which {
 	case 'S':
 		variant = CloseVariantPreparedStatement
 	case 'P':
 		variant = CloseVariantPortal
 	default:
-		return
+		return nil, packets.ErrInvalidFormat
 	}
 
 	T.pendingCloses.PushBack(Close{
 		Variant: variant,
-		Target:  target,
+		Target:  p.Name,
 	})
+
+	return p, nil
 }
 
 // CloseComplete notifies that a close was successful. Execute on CloseComplete S->C
@@ -140,9 +109,13 @@ func (T *State) CloseComplete() {
 }
 
 // Parse is a pending prepared statement. Execute on Parse C->S
-func (T *State) Parse(packet fed.Packet) {
-	preparedStatement := MakePreparedStatement(packet)
-	T.pendingPreparedStatements.PushBack(preparedStatement)
+func (T *State) Parse(packet fed.Packet) (fed.Packet, error) {
+	p, err := fed.ToConcrete[*packets.Parse](packet)
+	if err != nil {
+		return nil, err
+	}
+	T.pendingPreparedStatements.PushBack(p)
+	return p, nil
 }
 
 // ParseComplete notifies that a parse was successful. Execute on ParseComplete S->C
@@ -153,15 +126,19 @@ func (T *State) ParseComplete() {
 	}
 
 	if T.preparedStatements == nil {
-		T.preparedStatements = make(map[string]PreparedStatement)
+		T.preparedStatements = make(map[string]*packets.Parse)
 	}
-	T.preparedStatements[preparedStatement.Target] = preparedStatement
+	T.preparedStatements[preparedStatement.Destination] = preparedStatement
 }
 
 // Bind is a pending portal. Execute on Bind C->S
-func (T *State) Bind(packet fed.Packet) {
-	portal := MakePortal(packet)
-	T.pendingPortals.PushBack(portal)
+func (T *State) Bind(packet fed.Packet) (fed.Packet, error) {
+	p, err := fed.ToConcrete[*packets.Bind](packet)
+	if err != nil {
+		return nil, err
+	}
+	T.pendingPortals.PushBack(p)
+	return p, nil
 }
 
 // BindComplete notifies that a bind was successful. Execute on BindComplete S->C
@@ -172,9 +149,9 @@ func (T *State) BindComplete() {
 	}
 
 	if T.portals == nil {
-		T.portals = make(map[string]Portal)
+		T.portals = make(map[string]*packets.Bind)
 	}
-	T.portals[portal.Target] = portal
+	T.portals[portal.Destination] = portal
 }
 
 // Query clobbers the unnamed portal and unnamed prepared statement. Execute on Query C->S
@@ -184,27 +161,31 @@ func (T *State) Query() {
 }
 
 // CommandComplete clobbers everything if DISCARD ALL | DEALLOCATE | CLOSE
-func (T *State) CommandComplete(packet fed.Packet) {
-	var commandComplete packets.CommandComplete
-	if !commandComplete.ReadFromPacket(packet) {
-		return
+func (T *State) CommandComplete(packet fed.Packet) (fed.Packet, error) {
+	p, err := fed.ToConcrete[*packets.CommandComplete](packet)
+	if err != nil {
+		return nil, err
 	}
 
-	if commandComplete == "DISCARD ALL" {
+	if *p == "DISCARD ALL" {
 		maps.Clear(T.preparedStatements)
 		maps.Clear(T.portals)
 		T.pendingPreparedStatements.Clear()
 		T.pendingPortals.Clear()
 		T.pendingCloses.Clear()
 	}
+
+	return p, nil
 }
 
 // ReadyForQuery clobbers portals if state == 'I' and pending. Execute on ReadyForQuery S->C
-func (T *State) ReadyForQuery(packet fed.Packet) {
-	var state byte
-	packet.ReadUint8(&state)
+func (T *State) ReadyForQuery(packet fed.Packet) (fed.Packet, error) {
+	p, err := fed.ToConcrete[*packets.ReadyForQuery](packet)
+	if err != nil {
+		return nil, err
+	}
 
-	if state == 'I' {
+	if *p == 'I' {
 		// clobber all portals
 		for name := range T.portals {
 			delete(T.portals, name)
@@ -215,4 +196,6 @@ func (T *State) ReadyForQuery(packet fed.Packet) {
 	T.pendingPreparedStatements.Clear()
 	T.pendingPortals.Clear()
 	T.pendingCloses.Clear()
+
+	return p, nil
 }
