@@ -47,7 +47,7 @@ func startup0(
 			if err = ctx.Conn.WriteByte('S'); err != nil {
 				return
 			}
-			if err = ctx.Conn.EnableSSLServer(ctx.Options.SSLConfig); err != nil {
+			if err = ctx.Conn.EnableSSL(ctx.Options.SSLConfig, false); err != nil {
 				return
 			}
 			return

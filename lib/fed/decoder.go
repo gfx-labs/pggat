@@ -28,7 +28,28 @@ func NewDecoder(r io.Reader) *Decoder {
 	return d
 }
 
+func (T *Decoder) ReadByte() (byte, error) {
+	if T.pos != T.len {
+		_, err := T.Reader.Discard(T.len - T.pos)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	T.typ = 0
+	T.len = 0
+	T.pos = 0
+	return T.Reader.ReadByte()
+}
+
 func (T *Decoder) Next(typed bool) error {
+	if T.pos != T.len {
+		_, err := T.Reader.Discard(T.len - T.pos)
+		if err != nil {
+			return err
+		}
+	}
+
 	var err error
 	if typed {
 		_, err = io.ReadFull(&T.Reader, T.buf[:5])

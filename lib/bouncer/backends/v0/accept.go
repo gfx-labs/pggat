@@ -262,7 +262,7 @@ func enableSSL(ctx *acceptContext) (bool, error) {
 		return false, nil
 	}
 
-	if err = ctx.Conn.EnableSSLClient(ctx.Options.SSLConfig); err != nil {
+	if err = ctx.Conn.EnableSSL(ctx.Options.SSLConfig, true); err != nil {
 		return false, err
 	}
 

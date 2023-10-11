@@ -31,7 +31,22 @@ func (T *Encoder) Flush() error {
 	return T.Writer.Flush()
 }
 
+func (T *Encoder) WriteByte(b byte) error {
+	if T.pos != T.len {
+		panic("wrong number of bytes written")
+	}
+
+	T.typ = 0
+	T.len = 0
+	T.pos = 0
+	return T.Writer.WriteByte(b)
+}
+
 func (T *Encoder) Next(typ Type, length int) error {
+	if T.pos != T.len {
+		panic("wrong number of bytes written")
+	}
+
 	if typ != 0 {
 		if err := T.Writer.WriteByte(byte(typ)); err != nil {
 			return err
