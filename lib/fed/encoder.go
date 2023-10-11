@@ -33,7 +33,7 @@ func (T *Encoder) Flush() error {
 
 func (T *Encoder) Next(typ Type, length int) error {
 	if typ != 0 {
-		if err := T.Writer.WriteByte(typ); err != nil {
+		if err := T.Writer.WriteByte(byte(typ)); err != nil {
 			return err
 		}
 	}

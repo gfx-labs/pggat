@@ -5,7 +5,6 @@ import (
 )
 
 type acceptContext struct {
-	Packet  fed.Packet
 	Conn    *fed.Conn
 	Options acceptOptions
 }

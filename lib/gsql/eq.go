@@ -20,7 +20,7 @@ func ExtendedQuery(client *Client, result any, query string, args ...any) error 
 	parse := packets.Parse{
 		Query: query,
 	}
-	pkts = append(pkts, parse.IntoPacket(nil))
+	pkts = append(pkts, &parse)
 
 	// bind
 	params := make([][]byte, 0, len(args))
@@ -58,23 +58,23 @@ outer:
 		params = append(params, value)
 	}
 	bind := packets.Bind{
-		ParameterValues: params,
+		Parameters: params,
 	}
-	pkts = append(pkts, bind.IntoPacket(nil))
+	pkts = append(pkts, &bind)
 
 	// describe
 	describe := packets.Describe{
 		Which: 'P',
 	}
-	pkts = append(pkts, describe.IntoPacket(nil))
+	pkts = append(pkts, &describe)
 
 	// execute
 	execute := packets.Execute{}
-	pkts = append(pkts, execute.IntoPacket(nil))
+	pkts = append(pkts, &execute)
 
 	// sync
-	sync := fed.NewPacket(packets.TypeSync)
-	pkts = append(pkts, sync)
+	sync := packets.Sync{}
+	pkts = append(pkts, &sync)
 
 	// result
 	client.Do(NewQueryWriter(result), pkts...)

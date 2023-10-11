@@ -6,7 +6,8 @@ import (
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
-	caddycmd "github.com/caddyserver/caddy/v2/cmd"
+
+	caddycmd "gfx.cafe/gfx/pggat/cmd"
 
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer"

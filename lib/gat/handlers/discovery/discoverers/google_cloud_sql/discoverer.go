@@ -135,7 +135,7 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 
 			var result authQueryResult
 			client := new(gsql.Client)
-			err := gsql.ExtendedQuery(client, &result, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", user.Name)
+			err = gsql.ExtendedQuery(client, &result, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", user.Name)
 			if err != nil {
 				return discovery.Cluster{}, err
 			}
@@ -144,11 +144,13 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 				return discovery.Cluster{}, err
 			}
 
-			initialPacket, err := client.ReadPacket(true, nil)
+			clientConn := fed.NewConn(client)
+
+			initialPacket, err := clientConn.ReadPacket(true)
 			if err != nil {
 				return discovery.Cluster{}, err
 			}
-			_, err, err2 := bouncers.Bounce(fed.NewConn(client), admin, initialPacket)
+			err, err2 := bouncers.Bounce(clientConn, admin, initialPacket)
 			if err != nil {
 				return discovery.Cluster{}, err
 			}

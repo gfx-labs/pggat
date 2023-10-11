@@ -39,7 +39,7 @@ func (T *Decoder) Next(typed bool) error {
 	if err != nil {
 		return err
 	}
-	T.typ = T.buf[0]
+	T.typ = Type(T.buf[0])
 	T.len = int(binary.BigEndian.Uint32(T.buf[1:5])) - 4
 	T.pos = 0
 	return nil

@@ -1,13 +1,11 @@
 package gsql
 
 import (
-	"io"
 	"net"
 	"sync"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/util/ring"
-	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
 type batch struct {
@@ -58,70 +56,12 @@ func (T *Client) queueNext() bool {
 	return false
 }
 
-func (T *Client) ReadPacket(typed bool, buffer fed.Packet) (packet fed.Packet, err error) {
-	packet = buffer
-
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	var p fed.Packet
-	for {
-		var ok bool
-		p, ok = T.read.PopFront()
-		if ok {
-			break
-		}
-
-		// try to add next in queue
-		if T.queueNext() {
-			continue
-		}
-
-		if T.closed {
-			err = io.EOF
-			return
-		}
-
-		if T.readC == nil {
-			T.readC = sync.NewCond(&T.mu)
-		}
-		T.readC.Wait()
-	}
-
-	if (p.Type() == 0 && typed) || (p.Type() != 0 && !typed) {
-		err = ErrTypedMismatch
-		return
-	}
-
-	packet = slices.Resize(packet, len(p))
-	copy(packet, p)
-	return
+func (T *Client) Read(b []byte) (int, error) {
+	panic("TODO")
 }
 
-func (T *Client) WritePacket(packet fed.Packet) error {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	for T.write == nil {
-		if T.read.Length() == 0 && T.queueNext() {
-			continue
-		}
-
-		if T.closed {
-			return io.EOF
-		}
-
-		if T.writeC == nil {
-			T.writeC = sync.NewCond(&T.mu)
-		}
-		T.writeC.Wait()
-	}
-
-	if err := T.write.WritePacket(packet); err != nil {
-		return err
-	}
-
-	return nil
+func (T *Client) Write(b []byte) (int, error) {
+	panic("TODO")
 }
 
 func (T *Client) Close() error {
@@ -142,5 +82,3 @@ func (T *Client) Close() error {
 	}
 	return nil
 }
-
-var _ fed.ReadWriteCloser = (*Client)(nil)

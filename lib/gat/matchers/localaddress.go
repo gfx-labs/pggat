@@ -48,7 +48,7 @@ func (T *LocalAddress) Provision(ctx caddy.Context) error {
 }
 
 func (T *LocalAddress) Matches(conn *fed.Conn) bool {
-	netConn, ok := conn.ReadWriteCloser.(*fed.NetConn)
+	netConn, ok := conn.ReadWriter.(net.Conn)
 	if !ok {
 		return false
 	}

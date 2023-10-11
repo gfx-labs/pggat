@@ -28,9 +28,7 @@ func (T Dialer) Dial() (*fed.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn := fed.NewConn(
-		fed.NewNetConn(c),
-	)
+	conn := fed.NewConn(c)
 	conn.User = T.Username
 	conn.Database = T.Database
 	err = backends.Accept(
@@ -48,14 +46,12 @@ func (T Dialer) Dial() (*fed.Conn, error) {
 	return conn, nil
 }
 
-func (T Dialer) Cancel(key [8]byte) {
+func (T Dialer) Cancel(key fed.BackendKey) {
 	c, err := net.Dial(T.Network, T.Address)
 	if err != nil {
 		return
 	}
-	conn := fed.NewConn(
-		fed.NewNetConn(c),
-	)
+	conn := fed.NewConn(c)
 	defer func() {
 		_ = conn.Close()
 	}()
@@ -64,5 +60,5 @@ func (T Dialer) Cancel(key [8]byte) {
 	}
 
 	// wait for server to close the connection, this means that the server received it ok
-	_, _ = conn.ReadPacket(true, nil)
+	_, _ = conn.ReadPacket(true)
 }

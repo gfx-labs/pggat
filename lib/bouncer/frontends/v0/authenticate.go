@@ -2,6 +2,7 @@ package frontends
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"io"
 
@@ -11,69 +12,71 @@ import (
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
-func authenticationSASLInitial(ctx *authenticateContext, creds auth.SASLServer) (tool auth.SASLVerifier, resp []byte, done bool, err perror.Error) {
+func authenticationSASLInitial(ctx *authenticateContext, creds auth.SASLServer) (tool auth.SASLVerifier, resp []byte, done bool, err error) {
 	// check which authentication method the client wants
-	var err2 error
-	ctx.Packet, err2 = ctx.Conn.ReadPacket(true, ctx.Packet)
-	if err2 != nil {
-		err = perror.Wrap(err2)
+	var packet fed.Packet
+	packet, err = ctx.Conn.ReadPacket(true)
+	if err != nil {
 		return
 	}
-	var initialResponse packets.SASLInitialResponse
-	if !initialResponse.ReadFromPacket(ctx.Packet) {
-		err = packets.ErrBadFormat
-		return
-	}
-
-	tool, err2 = creds.VerifySASL(initialResponse.Mechanism)
-	if err2 != nil {
-		err = perror.Wrap(err2)
+	var p *packets.SASLInitialResponse
+	p, err = fed.ToConcrete[*packets.SASLInitialResponse](packet)
+	if err != nil {
 		return
 	}
 
-	resp, err2 = tool.Write(initialResponse.InitialResponse)
-	if err2 != nil {
-		if errors.Is(err2, io.EOF) {
+	tool, err = creds.VerifySASL(p.Mechanism)
+	if err != nil {
+		return
+	}
+
+	resp, err = tool.Write(p.InitialClientResponse)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
 			done = true
 			return
 		}
-		err = perror.Wrap(err2)
 		return
 	}
 	return
 }
 
-func authenticationSASLContinue(ctx *authenticateContext, tool auth.SASLVerifier) (resp []byte, done bool, err perror.Error) {
-	var err2 error
-	ctx.Packet, err2 = ctx.Conn.ReadPacket(true, ctx.Packet)
-	if err2 != nil {
-		err = perror.Wrap(err2)
+func authenticationSASLContinue(ctx *authenticateContext, tool auth.SASLVerifier) (resp []byte, done bool, err error) {
+	var packet fed.Packet
+	packet, err = ctx.Conn.ReadPacket(true)
+	if err != nil {
 		return
 	}
-	var authResp packets.AuthenticationResponse
-	if !authResp.ReadFrom(ctx.Packet) {
-		err = packets.ErrBadFormat
+	var p *packets.SASLResponse
+	p, err = fed.ToConcrete[*packets.SASLResponse](packet)
+	if err != nil {
 		return
 	}
 
-	resp, err2 = tool.Write(authResp)
-	if err2 != nil {
-		if errors.Is(err2, io.EOF) {
+	resp, err = tool.Write(*p)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
 			done = true
 			return
 		}
-		err = perror.Wrap(err2)
 		return
 	}
 	return
 }
 
-func authenticationSASL(ctx *authenticateContext, creds auth.SASLServer) perror.Error {
-	saslInitial := packets.AuthenticationSASL{
-		Mechanisms: creds.SupportedSASLMechanisms(),
+func authenticationSASL(ctx *authenticateContext, creds auth.SASLServer) error {
+	var mode packets.AuthenticationPayloadSASL
+	mechanisms := creds.SupportedSASLMechanisms()
+	for _, mechanism := range mechanisms {
+		mode = append(mode, packets.AuthenticationPayloadSASLMethod{
+			Method: mechanism,
+		})
 	}
-	ctx.Packet = saslInitial.IntoPacket(ctx.Packet)
-	err := perror.Wrap(ctx.Conn.WritePacket(ctx.Packet))
+
+	saslInitial := packets.Authentication{
+		Mode: &mode,
+	}
+	err := ctx.Conn.WritePacket(&saslInitial)
 	if err != nil {
 		return err
 	}
@@ -85,17 +88,21 @@ func authenticationSASL(ctx *authenticateContext, creds auth.SASLServer) perror.
 
 	for {
 		if done {
-			final := packets.AuthenticationSASLFinal(resp)
-			ctx.Packet = final.IntoPacket(ctx.Packet)
-			err = perror.Wrap(ctx.Conn.WritePacket(ctx.Packet))
+			m := packets.AuthenticationPayloadSASLFinal(resp)
+			final := packets.Authentication{
+				Mode: &m,
+			}
+			err = ctx.Conn.WritePacket(&final)
 			if err != nil {
 				return err
 			}
 			break
 		} else {
-			cont := packets.AuthenticationSASLContinue(resp)
-			ctx.Packet = cont.IntoPacket(ctx.Packet)
-			err = perror.Wrap(ctx.Conn.WritePacket(ctx.Packet))
+			m := packets.AuthenticationPayloadSASLContinue(resp)
+			cont := packets.Authentication{
+				Mode: &m,
+			}
+			err = ctx.Conn.WritePacket(&cont)
 			if err != nil {
 				return err
 			}
@@ -110,39 +117,41 @@ func authenticationSASL(ctx *authenticateContext, creds auth.SASLServer) perror.
 	return nil
 }
 
-func authenticationMD5(ctx *authenticateContext, creds auth.MD5Server) perror.Error {
+func authenticationMD5(ctx *authenticateContext, creds auth.MD5Server) error {
 	var salt [4]byte
 	_, err := rand.Read(salt[:])
 	if err != nil {
-		return perror.Wrap(err)
+		return err
 	}
-	md5Initial := packets.AuthenticationMD5{
-		Salt: salt,
+	mode := packets.AuthenticationPayloadMD5Password(salt)
+	md5Initial := packets.Authentication{
+		Mode: &mode,
 	}
-	ctx.Packet = md5Initial.IntoPacket(ctx.Packet)
-	err = ctx.Conn.WritePacket(ctx.Packet)
+	err = ctx.Conn.WritePacket(&md5Initial)
 	if err != nil {
-		return perror.Wrap(err)
+		return err
 	}
 
-	ctx.Packet, err = ctx.Conn.ReadPacket(true, ctx.Packet)
+	var packet fed.Packet
+	packet, err = ctx.Conn.ReadPacket(true)
 	if err != nil {
-		return perror.Wrap(err)
+		return err
 	}
 
-	var pw packets.PasswordMessage
-	if !pw.ReadFromPacket(ctx.Packet) {
-		return packets.ErrUnexpectedPacket
+	var pw *packets.PasswordMessage
+	pw, err = fed.ToConcrete[*packets.PasswordMessage](packet)
+	if err != nil {
+		return err
 	}
 
-	if err = creds.VerifyMD5(salt, pw.Password); err != nil {
-		return perror.Wrap(err)
+	if err = creds.VerifyMD5(salt, string(*pw)); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func authenticate(ctx *authenticateContext) (err perror.Error) {
+func authenticate(ctx *authenticateContext) (err error) {
 	if ctx.Options.Credentials != nil {
 		if credsSASL, ok := ctx.Options.Credentials.(auth.SASLServer); ok {
 			err = authenticationSASL(ctx, credsSASL)
@@ -161,32 +170,40 @@ func authenticate(ctx *authenticateContext) (err perror.Error) {
 	}
 
 	// send auth Ok
-	authOk := packets.AuthenticationOk{}
-	ctx.Packet = authOk.IntoPacket(ctx.Packet)
-	if err = perror.Wrap(ctx.Conn.WritePacket(ctx.Packet)); err != nil {
+	authOk := packets.Authentication{
+		Mode: &packets.AuthenticationPayloadOk{},
+	}
+	if err = ctx.Conn.WritePacket(&authOk); err != nil {
 		return
 	}
 	ctx.Conn.Authenticated = true
 
 	// send backend key data
-	_, err2 := rand.Read(ctx.Conn.BackendKey[:])
-	if err2 != nil {
-		err = perror.Wrap(err2)
+	var processID [4]byte
+	if _, err = rand.Reader.Read(processID[:]); err != nil {
 		return
+	}
+	var backendKey [4]byte
+	if _, err = rand.Reader.Read(backendKey[:]); err != nil {
+		return
+	}
+	ctx.Conn.BackendKey = fed.BackendKey{
+		ProcessID: int32(binary.BigEndian.Uint32(processID[:])),
+		SecretKey: int32(binary.BigEndian.Uint32(backendKey[:])),
 	}
 
 	keyData := packets.BackendKeyData{
-		CancellationKey: ctx.Conn.BackendKey,
+		ProcessID: ctx.Conn.BackendKey.ProcessID,
+		SecretKey: ctx.Conn.BackendKey.SecretKey,
 	}
-	ctx.Packet = keyData.IntoPacket(ctx.Packet)
-	if err = perror.Wrap(ctx.Conn.WritePacket(ctx.Packet)); err != nil {
+	if err = ctx.Conn.WritePacket(&keyData); err != nil {
 		return
 	}
 
 	return
 }
 
-func Authenticate(conn *fed.Conn, creds auth.Credentials) (err perror.Error) {
+func Authenticate(conn *fed.Conn, creds auth.Credentials) (err error) {
 	if conn.Authenticated {
 		// already authenticated
 		return

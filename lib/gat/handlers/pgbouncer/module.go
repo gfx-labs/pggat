@@ -118,7 +118,7 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 			T.log.Warn("auth query failed", zap.Error(err))
 			return "", false
 		}
-		err = authPool.ServeBot(client)
+		err = authPool.ServeBot(fed.NewConn(client))
 		if err != nil && !errors.Is(err, io.EOF) {
 			T.log.Warn("auth query failed", zap.Error(err))
 			return "", false
@@ -285,13 +285,7 @@ func (T *Module) lookup(user, database string) (pool.WithCredentials, bool) {
 func (T *Module) Handle(conn *fed.Conn) error {
 	// check ssl
 	if T.Config.PgBouncer.ClientTLSSSLMode.IsRequired() {
-		var ssl bool
-		netConn, ok := conn.ReadWriteCloser.(*fed.NetConn)
-		if ok {
-			ssl = netConn.SSL()
-		}
-
-		if !ssl {
+		if !conn.SSL {
 			return perror.New(
 				perror.FATAL,
 				perror.InvalidPassword,
@@ -346,7 +340,7 @@ func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 	})
 }
 
-func (T *Module) Cancel(key [8]byte) {
+func (T *Module) Cancel(key fed.BackendKey) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 	T.pools.Range(func(_ string, _ string, p pool.WithCredentials) bool {

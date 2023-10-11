@@ -1,6 +1,7 @@
 package fed
 
 import (
+	"crypto/tls"
 	"io"
 
 	"gfx.cafe/gfx/pggat/lib/util/decorator"
@@ -15,12 +16,13 @@ type Conn struct {
 	Decoder    Decoder
 
 	Middleware []Middleware
+	SSL        bool
 
 	User              string
 	Database          string
 	InitialParameters map[strutil.CIString]string
 	Authenticated     bool
-	BackendKey        [8]byte
+	BackendKey        BackendKey
 }
 
 func NewConn(rw io.ReadWriteCloser) *Conn {
@@ -86,6 +88,16 @@ func (T *Conn) WritePacket(packet Packet) error {
 	}
 
 	return packet.WriteTo(&T.Encoder)
+}
+
+func (T *Conn) EnableSSLClient(config *tls.Config) error {
+	// TODO(garet)
+	panic("TODO")
+}
+
+func (T *Conn) EnableSSLServer(config *tls.Config) error {
+	// TODO(garet)
+	panic("TODO")
 }
 
 func (T *Conn) Close() error {

@@ -1,12 +1,12 @@
 package gsql
 
 import (
-	"errors"
 	"reflect"
 	"strconv"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
 type RowWriter struct {
@@ -28,10 +28,10 @@ func NewRowWriter(result any) *RowWriter {
 }
 
 func (T *RowWriter) set(i int, col []byte) error {
-	if i >= len(T.rd.Fields) {
+	if i >= len(T.rd) {
 		return ErrExtraFields
 	}
-	desc := T.rd.Fields[i]
+	desc := T.rd[i]
 
 	result := T.result
 
@@ -228,26 +228,28 @@ outer2:
 func (T *RowWriter) WritePacket(packet fed.Packet) error {
 	switch packet.Type() {
 	case packets.TypeRowDescription:
-		if !T.rd.ReadFromPacket(packet) {
-			return errors.New("invalid format")
+		rd, err := fed.ToConcrete[*packets.RowDescription](packet)
+		if err != nil {
+			return err
 		}
+		T.rd = *rd
 	case packets.TypeDataRow:
-		var dr packets.DataRow
-		if !dr.ReadFromPacket(packet) {
-			return errors.New("invalid format")
+		dr, err := fed.ToConcrete[*packets.DataRow](packet)
+		if err != nil {
+			return err
 		}
-		for i, col := range dr.Columns {
-			if err := T.set(i, col); err != nil {
+		for i, col := range *dr {
+			if err = T.set(i, col); err != nil {
 				return err
 			}
 		}
 		T.row += 1
 	case packets.TypeErrorResponse:
-		var err packets.ErrorResponse
-		if !err.ReadFromPacket(packet) {
-			return errors.New("invalid format")
+		p, err := fed.ToConcrete[*packets.ErrorResponse](packet)
+		if err != nil {
+			return err
 		}
-		return err.Error
+		return perror.FromPacket(p)
 	case packets.TypeCommandComplete:
 		T.done = true
 		return nil
