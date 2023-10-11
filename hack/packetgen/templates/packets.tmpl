@@ -24,6 +24,12 @@ const (
 
 	type {{$name}} {{template "type" (list $name $packet)}}
 
+	func (T *{{$name}}) Length() (length int) {
+		{{template "length" (list $name "(*T)" $packet)}}
+
+		return
+	}
+
 	func (T *{{$name}}) ReadFrom(decoder *fed.Decoder) (err error) {
 		{{if some $packet.Type -}}
 			if decoder.Type() != {{$name}}Type {

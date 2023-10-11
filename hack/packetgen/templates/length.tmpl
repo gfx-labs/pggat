@@ -1,0 +1,35 @@
+{{$name := index . 0 -}}
+{{$pointer := index . 1 -}}
+{{$value := index . 2 -}}
+
+{{if some $value.Map -}}
+    {{$ifaceName := printf "%s%s" $name $value.Map.Name -}}
+
+    {{$prefixPointer := printf "%s.%s()" $pointer $ifaceName -}}
+
+    {{template "length" (list $name $prefixPointer $value.Map.Prefix)}}
+
+	length += {{$pointer}}.Length()
+{{else if some $value.Remaining -}}
+
+{{else if some $value.Basic -}}
+
+{{else if some $value.Array -}}
+
+{{else if some $value.Struct -}}
+    {{$structName := printf "%s%s" $name $value.Struct.Name -}}
+
+    {{range $field := $value.Struct.Fields -}}
+        {{$fieldPointer := printf "%s.%s" $pointer $field.Name -}}
+
+        {{template "length" (list $structName $fieldPointer $field)}}
+    {{end -}}
+{{else if some $value.LengthPrefixedSlice -}}
+
+{{else if some $value.NullableLengthPrefixedSlice -}}
+
+{{else if some $value.ZeroByteTerminatedSlice -}}
+
+{{else if some $value.ZeroTerminatedSlice -}}
+
+{{end -}}

@@ -15,6 +15,12 @@
 			return {{$item.Type}}
 		}
 
+		func (T *{{$itemName}}) Length() (length int) {
+			{{template "length" (list $name "(*T)" $item)}}
+
+			return
+		}
+
 		func (T *{{$itemName}}) ReadFrom(decoder *fed.Decoder) (err error) {
 			{{template "decode" (list $itemName "(*T)" $item)}}
 
@@ -32,6 +38,7 @@
 	type {{$ifaceName}} interface{
 		{{$ifaceName}}() {{template "type" (list $name $value.Map.Prefix)}}
 
+		Length() int
 		ReadFrom(decoder *fed.Decoder) error
 		WriteTo(encoder *fed.Encoder) error
 	}
