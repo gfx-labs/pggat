@@ -252,7 +252,7 @@ func enableSSL(ctx *acceptContext) (bool, error) {
 	}
 
 	// read byte to see if ssl is allowed
-	yn, err := ctx.Conn.Decoder.Uint8()
+	yn, err := ctx.Conn.ReadByte()
 	if err != nil {
 		return false, err
 	}

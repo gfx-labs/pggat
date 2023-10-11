@@ -39,12 +39,12 @@ func startup0(
 		case *packets.StartupPayloadControlPayloadSSL:
 			// ssl is not enabled
 			if ctx.Options.SSLConfig == nil {
-				err = ctx.Conn.Encoder.Uint8('N')
+				err = ctx.Conn.WriteByte('N')
 				return
 			}
 
 			// do ssl
-			if err = ctx.Conn.Encoder.Uint8('S'); err != nil {
+			if err = ctx.Conn.WriteByte('S'); err != nil {
 				return
 			}
 			if err = ctx.Conn.EnableSSLServer(ctx.Options.SSLConfig); err != nil {
@@ -53,7 +53,7 @@ func startup0(
 			return
 		case *packets.StartupPayloadControlPayloadGSSAPI:
 			// GSSAPI is not supported yet
-			err = ctx.Conn.Encoder.Uint8('N')
+			err = ctx.Conn.WriteByte('N')
 			return
 		default:
 			err = perror.New(

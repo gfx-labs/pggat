@@ -34,6 +34,7 @@ func authenticationSASLInitial(ctx *authenticateContext, creds auth.SASLServer) 
 	if err != nil {
 		if errors.Is(err, io.EOF) {
 			done = true
+			err = nil
 			return
 		}
 		return
@@ -57,6 +58,7 @@ func authenticationSASLContinue(ctx *authenticateContext, tool auth.SASLVerifier
 	if err != nil {
 		if errors.Is(err, io.EOF) {
 			done = true
+			err = nil
 			return
 		}
 		return

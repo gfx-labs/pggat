@@ -90,6 +90,18 @@ func (T *Conn) WritePacket(packet Packet) error {
 	return packet.WriteTo(&T.Encoder)
 }
 
+func (T *Conn) WriteByte(b byte) error {
+	return T.Encoder.Uint8(b)
+}
+
+func (T *Conn) ReadByte() (byte, error) {
+	if err := T.Flush(); err != nil {
+		return 0, err
+	}
+
+	return T.Decoder.Uint8()
+}
+
 func (T *Conn) EnableSSLClient(config *tls.Config) error {
 	// TODO(garet)
 	panic("TODO")
