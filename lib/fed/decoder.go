@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
-	"strings"
 
 	"gfx.cafe/gfx/pggat/lib/util/decorator"
 )
@@ -148,20 +147,12 @@ func (T *Decoder) Float64() (float64, error) {
 }
 
 func (T *Decoder) String() (string, error) {
-	var s strings.Builder
-	for {
-		b, err := T.Reader.ReadByte()
-		T.pos += 1
-		if err != nil {
-			return "", err
-		}
-		if b == '\x00' {
-			break
-		} else {
-			s.WriteByte(b)
-		}
+	s, err := T.Reader.ReadString(0)
+	if err != nil {
+		return "", err
 	}
-	return s.String(), nil
+	T.pos += len(s)
+	return s[:len(s)-1], nil
 }
 
 func (T *Decoder) Remaining() ([]byte, error) {
