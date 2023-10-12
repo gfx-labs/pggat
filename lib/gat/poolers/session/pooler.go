@@ -12,7 +12,7 @@ import (
 type Pooler struct {
 	queue   []uuid.UUID
 	servers map[uuid.UUID]struct{}
-	ready   *sync.Cond
+	ready   sync.Cond
 	closed  bool
 	mu      sync.Mutex
 }
@@ -38,9 +38,10 @@ func (T *Pooler) AddServer(server uuid.UUID) {
 	}
 	T.servers[server] = struct{}{}
 
-	if T.ready != nil {
-		T.ready.Signal()
+	if T.ready.L == nil {
+		T.ready.L = &T.mu
 	}
+	T.ready.Signal()
 }
 
 func (T *Pooler) DeleteServer(server uuid.UUID) {
@@ -79,8 +80,8 @@ func (T *Pooler) AcquireBlocking() uuid.UUID {
 	}
 
 	for len(T.queue) == 0 {
-		if T.ready == nil {
-			T.ready = sync.NewCond(&T.mu)
+		if T.ready.L == nil {
+			T.ready.L = &T.mu
 		}
 		T.ready.Wait()
 	}
@@ -122,9 +123,10 @@ func (T *Pooler) Close() {
 	defer T.mu.Unlock()
 
 	T.closed = true
-	if T.ready != nil {
-		T.ready.Broadcast()
+	if T.ready.L == nil {
+		T.ready.L = &T.mu
 	}
+	T.ready.Broadcast()
 }
 
 var _ pool.Pooler = (*Pooler)(nil)

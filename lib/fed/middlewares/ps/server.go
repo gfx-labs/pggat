@@ -1,8 +1,6 @@
 package ps
 
 import (
-	"errors"
-
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
@@ -21,17 +19,20 @@ func NewServer(parameters map[strutil.CIString]string) *Server {
 func (T *Server) ReadPacket(packet fed.Packet) (fed.Packet, error) {
 	switch packet.Type() {
 	case packets.TypeParameterStatus:
-		var ps packets.ParameterStatus
-		if !ps.ReadFromPacket(packet) {
-			return packet, errors.New("bad packet format j")
+		var p packets.ParameterStatus
+		err := fed.ToConcrete(&p, packet)
+		if err != nil {
+			return nil, err
 		}
-		ikey := strutil.MakeCIString(ps.Key)
+		ikey := strutil.MakeCIString(p.Key)
 		if T.parameters == nil {
 			T.parameters = make(map[strutil.CIString]string)
 		}
-		T.parameters[ikey] = ps.Value
+		T.parameters[ikey] = p.Value
+		return &p, nil
+	default:
+		return packet, nil
 	}
-	return packet, nil
 }
 
 func (T *Server) WritePacket(packet fed.Packet) (fed.Packet, error) {

@@ -556,7 +556,7 @@ func (T *Module) Handle(conn *fed.Conn) error {
 	return p.Serve(conn)
 }
 
-func (T *Module) Cancel(key [8]byte) {
+func (T *Module) Cancel(key fed.BackendKey) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 	T.pools.Range(func(_ string, _ string, p pool.WithCredentials) bool {

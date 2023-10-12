@@ -15,7 +15,7 @@ type Handler interface {
 type CancellableHandler interface {
 	Handler
 
-	Cancel(key [8]byte)
+	Cancel(key fed.BackendKey)
 }
 
 type MetricsHandler interface {

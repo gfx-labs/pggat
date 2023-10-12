@@ -1,6 +1,8 @@
 package frontends
 
+import "gfx.cafe/gfx/pggat/lib/fed"
+
 type acceptParams struct {
-	CancelKey   [8]byte
+	CancelKey   fed.BackendKey
 	IsCanceling bool
 }

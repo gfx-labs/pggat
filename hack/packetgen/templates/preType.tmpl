@@ -1,0 +1,75 @@
+{{$name := index . 0 -}}
+{{$value := index . 1 -}}
+
+{{if some $value.Map -}}
+	{{$ifaceName := printf "%s%s" $name $value.Map.Name -}}
+
+	{{range $n, $item := $value.Map.Items -}}
+		{{$itemName := printf "%s%s" $name $n -}}
+
+		{{template "preType" (list $itemName $item) -}}
+
+		type {{$itemName}} {{template "type" (list $itemName $item)}}
+
+		func (*{{$itemName}}) {{$ifaceName}}() {{template "type" (list $name $value.Map.Prefix)}} {
+			return {{$item.Type}}
+		}
+
+		func (T *{{$itemName}}) Length() (length int) {
+			{{template "length" (list $name "(*T)" $item)}}
+
+			return
+		}
+
+		func (T *{{$itemName}}) ReadFrom(decoder *fed.Decoder) (err error) {
+			{{template "decode" (list $itemName "(*T)" $item)}}
+
+			return
+		}
+
+		func (T *{{$itemName}}) WriteTo(encoder *fed.Encoder) (err error) {
+			{{template "encode" (list $itemName "(*T)" $item)}}
+
+			return
+		}
+
+	{{end -}}
+
+	type {{$ifaceName}} interface{
+		{{$ifaceName}}() {{template "type" (list $name $value.Map.Prefix)}}
+
+		Length() int
+		ReadFrom(decoder *fed.Decoder) error
+		WriteTo(encoder *fed.Encoder) error
+	}
+{{else if some $value.Struct -}}
+	{{$structName := printf "%s%s" $name $value.Struct.Name -}}
+
+	{{range $field := $value.Struct.Fields -}}
+		{{template "preType" (list $structName $field) -}}
+	{{end -}}
+
+	type {{$structName}} struct{
+		{{range $field := $value.Struct.Fields -}}
+			{{$field.Name}} {{template "type" (list $structName $field)}}
+		{{end -}}
+	}
+
+{{else if some $value.LengthPrefixedSlice -}}
+	{{template "preType" (list $name $value.LengthPrefixedSlice) -}}
+{{else if some $value.NullableLengthPrefixedSlice -}}
+    {{template "preType" (list $name $value.NullableLengthPrefixedSlice) -}}
+{{else if some $value.ZeroTerminatedSlice -}}
+	{{$structName := printf "%s%s" $name $value.ZeroTerminatedSlice.Name -}}
+
+	{{range $field := $value.ZeroTerminatedSlice.Fields -}}
+		{{template "preType" (list $structName $field) -}}
+	{{end -}}
+
+	type {{$structName}} struct{
+		{{range $field := $value.ZeroTerminatedSlice.Fields -}}
+			{{$field.Name}} {{template "type" (list $structName $field)}}
+		{{end -}}
+	}
+
+{{end -}}

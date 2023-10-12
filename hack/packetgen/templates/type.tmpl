@@ -1,0 +1,22 @@
+{{- $name := index . 0 -}}
+{{- $value := index . 1 -}}
+
+{{- if some $value.Map -}}
+	{{printf "%s%s" $name $value.Map.Name}}
+{{- else if some $value.Remaining -}}
+	[]{{template "type" (list $name $value.Remaining)}}
+{{- else if some $value.Basic -}}
+    {{$value.Basic}}
+{{- else if some $value.Array -}}
+	[{{$value.Array.Length}}]{{template "type" (list $name $value.Array)}}
+{{- else if some $value.Struct -}}
+	{{printf "%s%s" $name $value.Struct.Name}}
+{{- else if some $value.LengthPrefixedSlice -}}
+	[]{{template "type" (list $name $value.LengthPrefixedSlice)}}
+{{- else if some $value.NullableLengthPrefixedSlice -}}
+	[]{{template "type" (list $name $value.NullableLengthPrefixedSlice)}}
+{{- else if some $value.ZeroTerminatedSlice -}}
+	[]{{printf "%s%s" $name $value.ZeroTerminatedSlice.Name}}
+{{- else -}}
+	struct{}
+{{- end -}}

@@ -12,16 +12,13 @@ func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.
 	value, hasValue := c.parameters[name]
 	expected, hasExpected := s.parameters[name]
 
-	var packet fed.Packet
-
 	if value == expected {
 		if !c.synced {
 			ps := packets.ParameterStatus{
 				Key:   name.String(),
 				Value: expected,
 			}
-			packet = ps.IntoPacket(packet)
-			if err := client.WritePacket(packet); err != nil {
+			if err := client.WritePacket(&ps); err != nil {
 				return err
 			}
 		}
@@ -32,7 +29,7 @@ func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.
 
 	if hasValue && slices.Contains(tracking, name) {
 		var err error
-		if err, _, packet = backends.SetParameter(server, nil, packet, name, value); err != nil {
+		if err, _ = backends.SetParameter(server, nil, name, value); err != nil {
 			return err
 		}
 		if s.parameters == nil {
@@ -50,8 +47,7 @@ func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.
 			Key:   name.String(),
 			Value: expected,
 		}
-		packet = ps.IntoPacket(packet)
-		if err := client.WritePacket(packet); err != nil {
+		if err := client.WritePacket(&ps); err != nil {
 			return err
 		}
 	}

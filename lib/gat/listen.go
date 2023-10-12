@@ -35,9 +35,7 @@ func (T *Listener) accept() (*fed.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return fed.NewConn(
-		fed.NewNetConn(raw),
-	), nil
+	return fed.NewConn(raw), nil
 }
 
 func (T *Listener) Provision(ctx caddy.Context) error {

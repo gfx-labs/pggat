@@ -1,8 +1,6 @@
 package ps
 
 import (
-	"errors"
-
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
@@ -26,21 +24,24 @@ func (T *Client) ReadPacket(packet fed.Packet) (fed.Packet, error) {
 func (T *Client) WritePacket(packet fed.Packet) (fed.Packet, error) {
 	switch packet.Type() {
 	case packets.TypeParameterStatus:
-		var ps packets.ParameterStatus
-		if !ps.ReadFromPacket(packet) {
-			return packet, errors.New("bad packet format i")
+		var p packets.ParameterStatus
+		err := fed.ToConcrete(&p, packet)
+		if err != nil {
+			return nil, err
 		}
-		ikey := strutil.MakeCIString(ps.Key)
-		if T.synced && T.parameters[ikey] == ps.Value {
+		ikey := strutil.MakeCIString(p.Key)
+		if T.synced && T.parameters[ikey] == p.Value {
 			// already set
-			return packet[:0], nil
+			return nil, nil
 		}
 		if T.parameters == nil {
 			T.parameters = make(map[strutil.CIString]string)
 		}
-		T.parameters[ikey] = ps.Value
+		T.parameters[ikey] = p.Value
+		return &p, nil
+	default:
+		return packet, nil
 	}
-	return packet, nil
 }
 
 var _ fed.Middleware = (*Client)(nil)

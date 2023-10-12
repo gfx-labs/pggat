@@ -2,7 +2,6 @@ package pool
 
 import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
-	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/eqp"
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/ps"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
@@ -43,8 +42,6 @@ func syncInitialParameters(options Config, client *pooledClient, server *pooledS
 	clientParams := client.GetInitialParameters()
 	serverParams := server.GetInitialParameters()
 
-	var packet fed.Packet
-
 	for key, value := range clientParams {
 		// skip already set params
 		if serverParams[key] == value {
@@ -52,8 +49,7 @@ func syncInitialParameters(options Config, client *pooledClient, server *pooledS
 				Key:   key.String(),
 				Value: serverParams[key],
 			}
-			packet = p.IntoPacket(packet)
-			clientErr = client.GetConn().WritePacket(packet)
+			clientErr = client.GetConn().WritePacket(&p)
 			if clientErr != nil {
 				return
 			}
@@ -70,8 +66,7 @@ func syncInitialParameters(options Config, client *pooledClient, server *pooledS
 			Key:   key.String(),
 			Value: value,
 		}
-		packet = p.IntoPacket(packet)
-		clientErr = client.GetConn().WritePacket(packet)
+		clientErr = client.GetConn().WritePacket(&p)
 		if clientErr != nil {
 			return
 		}
@@ -80,7 +75,7 @@ func syncInitialParameters(options Config, client *pooledClient, server *pooledS
 			continue
 		}
 
-		serverErr, _, packet = backends.SetParameter(server.GetConn(), nil, packet, key, value)
+		serverErr, _ = backends.SetParameter(server.GetConn(), nil, key, value)
 		if serverErr != nil {
 			return
 		}
@@ -98,8 +93,7 @@ func syncInitialParameters(options Config, client *pooledClient, server *pooledS
 			Key:   key.String(),
 			Value: value,
 		}
-		packet = p.IntoPacket(packet)
-		clientErr = client.GetConn().WritePacket(packet)
+		clientErr = client.GetConn().WritePacket(&p)
 		if clientErr != nil {
 			return
 		}
