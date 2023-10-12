@@ -20,6 +20,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
 	"gfx.cafe/gfx/pggat/lib/perror"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
+	"gfx.cafe/gfx/pggat/lib/util/flip"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
@@ -107,19 +108,26 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 		}
 
 		var result authQueryResult
-		client := new(gsql.Client)
-		err := gsql.ExtendedQuery(client, &result, T.Config.PgBouncer.AuthQuery, user)
-		if err != nil {
-			T.log.Warn("auth query failed", zap.Error(err))
-			return "", false
-		}
-		err = client.Close()
-		if err != nil {
-			T.log.Warn("auth query failed", zap.Error(err))
-			return "", false
-		}
-		err = authPool.ServeBot(client)
-		if err != nil && !errors.Is(err, io.EOF) {
+
+		var b flip.Bank
+
+		inward, outward := gsql.NewPair()
+		b.Queue(func() error {
+			if err := gsql.ExtendedQuery(inward, &result, T.Config.PgBouncer.AuthQuery, user); err != nil {
+				return err
+			}
+			return inward.Close()
+		})
+
+		b.Queue(func() error {
+			err := authPool.ServeBot(outward)
+			if err != nil && !errors.Is(err, io.EOF) {
+				return err
+			}
+			return nil
+		})
+
+		if err := b.Wait(); err != nil {
 			T.log.Warn("auth query failed", zap.Error(err))
 			return "", false
 		}
@@ -285,13 +293,7 @@ func (T *Module) lookup(user, database string) (pool.WithCredentials, bool) {
 func (T *Module) Handle(conn *fed.Conn) error {
 	// check ssl
 	if T.Config.PgBouncer.ClientTLSSSLMode.IsRequired() {
-		var ssl bool
-		netConn, ok := conn.ReadWriteCloser.(*fed.NetConn)
-		if ok {
-			ssl = netConn.SSL()
-		}
-
-		if !ssl {
+		if !conn.SSL {
 			return perror.New(
 				perror.FATAL,
 				perror.InvalidPassword,
@@ -346,7 +348,7 @@ func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 	})
 }
 
-func (T *Module) Cancel(key [8]byte) {
+func (T *Module) Cancel(key fed.BackendKey) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 	T.pools.Range(func(_ string, _ string, p pool.WithCredentials) bool {

@@ -97,7 +97,7 @@ func (T *Module) Handle(conn *fed.Conn) error {
 	return T.pool.Serve(conn)
 }
 
-func (T *Module) Cancel(key [8]byte) {
+func (T *Module) Cancel(key fed.BackendKey) {
 	T.pool.Cancel(key)
 }
 

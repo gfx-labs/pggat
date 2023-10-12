@@ -13,13 +13,11 @@ func NewServer() *Server {
 }
 
 func (T *Server) ReadPacket(packet fed.Packet) (fed.Packet, error) {
-	T.state.S2C(packet)
-	return packet, nil
+	return T.state.S2C(packet)
 }
 
 func (T *Server) WritePacket(packet fed.Packet) (fed.Packet, error) {
-	T.state.C2S(packet)
-	return packet, nil
+	return T.state.C2S(packet)
 }
 
 var _ fed.Middleware = (*Server)(nil)

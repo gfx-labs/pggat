@@ -29,7 +29,7 @@ type Pool struct {
 	recipes          map[string]*Recipe
 	recipeScaleOrder slices.Sorted[string]
 	clients          map[uuid.UUID]*pooledClient
-	clientsByKey     map[[8]byte]*pooledClient
+	clientsByKey     map[fed.BackendKey]*pooledClient
 	servers          map[uuid.UUID]*pooledServer
 	serversByRecipe  map[string][]*pooledServer
 	mu               sync.RWMutex
@@ -265,7 +265,7 @@ func (T *Pool) releaseServer(server *pooledServer) {
 	if T.config.ServerResetQuery != "" {
 		server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
 
-		err, _, _ := backends.QueryString(server.GetConn(), nil, nil, T.config.ServerResetQuery)
+		err, _ := backends.QueryString(server.GetConn(), nil, T.config.ServerResetQuery)
 		if err != nil {
 			T.removeServer(server)
 			return
@@ -295,7 +295,7 @@ func (T *Pool) Serve(
 // ServeBot is for clients that don't need initial parameters, cancelling queries, and are ready now. Use Serve for
 // real clients
 func (T *Pool) ServeBot(
-	conn fed.ReadWriteCloser,
+	conn *fed.Conn,
 ) error {
 	defer func() {
 		_ = conn.Close()
@@ -303,9 +303,7 @@ func (T *Pool) ServeBot(
 
 	client := newClient(
 		T.config,
-		&fed.Conn{
-			ReadWriteCloser: conn,
-		},
+		conn,
 	)
 
 	return T.serve(client, true)
@@ -330,8 +328,6 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 		}
 	}()
 
-	var packet fed.Packet
-
 	if !initialized {
 		server = T.acquireServer(client)
 		if server == nil {
@@ -347,8 +343,7 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 		}
 
 		p := packets.ReadyForQuery('I')
-		packet = p.IntoPacket(packet)
-		err = client.GetConn().WritePacket(packet)
+		err = client.GetConn().WritePacket(&p)
 		if err != nil {
 			return err
 		}
@@ -361,7 +356,8 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 			server = nil
 		}
 
-		packet, err = client.GetConn().ReadPacket(true, packet)
+		var packet fed.Packet
+		packet, err = client.GetConn().ReadPacket(true)
 		if err != nil {
 			return err
 		}
@@ -375,7 +371,7 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 			err, serverErr = pair(T.config, client, server)
 		}
 		if err == nil && serverErr == nil {
-			packet, err, serverErr = bouncers.Bounce(client.GetConn(), server.GetConn(), packet)
+			err, serverErr = bouncers.Bounce(client.GetConn(), server.GetConn(), packet)
 		}
 
 		if serverErr != nil {
@@ -399,7 +395,7 @@ func (T *Pool) addClient(client *pooledClient) {
 	}
 	T.clients[client.GetID()] = client
 	if T.clientsByKey == nil {
-		T.clientsByKey = make(map[[8]byte]*pooledClient)
+		T.clientsByKey = make(map[fed.BackendKey]*pooledClient)
 	}
 	T.clientsByKey[client.GetBackendKey()] = client
 	T.pooler.AddClient(client.GetID())
@@ -419,7 +415,7 @@ func (T *Pool) removeClientL1(client *pooledClient) {
 	delete(T.clientsByKey, client.GetBackendKey())
 }
 
-func (T *Pool) Cancel(key [8]byte) {
+func (T *Pool) Cancel(key fed.BackendKey) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 

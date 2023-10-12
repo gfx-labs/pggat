@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
+	"gfx.cafe/gfx/pggat/lib/util/flip"
 
 	"github.com/caddyserver/caddy/v2"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
@@ -134,26 +135,31 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 			}
 
 			var result authQueryResult
-			client := new(gsql.Client)
-			err := gsql.ExtendedQuery(client, &result, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", user.Name)
-			if err != nil {
-				return discovery.Cluster{}, err
-			}
-			err = client.Close()
-			if err != nil {
-				return discovery.Cluster{}, err
-			}
 
-			initialPacket, err := client.ReadPacket(true, nil)
-			if err != nil {
+			inward, outward := gsql.NewPair()
+
+			var b flip.Bank
+			b.Queue(func() error {
+				return gsql.ExtendedQuery(inward, &result, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", user.Name)
+			})
+
+			b.Queue(func() error {
+				initialPacket, err := outward.ReadPacket(true)
+				if err != nil {
+					return err
+				}
+				err, err2 := bouncers.Bounce(outward, admin, initialPacket)
+				if err != nil {
+					return err
+				}
+				if err2 != nil {
+					return err2
+				}
+				return outward.Close()
+			})
+
+			if err = b.Wait(); err != nil {
 				return discovery.Cluster{}, err
-			}
-			_, err, err2 := bouncers.Bounce(fed.NewConn(client), admin, initialPacket)
-			if err != nil {
-				return discovery.Cluster{}, err
-			}
-			if err2 != nil {
-				return discovery.Cluster{}, err2
 			}
 
 			password = result.Password

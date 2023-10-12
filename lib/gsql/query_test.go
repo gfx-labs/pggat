@@ -3,12 +3,15 @@ package gsql
 import (
 	"log"
 	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"testing"
 
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/bouncer/bouncers/v2"
 	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/util/flip"
 )
 
 type Result struct {
@@ -17,13 +20,17 @@ type Result struct {
 }
 
 func TestQuery(t *testing.T) {
+	go func() {
+		panic(http.ListenAndServe(":8080", nil))
+	}()
+
 	// open server
 	s, err := net.Dial("tcp", "localhost:5432")
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	server := fed.NewConn(fed.NewNetConn(s))
+	server := fed.NewConn(s)
 	err = backends.Accept(
 		server,
 		"",
@@ -41,29 +48,32 @@ func TestQuery(t *testing.T) {
 		return
 	}
 
-	var res Result
-	client := new(Client)
-	err = ExtendedQuery(client, &res, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", "postgres")
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	err = client.Close()
-	if err != nil {
-		t.Error(err)
-	}
+	inward, outward := NewPair()
 
-	var initial fed.Packet
-	initial, err = client.ReadPacket(true, initial)
-	if err != nil {
+	var res Result
+
+	var b flip.Bank
+	b.Queue(func() error {
+		return ExtendedQuery(inward, &res, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", "postgres")
+	})
+
+	b.Queue(func() error {
+		initial, err := outward.ReadPacket(true)
+		if err != nil {
+			return err
+		}
+		clientErr, serverErr := bouncers.Bounce(outward, server, initial)
+		if clientErr != nil {
+			return clientErr
+		}
+		if serverErr != nil {
+			return serverErr
+		}
+		return outward.Close()
+	})
+
+	if err = b.Wait(); err != nil {
 		t.Error(err)
-	}
-	_, clientErr, serverErr := bouncers.Bounce(fed.NewConn(client), server, initial)
-	if clientErr != nil {
-		t.Error(clientErr)
-	}
-	if serverErr != nil {
-		t.Error(serverErr)
 	}
 
 	log.Printf("%#v", res)

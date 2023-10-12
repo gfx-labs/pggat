@@ -26,15 +26,8 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *Module) Handle(conn *fed.Conn) error {
-	var ssl bool
-
-	sslConn, ok := conn.ReadWriteCloser.(fed.SSL)
-	if ok {
-		ssl = sslConn.SSL()
-	}
-
 	if T.SSL {
-		if !ssl {
+		if !conn.SSL {
 			return perror.New(
 				perror.FATAL,
 				perror.InvalidPassword,
@@ -44,7 +37,7 @@ func (T *Module) Handle(conn *fed.Conn) error {
 		return nil
 	}
 
-	if ssl {
+	if conn.SSL {
 		return perror.New(
 			perror.FATAL,
 			perror.InvalidPassword,

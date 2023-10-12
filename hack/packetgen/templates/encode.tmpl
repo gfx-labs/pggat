@@ -1,0 +1,87 @@
+{{$name := index . 0 -}}
+{{$pointer := index . 1 -}}
+{{$value := index . 2 -}}
+
+{{if some $value.Map -}}
+    {{$ifaceName := printf "%s%s" $name $value.Map.Name -}}
+
+    {{$prefixPointer := printf "%s.%s()" $pointer $ifaceName -}}
+
+	{{template "encode" (list $name $prefixPointer $value.Map.Prefix)}}
+
+	err = {{$pointer}}.WriteTo(encoder)
+	if err != nil {
+		return
+	}
+{{else if some $value.Remaining -}}
+	{{$itemPointer := temp -}}
+
+	for _, {{$itemPointer}} := range {{$pointer}} {
+		{{template "encode" (list $name $itemPointer $value.Remaining)}}
+	}
+{{else if some $value.Basic -}}
+	err = encoder.{{upperCamel $value.Basic}}({{$value.Basic}}({{$pointer}}))
+	if err != nil {
+		return
+	}
+{{else if some $value.Array -}}
+	{{$itemPointer := temp -}}
+
+	for _, {{$itemPointer}} := range {{$pointer}} {
+		{{template "encode" (list $name $itemPointer $value.Array)}}
+	}
+{{else if some $value.Struct -}}
+    {{$structName := printf "%s%s" $name $value.Struct.Name -}}
+
+    {{range $field := $value.Struct.Fields -}}
+		{{$fieldPointer := printf "%s.%s" $pointer $field.Name -}}
+
+		{{template "encode" (list $structName $fieldPointer $field)}}
+	{{end -}}
+{{else if some $value.LengthPrefixedSlice -}}
+	{{$lengthPointer := temp -}}
+
+	{{$lengthPointer}} := {{template "type" (list $name $value.LengthPrefixedSlice.Prefix)}}(len({{$pointer}}))
+
+	{{template "encode" (list $name $lengthPointer $value.LengthPrefixedSlice.Prefix)}}
+
+	{{$itemPointer := temp -}}
+
+	for _, {{$itemPointer}} := range {{$pointer}} {
+		{{template "encode" (list $name $itemPointer $value.LengthPrefixedSlice)}}
+	}
+{{else if some $value.NullableLengthPrefixedSlice -}}
+    {{$lengthPointer := temp -}}
+
+    {{$lengthPointer}} := {{template "type" (list $name $value.NullableLengthPrefixedSlice.Prefix)}}(len({{$pointer}}))
+
+	if {{$pointer}} == nil {
+		{{$lengthPointer}} = -1
+	}
+
+    {{template "encode" (list $name $lengthPointer $value.NullableLengthPrefixedSlice.Prefix)}}
+
+    {{$itemPointer := temp -}}
+
+	for _, {{$itemPointer}} := range {{$pointer}} {
+    	{{template "encode" (list $name $itemPointer $value.NullableLengthPrefixedSlice)}}
+	}
+{{else if some $value.ZeroTerminatedSlice -}}
+    {{$structName := printf "%s%s" $name $value.ZeroTerminatedSlice.Name -}}
+
+	{{$itemPointer := temp -}}
+
+	for _, {{$itemPointer}} := range {{$pointer}} {
+		{{range $field := $value.ZeroTerminatedSlice.Fields -}}
+			{{$fieldPointer := printf "%s.%s" $itemPointer $field.Name -}}
+
+			{{template "encode" (list $structName $fieldPointer $field)}}
+		{{end -}}
+	}
+
+	{{$donePointer := temp -}}
+
+	var {{$donePointer}} {{template "type" (list $structName (index $value.ZeroTerminatedSlice.Fields 0))}}
+
+	{{template "encode" (list $structName $donePointer (index $value.ZeroTerminatedSlice.Fields 0))}}
+{{end -}}

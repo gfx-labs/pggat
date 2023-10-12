@@ -55,7 +55,7 @@ func (T *pooledConn) GetInitialParameters() map[strutil.CIString]string {
 	return T.conn.InitialParameters
 }
 
-func (T *pooledConn) GetBackendKey() [8]byte {
+func (T *pooledConn) GetBackendKey() fed.BackendKey {
 	return T.conn.BackendKey
 }
 

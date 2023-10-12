@@ -2,7 +2,6 @@ package frontends
 
 import (
 	"crypto/tls"
-	"io"
 	"strings"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
@@ -14,72 +13,47 @@ import (
 func startup0(
 	ctx *acceptContext,
 	params *acceptParams,
-) (cancelling bool, done bool, err perror.Error) {
-	var err2 error
-	ctx.Packet, err2 = ctx.Conn.ReadPacket(false, ctx.Packet)
-	if err2 != nil {
-		err = perror.Wrap(err2)
+) (cancelling bool, done bool, err error) {
+	var packet fed.Packet
+	packet, err = ctx.Conn.ReadPacket(false)
+	if err != nil {
 		return
 	}
 
-	var majorVersion uint16
-	var minorVersion uint16
-	p := ctx.Packet.ReadUint16(&majorVersion)
-	p = p.ReadUint16(&minorVersion)
+	var p packets.Startup
+	err = fed.ToConcrete(&p, packet)
+	if err != nil {
+		return
+	}
 
-	if majorVersion == 1234 {
-		// Cancel or SSL
-		switch minorVersion {
-		case 5678:
+	switch mode := p.Mode.(type) {
+	case *packets.StartupPayloadControl:
+		switch control := mode.Mode.(type) {
+		case *packets.StartupPayloadControlPayloadCancel:
 			// Cancel
-			p.ReadBytes(params.CancelKey[:])
+			params.CancelKey.ProcessID = control.ProcessID
+			params.CancelKey.SecretKey = control.SecretKey
 			cancelling = true
 			done = true
 			return
-		case 5679:
-			byteWriter, ok := ctx.Conn.ReadWriteCloser.(io.ByteWriter)
-			if !ok {
-				err = perror.New(
-					perror.FATAL,
-					perror.FeatureNotSupported,
-					"SSL is not supported",
-				)
-				return
-			}
-
+		case *packets.StartupPayloadControlPayloadSSL:
 			// ssl is not enabled
 			if ctx.Options.SSLConfig == nil {
-				err = perror.Wrap(byteWriter.WriteByte('N'))
-				return
-			}
-
-			sslServer, ok := ctx.Conn.ReadWriteCloser.(fed.SSLServer)
-			if !ok {
-				err = perror.Wrap(byteWriter.WriteByte('N'))
+				err = ctx.Conn.WriteByte('N')
 				return
 			}
 
 			// do ssl
-			if err = perror.Wrap(byteWriter.WriteByte('S')); err != nil {
+			if err = ctx.Conn.WriteByte('S'); err != nil {
 				return
 			}
-			if err = perror.Wrap(sslServer.EnableSSLServer(ctx.Options.SSLConfig)); err != nil {
+			if err = ctx.Conn.EnableSSL(ctx.Options.SSLConfig, false); err != nil {
 				return
 			}
 			return
-		case 5680:
-			byteWriter, ok := ctx.Conn.ReadWriteCloser.(io.ByteWriter)
-			if !ok {
-				err = perror.New(
-					perror.FATAL,
-					perror.FeatureNotSupported,
-					"GSSAPI is not supported",
-				)
-				return
-			}
-
+		case *packets.StartupPayloadControlPayloadGSSAPI:
 			// GSSAPI is not supported yet
-			err = perror.Wrap(byteWriter.WriteByte('N'))
+			err = ctx.Conn.WriteByte('N')
 			return
 		default:
 			err = perror.New(
@@ -89,9 +63,96 @@ func startup0(
 			)
 			return
 		}
-	}
+	case *packets.StartupPayloadVersion3:
+		var unsupportedOptions []string
 
-	if majorVersion != 3 {
+		for _, parameter := range mode.Parameters {
+			switch parameter.Key {
+			case "user":
+				ctx.Conn.User = parameter.Value
+			case "database":
+				ctx.Conn.Database = parameter.Value
+			case "options":
+				fields := strings.Fields(parameter.Value)
+				for i := 0; i < len(fields); i++ {
+					switch fields[i] {
+					case "-c":
+						i++
+						set := fields[i]
+						key, value, ok := strings.Cut(set, "=")
+						if !ok {
+							err = perror.New(
+								perror.FATAL,
+								perror.ProtocolViolation,
+								"Expected key=value",
+							)
+							return
+						}
+
+						ikey := strutil.MakeCIString(key)
+
+						if ctx.Conn.InitialParameters == nil {
+							ctx.Conn.InitialParameters = make(map[strutil.CIString]string)
+						}
+						ctx.Conn.InitialParameters[ikey] = value
+					default:
+						err = perror.New(
+							perror.FATAL,
+							perror.FeatureNotSupported,
+							"Flag not supported, sorry",
+						)
+						return
+					}
+				}
+			case "replication":
+				err = perror.New(
+					perror.FATAL,
+					perror.FeatureNotSupported,
+					"Replication mode is not supported yet",
+				)
+				return
+			default:
+				if strings.HasPrefix(parameter.Key, "_pq_.") {
+					// we don't support protocol extensions at the moment
+					unsupportedOptions = append(unsupportedOptions, parameter.Key)
+				} else {
+					ikey := strutil.MakeCIString(parameter.Key)
+
+					if ctx.Conn.InitialParameters == nil {
+						ctx.Conn.InitialParameters = make(map[strutil.CIString]string)
+					}
+					ctx.Conn.InitialParameters[ikey] = parameter.Value
+				}
+			}
+		}
+
+		if mode.MinorVersion != 0 || len(unsupportedOptions) > 0 {
+			// negotiate protocol
+			uopts := packets.NegotiateProtocolVersion{
+				MinorProtocolVersion:        0,
+				UnrecognizedProtocolOptions: unsupportedOptions,
+			}
+			err = ctx.Conn.WritePacket(&uopts)
+			if err != nil {
+				return
+			}
+		}
+
+		if ctx.Conn.User == "" {
+			err = perror.New(
+				perror.FATAL,
+				perror.InvalidAuthorizationSpecification,
+				"User is required",
+			)
+			return
+		}
+		if ctx.Conn.Database == "" {
+			ctx.Conn.Database = ctx.Conn.User
+		}
+
+		done = true
+		return
+	default:
 		err = perror.New(
 			perror.FATAL,
 			perror.ProtocolViolation,
@@ -99,111 +160,11 @@ func startup0(
 		)
 		return
 	}
-
-	var unsupportedOptions []string
-
-	for {
-		var key string
-		p = p.ReadString(&key)
-		if key == "" {
-			break
-		}
-
-		var value string
-		p = p.ReadString(&value)
-
-		switch key {
-		case "user":
-			ctx.Conn.User = value
-		case "database":
-			ctx.Conn.Database = value
-		case "options":
-			fields := strings.Fields(value)
-			for i := 0; i < len(fields); i++ {
-				switch fields[i] {
-				case "-c":
-					i++
-					set := fields[i]
-					var ok bool
-					key, value, ok = strings.Cut(set, "=")
-					if !ok {
-						err = perror.New(
-							perror.FATAL,
-							perror.ProtocolViolation,
-							"Expected key=value",
-						)
-						return
-					}
-
-					ikey := strutil.MakeCIString(key)
-
-					if ctx.Conn.InitialParameters == nil {
-						ctx.Conn.InitialParameters = make(map[strutil.CIString]string)
-					}
-					ctx.Conn.InitialParameters[ikey] = value
-				default:
-					err = perror.New(
-						perror.FATAL,
-						perror.FeatureNotSupported,
-						"Flag not supported, sorry",
-					)
-					return
-				}
-			}
-		case "replication":
-			err = perror.New(
-				perror.FATAL,
-				perror.FeatureNotSupported,
-				"Replication mode is not supported yet",
-			)
-			return
-		default:
-			if strings.HasPrefix(key, "_pq_.") {
-				// we don't support protocol extensions at the moment
-				unsupportedOptions = append(unsupportedOptions, key)
-			} else {
-				ikey := strutil.MakeCIString(key)
-
-				if ctx.Conn.InitialParameters == nil {
-					ctx.Conn.InitialParameters = make(map[strutil.CIString]string)
-				}
-				ctx.Conn.InitialParameters[ikey] = value
-			}
-		}
-	}
-
-	if minorVersion != 0 || len(unsupportedOptions) > 0 {
-		// negotiate protocol
-		uopts := packets.NegotiateProtocolVersion{
-			MinorProtocolVersion: 0,
-			UnrecognizedOptions:  unsupportedOptions,
-		}
-		ctx.Packet = uopts.IntoPacket(ctx.Packet)
-		err = perror.Wrap(ctx.Conn.WritePacket(ctx.Packet))
-		if err != nil {
-			return
-		}
-	}
-
-	if ctx.Conn.User == "" {
-		err = perror.New(
-			perror.FATAL,
-			perror.InvalidAuthorizationSpecification,
-			"User is required",
-		)
-		return
-	}
-	if ctx.Conn.Database == "" {
-		ctx.Conn.Database = ctx.Conn.User
-	}
-
-	done = true
-	return
 }
 
 func accept0(
 	ctx *acceptContext,
-) (params acceptParams, err perror.Error) {
+) (params acceptParams, err error) {
 	for {
 		var done bool
 		params.IsCanceling, done, err = startup0(ctx, &params)
@@ -218,27 +179,24 @@ func accept0(
 	return
 }
 
-func fail(packet fed.Packet, client fed.ReadWriter, err perror.Error) {
-	resp := packets.ErrorResponse{
-		Error: err,
-	}
-	packet = resp.IntoPacket(packet)
-	_ = client.WritePacket(packet)
+func fail(client *fed.Conn, err error) {
+	resp := perror.ToPacket(perror.Wrap(err))
+	_ = client.WritePacket(resp)
 }
 
-func accept(ctx *acceptContext) (acceptParams, perror.Error) {
+func accept(ctx *acceptContext) (acceptParams, error) {
 	params, err := accept0(ctx)
 	if err != nil {
-		fail(ctx.Packet, ctx.Conn, err)
+		fail(ctx.Conn, err)
 		return acceptParams{}, err
 	}
 	return params, nil
 }
 
 func Accept(conn *fed.Conn, tlsConfig *tls.Config) (
-	cancelKey [8]byte,
+	cancelKey fed.BackendKey,
 	isCanceling bool,
-	err perror.Error,
+	err error,
 ) {
 	ctx := acceptContext{
 		Conn: conn,

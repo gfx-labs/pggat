@@ -1,0 +1,60 @@
+// automatically generated. do not edit
+
+import (
+	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
+
+	"errors"
+)
+
+var (
+	ErrUnexpectedPacket = errors.New("unexpected packet")
+	ErrInvalidFormat = errors.New("invalid packet format")
+)
+
+const (
+	{{range $name, $packet := .Packets -}}
+		{{if some $packet.Type -}}
+			Type{{$name}} = '{{$packet.Type}}'
+		{{end -}}
+	{{end -}}
+)
+
+{{range $name, $packet := .Packets -}}
+	{{template "preType" (list $name $packet)}}
+
+	type {{$name}} {{template "type" (list $name $packet)}}
+
+	func (T *{{$name}}) Type() fed.Type {
+		{{if some $packet.Type -}}
+			return Type{{$name}}
+		{{else -}}
+			return 0
+		{{end -}}
+	}
+
+	func (T *{{$name}}) Length() (length int) {
+		{{template "length" (list $name "(*T)" $packet)}}
+
+		return
+	}
+
+	func (T *{{$name}}) ReadFrom(decoder *fed.Decoder) (err error) {
+		if decoder.Type() != T.Type() {
+			return ErrUnexpectedPacket
+		}
+
+		{{template "decode" (list $name "(*T)" $packet)}}
+
+		return
+	}
+
+	func (T *{{$name}}) WriteTo(encoder *fed.Encoder) (err error) {
+		{{template "encode" (list $name "(*T)" $packet)}}
+
+		return
+	}
+
+	var _ fed.Packet = (*{{$name}})(nil)
+
+{{end}}

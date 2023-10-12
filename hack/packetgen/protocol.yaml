@@ -1,0 +1,382 @@
+Packets:
+  Startup:
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: Mode
+          Map:
+            Name: Mode
+            Prefix:
+              Basic: int16
+            Items:
+              Version3:
+                Type: 3
+                Struct:
+                  Name: Payload
+                  Fields:
+                    - Name: MinorVersion
+                      Basic: int16
+                    - Name: Parameters
+                      ZeroTerminatedSlice:
+                        Name: Parameter
+                        Fields:
+                          - Name: Key
+                            Basic: string
+                          - Name: Value
+                            Basic: string
+              Control:
+                Type: 1234
+                Struct:
+                  Name: Payload
+                  Fields:
+                    - Name: Mode
+                      Map:
+                        Name: Mode
+                        Prefix:
+                          Basic: int16
+                        Items:
+                          Cancel:
+                            Type: 5678
+                            Struct:
+                              Name: Key
+                              Fields:
+                                - Name: ProcessID
+                                  Basic: int32
+                                - Name: SecretKey
+                                  Basic: int32
+                          SSL:
+                            Type: 5679
+                          GSSAPI:
+                            Type: 5680
+  Authentication:
+    Type: 'R'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: Mode
+          Map:
+            Name: Mode
+            Prefix:
+              Basic: int32
+            Items:
+              Ok:
+                Type: 0
+              KerberosV5:
+                Type: 2
+              CleartextPassword:
+                Type: 3
+              MD5Password:
+                Type: 5
+                Array:
+                  Length: 4
+                  Basic: uint8
+              GSS:
+                Type: 7
+              GSSContinue:
+                Type: 8
+                Remaining:
+                  Basic: uint8
+              SSPI:
+                Type: 9
+              SASL:
+                Type: 10
+                ZeroTerminatedSlice:
+                  Name: Method
+                  Fields:
+                    - Name: Method
+                      Basic: string
+              SASLContinue:
+                Type: 11
+                Remaining:
+                  Basic: uint8
+              SASLFinal:
+                Type: 12
+                Remaining:
+                  Basic: uint8
+  GSSResponse:
+    Type: 'p'
+    Remaining:
+      Basic: uint8
+  PasswordMessage:
+    Type: 'p'
+    Basic: string
+  SASLInitialResponse:
+    Type: 'p'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: Mechanism
+          Basic: string
+        - Name: InitialClientResponse
+          NullableLengthPrefixedSlice:
+            Prefix:
+              Basic: int32
+            Basic: uint8
+  SASLResponse:
+    Type: 'p'
+    Remaining:
+      Basic: uint8
+  BackendKeyData:
+    Type: 'K'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: ProcessID
+          Basic: int32
+        - Name: SecretKey
+          Basic: int32
+  Bind:
+    Type: 'B'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: Destination
+          Basic: string
+        - Name: Source
+          Basic: string
+        - Name: FormatCodes
+          LengthPrefixedSlice:
+            Prefix:
+              Basic: uint16
+            Basic: int16
+        - Name: Parameters
+          LengthPrefixedSlice:
+            Prefix:
+              Basic: uint16
+            NullableLengthPrefixedSlice:
+              Prefix:
+                Basic: int32
+              Basic: uint8
+        - Name: ResultFormatCodes
+          LengthPrefixedSlice:
+            Prefix:
+              Basic: uint16
+            Basic: int16
+  BindComplete:
+    Type: '2'
+  Close:
+    Type: 'C'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: Which
+          Basic: uint8
+        - Name: Name
+          Basic: string
+  CloseComplete:
+    Type: '3'
+  CommandComplete:
+    Type: 'C'
+    Basic: string
+  CopyData:
+    Type: 'd'
+    Remaining:
+      Basic: uint8
+  CopyDone:
+    Type: 'c'
+  CopyFail:
+    Type: 'f'
+    Basic: string
+  CopyInResponse:
+    Type: 'G'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: Mode
+          Basic: int8
+        - Name: ColumnFormatCodes
+          LengthPrefixedSlice:
+            Prefix:
+              Basic: uint16
+            Basic: int16
+  CopyOutResponse:
+    Type: 'H'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: Mode
+          Basic: int8
+        - Name: ColumnFormatCodes
+          LengthPrefixedSlice:
+            Prefix:
+              Basic: uint16
+            Basic: int16
+  CopyBothResponse:
+    Type: 'W'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: Mode
+          Basic: int8
+        - Name: ColumnFormatCodes
+          LengthPrefixedSlice:
+            Prefix:
+              Basic: uint16
+            Basic: int16
+  DataRow:
+    Type: 'D'
+    LengthPrefixedSlice:
+      Prefix:
+        Basic: uint16
+      NullableLengthPrefixedSlice:
+        Prefix:
+          Basic: int32
+        Basic: uint8
+  Describe:
+    Type: 'D'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: Which
+          Basic: uint8
+        - Name: Name
+          Basic: string
+  EmptyQueryResponse:
+    Type: 'I'
+  ErrorResponse:
+    Type: 'E'
+    ZeroTerminatedSlice:
+      Name: Field
+      Fields:
+        - Name: Code
+          Basic: uint8
+        - Name: Value
+          Basic: string
+  Execute:
+    Type: 'E'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: Target
+          Basic: string
+        - Name: MaxRows
+          Basic: uint32
+  Flush:
+    Type: 'H'
+  FunctionCall:
+    Type: 'F'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: ObjectID
+          Basic: int32
+        - Name: ArgumentFormatCodes
+          LengthPrefixedSlice:
+            Prefix:
+              Basic: uint16
+            Basic: int16
+        - Name: Arguments
+          LengthPrefixedSlice:
+            Prefix:
+              Basic: uint16
+            NullableLengthPrefixedSlice:
+              Prefix:
+                Basic: int32
+              Basic: uint8
+        - Name: ResultFormatCode
+          Basic: int16
+  FunctionCallResponse:
+    Type: 'V'
+    NullableLengthPrefixedSlice:
+      Prefix:
+        Basic: int32
+      Basic: uint8
+  NegotiateProtocolVersion:
+    Type: 'v'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: MinorProtocolVersion
+          Basic: int32
+        - Name: UnrecognizedProtocolOptions
+          LengthPrefixedSlice:
+            Prefix:
+              Basic: uint32
+            Basic: string
+  NoData:
+    Type: 'n'
+  NoticeResponse:
+    Type: 'N'
+    ZeroTerminatedSlice:
+      Name: Field
+      Fields:
+        - Name: Code
+          Basic: uint8
+        - Name: Value
+          Basic: string
+  NotificationResponse:
+    Type: 'A'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: ProcessID
+          Basic: int32
+        - Name: Channel
+          Basic: string
+        - Name: Payload
+          Basic: string
+  ParameterDescription:
+    Type: 't'
+    LengthPrefixedSlice:
+      Prefix:
+        Basic: uint16
+      Basic: int32
+  ParameterStatus:
+    Type: 'S'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: Key
+          Basic: string
+        - Name: Value
+          Basic: string
+  Parse:
+    Type: 'P'
+    Struct:
+      Name: Payload
+      Fields:
+        - Name: Destination
+          Basic: string
+        - Name: Query
+          Basic: string
+        - Name: ParameterDataTypes
+          LengthPrefixedSlice:
+            Prefix:
+              Basic: uint16
+            Basic: int32
+  ParseComplete:
+    Type: '1'
+  PortalSuspended:
+    Type: 's'
+  Query:
+    Type: 'Q'
+    Basic: string
+  ReadyForQuery:
+    Type: 'Z'
+    Basic: uint8
+  RowDescription:
+    Type: 'T'
+    LengthPrefixedSlice:
+      Prefix:
+        Basic: uint16
+      Struct:
+        Name: Row
+        Fields:
+          - Name: Name
+            Basic: string
+          - Name: TableID
+            Basic: int32
+          - Name: ColumnAttributeNumber
+            Basic: int16
+          - Name: FieldDataType
+            Basic: int32
+          - Name: DataTypeSize
+            Basic: int16
+          - Name: TypeModifier
+            Basic: int32
+          - Name: FormatCode
+            Basic: int16
+  Sync:
+    Type: 'S'
+  Terminate:
+    Type: 'X'

@@ -8,19 +8,18 @@ import (
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 )
 
-func ExtendedQuery(client *Client, result any, query string, args ...any) error {
+func ExtendedQuery(client *fed.Conn, result any, query string, args ...any) error {
 	if len(args) == 0 {
-		Query(client, []any{result}, query)
-		return nil
+		return Query(client, []any{result}, query)
 	}
-
-	var pkts []fed.Packet
 
 	// parse
 	parse := packets.Parse{
 		Query: query,
 	}
-	pkts = append(pkts, parse.IntoPacket(nil))
+	if err := client.WritePacket(&parse); err != nil {
+		return err
+	}
 
 	// bind
 	params := make([][]byte, 0, len(args))
@@ -58,25 +57,46 @@ outer:
 		params = append(params, value)
 	}
 	bind := packets.Bind{
-		ParameterValues: params,
+		Parameters: params,
 	}
-	pkts = append(pkts, bind.IntoPacket(nil))
+	if err := client.WritePacket(&bind); err != nil {
+		return err
+	}
 
 	// describe
 	describe := packets.Describe{
 		Which: 'P',
 	}
-	pkts = append(pkts, describe.IntoPacket(nil))
+	if err := client.WritePacket(&describe); err != nil {
+		return err
+	}
 
 	// execute
 	execute := packets.Execute{}
-	pkts = append(pkts, execute.IntoPacket(nil))
+	if err := client.WritePacket(&execute); err != nil {
+		return err
+	}
 
 	// sync
-	sync := fed.NewPacket(packets.TypeSync)
-	pkts = append(pkts, sync)
+	sync := packets.Sync{}
+	if err := client.WritePacket(&sync); err != nil {
+		return err
+	}
 
 	// result
-	client.Do(NewQueryWriter(result), pkts...)
+	if err := readQueryResults(client, result); err != nil {
+		return err
+	}
+
+	// make sure we receive ready for query
+	packet, err := client.ReadPacket(true)
+	if err != nil {
+		return err
+	}
+
+	if packet.Type() != packets.TypeReadyForQuery {
+		return ErrExpectedReadyForQuery
+	}
+
 	return nil
 }

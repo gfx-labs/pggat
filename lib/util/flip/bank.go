@@ -1,57 +1,29 @@
 package flip
 
-import (
-	"sync"
-)
-
-type Bank struct {
-	pending []func() error
-	mu      sync.Mutex
-}
+type Bank []func() error
 
 func (T *Bank) Queue(fn func() error) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-	T.pending = append(T.pending, fn)
-}
-
-func (T *Bank) take() []func() error {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-	v := T.pending
-	T.pending = nil
-	return v
-}
-
-func (T *Bank) give(sz []func() error) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-	if T.pending == nil {
-		T.pending = sz[:0]
-	}
+	*T = append(*T, fn)
 }
 
 func (T *Bank) Wait() error {
-	batch := T.take()
-	defer T.give(batch)
-
-	if len(batch) == 0 {
+	if len(*T) == 0 {
 		return nil
 	}
 
-	if len(batch) == 1 {
-		return batch[0]()
+	if len(*T) == 1 {
+		return (*T)[0]()
 	}
 
-	ch := make(chan error, len(batch))
+	ch := make(chan error, len(*T))
 
-	for _, pending := range batch {
+	for _, pending := range *T {
 		go func(pending func() error) {
 			ch <- pending()
 		}(pending)
 	}
 
-	for i := 0; i < len(batch); i++ {
+	for i := 0; i < len(*T); i++ {
 		err := <-ch
 		if err != nil {
 			return err

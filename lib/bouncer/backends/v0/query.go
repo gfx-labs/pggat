@@ -1,7 +1,7 @@
 package backends
 
 import (
-	"fmt"
+	"strings"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
@@ -13,10 +13,8 @@ func copyIn(ctx *context) error {
 
 	for {
 		if !ctx.PeerRead() {
-			copyFail := packets.CopyFail{
-				Reason: "peer failed",
-			}
-			ctx.Packet = copyFail.IntoPacket(ctx.Packet)
+			copyFail := packets.CopyFail("peer failed")
+			ctx.Packet = &copyFail
 			return ctx.ServerWrite()
 		}
 
@@ -87,11 +85,13 @@ func query(ctx *context) error {
 				return err
 			}
 		case packets.TypeReadyForQuery:
-			var txState packets.ReadyForQuery
-			if !txState.ReadFromPacket(ctx.Packet) {
-				return ErrBadFormat
+			var p packets.ReadyForQuery
+			err = fed.ToConcrete(&p, ctx.Packet)
+			if err != nil {
+				return err
 			}
-			ctx.TxState = byte(txState)
+			ctx.Packet = &p
+			ctx.TxState = byte(p)
 			ctx.PeerWrite()
 			return nil
 		default:
@@ -102,28 +102,35 @@ func query(ctx *context) error {
 
 func queryString(ctx *context, q string) error {
 	qq := packets.Query(q)
-	ctx.Packet = qq.IntoPacket(ctx.Packet)
+	ctx.Packet = &qq
 	return query(ctx)
 }
 
-func QueryString(server, peer *fed.Conn, buffer fed.Packet, query string) (err, peerError error, packet fed.Packet) {
+func QueryString(server, peer *fed.Conn, query string) (err, peerError error) {
 	ctx := context{
 		Server: server,
 		Peer:   peer,
-		Packet: buffer,
 	}
 	err = queryString(&ctx, query)
 	peerError = ctx.PeerError
-	packet = ctx.Packet
 	return
 }
 
-func SetParameter(server, peer *fed.Conn, buffer fed.Packet, name strutil.CIString, value string) (err, peerError error, packet fed.Packet) {
+func SetParameter(server, peer *fed.Conn, name strutil.CIString, value string) (err, peerError error) {
+	var q strings.Builder
+	escapedName := strutil.Escape(name.String(), '"')
+	escapedValue := strutil.Escape(value, '\'')
+	q.Grow(len(`SET "" = ''`) + len(escapedName) + len(escapedValue))
+	q.WriteString(`SET "`)
+	q.WriteString(escapedName)
+	q.WriteString(`" = '`)
+	q.WriteString(escapedValue)
+	q.WriteString(`'`)
+
 	return QueryString(
 		server,
 		peer,
-		buffer,
-		fmt.Sprintf(`SET "%s" = '%s'`, strutil.Escape(name.String(), '"'), strutil.Escape(value, '\'')),
+		q.String(),
 	)
 }
 
@@ -146,11 +153,13 @@ func functionCall(ctx *context) error {
 			packets.TypeNotificationResponse:
 			ctx.PeerWrite()
 		case packets.TypeReadyForQuery:
-			var txState packets.ReadyForQuery
-			if !txState.ReadFromPacket(ctx.Packet) {
-				return ErrBadFormat
+			var p packets.ReadyForQuery
+			err = fed.ToConcrete(&p, ctx.Packet)
+			if err != nil {
+				return err
 			}
-			ctx.TxState = byte(txState)
+			ctx.Packet = &p
+			ctx.TxState = byte(p)
 			ctx.PeerWrite()
 			return nil
 		default:
@@ -160,7 +169,6 @@ func functionCall(ctx *context) error {
 }
 
 func sync(ctx *context) (bool, error) {
-	ctx.Packet = ctx.Packet.Reset(packets.TypeSync)
 	if err := ctx.ServerWrite(); err != nil {
 		return false, err
 	}
@@ -200,11 +208,13 @@ func sync(ctx *context) (bool, error) {
 				return false, err
 			}
 		case packets.TypeReadyForQuery:
-			var txState packets.ReadyForQuery
-			if !txState.ReadFromPacket(ctx.Packet) {
-				return false, ErrBadFormat
+			var p packets.ReadyForQuery
+			err = fed.ToConcrete(&p, ctx.Packet)
+			if err != nil {
+				return false, err
 			}
-			ctx.TxState = byte(txState)
+			ctx.Packet = &p
+			ctx.TxState = byte(p)
 			ctx.PeerWrite()
 			return true, nil
 		default:
@@ -213,15 +223,14 @@ func sync(ctx *context) (bool, error) {
 	}
 }
 
-func Sync(server, peer *fed.Conn, buffer fed.Packet) (err, peerErr error, packet fed.Packet) {
+func Sync(server, peer *fed.Conn) (err, peerErr error) {
 	ctx := context{
 		Server: server,
 		Peer:   peer,
-		Packet: buffer,
+		Packet: &packets.Sync{},
 	}
 	_, err = sync(&ctx)
 	peerErr = ctx.PeerError
-	packet = ctx.Packet
 	return
 }
 
@@ -233,6 +242,7 @@ func eqp(ctx *context) error {
 	for {
 		if !ctx.PeerRead() {
 			for {
+				ctx.Packet = &packets.Sync{}
 				ok, err := sync(ctx)
 				if err != nil {
 					return err
@@ -276,7 +286,7 @@ func transaction(ctx *context) error {
 		case packets.TypeSync:
 			// phony sync call, we can just reply with a fake ReadyForQuery(TxState)
 			rfq := packets.ReadyForQuery(ctx.TxState)
-			ctx.Packet = rfq.IntoPacket(ctx.Packet)
+			ctx.Packet = &rfq
 			ctx.PeerWrite()
 		case packets.TypeParse, packets.TypeBind, packets.TypeClose, packets.TypeDescribe, packets.TypeExecute, packets.TypeFlush:
 			if err := eqp(ctx); err != nil {
@@ -305,7 +315,7 @@ func transaction(ctx *context) error {
 	}
 }
 
-func Transaction(server, peer *fed.Conn, initialPacket fed.Packet) (err, peerError error, packet fed.Packet) {
+func Transaction(server, peer *fed.Conn, initialPacket fed.Packet) (err, peerError error) {
 	ctx := context{
 		Server: server,
 		Peer:   peer,
@@ -313,6 +323,5 @@ func Transaction(server, peer *fed.Conn, initialPacket fed.Packet) (err, peerErr
 	}
 	err = transaction(&ctx)
 	peerError = ctx.PeerError
-	packet = ctx.Packet
 	return
 }

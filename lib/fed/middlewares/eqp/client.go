@@ -13,13 +13,11 @@ func NewClient() *Client {
 }
 
 func (T *Client) ReadPacket(packet fed.Packet) (fed.Packet, error) {
-	T.state.C2S(packet)
-	return packet, nil
+	return T.state.C2S(packet)
 }
 
 func (T *Client) WritePacket(packet fed.Packet) (fed.Packet, error) {
-	T.state.S2C(packet)
-	return packet, nil
+	return T.state.S2C(packet)
 }
 
 var _ fed.Middleware = (*Client)(nil)

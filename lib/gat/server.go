@@ -12,7 +12,6 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
-	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
@@ -95,7 +94,7 @@ func (T *Server) Stop() error {
 	return nil
 }
 
-func (T *Server) Cancel(key [8]byte) {
+func (T *Server) Cancel(key fed.BackendKey) {
 	for _, cancellableHandler := range T.cancellableHandlers {
 		cancellableHandler.Cancel(key)
 	}
@@ -123,23 +122,21 @@ func (T *Server) Serve(conn *fed.Conn) {
 				return
 			}
 
-			errResp := packets.ErrorResponse{
-				Error: perror.Wrap(err),
-			}
-			_ = conn.WritePacket(errResp.IntoPacket(nil))
+			errResp := perror.ToPacket(perror.Wrap(err))
+			_ = conn.WritePacket(errResp)
 			return
 		}
 	}
 
 	// database not found
-	errResp := packets.ErrorResponse{
-		Error: perror.New(
+	errResp := perror.ToPacket(
+		perror.New(
 			perror.FATAL,
 			perror.InvalidPassword,
 			fmt.Sprintf(`Database "%s" not found`, conn.Database),
 		),
-	}
-	_ = conn.WritePacket(errResp.IntoPacket(nil))
+	)
+	_ = conn.WritePacket(errResp)
 	T.log.Warn("database not found", zap.String("user", conn.User), zap.String("database", conn.Database))
 }
 
@@ -153,7 +150,7 @@ func (T *Server) accept(listener *Listener, conn *fed.Conn) {
 		tlsConfig = listener.ssl.ServerTLSConfig()
 	}
 
-	var cancelKey [8]byte
+	var cancelKey fed.BackendKey
 	var isCanceling bool
 	var err error
 	cancelKey, isCanceling, err = frontends.Accept(conn, tlsConfig)
