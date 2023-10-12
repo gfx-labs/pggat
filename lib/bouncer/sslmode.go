@@ -1,4 +1,4 @@
-package bounce
+package bouncer
 
 type SSLMode string
 

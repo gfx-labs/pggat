@@ -12,7 +12,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
-	recipe2 "gfx.cafe/gfx/pggat/lib/pool/recipe"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -65,7 +65,7 @@ func (T *Module) Provision(ctx caddy.Context) error {
 		network = "tcp"
 	}
 
-	d := recipe2.Dialer{
+	d := recipe.Dialer{
 		Network:           network,
 		Address:           T.ServerAddress,
 		SSLMode:           T.ServerSSLMode,
@@ -77,7 +77,7 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	}
 
 	T.pool = pooler.NewPool()
-	T.pool.AddRecipe("pool", recipe2.NewRecipe(recipe2.Config{
+	T.pool.AddRecipe("pool", recipe.NewRecipe(recipe.Config{
 		Dialer: d,
 	}))
 

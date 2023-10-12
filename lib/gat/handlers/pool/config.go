@@ -2,6 +2,8 @@ package pool_handler
 
 import (
 	"encoding/json"
+
+	"gfx.cafe/gfx/pggat/lib/bouncer"
 )
 
 type Config struct {
@@ -9,7 +11,7 @@ type Config struct {
 
 	// Server connect options
 	ServerAddress string          `jsonn:"server_address"`
-	ServerSSLMode bounce.SSLMode  `json:"server_ssl_mode,omitempty"`
+	ServerSSLMode bouncer.SSLMode `json:"server_ssl_mode,omitempty"`
 	ServerSSL     json.RawMessage `json:"server_ssl,omitempty" caddy:"namespace=pggat.ssl.clients inline_key=provider"`
 
 	// Server routing options

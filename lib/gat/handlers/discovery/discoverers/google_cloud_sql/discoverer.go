@@ -5,13 +5,16 @@ import (
 	"net"
 	"strings"
 
+	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
+
 	"github.com/caddyserver/caddy/v2"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery"
-	"gfx.cafe/gfx/pggat/lib/pool/recipe"
 
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
+	"gfx.cafe/gfx/pggat/lib/bouncer"
+	"gfx.cafe/gfx/pggat/lib/bouncer/bouncers/v2"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gsql"
 )
@@ -117,7 +120,7 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 				admin, err = recipe.Dialer{
 					Network: "tcp",
 					Address: primaryAddress,
-					SSLMode: bounce.SSLModePrefer,
+					SSLMode: bouncer.SSLModePrefer,
 					SSLConfig: &tls.Config{
 						InsecureSkipVerify: true,
 					},

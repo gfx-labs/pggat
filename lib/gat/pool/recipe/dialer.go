@@ -5,6 +5,8 @@ import (
 	"net"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
+	"gfx.cafe/gfx/pggat/lib/bouncer"
+	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
@@ -13,7 +15,7 @@ type Dialer struct {
 	Network string
 	Address string
 
-	SSLMode           bounce.SSLMode
+	SSLMode           bouncer.SSLMode
 	SSLConfig         *tls.Config
 	Username          string
 	Credentials       auth.Credentials
