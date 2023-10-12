@@ -154,15 +154,3 @@ func (T *Decoder) String() (string, error) {
 	T.pos += len(s)
 	return s[:len(s)-1], nil
 }
-
-func (T *Decoder) Remaining() ([]byte, error) {
-	b := make([]byte, T.len-T.pos)
-	err := T.Bytes(b)
-	return b, err
-}
-
-func (T *Decoder) Bytes(b []byte) error {
-	n, err := io.ReadFull(&T.Reader, b)
-	T.pos += n
-	return err
-}

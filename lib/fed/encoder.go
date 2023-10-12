@@ -135,9 +135,3 @@ func (T *Encoder) String(v string) error {
 	T.pos += n + 1
 	return err
 }
-
-func (T *Encoder) Bytes(v []byte) error {
-	n, err := T.Writer.Write(v)
-	T.pos += n
-	return err
-}
