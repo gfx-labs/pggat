@@ -1,7 +1,7 @@
 package backends
 
 import (
-	"fmt"
+	"strings"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
@@ -117,10 +117,20 @@ func QueryString(server, peer *fed.Conn, query string) (err, peerError error) {
 }
 
 func SetParameter(server, peer *fed.Conn, name strutil.CIString, value string) (err, peerError error) {
+	var q strings.Builder
+	escapedName := strutil.Escape(name.String(), '"')
+	escapedValue := strutil.Escape(value, '\'')
+	q.Grow(len(`SET "" = ''`) + len(escapedName) + len(escapedValue))
+	q.WriteString(`SET "`)
+	q.WriteString(escapedName)
+	q.WriteString(`" = '`)
+	q.WriteString(escapedValue)
+	q.WriteString(`'`)
+
 	return QueryString(
 		server,
 		peer,
-		fmt.Sprintf(`SET "%s" = '%s'`, strutil.Escape(name.String(), '"'), strutil.Escape(value, '\'')),
+		q.String(),
 	)
 }
 

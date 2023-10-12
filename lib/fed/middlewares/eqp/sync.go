@@ -1,10 +1,24 @@
 package eqp
 
 import (
+	"slices"
+
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 )
+
+func preparedStatementsEqual(a, b *packets.Parse) bool {
+	if a.Query != b.Query {
+		return false
+	}
+
+	if !slices.Equal(a.ParameterDataTypes, b.ParameterDataTypes) {
+		return false
+	}
+
+	return true
+}
 
 func Sync(c *Client, server *fed.Conn, s *Server) error {
 	var needsBackendSync bool
@@ -29,9 +43,9 @@ func Sync(c *Client, server *fed.Conn, s *Server) error {
 	// close all prepared statements that don't match client
 	for name, preparedStatement := range s.state.preparedStatements {
 		if clientPreparedStatement, ok := c.state.preparedStatements[name]; ok {
-			// TODO(garet) do not overwrite prepared statements that match
-			_ = preparedStatement
-			_ = clientPreparedStatement
+			if preparedStatementsEqual(preparedStatement, clientPreparedStatement) {
+				continue
+			}
 
 			if name == "" {
 				// will be overwritten
@@ -53,9 +67,9 @@ func Sync(c *Client, server *fed.Conn, s *Server) error {
 	// parse all prepared statements that aren't on server
 	for name, preparedStatement := range c.state.preparedStatements {
 		if serverPreparedStatement, ok := s.state.preparedStatements[name]; ok {
-			// TODO(garet) do not overwrite prepared statements that match
-			_ = preparedStatement
-			_ = serverPreparedStatement
+			if preparedStatementsEqual(preparedStatement, serverPreparedStatement) {
+				continue
+			}
 		}
 
 		if err := server.WritePacket(preparedStatement); err != nil {
