@@ -2,14 +2,11 @@ package pool
 
 import (
 	"log"
-	"math"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
-
-	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/pool/recipe"
 )
 
@@ -17,7 +14,7 @@ type backendRecipe struct {
 	weight atomic.Int64
 	recipe *recipe.Recipe
 
-	servers []*Conn
+	servers []*fed.Conn // TODO(garet)
 	killed  bool
 }
 
@@ -49,15 +46,13 @@ func NewBackend(config BackendConfig) *Backend {
 	return b
 }
 
-func (T *Backend) addRecipe(name string, r *recipe.Recipe) *backendRecipe {
-	target := &backendRecipe{
-		recipe: r,
-	}
+func (T *Backend) addRecipe(name string, r *recipe.Recipe) {
 	if T.recipes == nil {
 		T.recipes = make(map[string]*backendRecipe)
 	}
-	T.recipes[name] = target
-	return target
+	T.recipes[name] = &backendRecipe{
+		recipe: r,
+	}
 }
 
 func (T *Backend) AddRecipe(name string, r *recipe.Recipe) {
@@ -109,12 +104,16 @@ func (T *Backend) ScaleUp() error {
 				continue
 			}
 		}
+
+		if !target.recipe.Allocate() {
+			return
+		}
+		target.weight.Add(1)
 	}()
 
-	if target == nil || !target.recipe.Allocate() {
+	if target == nil {
 		return ErrNoScalableRecipe
 	}
-	target.weight.Add(1)
 
 	server, err := target.recipe.Dial()
 	if err != nil {
@@ -132,50 +131,14 @@ func (T *Backend) ScaleUp() error {
 		return nil
 	}
 
-	target.servers = append(target.servers, NewConn(server))
+	target.servers = append(target.servers, server)
 	return nil
 }
 
 // ScaleDown attempts to scale down the pool. Returns when the next scale down should happen
 func (T *Backend) ScaleDown() time.Duration {
-	if T.config.IdleTimeout == 0 {
-		return math.MaxInt64
-	}
-
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	now := time.Now()
-
-	var next = T.config.IdleTimeout
-
-	for _, r := range T.recipes {
-		for i := 0; i < len(r.servers); i++ {
-			server := r.servers[i]
-			code, _, since := server.GetState()
-			if code != metrics.ConnStateIdle {
-				continue
-			}
-
-			dur := now.Sub(since)
-			if dur > T.config.IdleTimeout {
-				if r.recipe.TryFree() {
-					r.weight.Add(-1)
-					_ = server.Close()
-					copy(r.servers[i:], r.servers[i+1:])
-					r.servers = r.servers[:len(r.servers)-1]
-					i--
-				}
-			} else {
-				dur = T.config.IdleTimeout - dur
-				if dur < next {
-					next = dur
-				}
-			}
-		}
-	}
-
-	return next
+	// TODO(garet)
+	return T.config.IdleTimeout
 }
 
 func (T *Backend) scaleLoop() {
@@ -241,21 +204,6 @@ func (T *Backend) scaleLoop() {
 	}
 }
 
-func (T *Backend) AddClient(id uuid.UUID) {
-	T.pooler.AddClient(id)
-}
-
-func (T *Backend) RemoveClient(id uuid.UUID) {
-	T.pooler.RemoveClient(id)
-}
-
 func (T *Backend) Close() {
 	close(T.closed)
-
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	for name := range T.recipes {
-		T.removeRecipe(name)
-	}
 }
