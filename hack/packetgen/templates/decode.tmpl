@@ -86,7 +86,7 @@
 		{{$pointer}} = nil
 	} else {
 		if {{$pointer}} == nil {
-			{{$pointer}} = make([]{{template "type" (list $name $value.NullableLengthPrefixedSlice)}}, 0, int({{$lengthPointer}}))
+			{{$pointer}} = make([]{{template "type" (list $name $value.NullableLengthPrefixedSlice)}}, int({{$lengthPointer}}))
 		} else {
 			{{$pointer}} = slices.Resize({{$pointer}}, int({{$lengthPointer}}))
 		}

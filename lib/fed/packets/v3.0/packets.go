@@ -668,7 +668,7 @@ func (T *Bind) ReadFrom(decoder *fed.Decoder) (err error) {
 			(*T).Parameters[temp26] = nil
 		} else {
 			if (*T).Parameters[temp26] == nil {
-				(*T).Parameters[temp26] = make([]uint8, 0, int(temp27))
+				(*T).Parameters[temp26] = make([]uint8, int(temp27))
 			} else {
 				(*T).Parameters[temp26] = slices.Resize((*T).Parameters[temp26], int(temp27))
 			}
@@ -1340,7 +1340,7 @@ func (T *DataRow) ReadFrom(decoder *fed.Decoder) (err error) {
 			(*T)[temp64] = nil
 		} else {
 			if (*T)[temp64] == nil {
-				(*T)[temp64] = make([]uint8, 0, int(temp65))
+				(*T)[temp64] = make([]uint8, int(temp65))
 			} else {
 				(*T)[temp64] = slices.Resize((*T)[temp64], int(temp65))
 			}
@@ -1731,7 +1731,7 @@ func (T *FunctionCall) ReadFrom(decoder *fed.Decoder) (err error) {
 			(*T).Arguments[temp84] = nil
 		} else {
 			if (*T).Arguments[temp84] == nil {
-				(*T).Arguments[temp84] = make([]uint8, 0, int(temp85))
+				(*T).Arguments[temp84] = make([]uint8, int(temp85))
 			} else {
 				(*T).Arguments[temp84] = slices.Resize((*T).Arguments[temp84], int(temp85))
 			}
@@ -1852,7 +1852,7 @@ func (T *FunctionCallResponse) ReadFrom(decoder *fed.Decoder) (err error) {
 		(*T) = nil
 	} else {
 		if (*T) == nil {
-			(*T) = make([]uint8, 0, int(temp95))
+			(*T) = make([]uint8, int(temp95))
 		} else {
 			(*T) = slices.Resize((*T), int(temp95))
 		}
@@ -2769,7 +2769,7 @@ func (T *SASLInitialResponse) ReadFrom(decoder *fed.Decoder) (err error) {
 		(*T).InitialClientResponse = nil
 	} else {
 		if (*T).InitialClientResponse == nil {
-			(*T).InitialClientResponse = make([]uint8, 0, int(temp131))
+			(*T).InitialClientResponse = make([]uint8, int(temp131))
 		} else {
 			(*T).InitialClientResponse = slices.Resize((*T).InitialClientResponse, int(temp131))
 		}
