@@ -9,31 +9,53 @@ import (
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
-type RowWriter struct {
-	result reflect.Value
-	rd     packets.RowDescription
-	row    int
-	done   bool
-}
+func readRows(client *fed.Conn, result any) error {
+	res := reflect.ValueOf(result)
+	row := 0
+	var rd packets.RowDescription
 
-func MakeRowWriter(result any) RowWriter {
-	return RowWriter{
-		result: reflect.ValueOf(result),
+	for {
+		packet, err := client.ReadPacket(true)
+		if err != nil {
+			return err
+		}
+
+		switch packet.Type() {
+		case packets.TypeRowDescription:
+			err = fed.ToConcrete(&rd, packet)
+			if err != nil {
+				return err
+			}
+		case packets.TypeDataRow:
+			var dr packets.DataRow
+			err = fed.ToConcrete(&dr, packet)
+			if err != nil {
+				return err
+			}
+			for i, col := range dr {
+				if err = setColumn(res, rd, row, i, col); err != nil {
+					return err
+				}
+			}
+			row += 1
+		case packets.TypeErrorResponse:
+			var p packets.ErrorResponse
+			err = fed.ToConcrete(&p, packet)
+			if err != nil {
+				return err
+			}
+			return perror.FromPacket(&p)
+		case packets.TypeCommandComplete:
+			return nil
+		}
 	}
 }
 
-func NewRowWriter(result any) *RowWriter {
-	w := MakeRowWriter(result)
-	return &w
-}
-
-func (T *RowWriter) set(i int, col []byte) error {
-	if i >= len(T.rd) {
+func setColumn(result reflect.Value, rd packets.RowDescription, row, i int, col []byte) error {
+	if i >= len(rd) {
 		return ErrExtraFields
 	}
-	desc := T.rd[i]
-
-	result := T.result
+	desc := rd[i]
 
 	// unptr
 	for result.Kind() == reflect.Pointer {
@@ -52,22 +74,22 @@ outer:
 		kind := result.Kind()
 		switch kind {
 		case reflect.Array:
-			if T.row >= result.Len() {
+			if row >= result.Len() {
 				return ErrResultTooBig
 			}
-			result = result.Index(T.row)
+			result = result.Index(row)
 			break outer
 		case reflect.Slice:
-			for T.row >= result.Len() {
+			for row >= result.Len() {
 				if !result.CanSet() {
 					return ErrResultTooBig
 				}
 				result.Set(reflect.Append(result, reflect.Zero(result.Type().Elem())))
 			}
-			result = result.Index(T.row)
+			result = result.Index(row)
 			break outer
 		case reflect.Struct, reflect.Map:
-			if T.row != 0 {
+			if row != 0 {
 				return ErrResultTooBig
 			}
 			break outer
@@ -224,42 +246,3 @@ outer2:
 		return ErrUnexpectedType
 	}
 }
-
-func (T *RowWriter) WritePacket(packet fed.Packet) error {
-	switch packet.Type() {
-	case packets.TypeRowDescription:
-		err := fed.ToConcrete(&T.rd, packet)
-		if err != nil {
-			return err
-		}
-	case packets.TypeDataRow:
-		var dr packets.DataRow
-		err := fed.ToConcrete(&dr, packet)
-		if err != nil {
-			return err
-		}
-		for i, col := range dr {
-			if err = T.set(i, col); err != nil {
-				return err
-			}
-		}
-		T.row += 1
-	case packets.TypeErrorResponse:
-		var p packets.ErrorResponse
-		err := fed.ToConcrete(&p, packet)
-		if err != nil {
-			return err
-		}
-		return perror.FromPacket(&p)
-	case packets.TypeCommandComplete:
-		T.done = true
-		return nil
-	}
-	return nil
-}
-
-func (T *RowWriter) Done() bool {
-	return T.done
-}
-
-var _ ResultWriter = (*RowWriter)(nil)

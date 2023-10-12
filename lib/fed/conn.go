@@ -3,7 +3,6 @@ package fed
 import (
 	"crypto/tls"
 	"errors"
-	"io"
 	"net"
 
 	"gfx.cafe/gfx/pggat/lib/util/decorator"
@@ -16,7 +15,7 @@ type Conn struct {
 	encoder Encoder
 	decoder Decoder
 
-	ReadWriter io.ReadWriteCloser
+	NetConn net.Conn
 
 	Middleware []Middleware
 	SSL        bool
@@ -28,21 +27,21 @@ type Conn struct {
 	BackendKey        BackendKey
 }
 
-func NewConn(rw io.ReadWriteCloser) *Conn {
+func NewConn(rw net.Conn) *Conn {
 	c := &Conn{
-		ReadWriter: rw,
+		NetConn: rw,
 	}
 	c.encoder.Writer.Reset(rw)
 	c.decoder.Reader.Reset(rw)
 	return c
 }
 
-func (T *Conn) flush() error {
+func (T *Conn) Flush() error {
 	return T.encoder.Flush()
 }
 
 func (T *Conn) ReadPacket(typed bool) (Packet, error) {
-	if err := T.flush(); err != nil {
+	if err := T.Flush(); err != nil {
 		return nil, err
 	}
 
@@ -98,7 +97,7 @@ func (T *Conn) WriteByte(b byte) error {
 }
 
 func (T *Conn) ReadByte() (byte, error) {
-	if err := T.flush(); err != nil {
+	if err := T.Flush(); err != nil {
 		return 0, err
 	}
 
@@ -111,28 +110,23 @@ func (T *Conn) EnableSSL(config *tls.Config, isClient bool) error {
 	}
 	T.SSL = true
 
-	// flush buffers
-	if err := T.flush(); err != nil {
+	// Flush buffers
+	if err := T.Flush(); err != nil {
 		return err
 	}
 	if T.decoder.Reader.Buffered() > 0 {
 		return errors.New("expected empty read buffer")
 	}
 
-	conn, ok := T.ReadWriter.(net.Conn)
-	if !ok {
-		return errors.New("ssl not supported for this read writer")
-	}
-
 	var sslConn *tls.Conn
 	if isClient {
-		sslConn = tls.Client(conn, config)
+		sslConn = tls.Client(T.NetConn, config)
 	} else {
-		sslConn = tls.Server(conn, config)
+		sslConn = tls.Server(T.NetConn, config)
 	}
 	T.encoder.Writer.Reset(sslConn)
 	T.decoder.Reader.Reset(sslConn)
-	T.ReadWriter = sslConn
+	T.NetConn = sslConn
 	return sslConn.Handshake()
 }
 
@@ -141,5 +135,5 @@ func (T *Conn) Close() error {
 		return err
 	}
 
-	return T.ReadWriter.Close()
+	return T.NetConn.Close()
 }

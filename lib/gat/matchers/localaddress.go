@@ -48,11 +48,7 @@ func (T *LocalAddress) Provision(ctx caddy.Context) error {
 }
 
 func (T *LocalAddress) Matches(conn *fed.Conn) bool {
-	netConn, ok := conn.ReadWriter.(net.Conn)
-	if !ok {
-		return false
-	}
-	switch addr := netConn.LocalAddr().(type) {
+	switch addr := conn.NetConn.LocalAddr().(type) {
 	case *net.TCPAddr:
 		expected, ok := T.addr.(*net.TCPAddr)
 		if !ok {

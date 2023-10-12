@@ -20,6 +20,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
 	"gfx.cafe/gfx/pggat/lib/perror"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
+	"gfx.cafe/gfx/pggat/lib/util/flip"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
@@ -107,19 +108,26 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 		}
 
 		var result authQueryResult
-		client := new(gsql.Client)
-		err := gsql.ExtendedQuery(client, &result, T.Config.PgBouncer.AuthQuery, user)
-		if err != nil {
-			T.log.Warn("auth query failed", zap.Error(err))
-			return "", false
-		}
-		err = client.Close()
-		if err != nil {
-			T.log.Warn("auth query failed", zap.Error(err))
-			return "", false
-		}
-		err = authPool.ServeBot(fed.NewConn(client))
-		if err != nil && !errors.Is(err, io.EOF) {
+
+		var b flip.Bank
+
+		inward, outward := gsql.NewPair()
+		b.Queue(func() error {
+			if err := gsql.ExtendedQuery(inward, &result, T.Config.PgBouncer.AuthQuery, user); err != nil {
+				return err
+			}
+			return inward.Close()
+		})
+
+		b.Queue(func() error {
+			err := authPool.ServeBot(outward)
+			if err != nil && !errors.Is(err, io.EOF) {
+				return err
+			}
+			return nil
+		})
+
+		if err := b.Wait(); err != nil {
 			T.log.Warn("auth query failed", zap.Error(err))
 			return "", false
 		}

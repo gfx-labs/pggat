@@ -5,44 +5,34 @@ import (
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 )
 
-func Query(client *Client, results []any, query string) {
+func Query(client *fed.Conn, results []any, query string) error {
 	var q = packets.Query(query)
-
-	client.Do(NewQueryWriter(results...), &q)
-}
-
-type QueryWriter struct {
-	writers   []RowWriter
-	writerNum int
-}
-
-func NewQueryWriter(results ...any) *QueryWriter {
-	var writers = make([]RowWriter, 0, len(results))
-	for _, result := range results {
-		writers = append(writers, MakeRowWriter(result))
-	}
-
-	return &QueryWriter{
-		writers: writers,
-	}
-}
-
-func (T *QueryWriter) WritePacket(packet fed.Packet) error {
-	if T.writerNum >= len(T.writers) {
-		// ignore
-		return nil
-	}
-
-	result := &T.writers[T.writerNum]
-	if err := result.WritePacket(packet); err != nil {
+	if err := client.WritePacket(&q); err != nil {
 		return err
 	}
 
-	if result.Done() {
-		T.writerNum++
+	if err := readQueryResults(client, results...); err != nil {
+		return err
+	}
+
+	// make sure we receive ready for query
+	packet, err := client.ReadPacket(true)
+	if err != nil {
+		return err
+	}
+
+	if packet.Type() != packets.TypeReadyForQuery {
+		return ErrExpectedReadyForQuery
 	}
 
 	return nil
 }
 
-var _ ResultWriter = (*QueryWriter)(nil)
+func readQueryResults(client *fed.Conn, results ...any) error {
+	for _, result := range results {
+		if err := readRows(client, result); err != nil {
+			return err
+		}
+	}
+	return nil
+}
