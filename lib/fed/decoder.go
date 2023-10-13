@@ -3,6 +3,7 @@ package fed
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"io"
 	"math"
 
@@ -42,9 +43,14 @@ func (T *Decoder) Read(b []byte) (n int, err error) {
 	return
 }
 
+var ErrOverranReadBuffer = errors.New("overran read buffer")
+
 func (T *Decoder) ReadByte() (byte, error) {
-	if T.pos != T.len {
-		_, err := T.Reader.Discard(T.len - T.pos)
+	rem := T.len - T.pos
+	if rem < 0 {
+		return 0, ErrOverranReadBuffer
+	} else if rem > 0 {
+		_, err := T.Reader.Discard(rem)
 		if err != nil {
 			return 0, err
 		}
@@ -57,8 +63,11 @@ func (T *Decoder) ReadByte() (byte, error) {
 }
 
 func (T *Decoder) Next(typed bool) error {
-	if T.pos != T.len {
-		_, err := T.Reader.Discard(T.len - T.pos)
+	rem := T.len - T.pos
+	if rem < 0 {
+		return ErrOverranReadBuffer
+	} else if rem > 0 {
+		_, err := T.Reader.Discard(rem)
 		if err != nil {
 			return err
 		}
