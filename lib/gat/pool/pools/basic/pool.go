@@ -1,7 +1,9 @@
-package clientpool
+package basic
 
 import (
 	"sync"
+
+	"github.com/google/uuid"
 
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/bouncer/bouncers/v2"
@@ -9,11 +11,10 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/eqp"
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/ps"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
-	"gfx.cafe/gfx/pggat/lib/gat/pool2"
-	"gfx.cafe/gfx/pggat/lib/gat/pool2/scalingpool"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/scalingpool"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
@@ -22,7 +23,7 @@ type Pool struct {
 
 	servers scalingpool.Pool
 
-	clientsByBackendKey map[fed.BackendKey]*pool2.Conn
+	clientsByBackendKey map[fed.BackendKey]*pool.Conn
 	mu                  sync.RWMutex
 }
 
@@ -34,7 +35,7 @@ func MakePool(config Config) Pool {
 	}
 }
 
-func (T *Pool) AddRecipe(name string, r *recipe.Recipe) {
+func (T *Pool) AddRecipe(name string, r *pool.Recipe) {
 	T.servers.AddRecipe(name, r)
 }
 
@@ -42,18 +43,18 @@ func (T *Pool) RemoveRecipe(name string) {
 	T.servers.RemoveRecipe(name)
 }
 
-func (T *Pool) addClient(client *pool2.Conn) {
+func (T *Pool) addClient(client *pool.Conn) {
 	T.servers.AddClient(client)
 
 	T.mu.Lock()
 	defer T.mu.Unlock()
 	if T.clientsByBackendKey == nil {
-		T.clientsByBackendKey = make(map[fed.BackendKey]*pool2.Conn)
+		T.clientsByBackendKey = make(map[fed.BackendKey]*pool.Conn)
 	}
 	T.clientsByBackendKey[client.Conn.BackendKey] = client
 }
 
-func (T *Pool) removeClient(client *pool2.Conn) {
+func (T *Pool) removeClient(client *pool.Conn) {
 	T.servers.RemoveClient(client)
 
 	T.mu.Lock()
@@ -61,7 +62,7 @@ func (T *Pool) removeClient(client *pool2.Conn) {
 	delete(T.clientsByBackendKey, client.Conn.BackendKey)
 }
 
-func (T *Pool) syncInitialParameters(client, server *pool2.Conn) (clientErr, serverErr error) {
+func (T *Pool) syncInitialParameters(client, server *pool.Conn) (clientErr, serverErr error) {
 	clientParams := client.Conn.InitialParameters
 	serverParams := server.Conn.InitialParameters
 
@@ -126,9 +127,9 @@ func (T *Pool) syncInitialParameters(client, server *pool2.Conn) (clientErr, ser
 
 }
 
-func (T *Pool) pair(client, server *pool2.Conn) (err, serverErr error) {
+func (T *Pool) pair(client, server *pool.Conn) (err, serverErr error) {
 	if T.config.ParameterStatusSync != pool.ParameterStatusSyncNone || T.config.ExtendedQuerySync {
-		pool2.SetConnState(metrics.ConnStatePairing, client, server)
+		pool.SetConnState(metrics.ConnStatePairing, client, server)
 	}
 
 	switch T.config.ParameterStatusSync {
@@ -164,7 +165,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 		)
 	}
 
-	client := pool2.NewConn(conn)
+	client := pool.NewConn(conn)
 
 	T.addClient(client)
 	defer T.removeClient(client)
@@ -172,7 +173,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 	var err error
 	var serverErr error
 
-	var server *pool2.Conn
+	var server *pool.Conn
 	defer func() {
 		if server != nil {
 			if serverErr != nil {
@@ -187,7 +188,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 	if !client.Conn.Ready {
 		server = T.servers.Acquire(client)
 		if server == nil {
-			return pool2.ErrClosed
+			return pool.ErrClosed
 		}
 
 		err, serverErr = T.pair(client, server)
@@ -214,7 +215,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 		if server == nil {
 			server = T.servers.Acquire(client)
 			if server == nil {
-				return pool2.ErrClosed
+				return pool.ErrClosed
 			}
 
 			err, serverErr = T.pair(client, server)
@@ -226,8 +227,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 		if serverErr != nil {
 			return serverErr
 		} else {
-			client.TransactionComplete()
-			server.TransactionComplete()
+			pool.ConnTransactionComplete(client, server)
 		}
 
 		if err != nil {
@@ -237,9 +237,44 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 }
 
 func (T *Pool) Cancel(key fed.BackendKey) {
-	// TODO(garet)
+	var client *pool.Conn
+	func() {
+		T.mu.RLock()
+		defer T.mu.RUnlock()
+
+		client = T.clientsByBackendKey[key]
+	}()
+
+	if client == nil {
+		return
+	}
+
+	server := client.GetPeer()
+	if server == nil {
+		return
+	}
+
+	T.servers.Cancel(server)
+}
+
+func (T *Pool) ReadMetrics(m *metrics.Pool) {
+	T.servers.ReadMetrics(m)
+
+	if m.Clients == nil {
+		m.Clients = make(map[uuid.UUID]metrics.Conn)
+	}
+
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+	for _, client := range T.clientsByBackendKey {
+		var conn metrics.Conn
+		client.ReadMetrics(&conn)
+		m.Clients[client.ID] = conn
+	}
 }
 
 func (T *Pool) Close() {
 	T.servers.Close()
 }
+
+var _ gat.Pool = (*Pool)(nil)

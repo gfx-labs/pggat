@@ -7,8 +7,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/eqp"
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/ps"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
-	"gfx.cafe/gfx/pggat/lib/gat/pool2"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
@@ -16,12 +14,12 @@ type Recipe struct {
 	parameterStatusSync pool.ParameterStatusSync
 	extendedQuerySync   bool
 
-	r *recipe.Recipe
+	r *pool.Recipe
 
-	servers []*pool2.Conn
+	servers []*pool.Conn
 }
 
-func NewRecipe(parameterStatusSync pool.ParameterStatusSync, extendedQuerySync bool, r *recipe.Recipe) *Recipe {
+func NewRecipe(parameterStatusSync pool.ParameterStatusSync, extendedQuerySync bool, r *pool.Recipe) *Recipe {
 	s := &Recipe{
 		parameterStatusSync: parameterStatusSync,
 		extendedQuerySync:   extendedQuerySync,
@@ -34,7 +32,7 @@ func NewRecipe(parameterStatusSync pool.ParameterStatusSync, extendedQuerySync b
 
 func (T *Recipe) init() {
 	count := T.r.AllocateInitial()
-	T.servers = make([]*pool2.Conn, 0, count)
+	T.servers = make([]*pool.Conn, 0, count)
 
 	for i := 0; i < count; i++ {
 		conn := T.dial()
@@ -45,7 +43,7 @@ func (T *Recipe) init() {
 	}
 }
 
-func (T *Recipe) dial() *pool2.Conn {
+func (T *Recipe) dial() *pool.Conn {
 	conn, err := T.r.Dial()
 	if err != nil {
 		// TODO(garet) use proper logger
@@ -67,10 +65,10 @@ func (T *Recipe) dial() *pool2.Conn {
 		)
 	}
 
-	return pool2.NewConn(conn)
+	return pool.NewConn(conn)
 }
 
-func (T *Recipe) Dial() *pool2.Conn {
+func (T *Recipe) Dial() *pool.Conn {
 	if !T.r.Allocate() {
 		return nil
 	}
@@ -86,7 +84,7 @@ func (T *Recipe) Cancel(key fed.BackendKey) {
 	T.r.Cancel(key)
 }
 
-func (T *Recipe) TryRemoveServer(server *pool2.Conn) bool {
+func (T *Recipe) TryRemoveServer(server *pool.Conn) bool {
 	idx := slices.Index(T.servers, server)
 	if idx == -1 {
 		return false
@@ -98,7 +96,7 @@ func (T *Recipe) TryRemoveServer(server *pool2.Conn) bool {
 	return true
 }
 
-func (T *Recipe) RemoveServer(server *pool2.Conn) {
+func (T *Recipe) RemoveServer(server *pool.Conn) {
 	idx := slices.Index(T.servers, server)
 	if idx == -1 {
 		return

@@ -4,12 +4,11 @@ import (
 	"sync"
 	"time"
 
-	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/serverpool"
+
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
-	"gfx.cafe/gfx/pggat/lib/gat/pool2"
-	"gfx.cafe/gfx/pggat/lib/gat/pool2/serverpool"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
@@ -45,7 +44,7 @@ func (T *Pool) scaleUpL0() (string, *Recipe) {
 	return "", nil
 }
 
-func (T *Pool) scaleUpL1(name string, r *Recipe) *pool2.Conn {
+func (T *Pool) scaleUpL1(name string, r *Recipe) *pool.Conn {
 	if r == nil {
 		return nil
 	}
@@ -53,7 +52,7 @@ func (T *Pool) scaleUpL1(name string, r *Recipe) *pool2.Conn {
 	return T.scaleUpL2(name, r, r.Dial())
 }
 
-func (T *Pool) scaleUpL2(name string, r *Recipe, conn *pool2.Conn) *pool2.Conn {
+func (T *Pool) scaleUpL2(name string, r *Recipe, conn *pool.Conn) *pool.Conn {
 	if conn == nil {
 		r.r.Free()
 		return nil
@@ -90,11 +89,11 @@ func (T *Pool) ScaleDown(idleFor time.Duration) time.Duration {
 	return T.servers.ScaleDown(idleFor)
 }
 
-func (T *Pool) AddClient(client *pool2.Conn) {
+func (T *Pool) AddClient(client *pool.Conn) {
 	T.servers.AddClient(client)
 }
 
-func (T *Pool) RemoveClient(client *pool2.Conn) {
+func (T *Pool) RemoveClient(client *pool.Conn) {
 	T.servers.RemoveClient(client)
 }
 
@@ -121,7 +120,7 @@ func (T *Pool) addRecipe(name string, r *Recipe) {
 	})
 }
 
-func (T *Pool) AddRecipe(name string, r *recipe.Recipe) {
+func (T *Pool) AddRecipe(name string, r *pool.Recipe) {
 	added := NewRecipe(T.config.ParameterStatusSync, T.config.ExtendedQuerySync, r)
 
 	for _, server := range added.servers {
@@ -158,7 +157,7 @@ func (T *Pool) RemoveRecipe(name string) {
 	}
 }
 
-func (T *Pool) RemoveServer(server *pool2.Conn) {
+func (T *Pool) RemoveServer(server *pool.Conn) {
 	T.servers.RemoveServer(server)
 
 	// update recipe
@@ -171,11 +170,11 @@ func (T *Pool) RemoveServer(server *pool2.Conn) {
 	r.RemoveServer(server)
 }
 
-func (T *Pool) Acquire(client *pool2.Conn, mode pool.SyncMode) (server *pool2.Conn) {
+func (T *Pool) Acquire(client *pool.Conn, mode gat.SyncMode) (server *pool.Conn) {
 	return T.servers.Acquire(client, mode)
 }
 
-func (T *Pool) Release(server *pool2.Conn) {
+func (T *Pool) Release(server *pool.Conn) {
 	T.servers.Release(server)
 }
 
@@ -183,18 +182,16 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 	T.servers.ReadMetrics(m)
 }
 
-func (T *Pool) Cancel(key fed.BackendKey) {
+func (T *Pool) Cancel(server *pool.Conn) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 
-	for _, r := range T.recipes {
-		for _, s := range r.servers {
-			if s.Conn.BackendKey == key {
-				r.Cancel(key)
-				return
-			}
-		}
+	r := T.recipes[server.Recipe]
+	if r == nil {
+		return
 	}
+
+	r.Cancel(server.Conn.BackendKey)
 }
 
 func (T *Pool) Close() {

@@ -19,7 +19,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_password"
 	"gfx.cafe/gfx/pggat/lib/gat/matchers"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
 	"gfx.cafe/gfx/pggat/lib/gat/poolers/session"
 	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
 	"gfx.cafe/gfx/pggat/test"
@@ -167,7 +166,7 @@ func daisyChain(config *gat.Config, control dialer, n int) (dialer, error) {
 }
 
 func TestTester(t *testing.T) {
-	control := recipe.Dialer{
+	control := pool.Dialer{
 		Network:  "tcp",
 		Address:  "localhost:5432",
 		Username: "postgres",
@@ -206,7 +205,7 @@ func TestTester(t *testing.T) {
 
 	config.Servers = append(config.Servers, server)
 
-	transactionDialer := recipe.Dialer{
+	transactionDialer := pool.Dialer{
 		Network:  resolveNetwork(dialers["transaction"].Address),
 		Address:  dialers["transaction"].Address,
 		Username: dialers["transaction"].Username,
@@ -216,7 +215,7 @@ func TestTester(t *testing.T) {
 		),
 		Database: "transaction",
 	}
-	sessionDialer := recipe.Dialer{
+	sessionDialer := pool.Dialer{
 		Network:  resolveNetwork(dialers["transaction"].Address),
 		Address:  dialers["session"].Address,
 		Username: dialers["session"].Username,
@@ -245,7 +244,7 @@ func TestTester(t *testing.T) {
 	tester := test.NewTester(test.Config{
 		Stress: 8,
 
-		Modes: map[string]recipe.Dialer{
+		Modes: map[string]pool.Dialer{
 			"control":     control,
 			"transaction": transactionDialer,
 			"session":     sessionDialer,

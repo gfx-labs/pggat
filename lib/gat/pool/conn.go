@@ -9,22 +9,22 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
-	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-type pooledConn struct {
-	id uuid.UUID
-
-	conn *fed.Conn
+type Conn struct {
+	ID   uuid.UUID
+	Conn *fed.Conn
+	// Recipe that created this conn, optional.
+	Recipe string
 
 	// metrics
 
-	transactionCount atomic.Int64
+	txnCount atomic.Int64
 
 	lastMetricsRead time.Time
 
 	state metrics.ConnState
-	peer  uuid.UUID
+	peer  *Conn
 	since time.Time
 
 	util [metrics.ConnStateCount]time.Duration
@@ -32,89 +32,92 @@ type pooledConn struct {
 	mu sync.RWMutex
 }
 
-func makeConn(
-	conn *fed.Conn,
-) pooledConn {
-	return pooledConn{
-		id:   uuid.New(),
-		conn: conn,
-
-		since: time.Now(),
+func NewConn(conn *fed.Conn) *Conn {
+	return &Conn{
+		ID:   uuid.New(),
+		Conn: conn,
 	}
 }
 
-func (T *pooledConn) GetID() uuid.UUID {
-	return T.id
+func (T *Conn) GetState() (metrics.ConnState, time.Time) {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+
+	return T.state, T.since
 }
 
-func (T *pooledConn) GetConn() *fed.Conn {
-	return T.conn
+func (T *Conn) GetPeer() *Conn {
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+
+	return T.peer
 }
 
-func (T *pooledConn) GetInitialParameters() map[strutil.CIString]string {
-	return T.conn.InitialParameters
-}
-
-func (T *pooledConn) GetBackendKey() fed.BackendKey {
-	return T.conn.BackendKey
-}
-
-func (T *pooledConn) TransactionComplete() {
-	T.transactionCount.Add(1)
-}
-
-func (T *pooledConn) SetState(state metrics.ConnState, peer uuid.UUID) {
+func (T *Conn) setState(now time.Time, state metrics.ConnState, peer *Conn) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	now := time.Now()
-
-	var since time.Duration
+	var dur time.Duration
 	if T.since.Before(T.lastMetricsRead) {
-		since = now.Sub(T.lastMetricsRead)
+		dur = now.Sub(T.lastMetricsRead)
 	} else {
-		since = now.Sub(T.since)
+		dur = now.Sub(T.since)
 	}
-	T.util[T.state] += since
+	T.util[T.state] += dur
 
 	T.state = state
 	T.peer = peer
 	T.since = now
 }
 
-func (T *pooledConn) GetState() (state metrics.ConnState, peer uuid.UUID, since time.Time) {
-	T.mu.RLock()
-	defer T.mu.RUnlock()
-	state = T.state
-	peer = T.peer
-	since = T.since
-	return
+func SetConnState(state metrics.ConnState, conns ...*Conn) {
+	now := time.Now()
+
+	for i, conn := range conns {
+		var peer *Conn
+		if i == 0 {
+			if len(conns) > 1 {
+				peer = conns[1]
+			}
+		} else {
+			peer = conns[0]
+		}
+		conn.setState(now, state, peer)
+	}
 }
 
-func (T *pooledConn) ReadMetrics(m *metrics.Conn) {
+func ConnTransactionComplete(conns ...*Conn) {
+	for _, conn := range conns {
+		conn.txnCount.Add(1)
+	}
+}
+
+func (T *Conn) ReadMetrics(m *metrics.Conn) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	now := time.Now()
-
-	m.Time = now
+	m.Time = time.Now()
 
 	m.State = T.state
-	m.Peer = T.peer
+	if T.peer != nil {
+		m.Peer = T.peer.ID
+	} else {
+		m.Peer = uuid.Nil
+	}
 	m.Since = T.since
 
 	m.Utilization = T.util
 	T.util = [metrics.ConnStateCount]time.Duration{}
 
-	var since time.Duration
+	var dur time.Duration
 	if m.Since.Before(T.lastMetricsRead) {
-		since = now.Sub(T.lastMetricsRead)
+		dur = m.Time.Sub(T.lastMetricsRead)
 	} else {
-		since = now.Sub(m.Since)
+		dur = m.Time.Sub(m.Since)
 	}
-	m.Utilization[m.State] += since
+	m.Utilization[m.State] += dur
 
-	m.TransactionCount = int(T.transactionCount.Swap(0))
+	m.TransactionCount = int(T.txnCount.Swap(0))
 
-	T.lastMetricsRead = now
+	T.lastMetricsRead = m.Time
 }

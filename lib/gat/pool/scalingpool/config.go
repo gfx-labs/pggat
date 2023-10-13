@@ -3,7 +3,7 @@ package scalingpool
 import (
 	"time"
 
-	"gfx.cafe/gfx/pggat/lib/gat/pool2/recipepool"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/recipepool"
 )
 
 type Config struct {

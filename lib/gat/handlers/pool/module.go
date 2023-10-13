@@ -12,7 +12,8 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
+	"gfx.cafe/gfx/pggat/lib/gat/pool"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/pools/basic"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -23,7 +24,7 @@ func init() {
 type Module struct {
 	Config
 
-	pool *gat.Pool
+	pool *basic.Pool
 }
 
 func (*Module) CaddyModule() caddy.ModuleInfo {
@@ -65,7 +66,7 @@ func (T *Module) Provision(ctx caddy.Context) error {
 		network = "tcp"
 	}
 
-	d := recipe.Dialer{
+	d := pool.Dialer{
 		Network:           network,
 		Address:           T.ServerAddress,
 		SSLMode:           T.ServerSSLMode,
@@ -77,7 +78,7 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	}
 
 	T.pool = pooler.NewPool()
-	T.pool.AddRecipe("pool", recipe.NewRecipe(recipe.Config{
+	T.pool.AddRecipe("pool", pool.NewRecipe(pool.RecipeConfig{
 		Dialer: d,
 	}))
 

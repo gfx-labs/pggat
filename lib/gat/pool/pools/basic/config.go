@@ -1,7 +1,7 @@
-package clientpool
+package basic
 
 import (
-	"gfx.cafe/gfx/pggat/lib/gat/pool2/scalingpool"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/scalingpool"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 

@@ -5,7 +5,6 @@ import (
 	"net"
 	"strings"
 
-	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
 	"gfx.cafe/gfx/pggat/lib/util/flip"
 
 	"github.com/caddyserver/caddy/v2"
@@ -118,7 +117,7 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 		} else {
 			// dial admin connection
 			if admin == nil {
-				admin, err = recipe.Dialer{
+				admin, err = pool.Dialer{
 					Network: "tcp",
 					Address: primaryAddress,
 					SSLMode: bouncer.SSLModePrefer,

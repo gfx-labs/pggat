@@ -10,7 +10,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/unterminate"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
 	"gfx.cafe/gfx/pggat/lib/gsql"
 	"gfx.cafe/gfx/pggat/lib/util/flip"
 	"gfx.cafe/gfx/pggat/test/inst"
@@ -115,7 +114,7 @@ func (T *Runner) prepare(client *fed.Conn, until int) error {
 	return client.Flush()
 }
 
-func (T *Runner) runModeL1(dialer recipe.Dialer, client *fed.Conn) error {
+func (T *Runner) runModeL1(dialer pool.Dialer, client *fed.Conn) error {
 	server, err := dialer.Dial()
 	if err != nil {
 		return err
@@ -148,7 +147,7 @@ func (T *Runner) runModeL1(dialer recipe.Dialer, client *fed.Conn) error {
 	return nil
 }
 
-func (T *Runner) runModeOnce(dialer recipe.Dialer) ([]byte, error) {
+func (T *Runner) runModeOnce(dialer pool.Dialer) ([]byte, error) {
 	inward, outward := gsql.NewPair()
 	if err := T.prepare(inward, len(T.test.Instructions)); err != nil {
 		return nil, err
@@ -165,7 +164,7 @@ func (T *Runner) runModeOnce(dialer recipe.Dialer) ([]byte, error) {
 	return io.ReadAll(inward.NetConn)
 }
 
-func (T *Runner) runModeFail(dialer recipe.Dialer) error {
+func (T *Runner) runModeFail(dialer pool.Dialer) error {
 	for i := 1; i < len(T.test.Instructions)+1; i++ {
 		inward, outward := gsql.NewPair()
 		if err := T.prepare(inward, i); err != nil {
@@ -180,7 +179,7 @@ func (T *Runner) runModeFail(dialer recipe.Dialer) error {
 	return nil
 }
 
-func (T *Runner) runMode(dialer recipe.Dialer) ([]byte, error) {
+func (T *Runner) runMode(dialer pool.Dialer) ([]byte, error) {
 	instances := T.config.Stress
 	if instances < 1 || T.test.SideEffects {
 		return T.runModeOnce(dialer)

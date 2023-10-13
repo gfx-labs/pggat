@@ -4,12 +4,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/pool/recipepool"
+
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
-	"gfx.cafe/gfx/pggat/lib/gat/pool2"
-	"gfx.cafe/gfx/pggat/lib/gat/pool2/recipepool"
 )
 
 const pendingScaleUpSize = 4
@@ -42,15 +41,15 @@ func (T *Pool) init() {
 	}
 }
 
-func (T *Pool) AddClient(client *pool2.Conn) {
+func (T *Pool) AddClient(client *pool.Conn) {
 	T.servers.AddClient(client)
 }
 
-func (T *Pool) RemoveClient(client *pool2.Conn) {
+func (T *Pool) RemoveClient(client *pool.Conn) {
 	T.servers.RemoveClient(client)
 }
 
-func (T *Pool) AddRecipe(name string, r *recipe.Recipe) {
+func (T *Pool) AddRecipe(name string, r *pool.Recipe) {
 	T.init()
 
 	T.servers.AddRecipe(name, r)
@@ -60,30 +59,30 @@ func (T *Pool) RemoveRecipe(name string) {
 	T.servers.RemoveRecipe(name)
 }
 
-func (T *Pool) RemoveServer(server *pool2.Conn) {
+func (T *Pool) RemoveServer(server *pool.Conn) {
 	T.servers.RemoveServer(server)
 }
 
-func (T *Pool) Acquire(client *pool2.Conn) (server *pool2.Conn) {
-	server = T.servers.Acquire(client, pool.SyncModeNonBlocking)
+func (T *Pool) Acquire(client *pool.Conn) (server *pool.Conn) {
+	server = T.servers.Acquire(client, gat.SyncModeNonBlocking)
 	if server == nil {
 		select {
 		case T.scale <- struct{}{}:
 		default:
 		}
 
-		server = T.servers.Acquire(client, pool.SyncModeBlocking)
+		server = T.servers.Acquire(client, gat.SyncModeBlocking)
 	}
 
 	return
 }
 
-func (T *Pool) Release(server *pool2.Conn) {
+func (T *Pool) Release(server *pool.Conn) {
 	T.servers.Release(server)
 }
 
-func (T *Pool) Cancel(key fed.BackendKey) {
-	T.servers.Cancel(key)
+func (T *Pool) Cancel(server *pool.Conn) {
+	T.servers.Cancel(server)
 }
 
 func (T *Pool) ReadMetrics(m *metrics.Pool) {

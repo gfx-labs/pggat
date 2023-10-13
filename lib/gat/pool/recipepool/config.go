@@ -1,8 +1,9 @@
 package recipepool
 
 import (
+	"gfx.cafe/gfx/pggat/lib/gat/pool/serverpool"
+
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/pool2/serverpool"
 )
 
 type Config struct {

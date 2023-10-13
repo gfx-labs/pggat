@@ -16,7 +16,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
 	"gfx.cafe/gfx/pggat/lib/util/maps"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
@@ -223,7 +222,7 @@ func (T *Module) replacePrimary(users []User, databases []string, endpoint Endpo
 	for _, user := range users {
 		primaryCreds, _ := T.creds(user)
 		for _, database := range databases {
-			primary := recipe.Dialer{
+			primary := pool.Dialer{
 				Network:           endpoint.Network,
 				Address:           endpoint.Address,
 				Username:          user.Username,
@@ -240,7 +239,7 @@ func (T *Module) replacePrimary(users []User, databases []string, endpoint Endpo
 			}
 
 			p.RemoveRecipe("primary")
-			p.AddRecipe("primary", recipe.NewRecipe(recipe.Config{
+			p.AddRecipe("primary", pool.NewRecipe(pool.RecipeConfig{
 				Dialer: primary,
 			}))
 		}
@@ -258,7 +257,7 @@ func (T *Module) addReplicas(replicas map[string]Endpoint, users []User, databas
 			}
 
 			for id, r := range replicas {
-				replica := recipe.Dialer{
+				replica := pool.Dialer{
 					Network:           r.Network,
 					Address:           r.Address,
 					Username:          user.Username,
@@ -268,7 +267,7 @@ func (T *Module) addReplicas(replicas map[string]Endpoint, users []User, databas
 					SSLConfig:         T.sslConfig,
 					StartupParameters: T.serverStartupParameters,
 				}
-				replicaPool.AddRecipe(id, recipe.NewRecipe(recipe.Config{
+				replicaPool.AddRecipe(id, pool.NewRecipe(pool.RecipeConfig{
 					Dialer: replica,
 				}))
 			}
@@ -297,7 +296,7 @@ func (T *Module) addReplica(users []User, databases []string, id string, endpoin
 				continue
 			}
 
-			replica := recipe.Dialer{
+			replica := pool.Dialer{
 				Network:           endpoint.Network,
 				Address:           endpoint.Address,
 				Username:          user.Username,
@@ -307,7 +306,7 @@ func (T *Module) addReplica(users []User, databases []string, id string, endpoin
 				SSLConfig:         T.sslConfig,
 				StartupParameters: T.serverStartupParameters,
 			}
-			p.AddRecipe(id, recipe.NewRecipe(recipe.Config{
+			p.AddRecipe(id, pool.NewRecipe(pool.RecipeConfig{
 				Dialer: replica,
 			}))
 		}
@@ -331,7 +330,7 @@ func (T *Module) addUser(primaryEndpoint Endpoint, replicas map[string]Endpoint,
 	replicaUsername := T.replicaUsername(user.Username)
 	primaryCreds, replicaCreds := T.creds(user)
 	for _, database := range databases {
-		base := recipe.Dialer{
+		base := pool.Dialer{
 			Username:          user.Username,
 			Credentials:       primaryCreds,
 			Database:          database,
@@ -348,7 +347,7 @@ func (T *Module) addUser(primaryEndpoint Endpoint, replicas map[string]Endpoint,
 			Pool:        T.pooler.NewPool(),
 			Credentials: primaryCreds,
 		}
-		primaryPool.AddRecipe("primary", recipe.NewRecipe(recipe.Config{
+		primaryPool.AddRecipe("primary", pool.NewRecipe(pool.RecipeConfig{
 			Dialer: primary,
 		}))
 		T.addPool(user.Username, database, primaryPool)
@@ -363,7 +362,7 @@ func (T *Module) addUser(primaryEndpoint Endpoint, replicas map[string]Endpoint,
 				replica := base
 				replica.Network = r.Network
 				replica.Address = r.Address
-				replicaPool.AddRecipe(id, recipe.NewRecipe(recipe.Config{
+				replicaPool.AddRecipe(id, pool.NewRecipe(pool.RecipeConfig{
 					Dialer: replica,
 				}))
 			}
@@ -390,7 +389,7 @@ func (T *Module) addDatabase(primaryEndpoint Endpoint, replicas map[string]Endpo
 		replicaUsername := T.replicaUsername(user.Username)
 		primaryCreds, replicaCreds := T.creds(user)
 
-		base := recipe.Dialer{
+		base := pool.Dialer{
 			Username:          user.Username,
 			Credentials:       primaryCreds,
 			Database:          database,
@@ -407,7 +406,7 @@ func (T *Module) addDatabase(primaryEndpoint Endpoint, replicas map[string]Endpo
 			Pool:        T.pooler.NewPool(),
 			Credentials: primaryCreds,
 		}
-		primaryPool.AddRecipe("primary", recipe.NewRecipe(recipe.Config{
+		primaryPool.AddRecipe("primary", pool.NewRecipe(pool.RecipeConfig{
 			Dialer: primary,
 		}))
 		T.addPool(user.Username, database, primaryPool)
@@ -422,7 +421,7 @@ func (T *Module) addDatabase(primaryEndpoint Endpoint, replicas map[string]Endpo
 				replica := base
 				replica.Network = r.Network
 				replica.Address = r.Address
-				replicaPool.AddRecipe(id, recipe.NewRecipe(recipe.Config{
+				replicaPool.AddRecipe(id, pool.NewRecipe(pool.RecipeConfig{
 					Dialer: replica,
 				}))
 			}

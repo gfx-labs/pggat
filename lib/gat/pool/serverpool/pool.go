@@ -7,16 +7,16 @@ import (
 	"github.com/google/uuid"
 
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
+	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/pool2"
 )
 
 type Pool struct {
 	config Config
-	pooler pool.Pooler
+	pooler gat.Pooler
 
-	servers map[uuid.UUID]*pool2.Conn
+	servers map[uuid.UUID]*pool.Conn
 	mu      sync.RWMutex
 }
 
@@ -27,27 +27,27 @@ func MakePool(config Config) Pool {
 	}
 }
 
-func (T *Pool) AddClient(client *pool2.Conn) {
+func (T *Pool) AddClient(client *pool.Conn) {
 	T.pooler.AddClient(client.ID)
 }
 
-func (T *Pool) RemoveClient(client *pool2.Conn) {
+func (T *Pool) RemoveClient(client *pool.Conn) {
 	T.pooler.DeleteClient(client.ID)
 }
 
-func (T *Pool) AddServer(server *pool2.Conn) {
+func (T *Pool) AddServer(server *pool.Conn) {
 	func() {
 		T.mu.Lock()
 		defer T.mu.Unlock()
 		if T.servers == nil {
-			T.servers = make(map[uuid.UUID]*pool2.Conn)
+			T.servers = make(map[uuid.UUID]*pool.Conn)
 		}
 		T.servers[server.ID] = server
 	}()
 	T.pooler.AddServer(server.ID)
 }
 
-func (T *Pool) RemoveServer(server *pool2.Conn) {
+func (T *Pool) RemoveServer(server *pool.Conn) {
 	T.pooler.DeleteServer(server.ID)
 
 	T.mu.Lock()
@@ -55,7 +55,7 @@ func (T *Pool) RemoveServer(server *pool2.Conn) {
 	delete(T.servers, server.ID)
 }
 
-func (T *Pool) Acquire(client *pool2.Conn, mode pool.SyncMode) (server *pool2.Conn) {
+func (T *Pool) Acquire(client *pool.Conn, mode gat.SyncMode) (server *pool.Conn) {
 	for {
 		serverID := T.pooler.Acquire(client.ID, mode)
 		if serverID == uuid.Nil {
@@ -74,9 +74,9 @@ func (T *Pool) Acquire(client *pool2.Conn, mode pool.SyncMode) (server *pool2.Co
 	}
 }
 
-func (T *Pool) Release(server *pool2.Conn) {
+func (T *Pool) Release(server *pool.Conn) {
 	if T.config.ServerResetQuery != "" {
-		pool2.SetConnState(metrics.ConnStateRunningResetQuery, server)
+		pool.SetConnState(metrics.ConnStateRunningResetQuery, server)
 
 		err, _ := backends.QueryString(server.Conn, nil, T.config.ServerResetQuery)
 		if err != nil {
@@ -85,7 +85,7 @@ func (T *Pool) Release(server *pool2.Conn) {
 		}
 	}
 
-	pool2.SetConnState(metrics.ConnStateIdle, server)
+	pool.SetConnState(metrics.ConnStateIdle, server)
 
 	T.pooler.Release(server.ID)
 }
