@@ -3,6 +3,7 @@ package fed
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"io"
 	"math"
 
@@ -27,13 +28,17 @@ func NewEncoder(w io.Writer) *Encoder {
 	return e
 }
 
+var (
+	ErrWrongNumberOfBytes = errors.New("wrong number of bytes written")
+)
+
 func (T *Encoder) Flush() error {
 	return T.Writer.Flush()
 }
 
 func (T *Encoder) WriteByte(b byte) error {
 	if T.pos != T.len {
-		panic("wrong number of bytes written")
+		return ErrWrongNumberOfBytes
 	}
 
 	T.typ = 0
@@ -44,7 +49,7 @@ func (T *Encoder) WriteByte(b byte) error {
 
 func (T *Encoder) Next(typ Type, length int) error {
 	if T.pos != T.len {
-		panic("wrong number of bytes written")
+		return ErrWrongNumberOfBytes
 	}
 
 	if typ != 0 {
