@@ -20,7 +20,16 @@ func preparedStatementsEqual(a, b *packets.Parse) bool {
 	return true
 }
 
-func Sync(c *Client, server *fed.Conn, s *Server) error {
+func Sync(client, server *fed.Conn) error {
+	c, ok := fed.LookupMiddleware[*Client](client)
+	if !ok {
+		panic("middleware not found")
+	}
+	s, ok := fed.LookupMiddleware[*Server](server)
+	if !ok {
+		panic("middleware not found")
+	}
+
 	var needsBackendSync bool
 
 	// close all portals on server

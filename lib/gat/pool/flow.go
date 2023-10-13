@@ -22,7 +22,7 @@ func pair(options Config, client *pooledClient, server *pooledServer) (clientErr
 
 	switch options.ParameterStatusSync {
 	case ParameterStatusSyncDynamic:
-		clientErr, serverErr = ps.Sync(options.TrackedParameters, client.GetConn(), client.GetPS(), server.GetConn(), server.GetPS())
+		clientErr, serverErr = ps.Sync(options.TrackedParameters, client.GetConn(), server.GetConn())
 	case ParameterStatusSyncInitial:
 		clientErr, serverErr = syncInitialParameters(options, client, server)
 	}
@@ -32,7 +32,7 @@ func pair(options Config, client *pooledClient, server *pooledServer) (clientErr
 	}
 
 	if options.ExtendedQuerySync {
-		serverErr = eqp.Sync(client.GetEQP(), server.GetConn(), server.GetEQP())
+		serverErr = eqp.Sync(server.GetConn(), server.GetConn())
 	}
 
 	return

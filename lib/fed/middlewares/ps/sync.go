@@ -55,7 +55,16 @@ func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.
 	return nil
 }
 
-func Sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.Conn, s *Server) (clientErr, serverErr error) {
+func Sync(tracking []strutil.CIString, client, server *fed.Conn) (clientErr, serverErr error) {
+	c, ok := fed.LookupMiddleware[*Client](client)
+	if !ok {
+		panic("middleware not found")
+	}
+	s, ok := fed.LookupMiddleware[*Server](server)
+	if !ok {
+		panic("middleware not found")
+	}
+
 	for name := range c.parameters {
 		if serverErr = sync(tracking, client, c, server, s, name); serverErr != nil {
 			return
@@ -63,7 +72,7 @@ func Sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.
 	}
 
 	for name := range s.parameters {
-		if _, ok := c.parameters[name]; ok {
+		if _, ok = c.parameters[name]; ok {
 			continue
 		}
 		if serverErr = sync(tracking, client, c, server, s, name); serverErr != nil {
