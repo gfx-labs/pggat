@@ -18,7 +18,9 @@ type Conn struct {
 	NetConn net.Conn
 
 	Middleware []Middleware
-	SSL        bool
+
+	SSL   bool
+	Ready bool
 
 	User              string
 	Database          string

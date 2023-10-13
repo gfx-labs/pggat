@@ -120,7 +120,7 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 		})
 
 		b.Queue(func() error {
-			err := authPool.ServeBot(outward)
+			err := authPool.Serve(outward)
 			if err != nil && !errors.Is(err, io.EOF) {
 				return err
 			}

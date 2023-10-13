@@ -289,27 +289,10 @@ func (T *Pool) Serve(
 		conn,
 	)
 
-	return T.serve(client, false)
+	return T.serve(client)
 }
 
-// ServeBot is for clients that don't need initial parameters, cancelling queries, and are ready now. Use Serve for
-// real clients
-func (T *Pool) ServeBot(
-	conn *fed.Conn,
-) error {
-	defer func() {
-		_ = conn.Close()
-	}()
-
-	client := newClient(
-		T.config,
-		conn,
-	)
-
-	return T.serve(client, true)
-}
-
-func (T *Pool) serve(client *pooledClient, initialized bool) error {
+func (T *Pool) serve(client *pooledClient) error {
 	T.addClient(client)
 	defer T.removeClient(client)
 
@@ -328,7 +311,7 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 		}
 	}()
 
-	if !initialized {
+	if !client.GetConn().Ready {
 		server = T.acquireServer(client)
 		if server == nil {
 			return ErrClosed
@@ -347,6 +330,8 @@ func (T *Pool) serve(client *pooledClient, initialized bool) error {
 		if err != nil {
 			return err
 		}
+
+		client.GetConn().Ready = true
 	}
 
 	for {
