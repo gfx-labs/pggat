@@ -158,6 +158,8 @@ func (T *Pool) ScaleUpOnce(recipe *Recipe) bool {
 		return len(T.recipeScaleOrder[i].Servers) < len(T.recipeScaleOrder[j].Servers)
 	})
 
+	T.pooler.AddServer(server.ID)
+
 	return true
 }
 
