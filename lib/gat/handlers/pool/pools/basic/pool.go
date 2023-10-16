@@ -3,27 +3,31 @@ package basic
 import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 )
 
 type Pool struct {
 	config Config
+
+	servers spool.Pool
 }
 
 func NewPool(config Config) *Pool {
-	return &Pool{
-		config: config,
+	p := &Pool{
+		config:  config,
+		servers: spool.MakePool(config.Spool()),
 	}
+	go p.servers.ScaleLoop()
+	return p
 }
 
 func (T *Pool) AddRecipe(name string, recipe *pool.Recipe) {
-	// TODO implement me
-	panic("implement me")
+	T.servers.AddRecipe(name, recipe)
 }
 
 func (T *Pool) RemoveRecipe(name string) {
-	// TODO implement me
-	panic("implement me")
+	T.servers.RemoveRecipe(name)
 }
 
 func (T *Pool) Serve(conn *fed.Conn) error {
@@ -37,13 +41,13 @@ func (T *Pool) Cancel(key fed.BackendKey) {
 }
 
 func (T *Pool) ReadMetrics(m *metrics.Pool) {
-	// TODO implement me
-	panic("implement me")
+	T.servers.ReadMetrics(m)
+
+	// TODO(garet) read client metrics
 }
 
 func (T *Pool) Close() {
-	// TODO implement me
-	panic("implement me")
+	T.servers.Close()
 }
 
 var _ pool.Pool = (*Pool)(nil)

@@ -2,11 +2,13 @@ package basic
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/caddyserver/caddy/v2"
 	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -58,4 +60,17 @@ type Config struct {
 	TrackedParameters []strutil.CIString `json:"tracked_parameters,omitempty"`
 
 	Logger *zap.Logger `json:"-"`
+}
+
+func (T Config) Spool() spool.Config {
+	return spool.Config{
+		PoolerFactory:        T.PoolerFactory,
+		UsePS:                T.ParameterStatusSync == ParameterStatusSyncDynamic,
+		UseEQP:               T.ExtendedQuerySync,
+		ResetQuery:           T.ServerResetQuery,
+		IdleTimeout:          time.Duration(T.ServerIdleTimeout),
+		ReconnectInitialTime: time.Duration(T.ServerReconnectInitialTime),
+		ReconnectMaxTime:     time.Duration(T.ServerReconnectMaxTime),
+		Logger:               T.Logger,
+	}
 }
