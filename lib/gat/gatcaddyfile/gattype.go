@@ -12,7 +12,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/matchers"
 	"gfx.cafe/gfx/pggat/lib/gat/ssl/servers/self_signed"
-	"gfx.cafe/gfx/pggat/lib/util/dur"
 )
 
 func init() {
@@ -27,7 +26,7 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 
 	app := gat.App{
 		Config: gat.Config{
-			StatLogPeriod: dur.Duration(1 * time.Minute),
+			StatLogPeriod: caddy.Duration(1 * time.Minute),
 		},
 	}
 
@@ -51,7 +50,7 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 						return nil, nil, d.WrapErr(err)
 					}
 
-					app.StatLogPeriod = dur.Duration(period)
+					app.StatLogPeriod = caddy.Duration(period)
 				default:
 					return nil, nil, d.SyntaxErr("global options")
 				}

@@ -24,7 +24,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_password"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_user"
 	"gfx.cafe/gfx/pggat/lib/gat/ssl/clients/insecure_skip_verify"
-	"gfx.cafe/gfx/pggat/lib/util/dur"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -132,7 +131,7 @@ func init() {
 	RegisterDirective(Handler, "discovery", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
 		module := discovery.Module{
 			Config: discovery.Config{
-				ReconcilePeriod: dur.Duration(5 * time.Minute),
+				ReconcilePeriod: caddy.Duration(5 * time.Minute),
 				Pooler: JSONModuleObject(
 					&rob.Factory{
 						ManagementConfig: defaultPoolManagementConfig,
@@ -185,7 +184,7 @@ func init() {
 					if err != nil {
 						return nil, d.WrapErr(err)
 					}
-					module.ReconcilePeriod = dur.Duration(val)
+					module.ReconcilePeriod = caddy.Duration(val)
 				case "discoverer":
 					if !d.NextArg() {
 						return nil, d.ArgErr()

@@ -3,13 +3,14 @@ package discovery
 import (
 	"encoding/json"
 
+	"github.com/caddyserver/caddy/v2"
+
 	"gfx.cafe/gfx/pggat/lib/bouncer"
-	"gfx.cafe/gfx/pggat/lib/util/dur"
 )
 
 type Config struct {
 	// ReconcilePeriod is how often the module should check for changes. 0 = disable
-	ReconcilePeriod dur.Duration `json:"reconcile_period"`
+	ReconcilePeriod caddy.Duration `json:"reconcile_period"`
 
 	Discoverer json.RawMessage `json:"discoverer" caddy:"namespace=pggat.handlers.discovery.discoverers inline_key=discoverer"`
 

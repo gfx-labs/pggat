@@ -19,7 +19,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/perror"
-	"gfx.cafe/gfx/pggat/lib/util/dur"
 	"gfx.cafe/gfx/pggat/lib/util/flip"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 
@@ -187,7 +186,7 @@ func (T *Module) tryCreate(user, database string) (poolAndCredentials, bool) {
 		strutil.MakeCIString("application_name"),
 	}, T.Config.PgBouncer.TrackExtraParameters...)
 
-	serverLoginRetry := dur.Duration(T.Config.PgBouncer.ServerLoginRetry * float64(time.Second))
+	serverLoginRetry := caddy.Duration(T.Config.PgBouncer.ServerLoginRetry * float64(time.Second))
 
 	var p poolAndCredentials
 	p.creds = creds

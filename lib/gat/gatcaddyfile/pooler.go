@@ -9,13 +9,15 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
+
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/lifo"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 var defaultPoolManagementConfig = pool.ManagementConfig{
-	ServerIdleTimeout:          dur.Duration(5 * time.Minute),
-	ServerReconnectInitialTime: dur.Duration(5 * time.Second),
-	ServerReconnectMaxTime:     dur.Duration(1 * time.Minute),
+	ServerIdleTimeout:          caddy.Duration(5 * time.Minute),
+	ServerReconnectInitialTime: caddy.Duration(5 * time.Second),
+	ServerReconnectMaxTime:     caddy.Duration(1 * time.Minute),
 	TrackedParameters: []strutil.CIString{
 		strutil.MakeCIString("client_encoding"),
 		strutil.MakeCIString("datestyle"),
@@ -50,7 +52,7 @@ func unmarshalPoolConfig(d *caddyfile.Dispenser) (pool.ManagementConfig, error) 
 			if err != nil {
 				return config, d.WrapErr(err)
 			}
-			config.ServerIdleTimeout = dur.Duration(val)
+			config.ServerIdleTimeout = caddy.Duration(val)
 		case "reconnect":
 			if !d.NextArg() {
 				return config, d.ArgErr()
@@ -69,8 +71,8 @@ func unmarshalPoolConfig(d *caddyfile.Dispenser) (pool.ManagementConfig, error) 
 				}
 			}
 
-			config.ServerReconnectInitialTime = dur.Duration(initialTime)
-			config.ServerReconnectMaxTime = dur.Duration(maxTime)
+			config.ServerReconnectInitialTime = caddy.Duration(initialTime)
+			config.ServerReconnectMaxTime = caddy.Duration(maxTime)
 		case "track":
 			if !d.NextArg() {
 				return config, d.ArgErr()

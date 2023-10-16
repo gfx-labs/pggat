@@ -11,7 +11,6 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer"
-	"gfx.cafe/gfx/pggat/lib/util/dur"
 )
 
 func init() {
@@ -37,7 +36,7 @@ func runPgbouncer(flags caddycmd.Flags) (int, error) {
 	}
 
 	var pggat gat.Config
-	pggat.StatLogPeriod = dur.Duration(time.Second)
+	pggat.StatLogPeriod = caddy.Duration(time.Second)
 
 	var server gat.ServerConfig
 	server.Listen = config.Listen()

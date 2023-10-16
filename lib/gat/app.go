@@ -7,11 +7,10 @@ import (
 	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
-	"gfx.cafe/gfx/pggat/lib/util/dur"
 )
 
 type Config struct {
-	StatLogPeriod dur.Duration   `json:"stat_log_period,omitempty"`
+	StatLogPeriod caddy.Duration `json:"stat_log_period,omitempty"`
 	Servers       []ServerConfig `json:"servers,omitempty"`
 }
 
@@ -56,7 +55,7 @@ func (T *App) Provision(ctx caddy.Context) error {
 }
 
 func (T *App) statLogLoop() {
-	t := time.NewTicker(T.StatLogPeriod.Duration())
+	t := time.NewTicker(time.Duration(T.StatLogPeriod))
 	defer t.Stop()
 
 	var stats metrics.Server
