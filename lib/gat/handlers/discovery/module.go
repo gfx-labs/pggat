@@ -483,7 +483,7 @@ outer:
 func (T *Module) discoverLoop() {
 	var reconcile <-chan time.Time
 	if T.ReconcilePeriod != 0 {
-		r := time.NewTicker(T.ReconcilePeriod.Duration())
+		r := time.NewTicker(time.Duration(T.ReconcilePeriod))
 		defer r.Stop()
 
 		reconcile = r.C

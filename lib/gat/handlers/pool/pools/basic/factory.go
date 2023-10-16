@@ -6,6 +6,10 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 )
 
+func init() {
+	caddy.RegisterModule((*Factory)(nil))
+}
+
 type Factory struct {
 	Config
 }

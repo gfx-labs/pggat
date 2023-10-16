@@ -5,9 +5,12 @@ import (
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
+	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/lifo"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/rob"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
@@ -73,4 +76,31 @@ func (T Config) Spool() spool.Config {
 		ReconnectMaxTime:     time.Duration(T.ServerReconnectMaxTime),
 		Logger:               T.Logger,
 	}
+}
+
+var Session = Config{
+	RawPoolerFactory: caddyconfig.JSONModuleObject(
+		new(lifo.Factory),
+		"pooler",
+		"lifo",
+		nil,
+	),
+	PoolerFactory:           new(lifo.Factory),
+	ReleaseAfterTransaction: false,
+	ParameterStatusSync:     ParameterStatusSyncInitial,
+	ExtendedQuerySync:       false,
+	ServerResetQuery:        "DISCARD ALL",
+}
+
+var Transaction = Config{
+	RawPoolerFactory: caddyconfig.JSONModuleObject(
+		new(rob.Factory),
+		"pooler",
+		"rob",
+		nil,
+	),
+	PoolerFactory:           new(rob.Factory),
+	ReleaseAfterTransaction: true,
+	ParameterStatusSync:     ParameterStatusSyncDynamic,
+	ExtendedQuerySync:       true,
 }

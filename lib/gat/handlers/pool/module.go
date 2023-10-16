@@ -12,10 +12,14 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/decorator"
 )
 
+func init() {
+	caddy.RegisterModule((*Module)(nil))
+}
+
 type Module struct {
 	noCopy decorator.NoCopy
 
-	Pool   json.RawMessage `json:"pool"`
+	Pool   json.RawMessage `json:"pool" caddy:"namespace=pggat.handlers.pool.pools inline_key=pool"`
 	Recipe Recipe          `json:"recipe"`
 
 	pool Pool
@@ -35,7 +39,7 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	if err != nil {
 		return err
 	}
-	T.pool = raw.(Pool)
+	T.pool = raw.(PoolFactory).NewPool()
 
 	if err = T.Recipe.Provision(ctx); err != nil {
 		return err

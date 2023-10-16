@@ -18,6 +18,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/basic"
 	"gfx.cafe/gfx/pggat/lib/perror"
 	"gfx.cafe/gfx/pggat/lib/util/flip"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
@@ -40,7 +41,7 @@ func init() {
 }
 
 type poolAndCredentials struct {
-	pool  pool.Pool
+	pool  *basic.Pool
 	creds auth.Credentials
 }
 
@@ -191,16 +192,26 @@ func (T *Module) tryCreate(user, database string) (poolAndCredentials, bool) {
 	var p poolAndCredentials
 	p.creds = creds
 
+	var config basic.Config
+
 	switch poolMode {
 	case PoolModeSession:
-		_ = trackedParameters
-		_ = serverLoginRetry
-		// TODO(garet) create session pool
+		config = basic.Session
+		config.ServerResetQuery = T.Config.PgBouncer.ServerResetQuery
 	case PoolModeTransaction:
-		// TODO(garet) create transaction pool
+		config = basic.Transaction
+		if T.Config.PgBouncer.ServerResetQueryAlways != 0 {
+			config.ServerResetQuery = T.Config.PgBouncer.ServerResetQuery
+		}
 	default:
 		return poolAndCredentials{}, false
 	}
+
+	config.TrackedParameters = trackedParameters
+	config.ServerIdleTimeout = caddy.Duration(T.Config.PgBouncer.ServerIdleTimeout * float64(time.Second))
+	config.ServerReconnectInitialTime = serverLoginRetry
+	config.ServerReconnectMaxTime = serverLoginRetry
+	config.Logger = T.log
 
 	T.mu.Lock()
 	defer T.mu.Unlock()
