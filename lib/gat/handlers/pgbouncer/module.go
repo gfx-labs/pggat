@@ -14,10 +14,10 @@ import (
 	"github.com/caddyserver/caddy/v2"
 	"go.uber.org/zap"
 
+	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
-	"gfx.cafe/gfx/pggat/lib/gat/poolers/session"
-	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/perror"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
 	"gfx.cafe/gfx/pggat/lib/util/flip"
@@ -26,7 +26,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
-	"gfx.cafe/gfx/pggat/lib/gat/pool"
 	"gfx.cafe/gfx/pggat/lib/gsql"
 	"gfx.cafe/gfx/pggat/lib/util/maps"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
@@ -41,11 +40,16 @@ func init() {
 	caddy.RegisterModule((*Module)(nil))
 }
 
+type poolAndCredentials struct {
+	pool  pool.Pool
+	creds auth.Credentials
+}
+
 type Module struct {
 	ConfigFile string `json:"config"`
 	Config     Config `json:"-"`
 
-	pools maps.TwoKey[string, string, pool.WithCredentials]
+	pools maps.TwoKey[string, string, poolAndCredentials]
 	mu    sync.RWMutex
 
 	log *zap.Logger
@@ -75,8 +79,8 @@ func (T *Module) Cleanup() error {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	T.pools.Range(func(user string, database string, p pool.WithCredentials) bool {
-		p.Close()
+	T.pools.Range(func(user string, database string, p poolAndCredentials) bool {
+		p.pool.Close()
 		T.pools.Delete(user, database)
 		return true
 	})
@@ -119,7 +123,7 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 		})
 
 		b.Queue(func() error {
-			err := authPool.Serve(outward)
+			err := authPool.pool.Serve(outward)
 			if err != nil && !errors.Is(err, io.EOF) {
 				return err
 			}
@@ -142,20 +146,20 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 	return password, true
 }
 
-func (T *Module) tryCreate(user, database string) (pool.WithCredentials, bool) {
+func (T *Module) tryCreate(user, database string) (poolAndCredentials, bool) {
 	db, ok := T.Config.Databases[database]
 	if !ok {
 		// try wildcard
 		db, ok = T.Config.Databases["*"]
 		if !ok {
-			return pool.WithCredentials{}, false
+			return poolAndCredentials{}, false
 		}
 	}
 
 	// try to get password
 	password, ok := T.getPassword(user, database)
 	if !ok {
-		return pool.WithCredentials{}, false
+		return poolAndCredentials{}, false
 	}
 
 	creds := credentials.FromString(user, password)
@@ -185,30 +189,18 @@ func (T *Module) tryCreate(user, database string) (pool.WithCredentials, bool) {
 
 	serverLoginRetry := dur.Duration(T.Config.PgBouncer.ServerLoginRetry * float64(time.Second))
 
-	poolOptions := pool.Config{
-		ManagementConfig: pool.ManagementConfig{
-			TrackedParameters:          trackedParameters,
-			ServerResetQuery:           T.Config.PgBouncer.ServerResetQuery,
-			ServerIdleTimeout:          dur.Duration(T.Config.PgBouncer.ServerIdleTimeout * float64(time.Second)),
-			ServerReconnectInitialTime: serverLoginRetry,
-		},
-		Logger: T.log,
-	}
+	var p poolAndCredentials
+	p.creds = creds
 
 	switch poolMode {
 	case PoolModeSession:
-		poolOptions.PoolingConfig = session.PoolingOptions
+		_ = trackedParameters
+		_ = serverLoginRetry
+		// TODO(garet) create session pool
 	case PoolModeTransaction:
-		if T.Config.PgBouncer.ServerResetQueryAlways == 0 {
-			poolOptions.ServerResetQuery = ""
-		}
-		poolOptions.PoolingConfig = transaction.PoolingOptions
+		// TODO(garet) create transaction pool
 	default:
-		return pool.WithCredentials{}, false
-	}
-	p := pool.WithCredentials{
-		Pool:        pool.NewPool(poolOptions),
-		Credentials: creds,
+		return poolAndCredentials{}, false
 	}
 
 	T.mu.Lock()
@@ -226,10 +218,10 @@ func (T *Module) tryCreate(user, database string) (pool.WithCredentials, bool) {
 		SSLConfig: &tls.Config{
 			InsecureSkipVerify: true, // TODO(garet)
 		},
-		Username:          user,
-		Credentials:       serverCreds,
-		Database:          serverDatabase,
-		StartupParameters: db.StartupParameters,
+		Username:    user,
+		Credentials: serverCreds,
+		Database:    serverDatabase,
+		Parameters:  db.StartupParameters,
 	}
 
 	if db.Host == "" || strings.HasPrefix(db.Host, "/") {
@@ -246,7 +238,6 @@ func (T *Module) tryCreate(user, database string) (pool.WithCredentials, bool) {
 
 		dir = dir + ".s.PGSQL." + strconv.Itoa(port)
 
-		dialer.Network = "unix"
 		dialer.Address = dir
 	} else {
 		var address string
@@ -257,29 +248,27 @@ func (T *Module) tryCreate(user, database string) (pool.WithCredentials, bool) {
 		}
 
 		// connect over tcp
-		dialer.Network = "tcp"
 		dialer.Address = address
 	}
 
-	recipeOptions := pool.RecipeConfig{
+	r := pool.Recipe{
 		Dialer:         dialer,
 		MinConnections: db.MinPoolSize,
 		MaxConnections: db.MaxDBConnections,
 	}
-	if recipeOptions.MinConnections == 0 {
-		recipeOptions.MinConnections = T.Config.PgBouncer.MinPoolSize
+	if r.MinConnections == 0 {
+		r.MinConnections = T.Config.PgBouncer.MinPoolSize
 	}
-	if recipeOptions.MaxConnections == 0 {
-		recipeOptions.MaxConnections = T.Config.PgBouncer.MaxDBConnections
+	if r.MaxConnections == 0 {
+		r.MaxConnections = T.Config.PgBouncer.MaxDBConnections
 	}
-	r := pool.NewRecipe(recipeOptions)
 
-	p.AddRecipe("pgbouncer", r)
+	p.pool.AddRecipe("pgbouncer", &r)
 
 	return p, true
 }
 
-func (T *Module) lookup(user, database string) (pool.WithCredentials, bool) {
+func (T *Module) lookup(user, database string) (poolAndCredentials, bool) {
 	p, ok := T.pools.Load(user, database)
 	if ok {
 		return p, true
@@ -331,18 +320,18 @@ func (T *Module) Handle(conn *fed.Conn) error {
 		return nil
 	}
 
-	if err := frontends.Authenticate(conn, p.Credentials); err != nil {
+	if err := frontends.Authenticate(conn, p.creds); err != nil {
 		return err
 	}
 
-	return p.Serve(conn)
+	return p.pool.Serve(conn)
 }
 
 func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
-	T.pools.Range(func(_ string, _ string, p pool.WithCredentials) bool {
-		p.ReadMetrics(&metrics.Pool)
+	T.pools.Range(func(_ string, _ string, p poolAndCredentials) bool {
+		p.pool.ReadMetrics(&metrics.Pool)
 		return true
 	})
 }
@@ -350,8 +339,8 @@ func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 func (T *Module) Cancel(key fed.BackendKey) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
-	T.pools.Range(func(_ string, _ string, p pool.WithCredentials) bool {
-		p.Cancel(key)
+	T.pools.Range(func(_ string, _ string, p poolAndCredentials) bool {
+		p.pool.Cancel(key)
 		return true
 	})
 }

@@ -33,8 +33,4 @@ import (
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/digitalocean"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/google_cloud_sql"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/zalando_operator"
-
-	// poolers
-	_ "gfx.cafe/gfx/pggat/lib/gat/poolers/session"
-	_ "gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
 )

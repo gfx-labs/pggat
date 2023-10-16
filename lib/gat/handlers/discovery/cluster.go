@@ -1,10 +1,5 @@
 package discovery
 
-type Endpoint struct {
-	Network string
-	Address string
-}
-
 type User struct {
 	Username string
 	Password string
@@ -13,8 +8,8 @@ type User struct {
 type Cluster struct {
 	ID string
 
-	Primary  Endpoint
-	Replicas map[string]Endpoint
+	Primary  string
+	Replicas map[string]string
 
 	Databases []string
 	Users     []User

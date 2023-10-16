@@ -8,6 +8,7 @@ import (
 	error_handler "gfx.cafe/gfx/pggat/lib/gat/handlers/error"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer_spilo"
 	pool_handler "gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/rob"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
@@ -22,7 +23,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_parameter"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_password"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_user"
-	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
 	"gfx.cafe/gfx/pggat/lib/gat/ssl/clients/insecure_skip_verify"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
@@ -134,7 +134,7 @@ func init() {
 			Config: discovery.Config{
 				ReconcilePeriod: dur.Duration(5 * time.Minute),
 				Pooler: JSONModuleObject(
-					&transaction.Module{
+					&rob.Factory{
 						ManagementConfig: defaultPoolManagementConfig,
 					},
 					Pooler,
@@ -382,7 +382,7 @@ func init() {
 		module := pool_handler.Module{
 			Config: pool_handler.Config{
 				Pooler: JSONModuleObject(
-					&transaction.Module{
+					&rob.Factory{
 						ManagementConfig: defaultPoolManagementConfig,
 					},
 					Pooler,

@@ -8,8 +8,6 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
 
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/poolers/session"
-	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
 	"gfx.cafe/gfx/pggat/lib/util/dur"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
@@ -98,7 +96,7 @@ func init() {
 			return nil, err
 		}
 
-		return &transaction.Module{
+		return &rob.Factory{
 			ManagementConfig: config,
 		}, nil
 	})
@@ -108,7 +106,7 @@ func init() {
 			return nil, err
 		}
 
-		return &session.Module{
+		return &lifo.Factory{
 			ManagementConfig: config,
 		}, nil
 	})

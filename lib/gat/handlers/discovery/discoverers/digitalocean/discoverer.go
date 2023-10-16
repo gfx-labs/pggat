@@ -55,11 +55,8 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 		}
 
 		c := discovery.Cluster{
-			ID: cluster.ID,
-			Primary: discovery.Endpoint{
-				Network: "tcp",
-				Address: primaryAddr,
-			},
+			ID:        cluster.ID,
+			Primary:   primaryAddr,
 			Databases: cluster.DBNames,
 			Users:     make([]discovery.User, 0, len(cluster.Users)),
 		}
@@ -76,7 +73,7 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 			return nil, err
 		}
 
-		c.Replicas = make(map[string]discovery.Endpoint, len(replicas))
+		c.Replicas = make(map[string]string, len(replicas))
 		for _, replica := range replicas {
 			var replicaAddr string
 			if T.Private {
@@ -84,10 +81,7 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 			} else {
 				replicaAddr = net.JoinHostPort(replica.Connection.Host, strconv.Itoa(replica.Connection.Port))
 			}
-			c.Replicas[replica.ID] = discovery.Endpoint{
-				Network: "tcp",
-				Address: replicaAddr,
-			}
+			c.Replicas[replica.ID] = replicaAddr
 		}
 
 		res = append(res, c)

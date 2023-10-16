@@ -19,8 +19,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_password"
 	"gfx.cafe/gfx/pggat/lib/gat/matchers"
 	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/poolers/session"
-	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
 	"gfx.cafe/gfx/pggat/test"
 	"gfx.cafe/gfx/pggat/test/tests"
 )
@@ -140,12 +138,12 @@ func daisyChain(config *gat.Config, control dialer, n int) (dialer, error) {
 		poolConfig := pool.ManagementConfig{}
 		var pooler caddy.Module
 		if i%2 == 0 {
-			pooler = &transaction.Module{
+			pooler = &rob.Factory{
 				ManagementConfig: poolConfig,
 			}
 		} else {
 			poolConfig.ServerResetQuery = "DISCARD ALL"
-			pooler = &session.Module{
+			pooler = &lifo.Factory{
 				ManagementConfig: poolConfig,
 			}
 		}
@@ -191,8 +189,8 @@ func TestTester(t *testing.T) {
 	}
 
 	server, dialers, err := createServer(parent, map[string]caddy.Module{
-		"transaction": &transaction.Module{},
-		"session": &session.Module{
+		"transaction": &rob.Factory{},
+		"session": &lifo.Factory{
 			ManagementConfig: pool.ManagementConfig{
 				ServerResetQuery: "discard all",
 			},

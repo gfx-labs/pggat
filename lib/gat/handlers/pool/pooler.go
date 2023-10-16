@@ -1,4 +1,4 @@
-package gat
+package pool
 
 import "github.com/google/uuid"
 
@@ -20,4 +20,8 @@ type Pooler interface {
 	Release(server uuid.UUID)
 
 	Close()
+}
+
+type PoolerFactory interface {
+	NewPooler() Pooler
 }
