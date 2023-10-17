@@ -23,7 +23,7 @@ func (T *Factory) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *Factory) NewPool() pool.Pool {
-	return new(Pool)
+	return NewPool()
 }
 
 var _ pool.PoolFactory = (*Factory)(nil)
