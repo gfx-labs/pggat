@@ -16,6 +16,13 @@ type Pool interface {
 	Close()
 }
 
+type ReplicaPool interface {
+	Pool
+
+	AddReplicaRecipe(name string, recipe *Recipe)
+	RemoveReplicaRecipe(name string)
+}
+
 type PoolFactory interface {
 	NewPool() Pool
 }
