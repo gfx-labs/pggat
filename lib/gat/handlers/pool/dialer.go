@@ -26,7 +26,7 @@ type Dialer struct {
 
 	RawSSL        json.RawMessage   `json:"ssl,omitempty" caddy:"namespace=pggat.ssl.clients inline_key=provider"`
 	RawPassword   string            `json:"password"`
-	RawParameters map[string]string `json:"parameters"`
+	RawParameters map[string]string `json:"parameters,omitempty"`
 
 	SSLConfig   *tls.Config                 `json:"-"`
 	Credentials auth.Credentials            `json:"-"`

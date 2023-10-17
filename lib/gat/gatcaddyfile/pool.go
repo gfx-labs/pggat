@@ -1,7 +1,159 @@
 package gatcaddyfile
 
-import "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/basic"
+import (
+	"time"
+
+	"github.com/caddyserver/caddy/v2"
+	"github.com/caddyserver/caddy/v2/caddyconfig"
+	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
+
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/basic"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
+)
+
+func defaultPoolConfig(base basic.Config) basic.Config {
+	base.ServerIdleTimeout = caddy.Duration(5 * time.Minute)
+	base.ServerReconnectInitialTime = caddy.Duration(5 * time.Second)
+	base.ServerReconnectMaxTime = caddy.Duration(1 * time.Minute)
+	base.TrackedParameters = []strutil.CIString{
+		strutil.MakeCIString("client_encoding"),
+		strutil.MakeCIString("datestyle"),
+		strutil.MakeCIString("timezone"),
+		strutil.MakeCIString("standard_conforming_strings"),
+		strutil.MakeCIString("application_name"),
+	}
+	return base
+}
 
 var defaultPool = &basic.Factory{
-	Config: basic.Transaction,
+	Config: defaultPoolConfig(basic.Transaction),
+}
+
+func init() {
+	RegisterDirective(Pool, "basic", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
+		module := *defaultPool
+
+		if d.NextArg() {
+			switch d.Val() {
+			case "transaction":
+				module.Config = defaultPoolConfig(basic.Transaction)
+			case "session":
+				module.Config = defaultPoolConfig(basic.Session)
+			default:
+				return nil, d.ArgErr()
+			}
+		} else {
+			if !d.NextBlock(d.Nesting()) {
+				return nil, d.ArgErr()
+			}
+
+			for {
+				if d.Val() == "}" {
+					break
+				}
+
+				directive := d.Val()
+				switch directive {
+				case "pooler":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					var err error
+					module.RawPoolerFactory, err = UnmarshalDirectiveJSONModuleObject(
+						d,
+						Pooler,
+						"pooler",
+						warnings,
+					)
+					if err != nil {
+						return nil, err
+					}
+				case "release_after_transaction":
+					if d.NextArg() {
+						switch d.Val() {
+						case "true":
+							module.ReleaseAfterTransaction = true
+						case "false":
+							module.ReleaseAfterTransaction = false
+						default:
+							return nil, d.ArgErr()
+						}
+					} else {
+						module.ReleaseAfterTransaction = true
+					}
+				case "parameter_status_sync":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					module.ParameterStatusSync = basic.ParameterStatusSync(d.Val())
+				case "extended_query_sync":
+					if d.NextArg() {
+						switch d.Val() {
+						case "true":
+							module.ExtendedQuerySync = true
+						case "false":
+							module.ExtendedQuerySync = false
+						default:
+							return nil, d.ArgErr()
+						}
+					} else {
+						module.ExtendedQuerySync = true
+					}
+				case "reset_query":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					module.ServerResetQuery = d.Val()
+				case "idle_timeout":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					val, err := time.ParseDuration(d.Val())
+					if err != nil {
+						return nil, d.WrapErr(err)
+					}
+
+					module.ServerIdleTimeout = caddy.Duration(val)
+				case "reconnect":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					initialTime, err := time.ParseDuration(d.Val())
+					if err != nil {
+						return nil, d.WrapErr(err)
+					}
+
+					maxTime := initialTime
+					if d.NextArg() {
+						maxTime, err = time.ParseDuration(d.Val())
+						if err != nil {
+							return nil, d.WrapErr(err)
+						}
+					}
+
+					module.ServerReconnectInitialTime = caddy.Duration(initialTime)
+					module.ServerReconnectMaxTime = caddy.Duration(maxTime)
+				case "track":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					module.TrackedParameters = append(module.TrackedParameters, strutil.MakeCIString(d.Val()))
+				default:
+					return nil, d.ArgErr()
+				}
+
+				if !d.NextLine() {
+					return nil, d.EOFErr()
+				}
+			}
+		}
+
+		return &module, nil
+	})
 }
