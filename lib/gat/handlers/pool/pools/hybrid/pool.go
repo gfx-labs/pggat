@@ -1,10 +1,10 @@
 package hybrid
 
 import (
-	"github.com/google/uuid"
-
 	"gfx.cafe/gfx/pggat/lib/bouncer/bouncers/v2"
 	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/fed/middlewares/eqp"
+	"gfx.cafe/gfx/pggat/lib/fed/middlewares/ps"
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/unterminate"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
@@ -13,6 +13,8 @@ import (
 )
 
 type Pool struct {
+	config Config
+
 	primary spool.Pool
 	replica spool.Pool
 }
@@ -21,6 +23,8 @@ func NewPool(config Config) *Pool {
 	c := config.Spool()
 
 	p := &Pool{
+		config: config,
+
 		primary: spool.MakePool(c),
 		replica: spool.MakePool(c),
 	}
@@ -45,15 +49,43 @@ func (T *Pool) RemoveRecipe(name string) {
 	T.primary.RemoveRecipe(name)
 }
 
+func (T *Pool) Pair(client *Client, server *spool.Server) (err, serverErr error) {
+	client.SetState(metrics.ConnStatePairing, server, false)
+	server.SetState(metrics.ConnStatePairing, client.ID)
+
+	err, serverErr = ps.Sync(T.config.TrackedParameters, client.Conn, server.Conn)
+
+	if err != nil || serverErr != nil {
+		return
+	}
+
+	serverErr = eqp.Sync(client.Conn, server.Conn)
+
+	if serverErr != nil {
+		return
+	}
+
+	client.SetState(metrics.ConnStateActive, server, false)
+	server.SetState(metrics.ConnStateActive, client.ID)
+	return
+}
+
 func (T *Pool) Serve(conn *fed.Conn) error {
 	m := NewMiddleware()
-	conn.Middleware = append(conn.Middleware, unterminate.Unterminate, m)
+	conn.Middleware = append(
+		conn.Middleware,
+		unterminate.Unterminate,
+		ps.NewClient(conn.InitialParameters),
+		eqp.NewClient(),
+		m,
+	)
 
-	id := uuid.New()
-	T.primary.AddClient(id)
-	defer T.primary.RemoveClient(id)
-	T.replica.AddClient(id)
-	defer T.replica.RemoveClient(id)
+	client := NewClient(conn)
+
+	T.primary.AddClient(client.ID)
+	defer T.primary.RemoveClient(client.ID)
+	T.replica.AddClient(client.ID)
+	defer T.replica.RemoveClient(client.ID)
 
 	var err, serverErr error
 
@@ -78,13 +110,16 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 	}()
 
 	if !conn.Ready {
-		// TODO(garet) pair
-
-		enc := packets.ParameterStatus{
-			Key:   "client_encoding",
-			Value: "UTF-8",
+		replica = T.replica.Acquire(client.ID)
+		if replica == nil {
+			return pool.ErrClosed
 		}
-		if err = conn.WritePacket(&enc); err != nil {
+
+		err, serverErr = T.Pair(client, replica)
+		if serverErr != nil {
+			return serverErr
+		}
+		if err != nil {
 			return err
 		}
 
@@ -105,6 +140,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 			T.replica.Release(replica)
 			replica = nil
 		}
+		client.SetState(metrics.ConnStateIdle, nil, false)
 
 		var packet fed.Packet
 		packet, err = conn.ReadPacket(true)
@@ -112,16 +148,20 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 			return err
 		}
 
-		replica = T.replica.Acquire(id)
+		replica = T.replica.Acquire(client.ID)
 		if replica == nil {
 			return pool.ErrClosed
 		}
 
-		// TODO(garet) pair
+		err, serverErr = T.Pair(client, replica)
 
-		err, serverErr = bouncers.Bounce(conn, replica.Conn, packet)
+		if err == nil && serverErr == nil {
+			err, serverErr = bouncers.Bounce(conn, replica.Conn, packet)
+		}
 		if serverErr != nil {
 			return serverErr
+		} else {
+			replica.TransactionComplete()
 		}
 		if err == (ErrReadOnly{}) {
 			m.Primary()
@@ -138,18 +178,21 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 			}
 
 			// acquire primary
-			primary = T.primary.Acquire(id)
+			primary = T.primary.Acquire(client.ID)
 			if primary == nil {
 				return pool.ErrClosed
 			}
 
-			// TODO(garet) get primary in the same state replica was
+			// TODO(garet) get primary in the same state replica was when the tx started
 
 			err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
 			if serverErr != nil {
 				return serverErr
+			} else {
+				primary.TransactionComplete()
 			}
 		}
+		client.TransactionComplete()
 		if err != nil {
 			return err
 		}
