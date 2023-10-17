@@ -8,6 +8,7 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
 
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/basic"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/hybrid"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -155,5 +156,8 @@ func init() {
 		}
 
 		return &module, nil
+	})
+	RegisterDirective(Pool, "hybrid", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
+		return &hybrid.Factory{}, nil
 	})
 }

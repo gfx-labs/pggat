@@ -40,4 +40,5 @@ import (
 
 	// pools
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/basic"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/hybrid"
 )

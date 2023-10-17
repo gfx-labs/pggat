@@ -80,6 +80,7 @@ func (T *Dialer) Dial() (*fed.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+	conn.Ready = true
 	return conn, nil
 }
 
