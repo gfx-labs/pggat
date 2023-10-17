@@ -191,6 +191,8 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 	}()
 
 	if !client.Conn.Ready {
+		client.SetState(metrics.ConnStateAwaitingServer, nil)
+
 		server = T.servers.Acquire(client.ID)
 		if server == nil {
 			return pool.ErrClosed
@@ -227,6 +229,8 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 		}
 
 		if server == nil {
+			client.SetState(metrics.ConnStateAwaitingServer, nil)
+
 			server = T.servers.Acquire(client.ID)
 			if server == nil {
 				return pool.ErrClosed

@@ -28,4 +28,8 @@ func (T *Client) PostWrite() (fed.Packet, error) {
 	return nil, nil
 }
 
+func (T *Client) Set(other *Client) {
+	T.state.Set(&other.state)
+}
+
 var _ fed.Middleware = (*Client)(nil)

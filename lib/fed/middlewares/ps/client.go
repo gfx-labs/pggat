@@ -3,6 +3,7 @@ package ps
 import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/util/maps"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -50,6 +51,18 @@ func (T *Client) WritePacket(packet fed.Packet) (fed.Packet, error) {
 
 func (T *Client) PostWrite() (fed.Packet, error) {
 	return nil, nil
+}
+
+func (T *Client) Set(other *Client) {
+	T.synced = other.synced
+
+	maps.Clear(T.parameters)
+	if T.parameters == nil {
+		T.parameters = make(map[strutil.CIString]string)
+	}
+	for k, v := range other.parameters {
+		T.parameters[k] = v
+	}
 }
 
 var _ fed.Middleware = (*Client)(nil)

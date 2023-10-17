@@ -20,11 +20,7 @@ func preparedStatementsEqual(a, b *packets.Parse) bool {
 	return true
 }
 
-func Sync(client, server *fed.Conn) error {
-	c, ok := fed.LookupMiddleware[*Client](client)
-	if !ok {
-		panic("middleware not found")
-	}
+func SyncMiddleware(c *Client, server *fed.Conn) error {
 	s, ok := fed.LookupMiddleware[*Server](server)
 	if !ok {
 		panic("middleware not found")
@@ -35,10 +31,6 @@ func Sync(client, server *fed.Conn) error {
 	// close all portals on server
 	// we close all because there won't be any for the normal case anyway, and it's hard to tell
 	// if a portal is accurate because the underlying prepared statement could have changed.
-	if len(s.state.portals) > 0 {
-		needsBackendSync = true
-	}
-
 	for name := range s.state.portals {
 		p := packets.Close{
 			Which: 'P',
@@ -47,6 +39,8 @@ func Sync(client, server *fed.Conn) error {
 		if err := server.WritePacket(&p); err != nil {
 			return err
 		}
+
+		needsBackendSync = true
 	}
 
 	// close all prepared statements that don't match client
@@ -89,14 +83,12 @@ func Sync(client, server *fed.Conn) error {
 	}
 
 	// bind all portals
-	if len(c.state.portals) > 0 {
-		needsBackendSync = true
-	}
-
 	for _, portal := range c.state.portals {
 		if err := server.WritePacket(portal); err != nil {
 			return err
 		}
+
+		needsBackendSync = true
 	}
 
 	if needsBackendSync {
@@ -106,4 +98,13 @@ func Sync(client, server *fed.Conn) error {
 	}
 
 	return nil
+}
+
+func Sync(client, server *fed.Conn) error {
+	c, ok := fed.LookupMiddleware[*Client](client)
+	if !ok {
+		panic("middleware not found")
+	}
+
+	return SyncMiddleware(c, server)
 }

@@ -57,7 +57,7 @@ func (T *Pool) RemoveRecipe(name string) {
 }
 
 func (T *Pool) Pair(client *Client, server *spool.Server) (err, serverErr error) {
-	client.SetState(metrics.ConnStatePairing, server, false)
+	client.SetState(metrics.ConnStatePairing, server, true)
 	server.SetState(metrics.ConnStatePairing, client.ID)
 
 	err, serverErr = ps.Sync(T.config.TrackedParameters, client.Conn, server.Conn)
@@ -72,9 +72,25 @@ func (T *Pool) Pair(client *Client, server *spool.Server) (err, serverErr error)
 		return
 	}
 
-	client.SetState(metrics.ConnStateActive, server, false)
+	client.SetState(metrics.ConnStateActive, server, true)
 	server.SetState(metrics.ConnStateActive, client.ID)
 	return
+}
+
+func (T *Pool) PairPrimary(client *Client, psc *ps.Client, eqpc *eqp.Client, server *spool.Server) error {
+	server.SetState(metrics.ConnStatePairing, client.ID)
+
+	if err := ps.SyncMiddleware(T.config.TrackedParameters, psc, server.Conn); err != nil {
+		return err
+	}
+
+	if err := eqp.SyncMiddleware(eqpc, server.Conn); err != nil {
+		return err
+	}
+
+	client.SetState(metrics.ConnStateActive, server, false)
+	server.SetState(metrics.ConnStateActive, client.ID)
+	return nil
 }
 
 func (T *Pool) addClient(client *Client) {
@@ -96,11 +112,17 @@ func (T *Pool) removeClient(client *Client) {
 
 func (T *Pool) Serve(conn *fed.Conn) error {
 	m := NewMiddleware()
+
+	eqpa := eqp.NewClient()
+	eqpi := eqp.NewClient()
+	psa := ps.NewClient(conn.InitialParameters)
+	psi := ps.NewClient(nil)
+
 	conn.Middleware = append(
 		conn.Middleware,
 		unterminate.Unterminate,
-		ps.NewClient(conn.InitialParameters),
-		eqp.NewClient(),
+		psa,
+		eqpa,
 		m,
 	)
 
@@ -137,6 +159,8 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 	}()
 
 	if !conn.Ready {
+		client.SetState(metrics.ConnStateAwaitingServer, nil, false)
+
 		replica = T.replica.Acquire(client.ID)
 		if replica == nil {
 			return pool.ErrClosed
@@ -175,12 +199,17 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 			return err
 		}
 
+		client.SetState(metrics.ConnStateAwaitingServer, nil, false)
+
 		replica = T.replica.Acquire(client.ID)
 		if replica == nil {
 			return pool.ErrClosed
 		}
 
 		err, serverErr = T.Pair(client, replica)
+
+		psi.Set(psa)
+		eqpi.Set(eqpa)
 
 		if err == nil && serverErr == nil {
 			err, serverErr = bouncers.Bounce(conn, replica.Conn, packet)
@@ -204,15 +233,19 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 				return err
 			}
 
+			client.SetState(metrics.ConnStateAwaitingServer, nil, false)
+
 			// acquire primary
 			primary = T.primary.Acquire(client.ID)
 			if primary == nil {
 				return pool.ErrClosed
 			}
 
-			// TODO(garet) get primary in the same state replica was when the tx started
+			serverErr = T.PairPrimary(client, psi, eqpi, primary)
 
-			err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
+			if serverErr == nil {
+				err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
+			}
 			if serverErr != nil {
 				return serverErr
 			} else {

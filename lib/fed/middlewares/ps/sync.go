@@ -8,29 +8,26 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.Conn, s *Server, name strutil.CIString) error {
+func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.Conn, s *Server, name strutil.CIString) (clientErr, serverErr error) {
 	value, hasValue := c.parameters[name]
 	expected, hasExpected := s.parameters[name]
 
 	if value == expected {
-		if !c.synced {
+		if client != nil && !c.synced {
 			ps := packets.ParameterStatus{
 				Key:   name.String(),
 				Value: expected,
 			}
-			if err := client.WritePacket(&ps); err != nil {
-				return err
-			}
+			clientErr = client.WritePacket(&ps)
 		}
-		return nil
+		return
 	}
 
 	var doSet bool
 
 	if hasValue && slices.Contains(tracking, name) {
-		var err error
-		if err, _ = backends.SetParameter(server, nil, name, value); err != nil {
-			return err
+		if serverErr, _ = backends.SetParameter(server, nil, name, value); serverErr != nil {
+			return
 		}
 		if s.parameters == nil {
 			s.parameters = make(map[strutil.CIString]string)
@@ -42,12 +39,36 @@ func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.
 		doSet = true
 	}
 
-	if doSet {
+	if client != nil && doSet {
 		ps := packets.ParameterStatus{
 			Key:   name.String(),
 			Value: expected,
 		}
-		if err := client.WritePacket(&ps); err != nil {
+		if clientErr = client.WritePacket(&ps); clientErr != nil {
+			return
+		}
+	}
+
+	return
+}
+
+func SyncMiddleware(tracking []strutil.CIString, c *Client, server *fed.Conn) error {
+	s, ok := fed.LookupMiddleware[*Server](server)
+	if !ok {
+		panic("middleware not found")
+	}
+
+	for name := range c.parameters {
+		if _, err := sync(tracking, nil, c, server, s, name); err != nil {
+			return err
+		}
+	}
+
+	for name := range s.parameters {
+		if _, ok = c.parameters[name]; ok {
+			continue
+		}
+		if _, err := sync(tracking, nil, c, server, s, name); err != nil {
 			return err
 		}
 	}
@@ -66,7 +87,7 @@ func Sync(tracking []strutil.CIString, client, server *fed.Conn) (clientErr, ser
 	}
 
 	for name := range c.parameters {
-		if serverErr = sync(tracking, client, c, server, s, name); serverErr != nil {
+		if clientErr, serverErr = sync(tracking, client, c, server, s, name); clientErr != nil || serverErr != nil {
 			return
 		}
 	}
@@ -75,7 +96,7 @@ func Sync(tracking []strutil.CIString, client, server *fed.Conn) (clientErr, ser
 		if _, ok = c.parameters[name]; ok {
 			continue
 		}
-		if serverErr = sync(tracking, client, c, server, s, name); serverErr != nil {
+		if clientErr, serverErr = sync(tracking, client, c, server, s, name); clientErr != nil || serverErr != nil {
 			return
 		}
 	}
