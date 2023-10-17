@@ -1,6 +1,10 @@
 package hybrid
 
 import (
+	"sync"
+
+	"github.com/google/uuid"
+
 	"gfx.cafe/gfx/pggat/lib/bouncer/bouncers/v2"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/eqp"
@@ -17,6 +21,9 @@ type Pool struct {
 
 	primary spool.Pool
 	replica spool.Pool
+
+	clients map[fed.BackendKey]*Client
+	mu      sync.RWMutex
 }
 
 func NewPool(config Config) *Pool {
@@ -70,6 +77,23 @@ func (T *Pool) Pair(client *Client, server *spool.Server) (err, serverErr error)
 	return
 }
 
+func (T *Pool) addClient(client *Client) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	if T.clients == nil {
+		T.clients = make(map[fed.BackendKey]*Client)
+	}
+	T.clients[client.Conn.BackendKey] = client
+}
+
+func (T *Pool) removeClient(client *Client) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	delete(T.clients, client.Conn.BackendKey)
+}
+
 func (T *Pool) Serve(conn *fed.Conn) error {
 	m := NewMiddleware()
 	conn.Middleware = append(
@@ -81,6 +105,9 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 	)
 
 	client := NewClient(conn)
+
+	T.addClient(client)
+	defer T.removeClient(client)
 
 	T.primary.AddClient(client.ID)
 	defer T.primary.RemoveClient(client.ID)
@@ -202,13 +229,45 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 }
 
 func (T *Pool) Cancel(key fed.BackendKey) {
-	// TODO implement me
-	panic("implement me")
+	peer, replica := func() (*spool.Server, bool) {
+		T.mu.RLock()
+		defer T.mu.RUnlock()
+
+		c, ok := T.clients[key]
+		if !ok {
+			return nil, false
+		}
+
+		_, _, peer, replica := c.GetState()
+		return peer, replica
+	}()
+
+	if peer == nil {
+		return
+	}
+
+	if replica {
+		T.replica.Cancel(peer)
+	} else {
+		T.primary.Cancel(peer)
+	}
 }
 
 func (T *Pool) ReadMetrics(m *metrics.Pool) {
 	T.primary.ReadMetrics(m)
 	T.replica.ReadMetrics(m)
+
+	T.mu.RLock()
+	defer T.mu.RUnlock()
+
+	if m.Clients == nil {
+		m.Clients = make(map[uuid.UUID]metrics.Conn)
+	}
+	for _, client := range T.clients {
+		var c metrics.Conn
+		client.ReadMetrics(&c)
+		m.Clients[client.ID] = c
+	}
 }
 
 func (T *Pool) Close() {

@@ -137,6 +137,23 @@ func (T *Pool) Pair(client *Client, server *spool.Server) (err, serverErr error)
 	return
 }
 
+func (T *Pool) addClient(client *Client) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	if T.clients == nil {
+		T.clients = make(map[fed.BackendKey]*Client)
+	}
+	T.clients[client.Conn.BackendKey] = client
+}
+
+func (T *Pool) removeClient(client *Client) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	delete(T.clients, client.Conn.BackendKey)
+}
+
 func (T *Pool) Serve(conn *fed.Conn) error {
 	if T.config.ParameterStatusSync == ParameterStatusSyncDynamic {
 		conn.Middleware = append(
@@ -152,6 +169,10 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 	}
 
 	client := NewClient(conn)
+
+	T.addClient(client)
+	defer T.removeClient(client)
+
 	T.servers.AddClient(client.ID)
 	defer T.servers.RemoveClient(client.ID)
 
