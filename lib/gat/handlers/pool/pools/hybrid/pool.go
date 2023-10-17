@@ -1,9 +1,6 @@
 package hybrid
 
 import (
-	"log"
-	"time"
-
 	"github.com/google/uuid"
 
 	"gfx.cafe/gfx/pggat/lib/bouncer/bouncers/v2"
@@ -11,7 +8,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/unterminate"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/rob"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 )
@@ -21,19 +17,12 @@ type Pool struct {
 	replica spool.Pool
 }
 
-func NewPool() *Pool {
-	config := spool.Config{
-		PoolerFactory:        new(rob.Factory),
-		UsePS:                true,
-		UseEQP:               true,
-		IdleTimeout:          5 * time.Minute,
-		ReconnectInitialTime: 5 * time.Second,
-		ReconnectMaxTime:     1 * time.Minute,
-	}
+func NewPool(config Config) *Pool {
+	c := config.Spool()
 
 	p := &Pool{
-		primary: spool.MakePool(config),
-		replica: spool.MakePool(config),
+		primary: spool.MakePool(c),
+		replica: spool.MakePool(c),
 	}
 	go p.primary.ScaleLoop()
 	go p.replica.ScaleLoop()
@@ -68,20 +57,29 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 
 	var err, serverErr error
 
-	var server *spool.Server
+	var primary, replica *spool.Server
 	defer func() {
-		if server != nil {
+		if primary != nil {
 			if serverErr != nil {
-				T.replica.RemoveServer(server)
+				T.primary.RemoveServer(primary)
 			} else {
-				T.replica.Release(server)
+				T.primary.Release(primary)
 			}
-			server = nil
+			primary = nil
+		}
+		if replica != nil {
+			if serverErr != nil {
+				T.replica.RemoveServer(replica)
+			} else {
+				T.replica.Release(replica)
+			}
+			replica = nil
 		}
 	}()
 
 	if !conn.Ready {
 		// TODO(garet) pair
+
 		enc := packets.ParameterStatus{
 			Key:   "client_encoding",
 			Value: "UTF-8",
@@ -99,9 +97,13 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 	}
 
 	for {
-		if server != nil {
-			T.replica.Release(server)
-			server = nil
+		if primary != nil {
+			T.primary.Release(primary)
+			primary = nil
+		}
+		if replica != nil {
+			T.replica.Release(replica)
+			replica = nil
 		}
 
 		var packet fed.Packet
@@ -110,21 +112,45 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 			return err
 		}
 
-		server = T.replica.Acquire(id)
-		if server == nil {
+		replica = T.replica.Acquire(id)
+		if replica == nil {
 			return pool.ErrClosed
 		}
 
 		// TODO(garet) pair
-		err, serverErr = bouncers.Bounce(conn, server.Conn, packet)
+
+		err, serverErr = bouncers.Bounce(conn, replica.Conn, packet)
 		if serverErr != nil {
 			return serverErr
 		}
-		if err != nil {
-			if err == (ErrReadOnly{}) {
-				log.Printf("READ ONLY DETECTED :)")
-				log.Printf("buffered: %v", m.buf.Full())
+		if err == (ErrReadOnly{}) {
+			m.Primary()
+
+			// release replica
+			if replica != nil {
+				T.replica.Release(replica)
+				replica = nil
 			}
+
+			packet, err = conn.ReadPacket(true)
+			if err != nil {
+				return err
+			}
+
+			// acquire primary
+			primary = T.primary.Acquire(id)
+			if primary == nil {
+				return pool.ErrClosed
+			}
+
+			// TODO(garet) get primary in the same state replica was
+
+			err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
+			if serverErr != nil {
+				return serverErr
+			}
+		}
+		if err != nil {
 			return err
 		}
 

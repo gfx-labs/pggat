@@ -17,6 +17,10 @@ func NewClient(parameters map[strutil.CIString]string) *Client {
 	}
 }
 
+func (T *Client) PreRead(_ bool) (fed.Packet, error) {
+	return nil, nil
+}
+
 func (T *Client) ReadPacket(packet fed.Packet) (fed.Packet, error) {
 	return packet, nil
 }
@@ -42,6 +46,10 @@ func (T *Client) WritePacket(packet fed.Packet) (fed.Packet, error) {
 	default:
 		return packet, nil
 	}
+}
+
+func (T *Client) PostWrite() (fed.Packet, error) {
+	return nil, nil
 }
 
 var _ fed.Middleware = (*Client)(nil)

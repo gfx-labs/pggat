@@ -11,6 +11,7 @@ func init() {
 }
 
 type Factory struct {
+	Config
 }
 
 func (T *Factory) CaddyModule() caddy.ModuleInfo {
@@ -22,9 +23,16 @@ func (T *Factory) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
+func (T *Factory) Provision(ctx caddy.Context) error {
+	T.Logger = ctx.Logger()
+
+	return nil
+}
+
 func (T *Factory) NewPool() pool.Pool {
-	return NewPool()
+	return NewPool(T.Config)
 }
 
 var _ pool.PoolFactory = (*Factory)(nil)
 var _ caddy.Module = (*Factory)(nil)
+var _ caddy.Provisioner = (*Factory)(nil)

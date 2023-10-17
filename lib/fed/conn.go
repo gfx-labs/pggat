@@ -42,21 +42,55 @@ func (T *Conn) Flush() error {
 	return T.encoder.Flush()
 }
 
+func (T *Conn) readPacket(typed bool) (Packet, error) {
+	if err := T.decoder.Next(typed); err != nil {
+		return nil, err
+	}
+	return PendingPacket{
+		Decoder: &T.decoder,
+	}, nil
+}
+
 func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 	if err := T.Flush(); err != nil {
 		return nil, err
 	}
 
 	for {
-		if err := T.decoder.Next(typed); err != nil {
+		// try doing PreRead
+		for i := 0; i < len(T.Middleware); i++ {
+			middleware := T.Middleware[i]
+			for {
+				packet, err := middleware.PreRead(typed)
+				if err != nil {
+					return nil, err
+				}
+
+				if packet == nil {
+					break
+				}
+
+				for j := i; j < len(T.Middleware); j++ {
+					packet, err = T.Middleware[j].ReadPacket(packet)
+					if err != nil {
+						return nil, err
+					}
+					if packet == nil {
+						break
+					}
+				}
+
+				if packet != nil {
+					return packet, nil
+				}
+			}
+		}
+
+		packet, err := T.readPacket(typed)
+		if err != nil {
 			return nil, err
 		}
-		var packet Packet
-		packet = PendingPacket{
-			Decoder: &T.decoder,
-		}
 		for _, middleware := range T.Middleware {
-			var err error
 			packet, err = middleware.ReadPacket(packet)
 			if err != nil {
 				return nil, err
@@ -71,8 +105,19 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 	}
 }
 
+func (T *Conn) writePacket(packet Packet) error {
+	err := T.encoder.Next(packet.Type(), packet.Length())
+	if err != nil {
+		return err
+	}
+
+	return packet.WriteTo(&T.encoder)
+}
+
 func (T *Conn) WritePacket(packet Packet) error {
-	for _, middleware := range T.Middleware {
+	for i := len(T.Middleware) - 1; i >= 0; i-- {
+		middleware := T.Middleware[i]
+
 		var err error
 		packet, err = middleware.WritePacket(packet)
 		if err != nil {
@@ -82,16 +127,46 @@ func (T *Conn) WritePacket(packet Packet) error {
 			break
 		}
 	}
-	if packet == nil {
-		return nil
+	if packet != nil {
+		if err := T.writePacket(packet); err != nil {
+			return err
+		}
 	}
 
-	err := T.encoder.Next(packet.Type(), packet.Length())
-	if err != nil {
-		return err
+	// try doing PostWrite
+	for i := len(T.Middleware) - 1; i >= 0; i-- {
+		middleware := T.Middleware[i]
+
+		for {
+			var err error
+			packet, err = middleware.PostWrite()
+			if err != nil {
+				return err
+			}
+
+			if packet == nil {
+				break
+			}
+
+			for j := i; j >= 0; j-- {
+				packet, err = T.Middleware[j].WritePacket(packet)
+				if err != nil {
+					return err
+				}
+				if packet == nil {
+					break
+				}
+			}
+
+			if packet != nil {
+				if err = T.writePacket(packet); err != nil {
+					return err
+				}
+			}
+		}
 	}
 
-	return packet.WriteTo(&T.encoder)
+	return nil
 }
 
 func (T *Conn) WriteByte(b byte) error {

@@ -13,6 +13,10 @@ var Unterminate = unterm{}
 
 type unterm struct{}
 
+func (unterm) PreRead(_ bool) (fed.Packet, error) {
+	return nil, nil
+}
+
 func (unterm) ReadPacket(packet fed.Packet) (fed.Packet, error) {
 	if packet.Type() == packets.TypeTerminate {
 		return packet, io.EOF
@@ -22,6 +26,10 @@ func (unterm) ReadPacket(packet fed.Packet) (fed.Packet, error) {
 
 func (unterm) WritePacket(packet fed.Packet) (fed.Packet, error) {
 	return packet, nil
+}
+
+func (unterm) PostWrite() (fed.Packet, error) {
+	return nil, nil
 }
 
 var _ fed.Middleware = unterm{}

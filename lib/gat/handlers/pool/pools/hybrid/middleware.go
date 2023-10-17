@@ -7,11 +7,10 @@ import (
 )
 
 type Middleware struct {
-	buf    Buffer
-	bufEnc fed.Encoder
-	bufDec fed.Decoder
-
-	w int
+	primary bool
+	buf     Buffer
+	bufEnc  fed.Encoder
+	bufDec  fed.Decoder
 }
 
 func NewMiddleware() *Middleware {
@@ -21,7 +20,28 @@ func NewMiddleware() *Middleware {
 	return m
 }
 
+func (T *Middleware) PreRead(typed bool) (fed.Packet, error) {
+	if !T.primary {
+		return nil, nil
+	}
+
+	if T.buf.Buffered() == 0 && T.bufDec.Buffered() == 0 {
+		return nil, nil
+	}
+
+	if err := T.bufDec.Next(typed); err != nil {
+		return nil, err
+	}
+	return fed.PendingPacket{
+		Decoder: &T.bufDec,
+	}, nil
+}
+
 func (T *Middleware) ReadPacket(packet fed.Packet) (fed.Packet, error) {
+	if T.primary {
+		return packet, nil
+	}
+
 	if err := T.bufEnc.Next(packet.Type(), packet.Length()); err != nil {
 		return nil, err
 	}
@@ -41,6 +61,10 @@ func (T *Middleware) ReadPacket(packet fed.Packet) (fed.Packet, error) {
 }
 
 func (T *Middleware) WritePacket(packet fed.Packet) (fed.Packet, error) {
+	if T.primary && (T.buf.Buffered() > 0 || T.bufDec.Buffered() > 0) {
+		return nil, nil
+	}
+
 	switch packet.Type() {
 	case packets.TypeErrorResponse:
 		var p packets.ErrorResponse
@@ -57,15 +81,24 @@ func (T *Middleware) WritePacket(packet fed.Packet) (fed.Packet, error) {
 		}
 		return &p, nil
 	}
-	T.w++
 	return packet, nil
 }
 
+func (T *Middleware) PostWrite() (fed.Packet, error) {
+	return nil, nil
+}
+
 func (T *Middleware) Reset() {
+	T.primary = false
 	T.buf.Reset()
 	T.bufEnc.Reset(&T.buf)
 	T.bufDec.Reset(&T.buf)
-	T.w = 0
+}
+
+func (T *Middleware) Primary() {
+	T.primary = true
+	T.buf.ResetRead()
+	T.bufDec.Reset(&T.buf)
 }
 
 var _ fed.Middleware = (*Middleware)(nil)
