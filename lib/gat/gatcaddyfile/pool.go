@@ -47,6 +47,7 @@ func init() {
 			if !d.NextBlock(d.Nesting()) {
 				return nil, d.ArgErr()
 			}
+			module.TrackedParameters = nil
 
 			for {
 				if d.Val() == "}" {
@@ -158,6 +159,78 @@ func init() {
 		return &module, nil
 	})
 	RegisterDirective(Pool, "hybrid", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
-		return &hybrid.Factory{}, nil
+		module := hybrid.Factory{
+			Config: hybrid.Config{
+				ServerIdleTimeout:          caddy.Duration(5 * time.Minute),
+				ServerReconnectInitialTime: caddy.Duration(5 * time.Second),
+				ServerReconnectMaxTime:     caddy.Duration(1 * time.Minute),
+				TrackedParameters: []strutil.CIString{
+					strutil.MakeCIString("client_encoding"),
+					strutil.MakeCIString("datestyle"),
+					strutil.MakeCIString("timezone"),
+					strutil.MakeCIString("standard_conforming_strings"),
+					strutil.MakeCIString("application_name"),
+				},
+			},
+		}
+
+		if d.NextBlock(d.Nesting()) {
+			module.TrackedParameters = nil
+
+			for {
+				if d.Val() == "}" {
+					break
+				}
+
+				directive := d.Val()
+				switch directive {
+				case "idle_timeout":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					val, err := time.ParseDuration(d.Val())
+					if err != nil {
+						return nil, d.WrapErr(err)
+					}
+
+					module.ServerIdleTimeout = caddy.Duration(val)
+				case "reconnect":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					initialTime, err := time.ParseDuration(d.Val())
+					if err != nil {
+						return nil, d.WrapErr(err)
+					}
+
+					maxTime := initialTime
+					if d.NextArg() {
+						maxTime, err = time.ParseDuration(d.Val())
+						if err != nil {
+							return nil, d.WrapErr(err)
+						}
+					}
+
+					module.ServerReconnectInitialTime = caddy.Duration(initialTime)
+					module.ServerReconnectMaxTime = caddy.Duration(maxTime)
+				case "track":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					module.TrackedParameters = append(module.TrackedParameters, strutil.MakeCIString(d.Val()))
+				default:
+					return nil, d.ArgErr()
+				}
+
+				if !d.NextLine() {
+					return nil, d.EOFErr()
+				}
+			}
+		}
+
+		return &module, nil
 	})
 }
