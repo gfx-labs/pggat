@@ -33,8 +33,8 @@ func NewConn(rw net.Conn) *Conn {
 	c := &Conn{
 		NetConn: rw,
 	}
-	c.encoder.Writer.Reset(rw)
-	c.decoder.Reader.Reset(rw)
+	c.encoder.Reset(rw)
+	c.decoder.Reset(rw)
 	return c
 }
 
@@ -116,7 +116,7 @@ func (T *Conn) EnableSSL(config *tls.Config, isClient bool) error {
 	if err := T.Flush(); err != nil {
 		return err
 	}
-	if T.decoder.Reader.Buffered() > 0 {
+	if T.decoder.Buffered() > 0 {
 		return errors.New("expected empty read buffer")
 	}
 
@@ -126,8 +126,8 @@ func (T *Conn) EnableSSL(config *tls.Config, isClient bool) error {
 	} else {
 		sslConn = tls.Server(T.NetConn, config)
 	}
-	T.encoder.Writer.Reset(sslConn)
-	T.decoder.Reader.Reset(sslConn)
+	T.encoder.Reset(sslConn)
+	T.decoder.Reset(sslConn)
 	T.NetConn = sslConn
 	return sslConn.Handshake()
 }

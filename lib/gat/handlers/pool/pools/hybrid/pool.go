@@ -1,6 +1,7 @@
 package hybrid
 
 import (
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -56,7 +57,8 @@ func (T *Pool) RemoveRecipe(name string) {
 }
 
 func (T *Pool) Serve(conn *fed.Conn) error {
-	conn.Middleware = append(conn.Middleware, unterminate.Unterminate, &Middleware{})
+	m := NewMiddleware()
+	conn.Middleware = append(conn.Middleware, unterminate.Unterminate, m)
 
 	id := uuid.New()
 	T.primary.AddClient(id)
@@ -119,8 +121,14 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 			return serverErr
 		}
 		if err != nil {
+			if err == (ErrReadOnly{}) {
+				log.Printf("READ ONLY DETECTED :)")
+				log.Printf("buffered: %v", m.buf.Full())
+			}
 			return err
 		}
+
+		m.Reset()
 	}
 }
 

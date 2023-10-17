@@ -28,7 +28,7 @@ func (T PendingPacket) Length() int {
 func (T PendingPacket) WriteTo(encoder *Encoder) error {
 	count := T.Decoder.Length() - T.Decoder.Position()
 	for T.Decoder.Position() < T.Decoder.Length() {
-		if _, err := encoder.Writer.ReadFrom(T.Decoder); err != nil {
+		if _, err := encoder.ReadFrom(T.Decoder); err != nil {
 			return err
 		}
 	}
