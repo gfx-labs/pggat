@@ -19,14 +19,15 @@ type Conn struct {
 
 	Middleware []Middleware
 
-	SSL   bool
-	Ready bool
+	SSL bool
 
 	User              string
 	Database          string
 	InitialParameters map[strutil.CIString]string
-	Authenticated     bool
 	BackendKey        BackendKey
+
+	Authenticated bool
+	Ready         bool
 }
 
 func NewConn(rw net.Conn) *Conn {

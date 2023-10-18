@@ -14,6 +14,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 type Pool struct {
@@ -110,7 +111,7 @@ func (T *Pool) removeClient(client *Client) {
 	delete(T.clients, client.Conn.BackendKey)
 }
 
-func (T *Pool) Serve(conn *fed.Conn) error {
+func (T *Pool) serveRW(conn *fed.Conn) error {
 	m := NewMiddleware()
 
 	eqpa := eqp.NewClient()
@@ -258,6 +259,106 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 		}
 
 		m.Reset()
+	}
+}
+
+func (T *Pool) serveRO(conn *fed.Conn) error {
+	conn.Middleware = append(
+		conn.Middleware,
+		unterminate.Unterminate,
+		ps.NewClient(conn.InitialParameters),
+		eqp.NewClient(),
+	)
+
+	client := NewClient(conn)
+
+	T.addClient(client)
+	defer T.removeClient(client)
+
+	T.replica.AddClient(client.ID)
+	defer T.replica.RemoveClient(client.ID)
+
+	var err, serverErr error
+
+	var replica *spool.Server
+	defer func() {
+		if replica != nil {
+			if serverErr != nil {
+				T.replica.RemoveServer(replica)
+			} else {
+				T.replica.Release(replica)
+			}
+			replica = nil
+		}
+	}()
+
+	if !conn.Ready {
+		client.SetState(metrics.ConnStateAwaitingServer, nil, true)
+
+		replica = T.replica.Acquire(client.ID)
+		if replica == nil {
+			return pool.ErrClosed
+		}
+
+		err, serverErr = T.Pair(client, replica)
+		if serverErr != nil {
+			return serverErr
+		}
+		if err != nil {
+			return err
+		}
+
+		p := packets.ReadyForQuery('I')
+		if err = conn.WritePacket(&p); err != nil {
+			return err
+		}
+
+		conn.Ready = true
+	}
+
+	for {
+		if replica != nil {
+			T.replica.Release(replica)
+			replica = nil
+		}
+		client.SetState(metrics.ConnStateIdle, nil, true)
+
+		var packet fed.Packet
+		packet, err = conn.ReadPacket(true)
+		if err != nil {
+			return err
+		}
+
+		client.SetState(metrics.ConnStateAwaitingServer, nil, true)
+
+		replica = T.replica.Acquire(client.ID)
+		if replica == nil {
+			return pool.ErrClosed
+		}
+
+		err, serverErr = T.Pair(client, replica)
+
+		if err == nil && serverErr == nil {
+			err, serverErr = bouncers.Bounce(conn, replica.Conn, packet)
+		}
+		if serverErr != nil {
+			return serverErr
+		} else {
+			replica.TransactionComplete()
+			client.TransactionComplete()
+		}
+
+		if err != nil {
+			return err
+		}
+	}
+}
+
+func (T *Pool) Serve(conn *fed.Conn) error {
+	if conn.InitialParameters[strutil.MakeCIString("hybrid.mode")] == "ro" {
+		return T.serveRO(conn)
+	} else {
+		return T.serveRW(conn)
 	}
 }
 
