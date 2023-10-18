@@ -21,3 +21,7 @@ type Pooler interface {
 
 	Close()
 }
+
+type PoolerFactory interface {
+	NewPooler() Pooler
+}

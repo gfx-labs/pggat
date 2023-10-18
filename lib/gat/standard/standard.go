@@ -35,6 +35,10 @@ import (
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/zalando_operator"
 
 	// poolers
-	_ "gfx.cafe/gfx/pggat/lib/gat/poolers/session"
-	_ "gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/lifo"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/rob"
+
+	// pools
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/basic"
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/hybrid"
 )

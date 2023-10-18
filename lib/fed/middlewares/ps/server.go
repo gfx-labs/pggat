@@ -16,6 +16,10 @@ func NewServer(parameters map[strutil.CIString]string) *Server {
 	}
 }
 
+func (T *Server) PreRead(_ bool) (fed.Packet, error) {
+	return nil, nil
+}
+
 func (T *Server) ReadPacket(packet fed.Packet) (fed.Packet, error) {
 	switch packet.Type() {
 	case packets.TypeParameterStatus:
@@ -37,6 +41,10 @@ func (T *Server) ReadPacket(packet fed.Packet) (fed.Packet, error) {
 
 func (T *Server) WritePacket(packet fed.Packet) (fed.Packet, error) {
 	return packet, nil
+}
+
+func (T *Server) PostWrite() (fed.Packet, error) {
+	return nil, nil
 }
 
 var _ fed.Middleware = (*Server)(nil)

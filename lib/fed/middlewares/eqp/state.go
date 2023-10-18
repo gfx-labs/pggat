@@ -204,3 +204,35 @@ func (T *State) ReadyForQuery(packet fed.Packet) (fed.Packet, error) {
 
 	return &p, nil
 }
+
+func (T *State) Set(other *State) {
+	maps.Clear(T.preparedStatements)
+	maps.Clear(T.portals)
+
+	T.pendingPreparedStatements.Clear()
+	T.pendingPortals.Clear()
+	T.pendingCloses.Clear()
+
+	if T.preparedStatements == nil {
+		T.preparedStatements = make(map[string]*packets.Parse)
+	}
+	if T.portals == nil {
+		T.portals = make(map[string]*packets.Bind)
+	}
+
+	for k, v := range other.preparedStatements {
+		T.preparedStatements[k] = v
+	}
+	for k, v := range other.portals {
+		T.portals[k] = v
+	}
+	for i := 0; i < other.pendingPreparedStatements.Length(); i++ {
+		T.pendingPreparedStatements.PushBack(other.pendingPreparedStatements.Get(i))
+	}
+	for i := 0; i < other.pendingPortals.Length(); i++ {
+		T.pendingPortals.PushBack(other.pendingPortals.Get(i))
+	}
+	for i := 0; i < other.pendingCloses.Length(); i++ {
+		T.pendingCloses.PushBack(other.pendingCloses.Get(i))
+	}
+}

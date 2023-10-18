@@ -27,7 +27,7 @@
 
 	pool /bobland localhost:5432 bobland postgres password
 	pool /jeffland {
-		pooler session
+		pool basic session
 
 		address localhost:5432
 		ssl require insecure_skip_verify

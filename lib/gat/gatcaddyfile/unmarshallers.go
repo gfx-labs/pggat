@@ -14,7 +14,8 @@ const (
 	Discoverer = "pggat.handlers.discovery.discoverers"
 	Handler    = "pggat.handlers"
 	Matcher    = "pggat.matchers"
-	Pooler     = "pggat.poolers"
+	Pool       = "pggat.handlers.pool.pools"
+	Pooler     = "pggat.handlers.pool.poolers"
 	SSLServer  = "pggat.ssl.servers"
 	SSLClient  = "pggat.ssl.clients"
 )

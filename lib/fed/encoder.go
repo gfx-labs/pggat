@@ -13,7 +13,7 @@ import (
 type Encoder struct {
 	noCopy decorator.NoCopy
 
-	Writer bufio.Writer
+	writer bufio.Writer
 
 	typ Type
 	len int
@@ -23,8 +23,8 @@ type Encoder struct {
 }
 
 func NewEncoder(w io.Writer) *Encoder {
-	e := &Encoder{}
-	e.Writer.Reset(w)
+	e := new(Encoder)
+	e.Reset(w)
 	return e
 }
 
@@ -32,8 +32,16 @@ var (
 	ErrWrongNumberOfBytes = errors.New("wrong number of bytes written")
 )
 
+func (T *Encoder) Reset(w io.Writer) {
+	T.writer.Reset(w)
+}
+
+func (T *Encoder) ReadFrom(r io.Reader) (int64, error) {
+	return T.writer.ReadFrom(r)
+}
+
 func (T *Encoder) Flush() error {
-	return T.Writer.Flush()
+	return T.writer.Flush()
 }
 
 func (T *Encoder) WriteByte(b byte) error {
@@ -44,7 +52,7 @@ func (T *Encoder) WriteByte(b byte) error {
 	T.typ = 0
 	T.len = 0
 	T.pos = 0
-	return T.Writer.WriteByte(b)
+	return T.writer.WriteByte(b)
 }
 
 func (T *Encoder) Next(typ Type, length int) error {
@@ -53,13 +61,13 @@ func (T *Encoder) Next(typ Type, length int) error {
 	}
 
 	if typ != 0 {
-		if err := T.Writer.WriteByte(byte(typ)); err != nil {
+		if err := T.writer.WriteByte(byte(typ)); err != nil {
 			return err
 		}
 	}
 
 	binary.BigEndian.PutUint32(T.buf[:4], uint32(length+4))
-	_, err := T.Writer.Write(T.buf[:4])
+	_, err := T.writer.Write(T.buf[:4])
 
 	T.typ = typ
 	T.len = length
@@ -81,28 +89,28 @@ func (T *Encoder) Position() int {
 }
 
 func (T *Encoder) Uint8(v uint8) error {
-	err := T.Writer.WriteByte(v)
+	err := T.writer.WriteByte(v)
 	T.pos += 1
 	return err
 }
 
 func (T *Encoder) Uint16(v uint16) error {
 	binary.BigEndian.PutUint16(T.buf[:2], v)
-	_, err := T.Writer.Write(T.buf[:2])
+	_, err := T.writer.Write(T.buf[:2])
 	T.pos += 2
 	return err
 }
 
 func (T *Encoder) Uint32(v uint32) error {
 	binary.BigEndian.PutUint32(T.buf[:4], v)
-	_, err := T.Writer.Write(T.buf[:4])
+	_, err := T.writer.Write(T.buf[:4])
 	T.pos += 4
 	return err
 }
 
 func (T *Encoder) Uint64(v uint64) error {
 	binary.BigEndian.PutUint64(T.buf[:8], v)
-	_, err := T.Writer.Write(T.buf[:8])
+	_, err := T.writer.Write(T.buf[:8])
 	T.pos += 8
 	return err
 }
@@ -132,11 +140,11 @@ func (T *Encoder) Float64(v float64) error {
 }
 
 func (T *Encoder) String(v string) error {
-	n, err := T.Writer.WriteString(v)
+	n, err := T.writer.WriteString(v)
 	if err != nil {
 		return err
 	}
-	err = T.Writer.WriteByte(0)
+	err = T.writer.WriteByte(0)
 	T.pos += n + 1
 	return err
 }

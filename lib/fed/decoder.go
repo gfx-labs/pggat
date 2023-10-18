@@ -13,7 +13,7 @@ import (
 type Decoder struct {
 	noCopy decorator.NoCopy
 
-	Reader bufio.Reader
+	reader bufio.Reader
 
 	typ Type
 	len int
@@ -23,9 +23,13 @@ type Decoder struct {
 }
 
 func NewDecoder(r io.Reader) *Decoder {
-	d := &Decoder{}
-	d.Reader.Reset(r)
+	d := new(Decoder)
+	d.Reset(r)
 	return d
+}
+
+func (T *Decoder) Reset(r io.Reader) {
+	T.reader.Reset(r)
 }
 
 func (T *Decoder) Read(b []byte) (n int, err error) {
@@ -35,12 +39,16 @@ func (T *Decoder) Read(b []byte) (n int, err error) {
 		return
 	}
 	if len(b) > rem {
-		n, err = T.Reader.Read(b[:rem])
+		n, err = T.reader.Read(b[:rem])
 	} else {
-		n, err = T.Reader.Read(b)
+		n, err = T.reader.Read(b)
 	}
 	T.pos += n
 	return
+}
+
+func (T *Decoder) Buffered() int {
+	return T.reader.Buffered()
 }
 
 var ErrOverranReadBuffer = errors.New("overran read buffer")
@@ -50,7 +58,7 @@ func (T *Decoder) ReadByte() (byte, error) {
 	if rem < 0 {
 		return 0, ErrOverranReadBuffer
 	} else if rem > 0 {
-		_, err := T.Reader.Discard(rem)
+		_, err := T.reader.Discard(rem)
 		if err != nil {
 			return 0, err
 		}
@@ -59,7 +67,7 @@ func (T *Decoder) ReadByte() (byte, error) {
 	T.typ = 0
 	T.len = 0
 	T.pos = 0
-	return T.Reader.ReadByte()
+	return T.reader.ReadByte()
 }
 
 func (T *Decoder) Next(typed bool) error {
@@ -67,7 +75,7 @@ func (T *Decoder) Next(typed bool) error {
 	if rem < 0 {
 		return ErrOverranReadBuffer
 	} else if rem > 0 {
-		_, err := T.Reader.Discard(rem)
+		_, err := T.reader.Discard(rem)
 		if err != nil {
 			return err
 		}
@@ -75,10 +83,10 @@ func (T *Decoder) Next(typed bool) error {
 
 	var err error
 	if typed {
-		_, err = io.ReadFull(&T.Reader, T.buf[:5])
+		_, err = io.ReadFull(&T.reader, T.buf[:5])
 	} else {
 		T.buf[0] = 0
-		_, err = io.ReadFull(&T.Reader, T.buf[1:5])
+		_, err = io.ReadFull(&T.reader, T.buf[1:5])
 	}
 	if err != nil {
 		return err
@@ -102,25 +110,25 @@ func (T *Decoder) Position() int {
 }
 
 func (T *Decoder) Uint8() (uint8, error) {
-	v, err := T.Reader.ReadByte()
+	v, err := T.reader.ReadByte()
 	T.pos += 1
 	return v, err
 }
 
 func (T *Decoder) Uint16() (uint16, error) {
-	_, err := io.ReadFull(&T.Reader, T.buf[:2])
+	_, err := io.ReadFull(&T.reader, T.buf[:2])
 	T.pos += 2
 	return binary.BigEndian.Uint16(T.buf[:2]), err
 }
 
 func (T *Decoder) Uint32() (uint32, error) {
-	_, err := io.ReadFull(&T.Reader, T.buf[:4])
+	_, err := io.ReadFull(&T.reader, T.buf[:4])
 	T.pos += 4
 	return binary.BigEndian.Uint32(T.buf[:4]), err
 }
 
 func (T *Decoder) Uint64() (uint64, error) {
-	_, err := io.ReadFull(&T.Reader, T.buf[:8])
+	_, err := io.ReadFull(&T.reader, T.buf[:8])
 	T.pos += 8
 	return binary.BigEndian.Uint64(T.buf[:8]), err
 }
@@ -156,7 +164,7 @@ func (T *Decoder) Float64() (float64, error) {
 }
 
 func (T *Decoder) String() (string, error) {
-	s, err := T.Reader.ReadString(0)
+	s, err := T.reader.ReadString(0)
 	if err != nil {
 		return "", err
 	}

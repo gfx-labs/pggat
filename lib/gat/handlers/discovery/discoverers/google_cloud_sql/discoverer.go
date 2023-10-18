@@ -5,7 +5,7 @@ import (
 	"net"
 	"strings"
 
-	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/util/flip"
 
 	"github.com/caddyserver/caddy/v2"
@@ -64,12 +64,9 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 	}
 
 	c := discovery.Cluster{
-		ID: primary.Name,
-		Primary: discovery.Endpoint{
-			Network: "tcp",
-			Address: primaryAddress,
-		},
-		Replicas: make(map[string]discovery.Endpoint, len(replicas)),
+		ID:       primary.Name,
+		Primary:  primaryAddress,
+		Replicas: make(map[string]string, len(replicas)),
 	}
 
 	for _, replica := range replicas {
@@ -80,10 +77,7 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 			}
 			replicaAddress = net.JoinHostPort(ip.IpAddress, "5432")
 		}
-		c.Replicas[replica.Name] = discovery.Endpoint{
-			Network: "tcp",
-			Address: replicaAddress,
-		}
+		c.Replicas[replica.Name] = replicaAddress
 	}
 
 	databases, err := T.google.Databases.List(T.Project, primary.Name).Do()
@@ -118,8 +112,7 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 		} else {
 			// dial admin connection
 			if admin == nil {
-				admin, err = recipe.Dialer{
-					Network: "tcp",
+				d := pool.Dialer{
 					Address: primaryAddress,
 					SSLMode: bouncer.SSLModePrefer,
 					SSLConfig: &tls.Config{
@@ -128,7 +121,8 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 					Username:    T.AuthUser,
 					Credentials: credentials.FromString(T.AuthUser, T.AuthPassword),
 					Database:    c.Databases[0],
-				}.Dial()
+				}
+				admin, err = d.Dial()
 				if err != nil {
 					return discovery.Cluster{}, err
 				}

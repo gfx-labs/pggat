@@ -17,7 +17,7 @@ func init() {
 }
 
 type Module struct {
-	Parameters []strutil.CIString `json:"parameters"`
+	Parameters []strutil.CIString `json:"parameters,omitempty"`
 }
 
 func (T *Module) CaddyModule() caddy.ModuleInfo {

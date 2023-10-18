@@ -5,13 +5,13 @@ import (
 	"strings"
 	"time"
 
-	error_handler "gfx.cafe/gfx/pggat/lib/gat/handlers/error"
-	"gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer_spilo"
-	pool_handler "gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
-
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
+
+	error_handler "gfx.cafe/gfx/pggat/lib/gat/handlers/error"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pgbouncer_spilo"
+	pool_handler "gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 
 	"gfx.cafe/gfx/pggat/lib/bouncer"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/allowed_startup_parameters"
@@ -22,9 +22,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_parameter"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_password"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_user"
-	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
 	"gfx.cafe/gfx/pggat/lib/gat/ssl/clients/insecure_skip_verify"
-	"gfx.cafe/gfx/pggat/lib/util/dur"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -132,13 +130,11 @@ func init() {
 	RegisterDirective(Handler, "discovery", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
 		module := discovery.Module{
 			Config: discovery.Config{
-				ReconcilePeriod: dur.Duration(5 * time.Minute),
-				Pooler: JSONModuleObject(
-					&transaction.Module{
-						ManagementConfig: defaultPoolManagementConfig,
-					},
-					Pooler,
-					"pooler",
+				ReconcilePeriod: caddy.Duration(5 * time.Minute),
+				Pool: JSONModuleObject(
+					defaultPool,
+					Pool,
+					"pool",
 					warnings,
 				),
 				ServerSSLMode: bouncer.SSLModePrefer,
@@ -185,7 +181,7 @@ func init() {
 					if err != nil {
 						return nil, d.WrapErr(err)
 					}
-					module.ReconcilePeriod = dur.Duration(val)
+					module.ReconcilePeriod = caddy.Duration(val)
 				case "discoverer":
 					if !d.NextArg() {
 						return nil, d.ArgErr()
@@ -201,16 +197,16 @@ func init() {
 					if err != nil {
 						return nil, err
 					}
-				case "pooler":
+				case "pool":
 					if !d.NextArg() {
 						return nil, d.ArgErr()
 					}
 
 					var err error
-					module.Pooler, err = UnmarshalDirectiveJSONModuleObject(
+					module.Pool, err = UnmarshalDirectiveJSONModuleObject(
 						d,
-						Pooler,
-						"pooler",
+						Pool,
+						"pool",
 						warnings,
 					)
 					if err != nil {
@@ -380,43 +376,42 @@ func init() {
 	})
 	RegisterDirective(Handler, "pool", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
 		module := pool_handler.Module{
-			Config: pool_handler.Config{
-				Pooler: JSONModuleObject(
-					&transaction.Module{
-						ManagementConfig: defaultPoolManagementConfig,
-					},
-					Pooler,
-					"pooler",
-					warnings,
-				),
-
-				ServerSSLMode: bouncer.SSLModePrefer,
-				ServerSSL: JSONModuleObject(
-					&insecure_skip_verify.Client{},
-					SSLClient,
-					"provider",
-					warnings,
-				),
+			Pool: JSONModuleObject(
+				defaultPool,
+				Pool,
+				"pool",
+				warnings,
+			),
+			Recipe: pool_handler.Recipe{
+				Dialer: pool_handler.Dialer{
+					SSLMode: bouncer.SSLModePrefer,
+					RawSSL: JSONModuleObject(
+						&insecure_skip_verify.Client{},
+						SSLClient,
+						"provider",
+						warnings,
+					),
+				},
 			},
 		}
 
 		if d.NextArg() {
-			module.ServerAddress = d.Val()
+			module.Recipe.Dialer.Address = d.Val()
 
 			if !d.NextArg() {
 				return nil, d.ArgErr()
 			}
-			module.ServerDatabase = d.Val()
+			module.Recipe.Dialer.Database = d.Val()
 
 			if !d.NextArg() {
 				return nil, d.ArgErr()
 			}
-			module.ServerUsername = d.Val()
+			module.Recipe.Dialer.Username = d.Val()
 
 			if !d.NextArg() {
 				return nil, d.ArgErr()
 			}
-			module.ServerPassword = d.Val()
+			module.Recipe.Dialer.RawPassword = d.Val()
 		} else {
 			if !d.NextBlock(d.Nesting()) {
 				return nil, d.ArgErr()
@@ -429,16 +424,16 @@ func init() {
 
 				directive := d.Val()
 				switch directive {
-				case "pooler":
+				case "pool":
 					if !d.NextArg() {
 						return nil, d.ArgErr()
 					}
 
 					var err error
-					module.Pooler, err = UnmarshalDirectiveJSONModuleObject(
+					module.Pool, err = UnmarshalDirectiveJSONModuleObject(
 						d,
-						Pooler,
-						"pooler",
+						Pool,
+						"pool",
 						warnings,
 					)
 					if err != nil {
@@ -449,20 +444,20 @@ func init() {
 						return nil, d.ArgErr()
 					}
 
-					module.ServerAddress = d.Val()
+					module.Recipe.Dialer.Address = d.Val()
 				case "ssl":
 					if !d.NextArg() {
 						return nil, d.ArgErr()
 					}
 
-					module.ServerSSLMode = bouncer.SSLMode(d.Val())
+					module.Recipe.Dialer.SSLMode = bouncer.SSLMode(d.Val())
 
 					if !d.NextArg() {
 						return nil, d.ArgErr()
 					}
 
 					var err error
-					module.ServerSSL, err = UnmarshalDirectiveJSONModuleObject(
+					module.Recipe.Dialer.RawSSL, err = UnmarshalDirectiveJSONModuleObject(
 						d,
 						SSLClient,
 						"provider",
@@ -476,19 +471,19 @@ func init() {
 						return nil, d.ArgErr()
 					}
 
-					module.ServerUsername = d.Val()
+					module.Recipe.Dialer.Username = d.Val()
 				case "password":
 					if !d.NextArg() {
 						return nil, d.ArgErr()
 					}
 
-					module.ServerPassword = d.Val()
+					module.Recipe.Dialer.RawPassword = d.Val()
 				case "database":
 					if !d.NextArg() {
 						return nil, d.ArgErr()
 					}
 
-					module.ServerDatabase = d.Val()
+					module.Recipe.Dialer.Database = d.Val()
 				case "parameter":
 					if !d.NextArg() {
 						return nil, d.ArgErr()
@@ -499,10 +494,10 @@ func init() {
 					if !ok {
 						return nil, d.SyntaxErr("key=value")
 					}
-					if module.ServerStartupParameters == nil {
-						module.ServerStartupParameters = make(map[string]string)
+					if module.Recipe.Dialer.RawParameters == nil {
+						module.Recipe.Dialer.RawParameters = make(map[string]string)
 					}
-					module.ServerStartupParameters[key] = value
+					module.Recipe.Dialer.RawParameters[key] = value
 				default:
 					return nil, d.ArgErr()
 				}

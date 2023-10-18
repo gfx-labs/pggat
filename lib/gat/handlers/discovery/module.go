@@ -14,9 +14,8 @@ import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
-	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
 	"gfx.cafe/gfx/pggat/lib/util/maps"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
@@ -26,12 +25,18 @@ func init() {
 	caddy.RegisterModule((*Module)(nil))
 }
 
+type poolAndCredentials struct {
+	pool  pool.Pool
+	creds auth.Credentials
+}
+
 type Module struct {
 	Config
 
 	discoverer Discoverer
 
-	pooler    gat.Pooler
+	poolFactory pool.PoolFactory
+
 	sslConfig *tls.Config
 
 	serverStartupParameters map[strutil.CIString]string
@@ -40,9 +45,10 @@ type Module struct {
 
 	// this is fine to have no locking because it is only accessed by discoverLoop
 	clusters map[string]Cluster
+	creds    map[User]auth.Credentials
 
-	pools maps.TwoKey[string, string, pool.WithCredentials]
-	mu    sync.RWMutex
+	pools   maps.TwoKey[string, string, poolAndCredentials]
+	poolsMu sync.RWMutex
 
 	log *zap.Logger
 }
@@ -66,12 +72,12 @@ func (T *Module) Provision(ctx caddy.Context) error {
 		}
 		T.discoverer = val.(Discoverer)
 	}
-	if T.Pooler != nil {
-		val, err := ctx.LoadModule(T, "Pooler")
+	if T.Pool != nil {
+		val, err := ctx.LoadModule(T, "Pool")
 		if err != nil {
 			return fmt.Errorf("loading pooler module: %v", err)
 		}
-		T.pooler = val.(gat.Pooler)
+		T.poolFactory = val.(pool.PoolFactory)
 	}
 	if T.ServerSSL != nil {
 		val, err := ctx.LoadModule(T, "ServerSSL")
@@ -106,24 +112,14 @@ func (T *Module) Cleanup() error {
 	close(T.closed)
 	T.closed = nil
 
-	T.mu.Lock()
-	defer T.mu.Unlock()
-	T.pools.Range(func(user string, database string, p pool.WithCredentials) bool {
-		p.Close()
+	T.poolsMu.Lock()
+	defer T.poolsMu.Unlock()
+	T.pools.Range(func(user string, database string, p poolAndCredentials) bool {
+		p.pool.Close()
 		T.pools.Delete(user, database)
 		return true
 	})
 	return nil
-}
-
-func (T *Module) replicaUsername(username string) string {
-	return username + "_ro"
-}
-
-func (T *Module) creds(user User) (primary, replica auth.Credentials) {
-	primary = credentials.FromString(user.Username, user.Password)
-	replica = credentials.FromString(T.replicaUsername(user.Username), user.Password)
-	return
 }
 
 func (T *Module) added(cluster Cluster) {
@@ -151,7 +147,7 @@ func (T *Module) updated(prev, next Cluster) {
 
 	// replica endpoints
 	if len(prev.Replicas) != 0 && len(next.Replicas) == 0 {
-		T.removeReplicas(prev.Users, prev.Databases)
+		T.removeReplicas(prev.Replicas, prev.Users, prev.Databases)
 	} else if len(prev.Replicas) == 0 && len(next.Replicas) != 0 {
 		T.addReplicas(next.Replicas, prev.Users, prev.Databases)
 	} else {
@@ -219,225 +215,201 @@ outer:
 	}
 }
 
-func (T *Module) replacePrimary(users []User, databases []string, endpoint Endpoint) {
+func (T *Module) addPrimaryEndpoint(user User, database string, endpoint string) {
+	p := T.getOrAddPool(user, database)
+
+	d := pool.Recipe{
+		Dialer: pool.Dialer{
+			Address:     endpoint,
+			Username:    user.Username,
+			Credentials: p.creds,
+			Database:    database,
+			SSLMode:     T.ServerSSLMode,
+			SSLConfig:   T.sslConfig,
+			Parameters:  T.serverStartupParameters,
+		},
+	}
+	p.pool.AddRecipe("primary", &d)
+}
+
+func (T *Module) removePrimaryEndpoint(username, database string) {
+	T.removePool(username, database)
+}
+
+func (T *Module) addReplicaEndpoints(user User, database string, endpoints map[string]string) {
+	p := T.getOrAddPool(user, database)
+
+	if rp, ok := p.pool.(pool.ReplicaPool); ok {
+		for id, endpoint := range endpoints {
+			d := pool.Recipe{
+				Dialer: pool.Dialer{
+					Address:     endpoint,
+					Username:    user.Username,
+					Credentials: p.creds,
+					Database:    database,
+					SSLMode:     T.ServerSSLMode,
+					SSLConfig:   T.sslConfig,
+					Parameters:  T.serverStartupParameters,
+				},
+			}
+			rp.AddReplicaRecipe(id, &d)
+		}
+		return
+	}
+
+	rp := T.getOrAddReplicaPool(user, database)
+	for id, endpoint := range endpoints {
+		d := pool.Recipe{
+			Dialer: pool.Dialer{
+				Address:     endpoint,
+				Username:    user.Username,
+				Credentials: p.creds,
+				Database:    database,
+				SSLMode:     T.ServerSSLMode,
+				SSLConfig:   T.sslConfig,
+				Parameters:  T.serverStartupParameters,
+			},
+		}
+		rp.pool.AddRecipe(id, &d)
+	}
+}
+
+func (T *Module) removeReplicaEndpoints(username string, database string, replicas map[string]string) {
+	p, ok := T.getPool(username, database)
+	if !ok {
+		return
+	}
+
+	// remove endpoints from replica pool
+	if rp, ok := p.pool.(pool.ReplicaPool); ok {
+		for key := range replicas {
+			rp.RemoveReplicaRecipe(key)
+		}
+		return
+	}
+
+	// remove replica pool
+	T.removeReplicaPool(username, database)
+}
+
+func (T *Module) addReplicaEndpoint(user User, database string, id, endpoint string) {
+	p := T.getOrAddPool(user, database)
+
+	d := pool.Recipe{
+		Dialer: pool.Dialer{
+			Address:     endpoint,
+			Username:    user.Username,
+			Credentials: p.creds,
+			Database:    database,
+			SSLMode:     T.ServerSSLMode,
+			SSLConfig:   T.sslConfig,
+			Parameters:  T.serverStartupParameters,
+		},
+	}
+
+	if rp, ok := p.pool.(pool.ReplicaPool); ok {
+		rp.AddReplicaRecipe(id, &d)
+		return
+	}
+
+	rp := T.getOrAddReplicaPool(user, database)
+	rp.pool.AddRecipe(id, &d)
+}
+
+func (T *Module) removeReplicaEndpoint(username string, database string, id string) {
+	p, ok := T.getPool(username, database)
+	if !ok {
+		return
+	}
+
+	// remove endpoints from replica pool
+	if rp, ok := p.pool.(pool.ReplicaPool); ok {
+		rp.RemoveReplicaRecipe(id)
+		return
+	}
+
+	// remove replica pool
+	rp, ok := T.getReplicaPool(username, database)
+	if !ok {
+		return
+	}
+	rp.pool.RemoveRecipe(id)
+}
+
+// replacePrimary replaces the primary endpoint.
+func (T *Module) replacePrimary(users []User, databases []string, endpoint string) {
 	for _, user := range users {
-		primaryCreds, _ := T.creds(user)
 		for _, database := range databases {
-			primary := recipe.Dialer{
-				Network:           endpoint.Network,
-				Address:           endpoint.Address,
-				Username:          user.Username,
-				Credentials:       primaryCreds,
-				Database:          database,
-				SSLMode:           T.ServerSSLMode,
-				SSLConfig:         T.sslConfig,
-				StartupParameters: T.serverStartupParameters,
-			}
-
-			p, ok := T.lookup(user.Username, database)
-			if !ok {
-				continue
-			}
-
-			p.RemoveRecipe("primary")
-			p.AddRecipe("primary", recipe.NewRecipe(recipe.Config{
-				Dialer: primary,
-			}))
+			T.addPrimaryEndpoint(user, database, endpoint)
 		}
 	}
 }
 
-func (T *Module) addReplicas(replicas map[string]Endpoint, users []User, databases []string) {
+// addReplicas adds multiple replicas. Other replicas must not exist.
+func (T *Module) addReplicas(replicas map[string]string, users []User, databases []string) {
 	for _, user := range users {
-		replicaUsername := T.replicaUsername(user.Username)
-		primaryCreds, replicaCreds := T.creds(user)
 		for _, database := range databases {
-			replicaPool := pool.WithCredentials{
-				Pool:        T.pooler.NewPool(),
-				Credentials: replicaCreds,
-			}
-
-			for id, r := range replicas {
-				replica := recipe.Dialer{
-					Network:           r.Network,
-					Address:           r.Address,
-					Username:          user.Username,
-					Credentials:       primaryCreds,
-					Database:          database,
-					SSLMode:           T.ServerSSLMode,
-					SSLConfig:         T.sslConfig,
-					StartupParameters: T.serverStartupParameters,
-				}
-				replicaPool.AddRecipe(id, recipe.NewRecipe(recipe.Config{
-					Dialer: replica,
-				}))
-			}
-
-			T.addPool(replicaUsername, database, replicaPool)
+			T.addReplicaEndpoints(user, database, replicas)
 		}
 	}
 }
 
-func (T *Module) removeReplicas(users []User, databases []string) {
+// removeReplicas removes all replicas.
+func (T *Module) removeReplicas(replicas map[string]string, users []User, databases []string) {
 	for _, user := range users {
-		username := T.replicaUsername(user.Username)
 		for _, database := range databases {
-			T.removePool(username, database)
+			T.removeReplicaEndpoints(user.Username, database, replicas)
 		}
 	}
 }
 
-func (T *Module) addReplica(users []User, databases []string, id string, endpoint Endpoint) {
+// addReplica adds a single replica.
+func (T *Module) addReplica(users []User, databases []string, id string, endpoint string) {
 	for _, user := range users {
-		replicaUsername := T.replicaUsername(user.Username)
-		primaryCreds, _ := T.creds(user)
 		for _, database := range databases {
-			p, ok := T.lookup(replicaUsername, database)
-			if !ok {
-				continue
-			}
-
-			replica := recipe.Dialer{
-				Network:           endpoint.Network,
-				Address:           endpoint.Address,
-				Username:          user.Username,
-				Credentials:       primaryCreds,
-				Database:          database,
-				SSLMode:           T.ServerSSLMode,
-				SSLConfig:         T.sslConfig,
-				StartupParameters: T.serverStartupParameters,
-			}
-			p.AddRecipe(id, recipe.NewRecipe(recipe.Config{
-				Dialer: replica,
-			}))
+			T.addReplicaEndpoint(user, database, id, endpoint)
 		}
 	}
 }
 
+// removeReplica removes a single replica.
 func (T *Module) removeReplica(users []User, databases []string, id string) {
 	for _, user := range users {
-		username := T.replicaUsername(user.Username)
 		for _, database := range databases {
-			p, ok := T.lookup(username, database)
-			if !ok {
-				continue
-			}
-			p.RemoveRecipe(id)
+			T.removeReplicaEndpoint(user.Username, database, id)
 		}
 	}
 }
 
-func (T *Module) addUser(primaryEndpoint Endpoint, replicas map[string]Endpoint, databases []string, user User) {
-	replicaUsername := T.replicaUsername(user.Username)
-	primaryCreds, replicaCreds := T.creds(user)
+// addUser adds a new user.
+func (T *Module) addUser(primaryEndpoint string, replicas map[string]string, databases []string, user User) {
 	for _, database := range databases {
-		base := recipe.Dialer{
-			Username:          user.Username,
-			Credentials:       primaryCreds,
-			Database:          database,
-			SSLMode:           T.ServerSSLMode,
-			SSLConfig:         T.sslConfig,
-			StartupParameters: T.serverStartupParameters,
-		}
-
-		primary := base
-		primary.Network = primaryEndpoint.Network
-		primary.Address = primaryEndpoint.Address
-
-		primaryPool := pool.WithCredentials{
-			Pool:        T.pooler.NewPool(),
-			Credentials: primaryCreds,
-		}
-		primaryPool.AddRecipe("primary", recipe.NewRecipe(recipe.Config{
-			Dialer: primary,
-		}))
-		T.addPool(user.Username, database, primaryPool)
-
-		if len(replicas) > 0 {
-			replicaPool := pool.WithCredentials{
-				Pool:        T.pooler.NewPool(),
-				Credentials: replicaCreds,
-			}
-
-			for id, r := range replicas {
-				replica := base
-				replica.Network = r.Network
-				replica.Address = r.Address
-				replicaPool.AddRecipe(id, recipe.NewRecipe(recipe.Config{
-					Dialer: replica,
-				}))
-			}
-
-			T.addPool(replicaUsername, database, replicaPool)
-		}
+		T.addPrimaryEndpoint(user, database, primaryEndpoint)
+		T.addReplicaEndpoints(user, database, replicas)
 	}
 }
 
-func (T *Module) removeUser(replicas map[string]Endpoint, databases []string, username string) {
+// removeUser removes a user.
+func (T *Module) removeUser(replicas map[string]string, databases []string, username string) {
 	for _, database := range databases {
-		T.removePool(username, database)
-	}
-	if len(replicas) > 0 {
-		user := T.replicaUsername(username)
-		for _, database := range databases {
-			T.removePool(user, database)
-		}
+		T.removeReplicaEndpoints(username, database, replicas)
+		T.removePrimaryEndpoint(username, database)
 	}
 }
 
-func (T *Module) addDatabase(primaryEndpoint Endpoint, replicas map[string]Endpoint, users []User, database string) {
+// addDatabase adds a new database.
+func (T *Module) addDatabase(primaryEndpoint string, replicas map[string]string, users []User, database string) {
 	for _, user := range users {
-		replicaUsername := T.replicaUsername(user.Username)
-		primaryCreds, replicaCreds := T.creds(user)
-
-		base := recipe.Dialer{
-			Username:          user.Username,
-			Credentials:       primaryCreds,
-			Database:          database,
-			SSLMode:           T.ServerSSLMode,
-			SSLConfig:         T.sslConfig,
-			StartupParameters: T.serverStartupParameters,
-		}
-
-		primary := base
-		primary.Network = primaryEndpoint.Network
-		primary.Address = primaryEndpoint.Address
-
-		primaryPool := pool.WithCredentials{
-			Pool:        T.pooler.NewPool(),
-			Credentials: primaryCreds,
-		}
-		primaryPool.AddRecipe("primary", recipe.NewRecipe(recipe.Config{
-			Dialer: primary,
-		}))
-		T.addPool(user.Username, database, primaryPool)
-
-		if len(replicas) > 0 {
-			replicaPool := pool.WithCredentials{
-				Pool:        T.pooler.NewPool(),
-				Credentials: replicaCreds,
-			}
-
-			for id, r := range replicas {
-				replica := base
-				replica.Network = r.Network
-				replica.Address = r.Address
-				replicaPool.AddRecipe(id, recipe.NewRecipe(recipe.Config{
-					Dialer: replica,
-				}))
-			}
-
-			T.addPool(replicaUsername, database, replicaPool)
-		}
+		T.addPrimaryEndpoint(user, database, primaryEndpoint)
+		T.addReplicaEndpoints(user, database, replicas)
 	}
 }
 
-func (T *Module) removeDatabase(replicas map[string]Endpoint, users []User, database string) {
+// removeDatabase removes a single database.
+func (T *Module) removeDatabase(replicas map[string]string, users []User, database string) {
 	for _, user := range users {
-		T.removePool(user.Username, database)
-		if len(replicas) > 0 {
-			T.removePool(T.replicaUsername(user.Username), database)
-		}
+		T.removeReplicaEndpoints(user.Username, database, replicas)
+		T.removePrimaryEndpoint(user.Username, database)
 	}
 }
 
@@ -485,7 +457,7 @@ outer:
 func (T *Module) discoverLoop() {
 	var reconcile <-chan time.Time
 	if T.ReconcilePeriod != 0 {
-		r := time.NewTicker(T.ReconcilePeriod.Duration())
+		r := time.NewTicker(time.Duration(T.ReconcilePeriod))
 		defer r.Stop()
 
 		reconcile = r.C
@@ -505,62 +477,103 @@ func (T *Module) discoverLoop() {
 	}
 }
 
-func (T *Module) addPool(user, database string, p pool.WithCredentials) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-	T.log.Info("added pool", zap.String("user", user), zap.String("database", database))
-	if old, ok := T.pools.Load(user, database); ok {
-		// shouldn't normally get here
-		old.Close()
+func (T *Module) toReplicaUsername(username string) string {
+	return username + "_ro"
+}
+
+func (T *Module) toReplicaUser(user User) User {
+	return User{
+		Username: T.toReplicaUsername(user.Username),
+		Password: user.Password,
 	}
-	T.pools.Store(user, database, p)
+}
+
+func (T *Module) getCreds(user User) auth.Credentials {
+	if creds, ok := T.creds[user]; ok {
+		return creds
+	}
+	if T.creds == nil {
+		T.creds = make(map[User]auth.Credentials)
+	}
+	creds := credentials.FromString(user.Username, user.Password)
+	T.creds[user] = creds
+	return creds
+}
+
+func (T *Module) getOrAddPool(user User, database string) poolAndCredentials {
+	T.poolsMu.Lock()
+	defer T.poolsMu.Unlock()
+	if old, ok := T.pools.Load(user.Username, database); ok {
+		return old
+	}
+
+	creds := T.getCreds(user)
+	p := poolAndCredentials{
+		pool:  T.poolFactory.NewPool(),
+		creds: creds,
+	}
+	T.pools.Store(user.Username, database, p)
+	T.log.Info("added pool", zap.String("user", user.Username), zap.String("database", database))
+	return p
+}
+
+func (T *Module) getOrAddReplicaPool(user User, database string) poolAndCredentials {
+	return T.getOrAddPool(T.toReplicaUser(user), database)
+}
+
+func (T *Module) getPool(user, database string) (poolAndCredentials, bool) {
+	T.poolsMu.RLock()
+	defer T.poolsMu.RUnlock()
+	return T.pools.Load(user, database)
+}
+
+func (T *Module) getReplicaPool(user, database string) (poolAndCredentials, bool) {
+	return T.getPool(T.toReplicaUsername(user), database)
 }
 
 func (T *Module) removePool(user, database string) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
+	T.poolsMu.Lock()
+	defer T.poolsMu.Unlock()
 	p, ok := T.pools.Load(user, database)
 	if !ok {
 		return
 	}
-	p.Close()
+	p.pool.Close()
 	T.log.Info("removed pool", zap.String("user", user), zap.String("database", database))
 	T.pools.Delete(user, database)
 }
 
+func (T *Module) removeReplicaPool(user, database string) {
+	T.removePool(T.toReplicaUsername(user), database)
+}
+
 func (T *Module) ReadMetrics(metrics *metrics.Handler) {
-	T.mu.RLock()
-	defer T.mu.RUnlock()
-	T.pools.Range(func(_ string, _ string, p pool.WithCredentials) bool {
-		p.ReadMetrics(&metrics.Pool)
+	T.poolsMu.RLock()
+	defer T.poolsMu.RUnlock()
+	T.pools.Range(func(_ string, _ string, p poolAndCredentials) bool {
+		p.pool.ReadMetrics(&metrics.Pool)
 		return true
 	})
 }
 
-func (T *Module) lookup(user, database string) (pool.WithCredentials, bool) {
-	T.mu.RLock()
-	defer T.mu.RUnlock()
-	return T.pools.Load(user, database)
-}
-
 func (T *Module) Handle(conn *fed.Conn) error {
-	p, ok := T.lookup(conn.User, conn.Database)
+	p, ok := T.getPool(conn.User, conn.Database)
 	if !ok {
 		return nil
 	}
 
-	if err := frontends.Authenticate(conn, p.Credentials); err != nil {
+	if err := frontends.Authenticate(conn, p.creds); err != nil {
 		return err
 	}
 
-	return p.Serve(conn)
+	return p.pool.Serve(conn)
 }
 
 func (T *Module) Cancel(key fed.BackendKey) {
-	T.mu.RLock()
-	defer T.mu.RUnlock()
-	T.pools.Range(func(_ string, _ string, p pool.WithCredentials) bool {
-		p.Cancel(key)
+	T.poolsMu.RLock()
+	defer T.poolsMu.RUnlock()
+	T.pools.Range(func(_ string, _ string, p poolAndCredentials) bool {
+		p.pool.Cancel(key)
 		return true
 	})
 }

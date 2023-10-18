@@ -6,7 +6,6 @@ import (
 	"fmt"
 	_ "net/http/pprof"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/caddyserver/caddy/v2"
@@ -15,13 +14,10 @@ import (
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/gatcaddyfile"
-	pool_handler "gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/basic"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_password"
 	"gfx.cafe/gfx/pggat/lib/gat/matchers"
-	"gfx.cafe/gfx/pggat/lib/gat/pool"
-	"gfx.cafe/gfx/pggat/lib/gat/pool/recipe"
-	"gfx.cafe/gfx/pggat/lib/gat/poolers/session"
-	"gfx.cafe/gfx/pggat/lib/gat/poolers/transaction"
 	"gfx.cafe/gfx/pggat/test"
 	"gfx.cafe/gfx/pggat/test/tests"
 )
@@ -40,14 +36,6 @@ func randAddress() string {
 	return "/tmp/.s.PGGAT." + strconv.Itoa(nextPort)
 }
 
-func resolveNetwork(address string) string {
-	if strings.HasPrefix(address, "/") {
-		return "unix"
-	} else {
-		return "tcp"
-	}
-}
-
 func randPassword() (string, error) {
 	var b [20]byte
 	_, err := rand.Read(b[:])
@@ -58,7 +46,7 @@ func randPassword() (string, error) {
 	return base64.StdEncoding.EncodeToString(b[:]), nil
 }
 
-func createServer(parent dialer, poolers map[string]caddy.Module) (server gat.ServerConfig, dialers map[string]dialer, err error) {
+func createServer(parent dialer, pools map[string]caddy.Module) (server gat.ServerConfig, dialers map[string]dialer, err error) {
 	address := randAddress()
 
 	server.Listen = []gat.ListenerConfig{
@@ -87,21 +75,21 @@ func createServer(parent dialer, poolers map[string]caddy.Module) (server gat.Se
 		},
 	)
 
-	for name, pooler := range poolers {
-		p := pool_handler.Module{
-			Config: pool_handler.Config{
-				Pooler: gatcaddyfile.JSONModuleObject(
-					pooler,
-					gatcaddyfile.Pooler,
-					"pooler",
-					nil,
-				),
-
-				ServerAddress: parent.Address,
-
-				ServerUsername: parent.Username,
-				ServerPassword: parent.Password,
-				ServerDatabase: parent.Database,
+	for name, pp := range pools {
+		p := pool.Module{
+			Pool: gatcaddyfile.JSONModuleObject(
+				pp,
+				gatcaddyfile.Pool,
+				"pool",
+				nil,
+			),
+			Recipe: pool.Recipe{
+				Dialer: pool.Dialer{
+					Address:     parent.Address,
+					Username:    parent.Username,
+					RawPassword: parent.Password,
+					Database:    parent.Database,
+				},
 			},
 		}
 
@@ -138,21 +126,17 @@ func createServer(parent dialer, poolers map[string]caddy.Module) (server gat.Se
 
 func daisyChain(config *gat.Config, control dialer, n int) (dialer, error) {
 	for i := 0; i < n; i++ {
-		poolConfig := pool.ManagementConfig{}
-		var pooler caddy.Module
+		var poolConfig basic.Config
 		if i%2 == 0 {
-			pooler = &transaction.Module{
-				ManagementConfig: poolConfig,
-			}
+			poolConfig = basic.Transaction
 		} else {
-			poolConfig.ServerResetQuery = "DISCARD ALL"
-			pooler = &session.Module{
-				ManagementConfig: poolConfig,
-			}
+			poolConfig = basic.Session
 		}
 
 		server, dialers, err := createServer(control, map[string]caddy.Module{
-			"pool": pooler,
+			"pool": &basic.Factory{
+				Config: poolConfig,
+			},
 		})
 
 		if err != nil {
@@ -167,8 +151,7 @@ func daisyChain(config *gat.Config, control dialer, n int) (dialer, error) {
 }
 
 func TestTester(t *testing.T) {
-	control := recipe.Dialer{
-		Network:  "tcp",
+	control := pool.Dialer{
 		Address:  "localhost:5432",
 		Username: "postgres",
 		Credentials: credentials.Cleartext{
@@ -192,11 +175,11 @@ func TestTester(t *testing.T) {
 	}
 
 	server, dialers, err := createServer(parent, map[string]caddy.Module{
-		"transaction": &transaction.Module{},
-		"session": &session.Module{
-			ManagementConfig: pool.ManagementConfig{
-				ServerResetQuery: "discard all",
-			},
+		"transaction": &basic.Factory{
+			Config: basic.Transaction,
+		},
+		"session": &basic.Factory{
+			Config: basic.Session,
 		},
 	})
 	if err != nil {
@@ -206,8 +189,7 @@ func TestTester(t *testing.T) {
 
 	config.Servers = append(config.Servers, server)
 
-	transactionDialer := recipe.Dialer{
-		Network:  resolveNetwork(dialers["transaction"].Address),
+	transactionDialer := pool.Dialer{
 		Address:  dialers["transaction"].Address,
 		Username: dialers["transaction"].Username,
 		Credentials: credentials.FromString(
@@ -216,8 +198,7 @@ func TestTester(t *testing.T) {
 		),
 		Database: "transaction",
 	}
-	sessionDialer := recipe.Dialer{
-		Network:  resolveNetwork(dialers["transaction"].Address),
+	sessionDialer := pool.Dialer{
 		Address:  dialers["session"].Address,
 		Username: dialers["session"].Username,
 		Credentials: credentials.FromString(
@@ -245,7 +226,7 @@ func TestTester(t *testing.T) {
 	tester := test.NewTester(test.Config{
 		Stress: 8,
 
-		Modes: map[string]recipe.Dialer{
+		Modes: map[string]pool.Dialer{
 			"control":     control,
 			"transaction": transactionDialer,
 			"session":     sessionDialer,

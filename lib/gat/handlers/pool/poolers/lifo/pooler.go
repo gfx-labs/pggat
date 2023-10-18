@@ -1,11 +1,11 @@
-package session
+package lifo
 
 import (
 	"sync"
 
 	"github.com/google/uuid"
 
-	"gfx.cafe/gfx/pggat/lib/gat/pool"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
@@ -15,10 +15,6 @@ type Pooler struct {
 	ready   sync.Cond
 	closed  bool
 	mu      sync.Mutex
-}
-
-func NewPooler() pool.Pooler {
-	return new(Pooler)
 }
 
 func (*Pooler) AddClient(_ uuid.UUID) {}
