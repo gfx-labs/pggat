@@ -1,11 +1,10 @@
 package eqp
 
 import (
-	"slices"
-
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
 func preparedStatementsEqual(a, b *packets.Parse) bool {

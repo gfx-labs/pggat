@@ -1,5 +1,16 @@
 :5432 {
 	ssl
 
-	discovery digitalocean {$PGGAT_DO_API_KEY}
+    @uniswap_ro {
+        user uniswap_ro
+    }
+
+    parameter @uniswap_ro hybrid.mode=ro
+    user @uniswap_ro uniswap
+
+	discovery {
+	    discoverer digitalocean {$PGGAT_DO_API_KEY}
+
+	    pool hybrid
+	}
 }
