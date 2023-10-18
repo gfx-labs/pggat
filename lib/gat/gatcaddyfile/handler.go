@@ -69,9 +69,18 @@ func init() {
 			return nil, d.ArgErr()
 		}
 
-		return &rewrite_user.Module{
-			User: d.Val(),
-		}, nil
+		mode := d.Val()
+
+		if d.NextArg() {
+			return &rewrite_user.Module{
+				Mode: mode,
+				User: d.Val(),
+			}, nil
+		} else {
+			return &rewrite_user.Module{
+				User: mode,
+			}, nil
+		}
 	})
 	RegisterDirective(Handler, "password", func(d *caddyfile.Dispenser, _ *[]caddyconfig.Warning) (caddy.Module, error) {
 		if !d.NextArg() {
@@ -87,9 +96,18 @@ func init() {
 			return nil, d.ArgErr()
 		}
 
-		return &rewrite_database.Module{
-			Database: d.Val(),
-		}, nil
+		mode := d.Val()
+
+		if d.NextArg() {
+			return &rewrite_database.Module{
+				Mode:     mode,
+				Database: d.Val(),
+			}, nil
+		} else {
+			return &rewrite_database.Module{
+				Database: mode,
+			}, nil
+		}
 	})
 	RegisterDirective(Handler, "parameter", func(d *caddyfile.Dispenser, _ *[]caddyconfig.Warning) (caddy.Module, error) {
 		if !d.NextArg() {

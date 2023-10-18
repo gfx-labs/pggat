@@ -4,7 +4,7 @@
 	@ro user *_ro
 
     parameter @ro hybrid.mode=ro
-    user @ro uniswap
+    user @ro strip_suffix _ro
 
 	discovery {
 	    discoverer digitalocean {$PGGAT_DO_API_KEY}
