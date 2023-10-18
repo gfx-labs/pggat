@@ -12,6 +12,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/matchers"
 	"gfx.cafe/gfx/pggat/lib/gat/ssl/servers/self_signed"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 func init() {
@@ -208,7 +209,7 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 					case strings.HasPrefix(matcher, "/"): // database
 						route.Match = caddyconfig.JSONModuleObject(
 							matchers.Database{
-								Database: strings.TrimPrefix(matcher, "/"),
+								Database: strutil.Matcher(strings.TrimPrefix(matcher, "/")),
 							},
 							"matcher",
 							"database",

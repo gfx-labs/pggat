@@ -19,7 +19,7 @@ func init() {
 		}
 		user := d.Val()
 		return &matchers.User{
-			User: user,
+			User: strutil.Matcher(user),
 		}, nil
 	})
 	RegisterDirective(Matcher, "database", func(d *caddyfile.Dispenser, _ *[]caddyconfig.Warning) (caddy.Module, error) {
@@ -28,7 +28,7 @@ func init() {
 		}
 		database := d.Val()
 		return &matchers.Database{
-			Database: database,
+			Database: strutil.Matcher(database),
 		}, nil
 	})
 	RegisterDirective(Matcher, "local_address", func(d *caddyfile.Dispenser, _ *[]caddyconfig.Warning) (caddy.Module, error) {
@@ -58,7 +58,7 @@ func init() {
 		}
 		return &matchers.StartupParameter{
 			Key:   strutil.MakeCIString(key),
-			Value: value,
+			Value: strutil.Matcher(value),
 		}, nil
 	})
 	RegisterDirective(Matcher, "ssl", func(d *caddyfile.Dispenser, _ *[]caddyconfig.Warning) (caddy.Module, error) {

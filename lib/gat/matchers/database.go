@@ -5,6 +5,7 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 func init() {
@@ -12,7 +13,7 @@ func init() {
 }
 
 type Database struct {
-	Database string `json:"database"`
+	Database strutil.Matcher `json:"database"`
 }
 
 func (T *Database) CaddyModule() caddy.ModuleInfo {
@@ -25,7 +26,7 @@ func (T *Database) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *Database) Matches(conn *fed.Conn) bool {
-	return conn.Database == T.Database
+	return T.Database.Matches(conn.Database)
 }
 
 var _ gat.Matcher = (*Database)(nil)

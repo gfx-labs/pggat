@@ -5,6 +5,7 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 func init() {
@@ -12,7 +13,7 @@ func init() {
 }
 
 type User struct {
-	User string `json:"user"`
+	User strutil.Matcher `json:"user"`
 }
 
 func (T *User) CaddyModule() caddy.ModuleInfo {
@@ -25,7 +26,7 @@ func (T *User) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *User) Matches(conn *fed.Conn) bool {
-	return conn.User == T.User
+	return T.User.Matches(conn.User)
 }
 
 var _ gat.Matcher = (*User)(nil)

@@ -14,7 +14,7 @@ func init() {
 
 type StartupParameter struct {
 	Key   strutil.CIString `json:"key"`
-	Value string           `json:"value"`
+	Value strutil.Matcher  `json:"value"`
 }
 
 func (T *StartupParameter) CaddyModule() caddy.ModuleInfo {
@@ -27,7 +27,7 @@ func (T *StartupParameter) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *StartupParameter) Matches(conn *fed.Conn) bool {
-	return conn.InitialParameters[T.Key] == T.Value
+	return T.Value.Matches(conn.InitialParameters[T.Key])
 }
 
 var _ gat.Matcher = (*StartupParameter)(nil)
