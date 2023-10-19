@@ -5,7 +5,7 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/rob"
-	"gfx.cafe/gfx/pggat/lib/rob/schedulers/v2"
+	"gfx.cafe/gfx/pggat/lib/rob/schedulers/v3"
 )
 
 type Pooler struct {

@@ -18,6 +18,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/basic"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_password"
 	"gfx.cafe/gfx/pggat/lib/gat/matchers"
+	"gfx.cafe/gfx/pggat/lib/util/strutil"
 	"gfx.cafe/gfx/pggat/test"
 	"gfx.cafe/gfx/pggat/test/tests"
 )
@@ -96,7 +97,7 @@ func createServer(parent dialer, pools map[string]caddy.Module) (server gat.Serv
 		server.Routes = append(server.Routes, gat.RouteConfig{
 			Match: gatcaddyfile.JSONModuleObject(
 				&matchers.Database{
-					Database: name,
+					Database: strutil.Matcher(name),
 				},
 				gatcaddyfile.Matcher,
 				"matcher",
