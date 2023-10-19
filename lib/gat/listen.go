@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -80,6 +82,11 @@ func (T *Listener) Provision(ctx caddy.Context) error {
 }
 
 func (T *Listener) Start() error {
+	if T.networkAddress.Network == "unix" {
+		if err := os.MkdirAll(filepath.Dir(T.networkAddress.Host), 0o660); err != nil {
+			return err
+		}
+	}
 	listener, err := T.networkAddress.Listen(context.Background(), 0, net.ListenConfig{})
 	if err != nil {
 		return err
