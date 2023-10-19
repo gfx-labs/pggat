@@ -150,6 +150,9 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 }
 
 func (T *Discoverer) Cleanup() error {
+	if T.done == nil {
+		return nil
+	}
 	close(T.done)
 	return nil
 }
