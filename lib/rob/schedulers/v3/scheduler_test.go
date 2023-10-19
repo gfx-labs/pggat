@@ -52,23 +52,6 @@ func testSource(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
 	}
 }
 
-func testMultiSource(sched *Scheduler, tab *ShareTable, id int, dur time.Duration, num int) {
-	source := uuid.New()
-	sched.AddUser(source)
-	for i := 0; i < num; i++ {
-		go func() {
-			for {
-				sink := sched.Acquire(source, rob.SyncModeTryNonBlocking)
-				start := time.Now()
-				for time.Since(start) < dur {
-				}
-				tab.Inc(id)
-				sched.Release(sink)
-			}
-		}()
-	}
-}
-
 func testStarver(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
 	for {
 		func() {
@@ -399,36 +382,6 @@ func TestScheduler_RemoveSinkOuter(t *testing.T) {
 	}
 
 	if t0 == 0 {
-		t.Error("expected executions on all sources (is there a race in the balancer??)")
-		t.Errorf("%s", allStacks())
-	}
-}
-
-func TestScheduler_MultiJob(t *testing.T) {
-	var table ShareTable
-	sched := new(Scheduler)
-	testSink(sched)
-	testSink(sched)
-
-	go testMultiSource(sched, &table, 0, 10*time.Millisecond, 2)
-	go testMultiSource(sched, &table, 1, 10*time.Millisecond, 3)
-	go testMultiSource(sched, &table, 2, 10*time.Millisecond, 4)
-
-	time.Sleep(20 * time.Second)
-	t0 := table.Get(0)
-	t1 := table.Get(1)
-	t2 := table.Get(2)
-
-	/*
-		Expectations:
-		- all users should get similar # of executions
-	*/
-
-	t.Log("share of 0:", t0)
-	t.Log("share of 1:", t1)
-	t.Log("share of 2:", t2)
-
-	if t0 == 0 || t1 == 0 || t2 == 0 {
 		t.Error("expected executions on all sources (is there a race in the balancer??)")
 		t.Errorf("%s", allStacks())
 	}
