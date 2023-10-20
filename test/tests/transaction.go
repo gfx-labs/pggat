@@ -1,17 +1,17 @@
 package tests
 
 import (
+	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/test"
-	"gfx.cafe/gfx/pggat/test/inst"
 )
 
 var Transaction = test.Test{
 	Name: "Transaction",
-	Instructions: []inst.Instruction{
-		inst.SimpleQuery("BEGIN;"),
-		inst.SimpleQuery("select 1;"),
-		inst.SimpleQuery("this will fail;"),
-		inst.SimpleQuery("select 2;"),
-		inst.SimpleQuery("END;"),
+	Packets: []fed.Packet{
+		MakeQuery("BEGIN;"),
+		MakeQuery("select 1;"),
+		MakeQuery("this will fail;"),
+		MakeQuery("select 2;"),
+		MakeQuery("END;"),
 	},
 }

@@ -1,15 +1,20 @@
 package tests
 
 import (
+	"gfx.cafe/gfx/pggat/lib/fed"
+	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/test"
-	"gfx.cafe/gfx/pggat/test/inst"
 )
+
+func MakeQuery(query string) *packets.Query {
+	return (*packets.Query)(&query)
+}
 
 var SimpleQuery = test.Test{
 	Name: "Simple Query",
-	Instructions: []inst.Instruction{
-		inst.SimpleQuery("select 1;"),
-		inst.SimpleQuery("SELECT 2, 3, 4;"),
-		inst.SimpleQuery("akfdfsjkfds;"),
+	Packets: []fed.Packet{
+		MakeQuery("select 1;"),
+		MakeQuery("SELECT 2, 3, 4;"),
+		MakeQuery("akfdfsjkfds;"),
 	},
 }

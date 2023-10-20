@@ -32,8 +32,8 @@ import (
 )
 
 type authQueryResult struct {
-	Username string `sql:"0"`
-	Password string `sql:"1"`
+	Username string  `sql:"0"`
+	Password *string `sql:"1"`
 }
 
 func init() {
@@ -140,7 +140,9 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 			return "", false
 		}
 
-		password = result.Password
+		if result.Password != nil {
+			password = *result.Password
+		}
 	}
 
 	return password, true

@@ -1,30 +1,37 @@
 package tests
 
 import (
+	"gfx.cafe/gfx/pggat/lib/fed"
+	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/test"
-	"gfx.cafe/gfx/pggat/test/inst"
 )
 
 var DiscardAll = test.Test{
 	Name: "Discard All",
-	Instructions: []inst.Instruction{
-		inst.Parse{
+	Packets: []fed.Packet{
+		&packets.Parse{
 			Destination: "a",
 			Query:       "select 0",
 		},
-		inst.Bind{
+		&packets.Bind{
 			Destination: "a",
 			Source:      "a",
 		},
-		inst.Sync{},
-		inst.SimpleQuery("discard all"),
-		inst.DescribePreparedStatement("a"),
-		inst.Sync{},
-		inst.Parse{
+		&packets.Sync{},
+		MakeQuery("discard all"),
+		&packets.Describe{
+			Which: 'S',
+			Name:  "a",
+		},
+		&packets.Sync{},
+		&packets.Parse{
 			Destination: "a",
 			Query:       "select 0",
 		},
-		inst.DescribePreparedStatement("a"),
-		inst.Sync{},
+		&packets.Describe{
+			Which: 'S',
+			Name:  "a",
+		},
+		&packets.Sync{},
 	},
 }

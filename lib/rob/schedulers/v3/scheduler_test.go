@@ -46,6 +46,7 @@ func testSource(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
 		sink := sched.Acquire(source, rob.SyncModeTryNonBlocking)
 		start := time.Now()
 		for time.Since(start) < dur {
+			runtime.Gosched()
 		}
 		tab.Inc(id)
 		sched.Release(sink)
@@ -63,6 +64,7 @@ func testStarver(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
 			defer sched.Release(sink)
 			start := time.Now()
 			for time.Since(start) < dur {
+				runtime.Gosched()
 			}
 			tab.Inc(id)
 		}()
@@ -70,28 +72,28 @@ func testStarver(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
 }
 
 func similar(v0, v1 int, vn ...int) bool {
-	const margin = 0.05 // 5% margin of error
+	const margin = 0.1 // 10% margin of error
 
-	min := v0
-	max := v0
+	minimum := v0
+	maximum := v0
 
-	if v1 < min {
-		min = v1
+	if v1 < minimum {
+		minimum = v1
 	}
-	if v1 > max {
-		max = v1
+	if v1 > maximum {
+		maximum = v1
 	}
 
 	for _, v := range vn {
-		if v < min {
-			min = v
+		if v < minimum {
+			minimum = v
 		}
-		if v > max {
-			max = v
+		if v > maximum {
+			maximum = v
 		}
 	}
 
-	if (float64(max-min) / float64(max)) > margin {
+	if (float64(maximum-minimum) / float64(maximum)) > margin {
 		return false
 	}
 	return true

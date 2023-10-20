@@ -13,7 +13,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/gsql"
 	"gfx.cafe/gfx/pggat/lib/util/flip"
-	"gfx.cafe/gfx/pggat/test/inst"
 )
 
 type Runner struct {
@@ -30,81 +29,9 @@ func MakeRunner(config Config, test Test) Runner {
 
 func (T *Runner) prepare(client *fed.Conn, until int) error {
 	for i := 0; i < until; i++ {
-		x := T.test.Instructions[i]
-		switch v := x.(type) {
-		case inst.SimpleQuery:
-			q := packets.Query(v)
-			if err := client.WritePacket(&q); err != nil {
-				return err
-			}
-		case inst.Sync:
-			if err := client.WritePacket(&packets.Sync{}); err != nil {
-				return err
-			}
-		case inst.Parse:
-			p := packets.Parse{
-				Destination: v.Destination,
-				Query:       v.Query,
-			}
-			if err := client.WritePacket(&p); err != nil {
-				return err
-			}
-		case inst.Bind:
-			p := packets.Bind{
-				Destination: v.Destination,
-				Source:      v.Source,
-			}
-			if err := client.WritePacket(&p); err != nil {
-				return err
-			}
-		case inst.DescribePortal:
-			p := packets.Describe{
-				Which: 'P',
-				Name:  string(v),
-			}
-			if err := client.WritePacket(&p); err != nil {
-				return err
-			}
-		case inst.DescribePreparedStatement:
-			p := packets.Describe{
-				Which: 'S',
-				Name:  string(v),
-			}
-			if err := client.WritePacket(&p); err != nil {
-				return err
-			}
-		case inst.Execute:
-			p := packets.Execute{
-				Target: string(v),
-			}
-			if err := client.WritePacket(&p); err != nil {
-				return err
-			}
-		case inst.ClosePortal:
-			p := packets.Close{
-				Which: 'P',
-				Name:  string(v),
-			}
-			if err := client.WritePacket(&p); err != nil {
-				return err
-			}
-		case inst.ClosePreparedStatement:
-			p := packets.Close{
-				Which: 'S',
-				Name:  string(v),
-			}
-			if err := client.WritePacket(&p); err != nil {
-				return err
-			}
-		case inst.CopyData:
-			p := packets.CopyData(v)
-			if err := client.WritePacket(&p); err != nil {
-				return err
-			}
-		case inst.CopyDone:
-			if err := client.WritePacket(&packets.CopyDone{}); err != nil {
-				return err
-			}
+		x := T.test.Packets[i]
+		if err := client.WritePacket(x); err != nil {
+			return err
 		}
 	}
 
@@ -150,7 +77,7 @@ func (T *Runner) runModeL1(dialer pool.Dialer, client *fed.Conn) error {
 
 func (T *Runner) runModeOnce(dialer pool.Dialer) ([]byte, error) {
 	inward, outward := gsql.NewPair()
-	if err := T.prepare(inward, len(T.test.Instructions)); err != nil {
+	if err := T.prepare(inward, len(T.test.Packets)); err != nil {
 		return nil, err
 	}
 
@@ -166,7 +93,7 @@ func (T *Runner) runModeOnce(dialer pool.Dialer) ([]byte, error) {
 }
 
 func (T *Runner) runModeFail(dialer pool.Dialer) error {
-	for i := 1; i < len(T.test.Instructions)+1; i++ {
+	for i := 1; i <= len(T.test.Packets); i++ {
 		inward, outward := gsql.NewPair()
 		if err := T.prepare(inward, i); err != nil {
 			return err

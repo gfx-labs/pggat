@@ -205,8 +205,6 @@ func (T *Scheduler) release(worker *Worker) {
 	worker.User = job.User
 
 	job.Ready <- worker.ID
-
-	return
 }
 
 func (T *Scheduler) Release(worker uuid.UUID) {

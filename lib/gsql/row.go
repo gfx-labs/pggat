@@ -201,7 +201,6 @@ outer2:
 	}
 
 	kind = result.Kind()
-	typ = result.Type()
 	switch kind {
 	case reflect.String:
 		result.SetString(string(col))

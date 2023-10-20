@@ -1,4 +1,4 @@
-package gsql
+package gsql_test
 
 import (
 	"log"
@@ -11,12 +11,13 @@ import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/bouncer/bouncers/v2"
 	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/gsql"
 	"gfx.cafe/gfx/pggat/lib/util/flip"
 )
 
 type Result struct {
-	Username string `sql:"0"`
-	Password string `sql:"1"`
+	Username string  `sql:"0"`
+	Password *string `sql:"1"`
 }
 
 func TestQuery(t *testing.T) {
@@ -24,7 +25,6 @@ func TestQuery(t *testing.T) {
 		panic(http.ListenAndServe(":8080", nil))
 	}()
 
-	// open server
 	s, err := net.Dial("tcp", "localhost:5432")
 	if err != nil {
 		t.Error(err)
@@ -48,13 +48,13 @@ func TestQuery(t *testing.T) {
 		return
 	}
 
-	inward, outward := NewPair()
+	inward, outward := gsql.NewPair()
 
 	var res Result
 
 	var b flip.Bank
 	b.Queue(func() error {
-		return ExtendedQuery(inward, &res, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", "postgres")
+		return gsql.ExtendedQuery(inward, &res, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", "postgres")
 	})
 
 	b.Queue(func() error {
