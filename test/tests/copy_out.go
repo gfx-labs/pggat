@@ -1,37 +1,42 @@
 package tests
 
 import (
+	"gfx.cafe/gfx/pggat/lib/fed"
+	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/test"
-	"gfx.cafe/gfx/pggat/test/inst"
 )
 
 var CopyOut0 = test.Test{
 	SideEffects: true,
 	Name:        "Copy Out 0",
-	Instructions: []inst.Instruction{
-		inst.SimpleQuery("CREATE TABLE test ( x integer NOT NULL, y varchar(40) NOT NULL PRIMARY KEY )"),
-		inst.SimpleQuery("INSERT INTO test VALUES (123, 'hello world')"),
-		inst.SimpleQuery("INSERT INTO test VALUES (-324, 'garet was here')"),
-		inst.SimpleQuery("COPY test TO STDOUT"),
-		inst.SimpleQuery("DROP TABLE test"),
+	Packets: []fed.Packet{
+		MakeQuery("CREATE TABLE test ( x integer NOT NULL, y varchar(40) NOT NULL PRIMARY KEY )"),
+		MakeQuery("INSERT INTO test VALUES (123, 'hello world')"),
+		MakeQuery("INSERT INTO test VALUES (-324, 'garet was here')"),
+		MakeQuery("COPY test TO STDOUT"),
+		MakeQuery("DROP TABLE test"),
 	},
 }
 
 var CopyOut1 = test.Test{
 	SideEffects: true,
 	Name:        "Copy Out 1",
-	Instructions: []inst.Instruction{
-		inst.SimpleQuery("CREATE TABLE test ( x integer NOT NULL, y varchar(40) NOT NULL PRIMARY KEY )"),
-		inst.SimpleQuery("INSERT INTO test VALUES (123, 'hello world')"),
-		inst.SimpleQuery("INSERT INTO test VALUES (-324, 'garet was here')"),
-		inst.Parse{
+	Packets: []fed.Packet{
+		MakeQuery("CREATE TABLE test ( x integer NOT NULL, y varchar(40) NOT NULL PRIMARY KEY )"),
+		MakeQuery("INSERT INTO test VALUES (123, 'hello world')"),
+		MakeQuery("INSERT INTO test VALUES (-324, 'garet was here')"),
+		&packets.Parse{
 			Query: "COPY test TO STDOUT",
 		},
-		inst.DescribePreparedStatement(""),
-		inst.Bind{},
-		inst.DescribePortal(""),
-		inst.Execute(""),
-		inst.Sync{},
-		inst.SimpleQuery("DROP TABLE test"),
+		&packets.Describe{
+			Which: 'S',
+		},
+		&packets.Bind{},
+		&packets.Describe{
+			Which: 'P',
+		},
+		&packets.Execute{},
+		&packets.Sync{},
+		MakeQuery("DROP TABLE test"),
 	},
 }

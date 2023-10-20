@@ -113,9 +113,9 @@ func (T *ReadWriteCloser) SetReadDeadline(t time.Time) error {
 		}
 	} else {
 		if T.readDeadlineTimer == nil {
-			T.readDeadlineTimer = time.AfterFunc(t.Sub(time.Now()), T.readDeadlineExceeded)
+			T.readDeadlineTimer = time.AfterFunc(time.Until(t), T.readDeadlineExceeded)
 		} else {
-			T.readDeadlineTimer.Reset(t.Sub(time.Now()))
+			T.readDeadlineTimer.Reset(time.Until(t))
 		}
 	}
 

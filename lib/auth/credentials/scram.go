@@ -44,6 +44,9 @@ func ScramFromString(password string) (*Scram, error) {
 		return nil, ErrInvalidSecretFormat
 	}
 	storedKey, serverKey, ok := strings.Cut(keys, ":")
+	if !ok {
+		return nil, ErrInvalidSecretFormat
+	}
 
 	var res Scram
 	res.Keys.Hasher = hasher

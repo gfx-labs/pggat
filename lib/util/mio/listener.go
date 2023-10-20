@@ -101,8 +101,7 @@ func lookup(address string) *Listener {
 	listenersMu.RLock()
 	defer listenersMu.RUnlock()
 
-	l, _ := listeners[address]
-	return l
+	return listeners[address]
 }
 
 func Dial(address string) (net.Conn, error) {

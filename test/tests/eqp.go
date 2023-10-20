@@ -1,187 +1,188 @@
 package tests
 
 import (
+	"gfx.cafe/gfx/pggat/lib/fed"
+	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/test"
-	"gfx.cafe/gfx/pggat/test/inst"
 )
 
 var EQP0 = test.Test{
 	Name: "EQP0",
-	Instructions: []inst.Instruction{
-		inst.Parse{
+	Packets: []fed.Packet{
+		&packets.Parse{
 			Destination: "c",
 			Query:       "select 1",
 		},
-		inst.Sync{},
-		inst.Parse{
+		&packets.Sync{},
+		&packets.Parse{
 			Destination: "a",
 			Query:       "select 0",
 		},
-		inst.Parse{
+		&packets.Parse{
 			Destination: "b",
 			Query:       "this is a bad query",
 		},
-		inst.Parse{
+		&packets.Parse{
 			Destination: "c",
 			Query:       "select 1",
 		},
-		inst.Sync{},
-		inst.DescribePreparedStatement("c"),
-		inst.Sync{},
+		&packets.Sync{},
+		&packets.Describe{Which: 'S', Name: "c"},
+		&packets.Sync{},
 	},
 }
 
 var EQP1 = test.Test{
 	Name: "EQP1",
-	Instructions: []inst.Instruction{
-		inst.Parse{
+	Packets: []fed.Packet{
+		&packets.Parse{
 			Destination: "a",
 			Query:       "select 0",
 		},
-		inst.Parse{
+		&packets.Parse{
 			Destination: "b",
 			Query:       "this is a bad query",
 		},
-		inst.Parse{
+		&packets.Parse{
 			Destination: "c",
 			Query:       "select 1",
 		},
-		inst.Sync{},
-		inst.DescribePreparedStatement("c"),
-		inst.Sync{},
+		&packets.Sync{},
+		&packets.Describe{Which: 'S', Name: "c"},
+		&packets.Sync{},
 	},
 }
 
 var EQP2 = test.Test{
 	Name: "EQP2",
-	Instructions: []inst.Instruction{
-		inst.Parse{
+	Packets: []fed.Packet{
+		&packets.Parse{
 			Query: "select 0",
 		},
-		inst.Bind{
+		&packets.Bind{
 			Destination: "a",
 		},
-		inst.Sync{},
-		inst.DescribePortal("a"),
-		inst.Sync{},
+		&packets.Sync{},
+		&packets.Describe{Which: 'P', Name: "a"},
+		&packets.Sync{},
 	},
 }
 
 var EQP3 = test.Test{
 	Name: "EQP3",
-	Instructions: []inst.Instruction{
-		inst.SimpleQuery("BEGIN"),
-		inst.Parse{
+	Packets: []fed.Packet{
+		MakeQuery("BEGIN"),
+		&packets.Parse{
 			Query: "select 0",
 		},
-		inst.Bind{
+		&packets.Bind{
 			Destination: "a",
 		},
-		inst.Sync{},
-		inst.DescribePortal("a"),
-		inst.Sync{},
-		inst.SimpleQuery("END"),
+		&packets.Sync{},
+		&packets.Describe{Which: 'P', Name: "a"},
+		&packets.Sync{},
+		MakeQuery("END"),
 	},
 }
 
 var EQP4 = test.Test{
 	Name: "EQP4",
-	Instructions: []inst.Instruction{
-		inst.Parse{
+	Packets: []fed.Packet{
+		&packets.Parse{
 			Destination: "a",
 			Query:       "select 0",
 		},
-		inst.Parse{
+		&packets.Parse{
 			Destination: "b",
 			Query:       "this is a bad query",
 		},
-		inst.ClosePreparedStatement("a"),
-		inst.Sync{},
-		inst.DescribePreparedStatement("a"),
-		inst.Sync{},
+		&packets.Close{Which: 'S', Name: "a"},
+		&packets.Sync{},
+		&packets.Describe{Which: 'S', Name: "a"},
+		&packets.Sync{},
 	},
 }
 
 var EQP5 = test.Test{
 	Name: "EQP5",
-	Instructions: []inst.Instruction{
-		inst.Parse{
+	Packets: []fed.Packet{
+		&packets.Parse{
 			Destination: "a",
 			Query:       "select 0",
 		},
-		inst.Sync{},
-		inst.ClosePreparedStatement("a"),
-		inst.Sync{},
-		inst.DescribePreparedStatement("a"),
-		inst.Sync{},
+		&packets.Sync{},
+		&packets.Close{Which: 'S', Name: "a"},
+		&packets.Sync{},
+		&packets.Describe{Which: 'S', Name: "a"},
+		&packets.Sync{},
 	},
 }
 
 var EQP6 = test.Test{
 	Name: "EQP6",
-	Instructions: []inst.Instruction{
-		inst.Parse{
+	Packets: []fed.Packet{
+		&packets.Parse{
 			Destination: "a",
 			Query:       "select 0",
 		},
-		inst.Parse{
+		&packets.Parse{
 			Destination: "a",
 			Query:       "select 1",
 		},
-		inst.Sync{},
-		inst.DescribePreparedStatement("a"),
-		inst.Sync{},
+		&packets.Sync{},
+		&packets.Describe{Which: 'S', Name: "a"},
+		&packets.Sync{},
 	},
 }
 
 var EQP7 = test.Test{
 	Name: "EQP7",
-	Instructions: []inst.Instruction{
-		inst.SimpleQuery("BEGIN"),
-		inst.Parse{
+	Packets: []fed.Packet{
+		MakeQuery("BEGIN"),
+		&packets.Parse{
 			Destination: "a",
 			Query:       "select 0",
 		},
-		inst.Bind{
+		&packets.Bind{
 			Destination: "a",
 			Source:      "a",
 		},
-		inst.Bind{
+		&packets.Bind{
 			Destination: "b",
 			Source:      "a",
 		},
-		inst.Sync{},
-		inst.DescribePortal("a"),
-		inst.DescribePreparedStatement("a"),
-		inst.Sync{},
-		inst.ClosePreparedStatement("a"),
-		inst.Sync{},
-		inst.DescribePortal("a"),
-		inst.DescribePortal("b"),
-		inst.Sync{},
-		inst.SimpleQuery("END"),
+		&packets.Sync{},
+		&packets.Describe{Which: 'P', Name: "a"},
+		&packets.Describe{Which: 'S', Name: "a"},
+		&packets.Sync{},
+		&packets.Close{Which: 'S', Name: "a"},
+		&packets.Sync{},
+		&packets.Describe{Which: 'P', Name: "a"},
+		&packets.Describe{Which: 'P', Name: "b"},
+		&packets.Sync{},
+		MakeQuery("END"),
 	},
 }
 
 var EQP8 = test.Test{
 	Name: "EQP8",
-	Instructions: []inst.Instruction{
-		inst.SimpleQuery("BEGIN"),
-		inst.Parse{
+	Packets: []fed.Packet{
+		MakeQuery("BEGIN"),
+		&packets.Parse{
 			Destination: "a",
 			Query:       "select 0",
 		},
-		inst.Bind{
+		&packets.Bind{
 			Destination: "a",
 			Source:      "a",
 		},
-		inst.Sync{},
-		inst.DescribePortal("a"),
-		inst.ClosePortal("a"),
-		inst.DescribePortal("a"),
-		inst.Sync{},
-		inst.DescribePortal("a"),
-		inst.Sync{},
-		inst.SimpleQuery("END"),
+		&packets.Sync{},
+		&packets.Describe{Which: 'P', Name: "a"},
+		&packets.Close{Which: 'P', Name: "a"},
+		&packets.Describe{Which: 'P', Name: "a"},
+		&packets.Sync{},
+		&packets.Describe{Which: 'P', Name: "a"},
+		&packets.Sync{},
+		MakeQuery("END"),
 	},
 }

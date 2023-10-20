@@ -2,6 +2,7 @@ package google_cloud_sql
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net"
 	"strings"
 
@@ -21,8 +22,8 @@ import (
 )
 
 type authQueryResult struct {
-	Username string `sql:"0"`
-	Password string `sql:"1"`
+	Username string  `sql:"0"`
+	Password *string `sql:"1"`
 }
 
 func init() {
@@ -156,7 +157,13 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 				return discovery.Cluster{}, err
 			}
 
-			password = result.Password
+			if result.Username != user.Name {
+				return discovery.Cluster{}, fmt.Errorf(`failed to lookup password for user "%s"`, user.Name)
+			}
+
+			if result.Password != nil {
+				password = *result.Password
+			}
 		}
 
 		c.Users = append(c.Users, discovery.User{

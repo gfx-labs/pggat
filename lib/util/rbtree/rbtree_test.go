@@ -135,7 +135,7 @@ func TestRBTree_IterRev(t *testing.T) {
 }
 
 func TestRBTree_Stress(t *testing.T) {
-	const n = 1000000
+	const n = 100000
 
 	tree := new(RBTree[int, int])
 

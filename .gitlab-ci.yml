@@ -12,6 +12,19 @@ stages:
   - build
   - deploy
 
+test:
+  image: postgres:alpine
+  variables:
+    POSTGRES_PASSWORD: password
+  stage: test
+  extends: .go-cache
+  script:
+    - su -c initdb postgres
+    - su -c "pg_ctl start > /dev/null" postgres
+    - apk update
+    - apk add build-base go
+    - CGO_ENABLED=1 go test -race ./...
+
 lint:
   image: registry.gitlab.com/gitlab-org/gitlab-build-images:golangci-lint-alpine
   stage: test
@@ -29,6 +42,28 @@ lint:
       codequality: gl-code-quality-report.json
     paths:
       - gl-code-quality-report.json
+
+coverage:
+  stage: test
+  image: postgres:alpine
+  variables:
+    POSTGRES_PASSWORD: password
+  coverage: '/\(statements\)(?:\s+)?(\d+(?:\.\d+)?%)/'
+  extends: .go-cache
+  script:
+    - su -c initdb postgres
+    - su -c "pg_ctl start > /dev/null" postgres
+    - apk update
+    - apk add go
+    - go run gotest.tools/gotestsum@latest --junitfile report.xml --format testname -- -coverprofile=coverage.txt -covermode count ./...
+    - go tool cover -func=coverage.txt
+    - go run github.com/boumenot/gocover-cobertura@master < coverage.txt > coverage.xml
+  artifacts:
+    reports:
+      junit: report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
 
 jsonnet:
   stage: build
