@@ -179,8 +179,8 @@ func (T *Pool) ScaleUp() bool {
 }
 
 func (T *Pool) ScaleDown(now time.Time) time.Duration {
-	T.mu.RLock()
-	defer T.mu.RUnlock()
+	T.mu.Lock()
+	defer T.mu.Unlock()
 
 	var m time.Duration
 
