@@ -14,6 +14,7 @@ type ReadWriteCloser struct {
 	closed            bool
 	readDeadline      time.Time
 	readDeadlineTimer *time.Timer
+	writeDeadline     time.Time
 	mu                sync.Mutex
 }
 
@@ -55,6 +56,10 @@ func (T *ReadWriteCloser) Write(b []byte) (n int, err error) {
 
 	if T.closed {
 		return 0, net.ErrClosed
+	}
+
+	if time.Now().After(T.writeDeadline) {
+		return 0, context.DeadlineExceeded
 	}
 
 	T.buf = append(T.buf, b...)
@@ -99,10 +104,7 @@ func (T *ReadWriteCloser) readDeadlineExceeded() {
 	T.r.Broadcast()
 }
 
-func (T *ReadWriteCloser) SetReadDeadline(t time.Time) error {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
+func (T *ReadWriteCloser) setReadDeadline(t time.Time) error {
 	if T.closed {
 		return net.ErrClosed
 	}
@@ -122,11 +124,31 @@ func (T *ReadWriteCloser) SetReadDeadline(t time.Time) error {
 	return nil
 }
 
-func (T *ReadWriteCloser) SetWriteDeadline(_ time.Time) error {
-	// all writes happen without blocking
+func (T *ReadWriteCloser) SetReadDeadline(t time.Time) error {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	return T.setReadDeadline(t)
+}
+
+func (T *ReadWriteCloser) setWriteDeadline(t time.Time) error {
+	T.writeDeadline = t
 	return nil
 }
 
+func (T *ReadWriteCloser) SetWriteDeadline(t time.Time) error {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	return T.setWriteDeadline(t)
+}
+
 func (T *ReadWriteCloser) SetDeadline(t time.Time) error {
-	return T.SetReadDeadline(t)
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	if err := T.setReadDeadline(t); err != nil {
+		return err
+	}
+	return T.setWriteDeadline(t)
 }
