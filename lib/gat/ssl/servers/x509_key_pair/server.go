@@ -8,6 +8,10 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat"
 )
 
+func init() {
+	caddy.RegisterModule((*Server)(nil))
+}
+
 type Server struct {
 	CertFile string `json:"cert_file"`
 	KeyFile  string `json:"key_file"`

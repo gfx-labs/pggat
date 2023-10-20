@@ -18,7 +18,10 @@ var DiscardAll = test.Test{
 			Source:      "a",
 		},
 		&packets.Sync{},
+		MakeQuery("SET application_name = 'test_application'"),
+		MakeQuery("SHOW application_name"),
 		MakeQuery("discard all"),
+		MakeQuery("SHOW application_name"),
 		&packets.Describe{
 			Which: 'S',
 			Name:  "a",

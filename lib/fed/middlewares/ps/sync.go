@@ -33,8 +33,11 @@ func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.
 			s.parameters = make(map[strutil.CIString]string)
 		}
 		s.parameters[name] = value
+		expected = value
 
-		doSet = true
+		if !c.synced {
+			doSet = true
+		}
 	} else if hasExpected {
 		doSet = true
 	}

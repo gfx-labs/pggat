@@ -7,6 +7,7 @@ import (
 	_ "net/http/pprof"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
@@ -22,6 +23,14 @@ import (
 	"gfx.cafe/gfx/pggat/test"
 	"gfx.cafe/gfx/pggat/test/tests"
 )
+
+func wrapConfig(conf basic.Config) basic.Config {
+	conf.ServerIdleTimeout = caddy.Duration(time.Second)
+	conf.TrackedParameters = []strutil.CIString{
+		strutil.MakeCIString("application_name"),
+	}
+	return conf
+}
 
 type dialer struct {
 	Address  string
@@ -129,9 +138,9 @@ func daisyChain(config *gat.Config, control dialer, n int) (dialer, error) {
 	for i := 0; i < n; i++ {
 		var poolConfig basic.Config
 		if i%2 == 0 {
-			poolConfig = basic.Transaction
+			poolConfig = wrapConfig(basic.Transaction)
 		} else {
-			poolConfig = basic.Session
+			poolConfig = wrapConfig(basic.Session)
 		}
 
 		server, dialers, err := createServer(control, map[string]caddy.Module{
@@ -177,10 +186,10 @@ func TestTester(t *testing.T) {
 
 	server, dialers, err := createServer(parent, map[string]caddy.Module{
 		"transaction": &basic.Factory{
-			Config: basic.Transaction,
+			Config: wrapConfig(basic.Transaction),
 		},
 		"session": &basic.Factory{
-			Config: basic.Session,
+			Config: wrapConfig(basic.Session),
 		},
 	})
 	if err != nil {
@@ -198,6 +207,9 @@ func TestTester(t *testing.T) {
 			dialers["transaction"].Password,
 		),
 		Database: "transaction",
+		Parameters: map[strutil.CIString]string{
+			strutil.MakeCIString("application_name"): "transaction",
+		},
 	}
 	sessionDialer := pool.Dialer{
 		Address:  dialers["session"].Address,
@@ -207,6 +219,9 @@ func TestTester(t *testing.T) {
 			dialers["session"].Password,
 		),
 		Database: "session",
+		Parameters: map[strutil.CIString]string{
+			strutil.MakeCIString("application_name"): "session",
+		},
 	}
 
 	caddyConfig := caddy.Config{
