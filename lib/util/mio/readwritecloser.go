@@ -58,7 +58,7 @@ func (T *ReadWriteCloser) Write(b []byte) (n int, err error) {
 		return 0, net.ErrClosed
 	}
 
-	if time.Now().After(T.writeDeadline) {
+	if T.writeDeadline != (time.Time{}) && time.Now().After(T.writeDeadline) {
 		return 0, context.DeadlineExceeded
 	}
 
