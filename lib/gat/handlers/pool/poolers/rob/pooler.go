@@ -12,6 +12,12 @@ type Pooler struct {
 	s schedulers.Scheduler
 }
 
+func NewPooler() *Pooler {
+	return &Pooler{
+		s: schedulers.MakeScheduler(),
+	}
+}
+
 func (T *Pooler) AddClient(id uuid.UUID) {
 	T.s.AddUser(id)
 }
@@ -28,19 +34,20 @@ func (T *Pooler) DeleteServer(server uuid.UUID) {
 	T.s.DeleteWorker(server)
 }
 
-func (T *Pooler) Acquire(client uuid.UUID, sync pool.SyncMode) (server uuid.UUID) {
-	switch sync {
-	case pool.SyncModeBlocking:
-		return T.s.Acquire(client, rob.SyncModeBlocking)
-	case pool.SyncModeNonBlocking:
-		return T.s.Acquire(client, rob.SyncModeNonBlocking)
-	default:
-		panic("unreachable")
-	}
+func (T *Pooler) Acquire(client uuid.UUID) (server uuid.UUID) {
+	return T.s.Acquire(client, rob.SyncModeTryNonBlocking)
 }
 
 func (T *Pooler) Release(server uuid.UUID) {
 	T.s.Release(server)
+}
+
+func (T *Pooler) Waiting() <-chan struct{} {
+	return T.s.Waiting()
+}
+
+func (T *Pooler) Waiters() int {
+	return T.s.Waiters()
 }
 
 func (T *Pooler) Close() {

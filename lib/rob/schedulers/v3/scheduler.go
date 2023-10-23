@@ -13,7 +13,8 @@ import (
 )
 
 type Scheduler struct {
-	cc pools.Locked[chan uuid.UUID]
+	cc      pools.Locked[chan uuid.UUID]
+	waiting chan struct{}
 
 	closed bool
 
@@ -25,6 +26,12 @@ type Scheduler struct {
 	schedule rbtree.RBTree[time.Duration, Job]
 
 	mu sync.Mutex
+}
+
+func MakeScheduler() Scheduler {
+	return Scheduler{
+		waiting: make(chan struct{}, 1),
+	}
 }
 
 func (T *Scheduler) AddWorker(id uuid.UUID) {
@@ -156,6 +163,10 @@ func (T *Scheduler) Acquire(user uuid.UUID, sync rob.SyncMode) uuid.UUID {
 		}
 		T.schedule.Set(u.Stride, job)
 		u.Scheduled = true
+		select {
+		case T.waiting <- struct{}{}:
+		default:
+		}
 
 		return uuid.Nil, ready
 	}()
@@ -221,6 +232,25 @@ func (T *Scheduler) Release(worker uuid.UUID) {
 	}
 
 	T.release(w)
+}
+
+func (T *Scheduler) Waiting() <-chan struct{} {
+	return T.waiting
+}
+
+func (T *Scheduler) Waiters() int {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	num := 0
+
+	for _, user := range T.users {
+		if user.Scheduled {
+			num++
+		}
+	}
+
+	return num
 }
 
 func (T *Scheduler) Close() {

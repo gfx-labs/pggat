@@ -2,13 +2,6 @@ package pool
 
 import "github.com/google/uuid"
 
-type SyncMode int
-
-const (
-	SyncModeNonBlocking SyncMode = iota
-	SyncModeBlocking
-)
-
 type Pooler interface {
 	AddClient(id uuid.UUID)
 	DeleteClient(client uuid.UUID)
@@ -16,8 +9,13 @@ type Pooler interface {
 	AddServer(id uuid.UUID)
 	DeleteServer(server uuid.UUID)
 
-	Acquire(client uuid.UUID, sync SyncMode) (server uuid.UUID)
+	Acquire(client uuid.UUID) (server uuid.UUID)
 	Release(server uuid.UUID)
+
+	// Waiting is signalled when a client begins waiting
+	Waiting() <-chan struct{}
+	// Waiters returns the number of waiters
+	Waiters() int
 
 	Close()
 }

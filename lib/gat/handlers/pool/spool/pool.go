@@ -3,7 +3,6 @@ package spool
 import (
 	"sort"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,9 +22,6 @@ type Pool struct {
 
 	closed chan struct{}
 
-	pendingCount atomic.Int64
-	pending      chan struct{}
-
 	recipes          map[string]*Recipe
 	recipeScaleOrder []*Recipe
 	servers          map[uuid.UUID]*Server
@@ -40,8 +36,6 @@ func MakePool(config Config) Pool {
 		pooler: pooler,
 
 		closed: make(chan struct{}),
-
-		pending: make(chan struct{}, 1),
 	}
 }
 
@@ -230,7 +224,7 @@ func (T *Pool) ScaleLoop() {
 	for {
 		var pending <-chan struct{}
 		if backoffNext == 0 {
-			pending = T.pending
+			pending = T.pooler.Waiting()
 		}
 
 		select {
@@ -251,7 +245,7 @@ func (T *Pool) ScaleLoop() {
 		case <-pending:
 			// scale up
 			ok := true
-			for T.pendingCount.Load() > 0 {
+			for T.pooler.Waiters() > 0 {
 				if !T.ScaleUp() {
 					ok = false
 					break
@@ -288,21 +282,9 @@ func (T *Pool) RemoveClient(client uuid.UUID) {
 
 func (T *Pool) Acquire(client uuid.UUID) *Server {
 	for {
-		serverID := T.pooler.Acquire(client, pool.SyncModeNonBlocking)
+		serverID := T.pooler.Acquire(client)
 		if serverID == uuid.Nil {
-			T.pendingCount.Add(1)
-			select {
-			case T.pending <- struct{}{}:
-			default:
-			}
-
-			serverID = T.pooler.Acquire(client, pool.SyncModeBlocking)
-
-			T.pendingCount.Add(-1)
-
-			if serverID == uuid.Nil {
-				return nil
-			}
+			return nil
 		}
 
 		T.mu.RLock()

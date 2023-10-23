@@ -10,11 +10,20 @@ import (
 )
 
 type Pooler struct {
+	waiting chan struct{}
+
 	queue   []uuid.UUID
 	servers map[uuid.UUID]struct{}
+	waiters int
 	ready   sync.Cond
 	closed  bool
 	mu      sync.Mutex
+}
+
+func NewPooler() *Pooler {
+	return &Pooler{
+		waiting: make(chan struct{}, 1),
+	}
 }
 
 func (*Pooler) AddClient(_ uuid.UUID) {}
@@ -50,23 +59,6 @@ func (T *Pooler) DeleteServer(server uuid.UUID) {
 	delete(T.servers, server)
 }
 
-func (T *Pooler) TryAcquire() uuid.UUID {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	if T.closed {
-		return uuid.Nil
-	}
-
-	if len(T.queue) == 0 {
-		return uuid.Nil
-	}
-
-	server := T.queue[len(T.queue)-1]
-	T.queue = T.queue[:len(T.queue)-1]
-	return server
-}
-
 func (T *Pooler) AcquireBlocking() uuid.UUID {
 	T.mu.Lock()
 	defer T.mu.Unlock()
@@ -79,7 +71,13 @@ func (T *Pooler) AcquireBlocking() uuid.UUID {
 		if T.ready.L == nil {
 			T.ready.L = &T.mu
 		}
+		T.waiters++
+		select {
+		case T.waiting <- struct{}{}:
+		default:
+		}
 		T.ready.Wait()
+		T.waiters--
 	}
 
 	if T.closed {
@@ -91,15 +89,8 @@ func (T *Pooler) AcquireBlocking() uuid.UUID {
 	return server
 }
 
-func (T *Pooler) Acquire(_ uuid.UUID, mode pool.SyncMode) uuid.UUID {
-	switch mode {
-	case pool.SyncModeNonBlocking:
-		return T.TryAcquire()
-	case pool.SyncModeBlocking:
-		return T.AcquireBlocking()
-	default:
-		return uuid.Nil
-	}
+func (T *Pooler) Acquire(_ uuid.UUID) uuid.UUID {
+	return T.AcquireBlocking()
 }
 
 func (T *Pooler) Release(server uuid.UUID) {
@@ -112,6 +103,17 @@ func (T *Pooler) Release(server uuid.UUID) {
 	}
 
 	T.queue = append(T.queue, server)
+}
+
+func (T *Pooler) Waiting() <-chan struct{} {
+	return T.waiting
+}
+
+func (T *Pooler) Waiters() int {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	return T.waiters
 }
 
 func (T *Pooler) Close() {
