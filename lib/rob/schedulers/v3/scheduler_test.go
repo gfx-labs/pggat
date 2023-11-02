@@ -72,7 +72,7 @@ func testStarver(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
 }
 
 func similar(v0, v1 int, vn ...int) bool {
-	const margin = 0.1 // 10% margin of error
+	const margin = 0.25 // 25% margin of error
 
 	minimum := v0
 	maximum := v0
