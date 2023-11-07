@@ -7,6 +7,8 @@ import (
 type Recipe struct {
 	Dialer
 
+	Priority int `json:"priority,omitempty"`
+
 	MinConnections int `json:"min_connections,omitempty"`
 
 	// MaxConnections is the max number of active server connections for this recipe.

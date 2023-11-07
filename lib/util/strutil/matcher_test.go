@@ -89,6 +89,16 @@ var matcherTestCases = []MatcherTestCase{
 		Haystack: "uniswap_ro",
 		Expected: true,
 	},
+	{
+		Matcher:  "",
+		Haystack: "",
+		Expected: true,
+	},
+	{
+		Matcher:  "",
+		Haystack: "abc",
+		Expected: false,
+	},
 }
 
 func TestMatcher(t *testing.T) {

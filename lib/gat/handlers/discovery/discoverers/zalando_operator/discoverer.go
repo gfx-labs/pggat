@@ -159,14 +159,18 @@ func (T *Discoverer) Cleanup() error {
 
 func (T *Discoverer) postgresqlToCluster(cluster acidv1.Postgresql) (discovery.Cluster, error) {
 	c := discovery.Cluster{
-		ID:        string(cluster.UID),
-		Primary:   fmt.Sprintf("%s.%s.svc.%s:5432", cluster.Name, T.Namespace, T.op.ClusterDomain),
+		ID: string(cluster.UID),
+		Primary: discovery.Node{
+			Address: fmt.Sprintf("%s.%s.svc.%s:5432", cluster.Name, T.Namespace, T.op.ClusterDomain),
+		},
 		Databases: make([]string, 0, len(cluster.Spec.Databases)),
 		Users:     make([]discovery.User, 0, len(cluster.Spec.Users)),
 	}
 	if cluster.Spec.NumberOfInstances > 1 {
-		c.Replicas = make(map[string]string, 1)
-		c.Replicas["repl"] = fmt.Sprintf("%s-repl.%s.svc.%s:5432", cluster.Name, T.Namespace, T.op.ClusterDomain)
+		c.Replicas = make(map[string]discovery.Node, 1)
+		c.Replicas["repl"] = discovery.Node{
+			Address: fmt.Sprintf("%s-repl.%s.svc.%s:5432", cluster.Name, T.Namespace, T.op.ClusterDomain),
+		}
 	}
 
 	for user := range cluster.Spec.Users {

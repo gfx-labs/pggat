@@ -5,11 +5,16 @@ type User struct {
 	Password string
 }
 
+type Node struct {
+	Address  string
+	Priority int
+}
+
 type Cluster struct {
 	ID string
 
-	Primary  string
-	Replicas map[string]string
+	Primary  Node
+	Replicas map[string]Node
 
 	Databases []string
 	Users     []User

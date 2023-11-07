@@ -35,6 +35,28 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 	return nil
 }
 
+func (T *Discoverer) filter(tags []string) bool {
+	for _, tag := range tags {
+		if T.Filter.Matches(tag) {
+			return true
+		}
+	}
+	return T.Filter.Matches("")
+}
+
+func (T *Discoverer) priority(tags []string) int {
+	priority := 0
+	for _, setter := range T.Priority {
+		for _, tag := range tags {
+			if setter.Filter.Matches(tag) {
+				priority = setter.Value
+				break
+			}
+		}
+	}
+	return priority
+}
+
 func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 	clusters, _, err := T.do.Databases.List(context.Background(), nil)
 	if err != nil {
@@ -47,6 +69,11 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 			continue
 		}
 
+		// filter by tags
+		if !T.filter(cluster.Tags) {
+			continue
+		}
+
 		var primaryAddr string
 		if T.Private {
 			primaryAddr = net.JoinHostPort(cluster.PrivateConnection.Host, strconv.Itoa(cluster.PrivateConnection.Port))
@@ -55,8 +82,11 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 		}
 
 		c := discovery.Cluster{
-			ID:        cluster.ID,
-			Primary:   primaryAddr,
+			ID: cluster.ID,
+			Primary: discovery.Node{
+				Address:  primaryAddr,
+				Priority: T.priority(cluster.Tags),
+			},
 			Databases: cluster.DBNames,
 			Users:     make([]discovery.User, 0, len(cluster.Users)),
 		}
@@ -73,15 +103,23 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 			return nil, err
 		}
 
-		c.Replicas = make(map[string]string, len(replicas))
+		c.Replicas = make(map[string]discovery.Node, len(replicas))
 		for _, replica := range replicas {
+			// filter by tags
+			if !T.filter(replica.Tags) {
+				continue
+			}
+
 			var replicaAddr string
 			if T.Private {
 				replicaAddr = net.JoinHostPort(replica.PrivateConnection.Host, strconv.Itoa(replica.PrivateConnection.Port))
 			} else {
 				replicaAddr = net.JoinHostPort(replica.Connection.Host, strconv.Itoa(replica.Connection.Port))
 			}
-			c.Replicas[replica.ID] = replicaAddr
+			c.Replicas[replica.ID] = discovery.Node{
+				Address:  replicaAddr,
+				Priority: T.priority(replica.Tags),
+			}
 		}
 
 		res = append(res, c)

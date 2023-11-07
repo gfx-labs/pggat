@@ -65,9 +65,11 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 	}
 
 	c := discovery.Cluster{
-		ID:       primary.Name,
-		Primary:  primaryAddress,
-		Replicas: make(map[string]string, len(replicas)),
+		ID: primary.Name,
+		Primary: discovery.Node{
+			Address: primaryAddress,
+		},
+		Replicas: make(map[string]discovery.Node, len(replicas)),
 	}
 
 	for _, replica := range replicas {
@@ -78,7 +80,9 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 			}
 			replicaAddress = net.JoinHostPort(ip.IpAddress, "5432")
 		}
-		c.Replicas[replica.Name] = replicaAddress
+		c.Replicas[replica.Name] = discovery.Node{
+			Address: replicaAddress,
+		}
 	}
 
 	databases, err := T.google.Databases.List(T.Project, primary.Name).Do()

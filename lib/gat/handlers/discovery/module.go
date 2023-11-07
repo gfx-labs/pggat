@@ -215,12 +215,12 @@ outer:
 	}
 }
 
-func (T *Module) addPrimaryEndpoint(user User, database string, endpoint string) {
+func (T *Module) addPrimaryNode(user User, database string, primary Node) {
 	p := T.getOrAddPool(user, database)
 
 	d := pool.Recipe{
 		Dialer: pool.Dialer{
-			Address:     endpoint,
+			Address:     primary.Address,
 			Username:    user.Username,
 			Credentials: p.creds,
 			Database:    database,
@@ -228,22 +228,23 @@ func (T *Module) addPrimaryEndpoint(user User, database string, endpoint string)
 			SSLConfig:   T.sslConfig,
 			Parameters:  T.serverStartupParameters,
 		},
+		Priority: primary.Priority,
 	}
 	p.pool.AddRecipe("primary", &d)
 }
 
-func (T *Module) removePrimaryEndpoint(username, database string) {
+func (T *Module) removePrimaryNode(username, database string) {
 	T.removePool(username, database)
 }
 
-func (T *Module) addReplicaEndpoints(user User, database string, endpoints map[string]string) {
+func (T *Module) addReplicaNodes(user User, database string, replicas map[string]Node) {
 	p := T.getOrAddPool(user, database)
 
 	if rp, ok := p.pool.(pool.ReplicaPool); ok {
-		for id, endpoint := range endpoints {
+		for id, replica := range replicas {
 			d := pool.Recipe{
 				Dialer: pool.Dialer{
-					Address:     endpoint,
+					Address:     replica.Address,
 					Username:    user.Username,
 					Credentials: p.creds,
 					Database:    database,
@@ -251,6 +252,7 @@ func (T *Module) addReplicaEndpoints(user User, database string, endpoints map[s
 					SSLConfig:   T.sslConfig,
 					Parameters:  T.serverStartupParameters,
 				},
+				Priority: replica.Priority,
 			}
 			rp.AddReplicaRecipe(id, &d)
 		}
@@ -258,10 +260,10 @@ func (T *Module) addReplicaEndpoints(user User, database string, endpoints map[s
 	}
 
 	rp := T.getOrAddReplicaPool(user, database)
-	for id, endpoint := range endpoints {
+	for id, replica := range replicas {
 		d := pool.Recipe{
 			Dialer: pool.Dialer{
-				Address:     endpoint,
+				Address:     replica.Address,
 				Username:    user.Username,
 				Credentials: p.creds,
 				Database:    database,
@@ -269,12 +271,13 @@ func (T *Module) addReplicaEndpoints(user User, database string, endpoints map[s
 				SSLConfig:   T.sslConfig,
 				Parameters:  T.serverStartupParameters,
 			},
+			Priority: replica.Priority,
 		}
 		rp.pool.AddRecipe(id, &d)
 	}
 }
 
-func (T *Module) removeReplicaEndpoints(username string, database string, replicas map[string]string) {
+func (T *Module) removeReplicaNodes(username string, database string, replicas map[string]Node) {
 	p, ok := T.getPool(username, database)
 	if !ok {
 		return
@@ -292,12 +295,12 @@ func (T *Module) removeReplicaEndpoints(username string, database string, replic
 	T.removeReplicaPool(username, database)
 }
 
-func (T *Module) addReplicaEndpoint(user User, database string, id, endpoint string) {
+func (T *Module) addReplicaNode(user User, database string, id string, replica Node) {
 	p := T.getOrAddPool(user, database)
 
 	d := pool.Recipe{
 		Dialer: pool.Dialer{
-			Address:     endpoint,
+			Address:     replica.Address,
 			Username:    user.Username,
 			Credentials: p.creds,
 			Database:    database,
@@ -305,6 +308,7 @@ func (T *Module) addReplicaEndpoint(user User, database string, id, endpoint str
 			SSLConfig:   T.sslConfig,
 			Parameters:  T.serverStartupParameters,
 		},
+		Priority: replica.Priority,
 	}
 
 	if rp, ok := p.pool.(pool.ReplicaPool); ok {
@@ -316,7 +320,7 @@ func (T *Module) addReplicaEndpoint(user User, database string, id, endpoint str
 	rp.pool.AddRecipe(id, &d)
 }
 
-func (T *Module) removeReplicaEndpoint(username string, database string, id string) {
+func (T *Module) removeReplicaNode(username string, database string, id string) {
 	p, ok := T.getPool(username, database)
 	if !ok {
 		return
@@ -337,37 +341,37 @@ func (T *Module) removeReplicaEndpoint(username string, database string, id stri
 }
 
 // replacePrimary replaces the primary endpoint.
-func (T *Module) replacePrimary(users []User, databases []string, endpoint string) {
+func (T *Module) replacePrimary(users []User, databases []string, primary Node) {
 	for _, user := range users {
 		for _, database := range databases {
-			T.addPrimaryEndpoint(user, database, endpoint)
+			T.addPrimaryNode(user, database, primary)
 		}
 	}
 }
 
 // addReplicas adds multiple replicas. Other replicas must not exist.
-func (T *Module) addReplicas(replicas map[string]string, users []User, databases []string) {
+func (T *Module) addReplicas(replicas map[string]Node, users []User, databases []string) {
 	for _, user := range users {
 		for _, database := range databases {
-			T.addReplicaEndpoints(user, database, replicas)
+			T.addReplicaNodes(user, database, replicas)
 		}
 	}
 }
 
 // removeReplicas removes all replicas.
-func (T *Module) removeReplicas(replicas map[string]string, users []User, databases []string) {
+func (T *Module) removeReplicas(replicas map[string]Node, users []User, databases []string) {
 	for _, user := range users {
 		for _, database := range databases {
-			T.removeReplicaEndpoints(user.Username, database, replicas)
+			T.removeReplicaNodes(user.Username, database, replicas)
 		}
 	}
 }
 
 // addReplica adds a single replica.
-func (T *Module) addReplica(users []User, databases []string, id string, endpoint string) {
+func (T *Module) addReplica(users []User, databases []string, id string, replica Node) {
 	for _, user := range users {
 		for _, database := range databases {
-			T.addReplicaEndpoint(user, database, id, endpoint)
+			T.addReplicaNode(user, database, id, replica)
 		}
 	}
 }
@@ -376,40 +380,40 @@ func (T *Module) addReplica(users []User, databases []string, id string, endpoin
 func (T *Module) removeReplica(users []User, databases []string, id string) {
 	for _, user := range users {
 		for _, database := range databases {
-			T.removeReplicaEndpoint(user.Username, database, id)
+			T.removeReplicaNode(user.Username, database, id)
 		}
 	}
 }
 
 // addUser adds a new user.
-func (T *Module) addUser(primaryEndpoint string, replicas map[string]string, databases []string, user User) {
+func (T *Module) addUser(primary Node, replicas map[string]Node, databases []string, user User) {
 	for _, database := range databases {
-		T.addPrimaryEndpoint(user, database, primaryEndpoint)
-		T.addReplicaEndpoints(user, database, replicas)
+		T.addPrimaryNode(user, database, primary)
+		T.addReplicaNodes(user, database, replicas)
 	}
 }
 
 // removeUser removes a user.
-func (T *Module) removeUser(replicas map[string]string, databases []string, username string) {
+func (T *Module) removeUser(replicas map[string]Node, databases []string, username string) {
 	for _, database := range databases {
-		T.removeReplicaEndpoints(username, database, replicas)
-		T.removePrimaryEndpoint(username, database)
+		T.removeReplicaNodes(username, database, replicas)
+		T.removePrimaryNode(username, database)
 	}
 }
 
 // addDatabase adds a new database.
-func (T *Module) addDatabase(primaryEndpoint string, replicas map[string]string, users []User, database string) {
+func (T *Module) addDatabase(primary Node, replicas map[string]Node, users []User, database string) {
 	for _, user := range users {
-		T.addPrimaryEndpoint(user, database, primaryEndpoint)
-		T.addReplicaEndpoints(user, database, replicas)
+		T.addPrimaryNode(user, database, primary)
+		T.addReplicaNodes(user, database, replicas)
 	}
 }
 
 // removeDatabase removes a single database.
-func (T *Module) removeDatabase(replicas map[string]string, users []User, database string) {
+func (T *Module) removeDatabase(replicas map[string]Node, users []User, database string) {
 	for _, user := range users {
-		T.removeReplicaEndpoints(user.Username, database, replicas)
-		T.removePrimaryEndpoint(user.Username, database)
+		T.removeReplicaNodes(user.Username, database, replicas)
+		T.removePrimaryNode(user.Username, database)
 	}
 }
 

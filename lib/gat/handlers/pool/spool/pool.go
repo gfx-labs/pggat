@@ -57,6 +57,22 @@ func (T *Pool) removeServer(server *Server, deleteFromRecipe, freeFromRecipe boo
 	}
 }
 
+func (T *Pool) sortRecipeScaleOrder() {
+	sort.Slice(T.recipeScaleOrder, func(i, j int) bool {
+		a := T.recipeScaleOrder[i]
+		b := T.recipeScaleOrder[j]
+		// sort by priority first
+		if a.Recipe.Priority < b.Recipe.Priority {
+			return true
+		}
+		if a.Recipe.Priority > b.Recipe.Priority {
+			return false
+		}
+		// then sort by number of servers
+		return len(a.Servers) < len(b.Servers)
+	})
+}
+
 func (T *Pool) addRecipe(name string, recipe *pool.Recipe) *Recipe {
 	r := NewRecipe(name, recipe)
 
@@ -65,9 +81,7 @@ func (T *Pool) addRecipe(name string, recipe *pool.Recipe) *Recipe {
 	}
 	T.recipes[name] = r
 	T.recipeScaleOrder = append(T.recipeScaleOrder, r)
-	sort.Slice(T.recipeScaleOrder, func(i, j int) bool {
-		return len(T.recipeScaleOrder[i].Servers) < len(T.recipeScaleOrder[j].Servers)
-	})
+	T.sortRecipeScaleOrder()
 
 	return r
 }
@@ -148,9 +162,7 @@ func (T *Pool) ScaleUpOnce(recipe *Recipe) bool {
 		T.servers = make(map[uuid.UUID]*Server)
 	}
 	T.servers[server.ID] = server
-	sort.Slice(T.recipeScaleOrder, func(i, j int) bool {
-		return len(T.recipeScaleOrder[i].Servers) < len(T.recipeScaleOrder[j].Servers)
-	})
+	T.sortRecipeScaleOrder()
 
 	T.pooler.AddServer(server.ID)
 
