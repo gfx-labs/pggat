@@ -1,6 +1,7 @@
 package spool
 
 import (
+	"math"
 	"sort"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ type Pool struct {
 
 	recipes          map[string]*Recipe
 	recipeScaleOrder []*Recipe
+	lastPenalize     time.Time
 	servers          map[uuid.UUID]*Server
 	mu               sync.RWMutex
 }
@@ -57,15 +59,53 @@ func (T *Pool) removeServer(server *Server, deleteFromRecipe, freeFromRecipe boo
 	}
 }
 
-func (T *Pool) sortRecipeScaleOrder() {
+func (T *Pool) penalizeRecipe(recipe *Recipe) error {
+	T.mu.RUnlock()
+	defer T.mu.RLock()
+
+	recipe.Penalty = 0
+
+	conn, err := recipe.Recipe.Dial()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = conn.Close()
+	}()
+
+	for _, penalty := range T.config.Penalties {
+		var p int
+		p, err = penalty.Score(conn)
+		if err != nil {
+			return err
+		}
+
+		recipe.Penalty += p
+	}
+
+	return nil
+}
+
+func (T *Pool) sortRecipes() {
+	if len(T.config.Penalties) > 0 && time.Since(T.lastPenalize) > T.config.PenaltyPeriod {
+		for _, recipe := range T.recipes {
+			if err := T.penalizeRecipe(recipe); err != nil {
+				T.config.Logger.Error("failed to score recipe", zap.Error(err))
+				recipe.Penalty = math.MaxInt
+			}
+		}
+
+		T.lastPenalize = time.Now()
+	}
+
 	sort.Slice(T.recipeScaleOrder, func(i, j int) bool {
 		a := T.recipeScaleOrder[i]
 		b := T.recipeScaleOrder[j]
 		// sort by priority first
-		if a.Recipe.Priority < b.Recipe.Priority {
+		if a.Score() < b.Score() {
 			return true
 		}
-		if a.Recipe.Priority > b.Recipe.Priority {
+		if a.Score() > b.Score() {
 			return false
 		}
 		// then sort by number of servers
@@ -81,7 +121,6 @@ func (T *Pool) addRecipe(name string, recipe *pool.Recipe) *Recipe {
 	}
 	T.recipes[name] = r
 	T.recipeScaleOrder = append(T.recipeScaleOrder, r)
-	T.sortRecipeScaleOrder()
 
 	return r
 }
@@ -122,6 +161,7 @@ func (T *Pool) RemoveRecipe(name string) {
 }
 
 func (T *Pool) scaleUpL0() *Recipe {
+	T.sortRecipes()
 	for _, recipe := range T.recipeScaleOrder {
 		if !recipe.Recipe.Allocate() {
 			continue
@@ -162,7 +202,6 @@ func (T *Pool) ScaleUpOnce(recipe *Recipe) bool {
 		T.servers = make(map[uuid.UUID]*Server)
 	}
 	T.servers[server.ID] = server
-	T.sortRecipeScaleOrder()
 
 	T.pooler.AddServer(server.ID)
 

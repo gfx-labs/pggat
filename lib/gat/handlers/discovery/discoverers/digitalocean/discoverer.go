@@ -44,19 +44,6 @@ func (T *Discoverer) filter(tags []string) bool {
 	return T.Filter.Matches("")
 }
 
-func (T *Discoverer) priority(tags []string) int {
-	priority := 0
-	for _, setter := range T.Priority {
-		for _, tag := range tags {
-			if setter.Filter.Matches(tag) {
-				priority = setter.Value
-				break
-			}
-		}
-	}
-	return priority
-}
-
 func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 	clusters, _, err := T.do.Databases.List(context.Background(), nil)
 	if err != nil {
@@ -84,8 +71,7 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 		c := discovery.Cluster{
 			ID: cluster.ID,
 			Primary: discovery.Node{
-				Address:  primaryAddr,
-				Priority: T.priority(cluster.Tags),
+				Address: primaryAddr,
 			},
 			Databases: cluster.DBNames,
 			Users:     make([]discovery.User, 0, len(cluster.Users)),
@@ -117,8 +103,7 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 				replicaAddr = net.JoinHostPort(replica.Connection.Host, strconv.Itoa(replica.Connection.Port))
 			}
 			c.Replicas[replica.ID] = discovery.Node{
-				Address:  replicaAddr,
-				Priority: T.priority(replica.Tags),
+				Address: replicaAddr,
 			}
 		}
 
