@@ -25,7 +25,7 @@ type Pool struct {
 
 	recipes          map[string]*Recipe
 	recipeScaleOrder []*Recipe
-	lastPenalize     time.Time
+	lastScore        time.Time
 	servers          map[uuid.UUID]*Server
 	mu               sync.RWMutex
 }
@@ -59,53 +59,54 @@ func (T *Pool) removeServer(server *Server, deleteFromRecipe, freeFromRecipe boo
 	}
 }
 
-func (T *Pool) penalizeRecipe(recipe *Recipe) error {
+func (T *Pool) scoreRecipe(recipe *Recipe) error {
 	T.mu.RUnlock()
 	defer T.mu.RLock()
 
-	recipe.Penalty = 0
+	recipe.Score = 0
 
 	conn, err := recipe.Recipe.Dial()
 	if err != nil {
+		recipe.Score = math.MaxInt
 		return err
 	}
 	defer func() {
 		_ = conn.Close()
 	}()
 
-	for _, penalty := range T.config.Penalties {
+	for _, penalty := range T.config.Scorers {
 		var p int
 		p, err = penalty.Score(conn)
 		if err != nil {
+			recipe.Score = math.MaxInt
 			return err
 		}
 
-		recipe.Penalty += p
+		recipe.Score += p
 	}
 
 	return nil
 }
 
 func (T *Pool) sortRecipes() {
-	if len(T.config.Penalties) > 0 && time.Since(T.lastPenalize) > T.config.PenaltyPeriod {
+	if len(T.config.Scorers) > 0 && time.Since(T.lastScore) > T.config.ScorePeriod {
 		for _, recipe := range T.recipes {
-			if err := T.penalizeRecipe(recipe); err != nil {
+			if err := T.scoreRecipe(recipe); err != nil {
 				T.config.Logger.Error("failed to score recipe", zap.Error(err))
-				recipe.Penalty = math.MaxInt
 			}
 		}
 
-		T.lastPenalize = time.Now()
+		T.lastScore = time.Now()
 	}
 
 	sort.Slice(T.recipeScaleOrder, func(i, j int) bool {
 		a := T.recipeScaleOrder[i]
 		b := T.recipeScaleOrder[j]
 		// sort by priority first
-		if a.Score() < b.Score() {
+		if a.Priority() < b.Priority() {
 			return true
 		}
-		if a.Score() > b.Score() {
+		if a.Priority() > b.Priority() {
 			return false
 		}
 		// then sort by number of servers

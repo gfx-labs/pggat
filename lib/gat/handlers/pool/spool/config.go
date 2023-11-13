@@ -23,8 +23,9 @@ type Config struct {
 	ReconnectInitialTime time.Duration
 	ReconnectMaxTime     time.Duration
 
-	PenaltyPeriod time.Duration
-	Penalties     []pool.Penalty
+	// ScorePeriod defines how long a score should last before being recalculated.
+	ScorePeriod time.Duration
+	Scorers     []pool.Scorer
 
 	Logger *zap.Logger
 }

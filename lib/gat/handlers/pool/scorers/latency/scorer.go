@@ -11,23 +11,23 @@ import (
 )
 
 func init() {
-	caddy.RegisterModule((*Penalty)(nil))
+	caddy.RegisterModule((*Scorer)(nil))
 }
 
-type Penalty struct {
+type Scorer struct {
 	Threshold caddy.Duration `json:"threshold"`
 }
 
-func (T *Penalty) CaddyModule() caddy.ModuleInfo {
+func (T *Scorer) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
-		ID: "pggat.handlers.pool.penalties.latency",
+		ID: "pggat.handlers.pool.scorers.latency",
 		New: func() caddy.Module {
-			return new(Penalty)
+			return new(Scorer)
 		},
 	}
 }
 
-func (T *Penalty) Score(conn *fed.Conn) (int, error) {
+func (T *Scorer) Score(conn *fed.Conn) (int, error) {
 	start := time.Now()
 	err, _ := backends.QueryString(conn, nil, "select 0")
 	if err != nil {
@@ -38,5 +38,5 @@ func (T *Penalty) Score(conn *fed.Conn) (int, error) {
 	return penalty, nil
 }
 
-var _ pool.Penalty = (*Penalty)(nil)
-var _ caddy.Module = (*Penalty)(nil)
+var _ pool.Scorer = (*Scorer)(nil)
+var _ caddy.Module = (*Scorer)(nil)

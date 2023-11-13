@@ -6,7 +6,7 @@ type Recipe struct {
 	Name   string
 	Recipe *pool.Recipe
 
-	Penalty int
+	Score int
 
 	Servers []*Server
 }
@@ -18,6 +18,6 @@ func NewRecipe(name string, recipe *pool.Recipe) *Recipe {
 	}
 }
 
-func (T *Recipe) Score() int {
-	return T.Recipe.Priority + T.Penalty
+func (T *Recipe) Priority() int {
+	return T.Recipe.Priority + T.Score
 }
