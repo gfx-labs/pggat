@@ -27,15 +27,15 @@ func (T *Scorer) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *Scorer) Score(conn *fed.Conn) (int, error) {
+func (T *Scorer) Score(conn *fed.Conn) (int, time.Duration, error) {
 	start := time.Now()
 	err, _ := backends.QueryString(conn, nil, "select 0")
 	if err != nil {
-		return 0, err
+		return 0, 10 * time.Second, err
 	}
 	dur := time.Since(start)
 	penalty := int(dur / time.Duration(T.Threshold))
-	return penalty, nil
+	return penalty, 10 * time.Second, nil
 }
 
 var _ pool.Scorer = (*Scorer)(nil)

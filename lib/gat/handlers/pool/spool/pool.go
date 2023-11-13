@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
+	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/eqp"
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/ps"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
@@ -25,7 +26,6 @@ type Pool struct {
 
 	recipes          map[string]*Recipe
 	recipeScaleOrder []*Recipe
-	lastScore        time.Time
 	servers          map[uuid.UUID]*Server
 	mu               sync.RWMutex
 }
@@ -63,41 +63,70 @@ func (T *Pool) scoreRecipe(recipe *Recipe) error {
 	T.mu.RUnlock()
 	defer T.mu.RLock()
 
-	recipe.Score = 0
+	now := time.Now()
 
-	conn, err := recipe.Recipe.Dial()
-	if err != nil {
-		recipe.Score = math.MaxInt
-		return err
+	if len(T.config.Scorers) >= len(recipe.Scores) {
+		recipe.Scores = slices.Resize(recipe.Scores, len(T.config.Scorers))
 	}
-	defer func() {
-		_ = conn.Close()
-	}()
 
-	for _, penalty := range T.config.Scorers {
-		var p int
-		p, err = penalty.Score(conn)
-		if err != nil {
-			recipe.Score = math.MaxInt
-			return err
+	var conn *fed.Conn
+	defer func() {
+		if conn != nil {
+			_ = conn.Close()
+		}
+	}()
+	getConn := func() error {
+		if conn != nil {
+			return nil
 		}
 
-		recipe.Score += p
+		var err error
+		conn, err = recipe.Recipe.Dial()
+		return err
+	}
+
+	for i, scorer := range T.config.Scorers {
+		score := recipe.Scores[i]
+
+		if now.Before(score.Expiration) {
+			// score still valid
+			continue
+		}
+
+		var s = math.MaxInt
+		var validity = 5 * time.Second
+		err := getConn()
+		if err == nil {
+			s, validity, err = scorer.Score(conn)
+		}
+		exp := now.Add(validity)
+		if err != nil {
+			s = math.MaxInt
+		}
+		recipe.Scores[i] = RecipeScore{
+			Score:      s,
+			Expiration: exp,
+		}
+
+		if err != nil {
+			// on error, we don't need to calculate anymore, it will be max
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (T *Pool) sortRecipes() {
-	if len(T.config.Scorers) > 0 && time.Since(T.lastScore) > T.config.ScorePeriod {
-		for _, recipe := range T.recipes {
-			if err := T.scoreRecipe(recipe); err != nil {
-				T.config.Logger.Error("failed to score recipe", zap.Error(err))
-			}
+func (T *Pool) scoreRecipes() {
+	for _, recipe := range T.recipes {
+		if err := T.scoreRecipe(recipe); err != nil {
+			T.config.Logger.Error("failed to score recipe", zap.Error(err))
 		}
-
-		T.lastScore = time.Now()
 	}
+}
+
+func (T *Pool) sortRecipes() {
+	T.scoreRecipes()
 
 	sort.Slice(T.recipeScaleOrder, func(i, j int) bool {
 		a := T.recipeScaleOrder[i]
