@@ -11,6 +11,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/lifo"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/rob"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/scorers/latency"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
@@ -74,7 +75,14 @@ func (T Config) Spool() spool.Config {
 		IdleTimeout:          time.Duration(T.ServerIdleTimeout),
 		ReconnectInitialTime: time.Duration(T.ServerReconnectInitialTime),
 		ReconnectMaxTime:     time.Duration(T.ServerReconnectMaxTime),
-		Logger:               T.Logger,
+
+		Scorers: []pool.Scorer{
+			&latency.Scorer{
+				Threshold: caddy.Duration(200 * time.Millisecond),
+			},
+		},
+
+		Logger: T.Logger,
 	}
 }
 

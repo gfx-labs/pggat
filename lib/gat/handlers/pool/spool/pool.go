@@ -66,6 +66,7 @@ func (T *Pool) scoreRecipe(recipe *Recipe) error {
 	now := time.Now()
 
 	if len(T.config.Scorers) >= len(recipe.Scores) {
+		// we're fine to access scores because we're the only one that can
 		recipe.Scores = slices.Resize(recipe.Scores, len(T.config.Scorers))
 	}
 

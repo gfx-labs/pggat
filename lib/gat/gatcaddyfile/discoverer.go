@@ -1,9 +1,6 @@
 package gatcaddyfile
 
 import (
-	"strconv"
-	"strings"
-
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
@@ -57,26 +54,6 @@ func init() {
 					}
 
 					module.Filter = strutil.Matcher(d.Val())
-				case "priority":
-					if !d.NextArg() {
-						return nil, d.ArgErr()
-					}
-
-					keyValue := d.Val()
-					filter, value, ok := strings.Cut(keyValue, "=")
-					priority := int64(-1)
-					if ok {
-						var err error
-						priority, err = strconv.ParseInt(value, 10, 64)
-						if err != nil {
-							return nil, d.WrapErr(err)
-						}
-					}
-
-					module.Priority = append(module.Priority, digitalocean.Priority{
-						Filter: strutil.Matcher(filter),
-						Value:  int(priority),
-					})
 				default:
 					return nil, d.ArgErr()
 				}
