@@ -262,7 +262,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 	}
 }
 
-func (T *Pool) serveRO(conn *fed.Conn) error {
+func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 	conn.Middleware = append(
 		conn.Middleware,
 		unterminate.Unterminate,
@@ -275,32 +275,49 @@ func (T *Pool) serveRO(conn *fed.Conn) error {
 	T.addClient(client)
 	defer T.removeClient(client)
 
-	T.replica.AddClient(client.ID)
-	defer T.replica.RemoveClient(client.ID)
+	if write {
+		T.primary.AddClient(client.ID)
+		defer T.primary.RemoveClient(client.ID)
+	} else {
+		T.replica.AddClient(client.ID)
+		defer T.replica.RemoveClient(client.ID)
+	}
 
 	var err, serverErr error
 
-	var replica *spool.Server
+	var server *spool.Server
 	defer func() {
-		if replica != nil {
+		if server != nil {
 			if serverErr != nil {
-				T.replica.RemoveServer(replica)
+				if write {
+					T.primary.RemoveServer(server)
+				} else {
+					T.replica.RemoveServer(server)
+				}
 			} else {
-				T.replica.Release(replica)
+				if write {
+					T.primary.Release(server)
+				} else {
+					T.replica.Release(server)
+				}
 			}
-			replica = nil
+			server = nil
 		}
 	}()
 
 	if !conn.Ready {
 		client.SetState(metrics.ConnStateAwaitingServer, nil, true)
 
-		replica = T.replica.Acquire(client.ID)
-		if replica == nil {
+		if write {
+			server = T.primary.Acquire(client.ID)
+		} else {
+			server = T.replica.Acquire(client.ID)
+		}
+		if server == nil {
 			return pool.ErrClosed
 		}
 
-		err, serverErr = T.Pair(client, replica)
+		err, serverErr = T.Pair(client, server)
 		if serverErr != nil {
 			return serverErr
 		}
@@ -317,9 +334,13 @@ func (T *Pool) serveRO(conn *fed.Conn) error {
 	}
 
 	for {
-		if replica != nil {
-			T.replica.Release(replica)
-			replica = nil
+		if server != nil {
+			if write {
+				T.primary.Release(server)
+			} else {
+				T.replica.Release(server)
+			}
+			server = nil
 		}
 		client.SetState(metrics.ConnStateIdle, nil, true)
 
@@ -331,20 +352,24 @@ func (T *Pool) serveRO(conn *fed.Conn) error {
 
 		client.SetState(metrics.ConnStateAwaitingServer, nil, true)
 
-		replica = T.replica.Acquire(client.ID)
-		if replica == nil {
+		if write {
+			server = T.primary.Acquire(client.ID)
+		} else {
+			server = T.replica.Acquire(client.ID)
+		}
+		if server == nil {
 			return pool.ErrClosed
 		}
 
-		err, serverErr = T.Pair(client, replica)
+		err, serverErr = T.Pair(client, server)
 
 		if err == nil && serverErr == nil {
-			err, serverErr = bouncers.Bounce(conn, replica.Conn, packet)
+			err, serverErr = bouncers.Bounce(conn, server.Conn, packet)
 		}
 		if serverErr != nil {
 			return serverErr
 		} else {
-			replica.TransactionComplete()
+			server.TransactionComplete()
 			client.TransactionComplete()
 		}
 
@@ -355,9 +380,12 @@ func (T *Pool) serveRO(conn *fed.Conn) error {
 }
 
 func (T *Pool) Serve(conn *fed.Conn) error {
-	if conn.InitialParameters[strutil.MakeCIString("hybrid.mode")] == "ro" {
-		return T.serveRO(conn)
-	} else {
+	switch conn.InitialParameters[strutil.MakeCIString("hybrid.mode")] {
+	case "ro":
+		return T.serveOnly(conn, false)
+	case "wo":
+		return T.serveOnly(conn, true)
+	default:
 		return T.serveRW(conn)
 	}
 }
