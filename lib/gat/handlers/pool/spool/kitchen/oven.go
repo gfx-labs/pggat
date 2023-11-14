@@ -190,6 +190,18 @@ func (T *Oven) Ignite(conn *fed.Conn) bool {
 	return true
 }
 
+func (T *Oven) Cancel(conn *fed.Conn) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	r, ok := T.byConn[conn]
+	if !ok {
+		return
+	}
+
+	r.recipe.Cancel(conn.BackendKey)
+}
+
 func (T *Oven) Close() {
 	T.mu.Lock()
 	defer T.mu.Unlock()
