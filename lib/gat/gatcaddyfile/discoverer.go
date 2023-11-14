@@ -8,7 +8,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/digitalocean"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/google_cloud_sql"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/zalando_operator"
-	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 func init() {
@@ -53,7 +52,16 @@ func init() {
 						return nil, d.ArgErr()
 					}
 
-					module.Filter = strutil.Matcher(d.Val())
+					var err error
+					module.Filter, err = UnmarshalDirectiveJSONModuleObject(
+						d,
+						DigitaloceanFilter,
+						"filter",
+						warnings,
+					)
+					if err != nil {
+						return nil, err
+					}
 				default:
 					return nil, d.ArgErr()
 				}
