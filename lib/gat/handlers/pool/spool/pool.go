@@ -24,8 +24,9 @@ type Pool struct {
 
 	oven kitchen.Oven
 
-	servers map[uuid.UUID]*Server
-	mu      sync.RWMutex
+	serversByID   map[uuid.UUID]*Server
+	serversByConn map[*fed.Conn]*Server
+	mu            sync.RWMutex
 }
 
 // MakePool will create a new pool with config. ScaleLoop must be called if this is used instead of NewPool
@@ -64,21 +65,26 @@ func (T *Pool) addServer(conn *fed.Conn) {
 
 	server := NewServer(conn)
 
-	if T.servers == nil {
-		T.servers = make(map[uuid.UUID]*Server)
+	if T.serversByID == nil {
+		T.serversByID = make(map[uuid.UUID]*Server)
 	}
-	T.servers[server.ID] = server
+	T.serversByID[server.ID] = server
+
+	if T.serversByConn == nil {
+		T.serversByConn = make(map[*fed.Conn]*Server)
+	}
+	T.serversByConn[server.Conn] = server
 
 	T.pooler.AddServer(server.ID)
 }
 
 func (T *Pool) removeServer(conn *fed.Conn) {
-	// TODO(garet) do something that isn't O(n)
-	for id, server := range T.servers {
-		if server.Conn == conn {
-			delete(T.servers, id)
-		}
+	server, ok := T.serversByConn[conn]
+	if !ok {
+		return
 	}
+	delete(T.serversByConn, conn)
+	delete(T.serversByID, server.ID)
 }
 
 func (T *Pool) AddRecipe(name string, recipe *pool.Recipe) {
@@ -133,7 +139,7 @@ func (T *Pool) ScaleDown(now time.Time) time.Duration {
 
 	var m time.Duration
 
-	for _, s := range T.servers {
+	for _, s := range T.serversByID {
 		since, state, _ := s.GetState()
 
 		if state != metrics.ConnStateIdle {
@@ -144,7 +150,8 @@ func (T *Pool) ScaleDown(now time.Time) time.Duration {
 		if idle > T.config.IdleTimeout {
 			// try to free
 			if T.oven.Ignite(s.Conn) {
-				delete(T.servers, s.ID)
+				delete(T.serversByID, s.ID)
+				delete(T.serversByConn, s.Conn)
 			}
 		} else if idle > m {
 			m = idle
@@ -243,7 +250,7 @@ func (T *Pool) Acquire(client uuid.UUID) *Server {
 		}
 
 		T.mu.RLock()
-		c, ok := T.servers[serverID]
+		c, ok := T.serversByID[serverID]
 		T.mu.RUnlock()
 
 		if !ok {
@@ -277,7 +284,8 @@ func (T *Pool) RemoveServer(server *Server) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	delete(T.servers, server.ID)
+	delete(T.serversByID, server.ID)
+	delete(T.serversByConn, server.Conn)
 }
 
 func (T *Pool) Cancel(server *Server) {
@@ -291,7 +299,7 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 	if m.Servers == nil {
 		m.Servers = make(map[uuid.UUID]metrics.Conn)
 	}
-	for _, server := range T.servers {
+	for _, server := range T.serversByID {
 		var s metrics.Conn
 		server.ReadMetrics(&s)
 		m.Servers[server.ID] = s
