@@ -13,22 +13,22 @@ import (
 )
 
 type Oven struct {
+	config Config
+
 	byName map[string]*Recipe
 	byConn map[*fed.Conn]*Recipe
 	order  []*Recipe
 	mu     sync.Mutex
-
-	log *zap.Logger
 }
 
-func MakeOven(logger *zap.Logger) Oven {
+func MakeOven(config Config) Oven {
 	return Oven{
-		log: logger,
+		config: config,
 	}
 }
 
-func NewOven(logger *zap.Logger) *Oven {
-	oven := MakeOven(logger)
+func NewOven(config Config) *Oven {
+	oven := MakeOven(config)
 	return &oven
 }
 
@@ -40,7 +40,7 @@ func (T *Oven) Learn(name string, recipe *pool.Recipe) (removed []*fed.Conn, add
 		conn, err := recipe.Dial()
 		if err != nil {
 			// free remaining, failed to dial initial :(
-			T.log.Error("failed to dial server", zap.Error(err))
+			T.config.Logger.Error("failed to dial server", zap.Error(err))
 			for j := i; j < n; j++ {
 				recipe.Free()
 			}
@@ -149,7 +149,7 @@ func (T *Oven) Cook() (*fed.Conn, error) {
 			return conn, nil
 		}
 
-		T.log.Error("failed to dial server", zap.Error(err))
+		T.config.Logger.Error("failed to dial server", zap.Error(err))
 
 		r.recipe.Free()
 

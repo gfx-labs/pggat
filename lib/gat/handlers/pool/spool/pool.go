@@ -38,7 +38,10 @@ func MakePool(config Config) Pool {
 
 		closed: make(chan struct{}),
 
-		oven: kitchen.MakeOven(config.Logger),
+		oven: kitchen.MakeOven(kitchen.Config{
+			Scorers: config.Scorers,
+			Logger:  config.Logger,
+		}),
 	}
 }
 
