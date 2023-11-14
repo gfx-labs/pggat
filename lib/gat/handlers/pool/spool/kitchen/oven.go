@@ -32,10 +32,10 @@ func NewOven(logger *zap.Logger) *Oven {
 	return &oven
 }
 
-// Learn will add a recipe to the kitchen. Returns initial conns
-func (T *Oven) Learn(name string, recipe *pool.Recipe) []*fed.Conn {
+// Learn will add a recipe to the kitchen. Returns initial removed and added conns
+func (T *Oven) Learn(name string, recipe *pool.Recipe) (removed []*fed.Conn, added []*fed.Conn) {
 	n := recipe.AllocateInitial()
-	initial := make([]*fed.Conn, 0, n)
+	added = make([]*fed.Conn, 0, n)
 	for i := 0; i < n; i++ {
 		conn, err := recipe.Dial()
 		if err != nil {
@@ -47,13 +47,15 @@ func (T *Oven) Learn(name string, recipe *pool.Recipe) []*fed.Conn {
 			break
 		}
 
-		initial = append(initial, conn)
+		added = append(added, conn)
 	}
 
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	r := NewRecipe(recipe, initial)
+	removed = T.forget(name)
+
+	r := NewRecipe(recipe, added)
 
 	if T.byName == nil {
 		T.byName = make(map[string]*Recipe)
@@ -63,21 +65,16 @@ func (T *Oven) Learn(name string, recipe *pool.Recipe) []*fed.Conn {
 	if T.byConn == nil {
 		T.byConn = make(map[*fed.Conn]*Recipe)
 	}
-	for _, conn := range initial {
+	for _, conn := range added {
 		T.byConn[conn] = r
 	}
 
 	T.order = append(T.order, r)
 
-	return initial
+	return
 }
 
-// Forget will remove a recipe from the kitchen. All conn made with the recipe will be closed. Returns conns made with
-// recipe.
-func (T *Oven) Forget(name string) []*fed.Conn {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
+func (T *Oven) forget(name string) []*fed.Conn {
 	r, ok := T.byName[name]
 	if !ok {
 		return nil
@@ -95,6 +92,15 @@ func (T *Oven) Forget(name string) []*fed.Conn {
 	T.order = slices.Remove(T.order, r)
 
 	return conns
+}
+
+// Forget will remove a recipe from the kitchen. All conn made with the recipe will be closed. Returns conns made with
+// recipe.
+func (T *Oven) Forget(name string) []*fed.Conn {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	return T.forget(name)
 }
 
 func (T *Oven) cook(r *Recipe) (*fed.Conn, error) {

@@ -14,7 +14,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool/kitchen"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
-	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
 type Pool struct {
@@ -73,16 +72,29 @@ func (T *Pool) addServer(conn *fed.Conn) {
 	T.pooler.AddServer(server.ID)
 }
 
+func (T *Pool) removeServer(conn *fed.Conn) {
+	// TODO(garet) do something that isn't O(n)
+	for id, server := range T.servers {
+		if server.Conn == conn {
+			delete(T.servers, id)
+		}
+	}
+}
+
 func (T *Pool) AddRecipe(name string, recipe *pool.Recipe) {
-	servers := T.oven.Learn(name, recipe)
-	if len(servers) == 0 {
+	removed, added := T.oven.Learn(name, recipe)
+	if len(removed) == 0 && len(added) == 0 {
 		return
 	}
 
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	for _, server := range servers {
+	for _, server := range removed {
+		T.removeServer(server)
+	}
+
+	for _, server := range added {
 		T.addServer(server)
 	}
 }
@@ -96,11 +108,8 @@ func (T *Pool) RemoveRecipe(name string) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	// TODO(garet) do something that isn't O(n^2)
-	for id, server := range T.servers {
-		if slices.Contains(servers, server.Conn) {
-			delete(T.servers, id)
-		}
+	for _, server := range servers {
+		T.removeServer(server)
 	}
 }
 
