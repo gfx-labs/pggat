@@ -103,6 +103,13 @@ func (T *Oven) Forget(name string) []*fed.Conn {
 	return T.forget(name)
 }
 
+func (T *Oven) Empty() bool {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	return len(T.byName) == 0
+}
+
 func (T *Oven) cook(r *Recipe) (*fed.Conn, error) {
 	T.mu.Unlock()
 	defer T.mu.Lock()

@@ -122,6 +122,10 @@ func (T *Pool) RemoveRecipe(name string) {
 	}
 }
 
+func (T *Pool) Empty() bool {
+	return T.oven.Empty()
+}
+
 func (T *Pool) ScaleUp() error {
 	server, err := T.oven.Cook()
 	if err != nil {

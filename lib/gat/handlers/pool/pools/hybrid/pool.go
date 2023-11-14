@@ -162,17 +162,34 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 	if !conn.Ready {
 		client.SetState(metrics.ConnStateAwaitingServer, nil, false)
 
-		replica = T.replica.Acquire(client.ID)
-		if replica == nil {
-			return pool.ErrClosed
-		}
+		if !T.replica.Empty() {
+			replica = T.replica.Acquire(client.ID)
+			if replica == nil {
+				return pool.ErrClosed
+			}
 
-		err, serverErr = T.Pair(client, replica)
-		if serverErr != nil {
-			return serverErr
-		}
-		if err != nil {
-			return err
+			err, serverErr = T.Pair(client, replica)
+			if serverErr != nil {
+				return serverErr
+			}
+			if err != nil {
+				return err
+			}
+		} else {
+			// pair with primary instead
+
+			primary = T.primary.Acquire(client.ID)
+			if primary == nil {
+				return pool.ErrClosed
+			}
+
+			err, serverErr = T.Pair(client, primary)
+			if serverErr != nil {
+				return serverErr
+			}
+			if err != nil {
+				return err
+			}
 		}
 
 		p := packets.ReadyForQuery('I')
@@ -202,32 +219,61 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 
 		client.SetState(metrics.ConnStateAwaitingServer, nil, false)
 
-		replica = T.replica.Acquire(client.ID)
-		if replica == nil {
-			return pool.ErrClosed
-		}
+		// try replica first (if it isn't empty)
+		if !T.replica.Empty() {
+			replica = T.replica.Acquire(client.ID)
+			if replica == nil {
+				return pool.ErrClosed
+			}
 
-		err, serverErr = T.Pair(client, replica)
+			err, serverErr = T.Pair(client, replica)
 
-		psi.Set(psa)
-		eqpi.Set(eqpa)
+			psi.Set(psa)
+			eqpi.Set(eqpa)
 
-		if err == nil && serverErr == nil {
-			err, serverErr = bouncers.Bounce(conn, replica.Conn, packet)
-		}
-		if serverErr != nil {
-			return serverErr
-		} else {
-			replica.TransactionComplete()
-		}
-		if err == (ErrReadOnly{}) {
-			m.Primary()
+			if err == nil && serverErr == nil {
+				err, serverErr = bouncers.Bounce(conn, replica.Conn, packet)
+			}
+			if serverErr != nil {
+				return serverErr
+			} else {
+				replica.TransactionComplete()
+			}
 
-			// release replica
-			if replica != nil {
+			// fallback to primary
+			if err == (ErrReadOnly{}) {
+				m.Primary()
+
 				T.replica.Release(replica)
 				replica = nil
+
+				packet, err = conn.ReadPacket(true)
+				if err != nil {
+					return err
+				}
+
+				client.SetState(metrics.ConnStateAwaitingServer, nil, false)
+
+				// acquire primary
+				primary = T.primary.Acquire(client.ID)
+				if primary == nil {
+					return pool.ErrClosed
+				}
+
+				serverErr = T.PairPrimary(client, psi, eqpi, primary)
+
+				if serverErr == nil {
+					err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
+				}
+				if serverErr != nil {
+					return serverErr
+				} else {
+					primary.TransactionComplete()
+				}
 			}
+		} else {
+			// straight to primary
+			m.Primary()
 
 			packet, err = conn.ReadPacket(true)
 			if err != nil {
@@ -242,7 +288,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 				return pool.ErrClosed
 			}
 
-			serverErr = T.PairPrimary(client, psi, eqpi, primary)
+			err, serverErr = T.Pair(client, primary)
 
 			if serverErr == nil {
 				err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
