@@ -146,6 +146,22 @@ func init() {
 					}
 
 					module.TrackedParameters = append(module.TrackedParameters, strutil.MakeCIString(d.Val()))
+				case "penalize":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					critic, err := UnmarshalDirectiveJSONModuleObject(
+						d,
+						Critic,
+						"critic",
+						warnings,
+					)
+					if err != nil {
+						return nil, err
+					}
+
+					module.RawCritics = append(module.RawCritics, critic)
 				default:
 					return nil, d.ArgErr()
 				}
@@ -221,6 +237,22 @@ func init() {
 					}
 
 					module.TrackedParameters = append(module.TrackedParameters, strutil.MakeCIString(d.Val()))
+				case "penalize":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					critic, err := UnmarshalDirectiveJSONModuleObject(
+						d,
+						Critic,
+						"critic",
+						warnings,
+					)
+					if err != nil {
+						return nil, err
+					}
+
+					module.RawCritics = append(module.RawCritics, critic)
 				default:
 					return nil, d.ArgErr()
 				}

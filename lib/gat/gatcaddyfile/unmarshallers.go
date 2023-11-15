@@ -17,6 +17,7 @@ const (
 	Matcher            = "pggat.matchers"
 	Pool               = "pggat.handlers.pool.pools"
 	Pooler             = "pggat.handlers.pool.poolers"
+	Critic             = "pggat.handlers.pool.critics"
 	SSLServer          = "pggat.ssl.servers"
 	SSLClient          = "pggat.ssl.clients"
 )
