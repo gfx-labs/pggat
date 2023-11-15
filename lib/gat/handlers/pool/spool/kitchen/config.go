@@ -7,6 +7,6 @@ import (
 )
 
 type Config struct {
-	Scorers []pool.Scorer
+	Critics []pool.Critic
 	Logger  *zap.Logger
 }

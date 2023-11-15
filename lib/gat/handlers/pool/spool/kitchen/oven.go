@@ -1,6 +1,7 @@
 package kitchen
 
 import (
+	"math"
 	"sort"
 	"sync"
 
@@ -117,19 +118,55 @@ func (T *Oven) cook(r *Recipe) (*fed.Conn, error) {
 	return r.recipe.Dial()
 }
 
+func (T *Oven) score(r *Recipe) (int, error) {
+	T.mu.Unlock()
+	defer T.mu.Lock()
+
+	conn, err := r.recipe.Dial()
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		_ = conn.Close()
+	}()
+
+	total := 0
+	for _, critic := range T.config.Critics {
+		var score int
+		score, _, err = critic.Taste(conn)
+		if err != nil {
+			return 0, err
+		}
+
+		total += score
+	}
+
+	return total, nil
+}
+
 // Cook will cook the best recipe
 func (T *Oven) Cook() (*fed.Conn, error) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
+	for _, r := range T.byName {
+		score, err := T.score(r)
+		if err != nil {
+			r.score = math.MaxInt
+			T.config.Logger.Error("failed to score recipe", zap.Error(err))
+			continue
+		}
+		r.score = score
+	}
+
 	sort.Slice(T.order, func(i, j int) bool {
 		a := T.order[i]
 		b := T.order[j]
 		// sort by priority first
-		if a.recipe.Priority < b.recipe.Priority {
+		if a.Rating() < b.Rating() {
 			return true
 		}
-		if a.recipe.Priority > b.recipe.Priority {
+		if a.Rating() > b.Rating() {
 			return false
 		}
 		// then sort by number of conns

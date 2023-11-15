@@ -6,7 +6,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 )
 
-type Scorer interface {
-	// Score calculates how much a recipe should be penalized. Lower is better
-	Score(conn *fed.Conn) (score int, validity time.Duration, err error)
+type Critic interface {
+	// Taste calculates how much conn should be penalized. Lower is better
+	Taste(conn *fed.Conn) (score int, validity time.Duration, err error)
 }

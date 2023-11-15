@@ -23,7 +23,7 @@ type Config struct {
 	ReconnectInitialTime time.Duration
 	ReconnectMaxTime     time.Duration
 
-	Scorers []pool.Scorer
+	Critics []pool.Critic
 
 	Logger *zap.Logger
 }

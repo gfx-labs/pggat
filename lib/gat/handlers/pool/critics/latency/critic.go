@@ -11,24 +11,24 @@ import (
 )
 
 func init() {
-	caddy.RegisterModule((*Scorer)(nil))
+	caddy.RegisterModule((*Critic)(nil))
 }
 
-type Scorer struct {
+type Critic struct {
 	Threshold caddy.Duration `json:"threshold"`
 	Validity  caddy.Duration `json:"validity"`
 }
 
-func (T *Scorer) CaddyModule() caddy.ModuleInfo {
+func (T *Critic) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
-		ID: "pggat.handlers.pool.scorers.latency",
+		ID: "pggat.handlers.pool.critics.latency",
 		New: func() caddy.Module {
-			return new(Scorer)
+			return new(Critic)
 		},
 	}
 }
 
-func (T *Scorer) Score(conn *fed.Conn) (int, time.Duration, error) {
+func (T *Critic) Taste(conn *fed.Conn) (int, time.Duration, error) {
 	start := time.Now()
 	err, _ := backends.QueryString(conn, nil, "select 0")
 	if err != nil {
@@ -39,5 +39,5 @@ func (T *Scorer) Score(conn *fed.Conn) (int, time.Duration, error) {
 	return penalty, time.Duration(T.Validity), nil
 }
 
-var _ pool.Scorer = (*Scorer)(nil)
-var _ caddy.Module = (*Scorer)(nil)
+var _ pool.Critic = (*Critic)(nil)
+var _ caddy.Module = (*Critic)(nil)

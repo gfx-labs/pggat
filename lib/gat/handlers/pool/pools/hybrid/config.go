@@ -6,9 +6,10 @@ import (
 	"github.com/caddyserver/caddy/v2"
 	"go.uber.org/zap"
 
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/critics/latency"
+
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/rob"
-	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/scorers/latency"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
@@ -33,8 +34,8 @@ func (T Config) Spool() spool.Config {
 		ReconnectInitialTime: time.Duration(T.ServerReconnectInitialTime),
 		ReconnectMaxTime:     time.Duration(T.ServerReconnectMaxTime),
 
-		Scorers: []pool.Scorer{
-			&latency.Scorer{
+		Critics: []pool.Critic{
+			&latency.Critic{
 				Threshold: caddy.Duration(200 * time.Millisecond),
 			},
 		},
