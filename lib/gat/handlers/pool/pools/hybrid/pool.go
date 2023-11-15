@@ -290,7 +290,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 
 			err, serverErr = T.Pair(client, primary)
 
-			if serverErr == nil {
+			if err == nil && serverErr == nil {
 				err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
 			}
 			if serverErr != nil {
