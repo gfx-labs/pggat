@@ -16,6 +16,7 @@ func init() {
 
 type Scorer struct {
 	Threshold caddy.Duration `json:"threshold"`
+	Validity  caddy.Duration `json:"validity"`
 }
 
 func (T *Scorer) CaddyModule() caddy.ModuleInfo {
@@ -31,11 +32,11 @@ func (T *Scorer) Score(conn *fed.Conn) (int, time.Duration, error) {
 	start := time.Now()
 	err, _ := backends.QueryString(conn, nil, "select 0")
 	if err != nil {
-		return 0, 10 * time.Second, err
+		return 0, time.Duration(T.Validity), err
 	}
 	dur := time.Since(start)
 	penalty := int(dur / time.Duration(T.Threshold))
-	return penalty, 10 * time.Second, nil
+	return penalty, time.Duration(T.Validity), nil
 }
 
 var _ pool.Scorer = (*Scorer)(nil)
