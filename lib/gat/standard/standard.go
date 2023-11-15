@@ -41,6 +41,9 @@ import (
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/lifo"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/rob"
 
+	// critics
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/critics/latency"
+
 	// pools
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/basic"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/hybrid"
