@@ -119,42 +119,91 @@ func (T *Oven) cook(r *Recipe) (*fed.Conn, error) {
 	return r.recipe.Dial()
 }
 
-func (T *Oven) score(r *Recipe) (int, error) {
-	conn, err := r.recipe.Dial()
-	if err != nil {
-		return 0, err
-	}
-	defer func() {
-		_ = conn.Close()
-	}()
-
+func (T *Oven) score(r *Recipe) error {
 	now := time.Now()
 
 	r.ratings = slices.Resize(r.ratings, len(T.config.Critics))
 
+	fast := true
+	for i := range T.config.Critics {
+		if now.After(r.ratings[i].Expiration) {
+			fast = false
+			break
+		}
+	}
+
+	if fast {
+		// score is just old, nothing changes
+		return nil
+	}
+
+	critics := make([]pool.Critic, len(T.config.Critics))
+	ratings := make([]Rating, len(T.config.Critics))
+
 	total := 0
+
 	for i, critic := range T.config.Critics {
 		if now.Before(r.ratings[i].Expiration) {
 			total += r.ratings[i].Score
 			continue
 		}
 
-		var score int
-		var validity time.Duration
-		score, validity, err = critic.Taste(conn)
-		if err != nil {
-			return 0, err
-		}
-
-		r.ratings[i] = Rating{
-			Expiration: time.Now().Add(validity),
-			Score:      score,
-		}
-
-		total += score
+		critics[i] = critic
 	}
 
-	return total, nil
+	err := func() error {
+		T.mu.Unlock()
+		defer T.mu.Lock()
+
+		conn, err := r.recipe.Dial()
+		if err != nil {
+			return err
+		}
+		defer func() {
+			_ = conn.Close()
+		}()
+
+		for i, critic := range critics {
+			if critic == nil {
+				continue
+			}
+
+			var score int
+			var validity time.Duration
+			score, validity, err = critic.Taste(conn)
+			if err != nil {
+				return err
+			}
+
+			ratings[i] = Rating{
+				Expiration: time.Now().Add(validity),
+				Score:      score,
+			}
+
+			total += score
+		}
+
+		return nil
+	}()
+	if err != nil {
+		return err
+	}
+
+	// update total score
+	r.score = total
+
+	// update ratings
+	r.ratings = slices.Resize(r.ratings, len(T.config.Critics))
+
+	for i, critic := range critics {
+		if critic == nil {
+			continue
+		}
+
+		r.ratings[i] = ratings[i]
+	}
+
+	return nil
 }
 
 // Cook will cook the best recipe
@@ -163,13 +212,11 @@ func (T *Oven) Cook() (*fed.Conn, error) {
 	defer T.mu.Unlock()
 
 	for _, r := range T.byName {
-		score, err := T.score(r)
-		if err != nil {
+		if err := T.score(r); err != nil {
 			r.score = math.MaxInt
 			T.config.Logger.Error("failed to score recipe", zap.Error(err))
 			continue
 		}
-		r.score = score
 	}
 
 	sort.Slice(T.order, func(i, j int) bool {
