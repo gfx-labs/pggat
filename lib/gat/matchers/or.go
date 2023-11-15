@@ -32,12 +32,14 @@ func (T *Or) CaddyModule() caddy.ModuleInfo {
 func (T *Or) Provision(ctx caddy.Context) error {
 	T.or = make([]gat.Matcher, 0, len(T.Or))
 	if T.Or != nil {
-		val, err := ctx.LoadModule(T, "Or")
+		raw, err := ctx.LoadModule(T, "Or")
 		if err != nil {
 			return fmt.Errorf("loading matcher module: %v", err)
 		}
 
-		for _, vv := range val.([]any) {
+		val := raw.([]any)
+		T.or = make([]gat.Matcher, 0, len(val))
+		for _, vv := range val {
 			T.or = append(T.or, vv.(gat.Matcher))
 		}
 	}

@@ -1,11 +1,13 @@
 package hybrid
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
 	"go.uber.org/zap"
 
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/rob"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
@@ -19,6 +21,9 @@ type Config struct {
 
 	TrackedParameters []strutil.CIString `json:"tracked_parameters,omitempty"`
 
+	RawCritics []json.RawMessage `json:"critics,omitempty" caddy:"namespace=pggat.handlers.pool.critics inline_key=critic"`
+	Critics    []pool.Critic     `json:"-"`
+
 	Logger *zap.Logger `json:"-"`
 }
 
@@ -30,6 +35,8 @@ func (T Config) Spool() spool.Config {
 		IdleTimeout:          time.Duration(T.ServerIdleTimeout),
 		ReconnectInitialTime: time.Duration(T.ServerReconnectInitialTime),
 		ReconnectMaxTime:     time.Duration(T.ServerReconnectMaxTime),
+
+		Critics: T.Critics,
 
 		Logger: T.Logger,
 	}

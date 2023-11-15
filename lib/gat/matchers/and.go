@@ -32,12 +32,14 @@ func (T *And) CaddyModule() caddy.ModuleInfo {
 func (T *And) Provision(ctx caddy.Context) error {
 	T.and = make([]gat.Matcher, 0, len(T.And))
 	if T.And != nil {
-		val, err := ctx.LoadModule(T, "And")
+		raw, err := ctx.LoadModule(T, "And")
 		if err != nil {
 			return fmt.Errorf("loading matcher module: %v", err)
 		}
 
-		for _, vv := range val.([]any) {
+		val := raw.([]any)
+		T.and = make([]gat.Matcher, 0, len(val))
+		for _, vv := range val {
 			T.and = append(T.and, vv.(gat.Matcher))
 		}
 	}
