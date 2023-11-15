@@ -15,8 +15,6 @@ type Server struct {
 	ID   uuid.UUID
 	Conn *fed.Conn
 
-	recipe *Recipe
-
 	txnCount atomic.Int64
 
 	lastMetricsRead time.Time
@@ -27,11 +25,10 @@ type Server struct {
 	mu              sync.Mutex
 }
 
-func NewServer(recipe *Recipe, conn *fed.Conn) *Server {
+func NewServer(conn *fed.Conn) *Server {
 	return &Server{
-		ID:     uuid.New(),
-		recipe: recipe,
-		Conn:   conn,
+		ID:   uuid.New(),
+		Conn: conn,
 
 		state: metrics.ConnStateIdle,
 		since: time.Now(),

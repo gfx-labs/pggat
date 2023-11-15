@@ -11,13 +11,14 @@ import (
 )
 
 const (
-	Discoverer = "pggat.handlers.discovery.discoverers"
-	Handler    = "pggat.handlers"
-	Matcher    = "pggat.matchers"
-	Pool       = "pggat.handlers.pool.pools"
-	Pooler     = "pggat.handlers.pool.poolers"
-	SSLServer  = "pggat.ssl.servers"
-	SSLClient  = "pggat.ssl.clients"
+	Discoverer         = "pggat.handlers.discovery.discoverers"
+	DigitaloceanFilter = "pggat.handlers.discovery.discoverers.digitalocean.filters"
+	Handler            = "pggat.handlers"
+	Matcher            = "pggat.matchers"
+	Pool               = "pggat.handlers.pool.pools"
+	Pooler             = "pggat.handlers.pool.poolers"
+	SSLServer          = "pggat.ssl.servers"
+	SSLClient          = "pggat.ssl.clients"
 )
 
 var unmarshallers maps.TwoKey[string, string, Unmarshaller]

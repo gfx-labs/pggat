@@ -62,6 +62,9 @@ type Config struct {
 	// TrackedParameters are parameters which should be synced by updating the server, not the client.
 	TrackedParameters []strutil.CIString `json:"tracked_parameters,omitempty"`
 
+	RawCritics []json.RawMessage `json:"critics,omitempty" caddy:"namespace=pggat.handlers.pool.critics inline_key=critic"`
+	Critics    []pool.Critic     `json:"-"`
+
 	Logger *zap.Logger `json:"-"`
 }
 
@@ -74,7 +77,10 @@ func (T Config) Spool() spool.Config {
 		IdleTimeout:          time.Duration(T.ServerIdleTimeout),
 		ReconnectInitialTime: time.Duration(T.ServerReconnectInitialTime),
 		ReconnectMaxTime:     time.Duration(T.ServerReconnectMaxTime),
-		Logger:               T.Logger,
+
+		Critics: T.Critics,
+
+		Logger: T.Logger,
 	}
 }
 

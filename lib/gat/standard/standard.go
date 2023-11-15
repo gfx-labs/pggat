@@ -34,9 +34,15 @@ import (
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/google_cloud_sql"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/zalando_operator"
 
+	// digitalocean filters
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/digitalocean/filters/tag"
+
 	// poolers
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/lifo"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/poolers/rob"
+
+	// critics
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/critics/latency"
 
 	// pools
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/basic"

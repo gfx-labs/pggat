@@ -23,5 +23,7 @@ type Config struct {
 	ReconnectInitialTime time.Duration
 	ReconnectMaxTime     time.Duration
 
+	Critics []pool.Critic
+
 	Logger *zap.Logger
 }

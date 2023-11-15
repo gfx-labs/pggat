@@ -2,6 +2,7 @@ package digitalocean
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strconv"
 
@@ -18,6 +19,8 @@ func init() {
 type Discoverer struct {
 	Config
 
+	filter Filter
+
 	do *godo.Client
 }
 
@@ -31,30 +34,16 @@ func (T *Discoverer) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *Discoverer) Provision(ctx caddy.Context) error {
+	if T.Filter != nil {
+		val, err := ctx.LoadModule(T, "Filter")
+		if err != nil {
+			return fmt.Errorf("loading filter module: %v", err)
+		}
+		T.filter = val.(Filter)
+	}
+
 	T.do = godo.NewFromToken(T.APIKey)
 	return nil
-}
-
-func (T *Discoverer) filter(tags []string) bool {
-	for _, tag := range tags {
-		if T.Filter.Matches(tag) {
-			return true
-		}
-	}
-	return T.Filter.Matches("")
-}
-
-func (T *Discoverer) priority(tags []string) int {
-	priority := 0
-	for _, setter := range T.Priority {
-		for _, tag := range tags {
-			if setter.Filter.Matches(tag) {
-				priority = setter.Value
-				break
-			}
-		}
-	}
-	return priority
 }
 
 func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
@@ -70,7 +59,7 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 		}
 
 		// filter by tags
-		if !T.filter(cluster.Tags) {
+		if T.filter != nil && !T.filter.Allow(cluster) {
 			continue
 		}
 
@@ -84,8 +73,7 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 		c := discovery.Cluster{
 			ID: cluster.ID,
 			Primary: discovery.Node{
-				Address:  primaryAddr,
-				Priority: T.priority(cluster.Tags),
+				Address: primaryAddr,
 			},
 			Databases: cluster.DBNames,
 			Users:     make([]discovery.User, 0, len(cluster.Users)),
@@ -106,7 +94,7 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 		c.Replicas = make(map[string]discovery.Node, len(replicas))
 		for _, replica := range replicas {
 			// filter by tags
-			if !T.filter(replica.Tags) {
+			if T.filter != nil && !T.filter.AllowReplica(replica) {
 				continue
 			}
 
@@ -117,8 +105,7 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 				replicaAddr = net.JoinHostPort(replica.Connection.Host, strconv.Itoa(replica.Connection.Port))
 			}
 			c.Replicas[replica.ID] = discovery.Node{
-				Address:  replicaAddr,
-				Priority: T.priority(replica.Tags),
+				Address: replicaAddr,
 			}
 		}
 

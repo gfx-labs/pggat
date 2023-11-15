@@ -1,9 +1,6 @@
 package gatcaddyfile
 
 import (
-	"strconv"
-	"strings"
-
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
@@ -11,7 +8,6 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/digitalocean"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/google_cloud_sql"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/zalando_operator"
-	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
 func init() {
@@ -56,27 +52,16 @@ func init() {
 						return nil, d.ArgErr()
 					}
 
-					module.Filter = strutil.Matcher(d.Val())
-				case "priority":
-					if !d.NextArg() {
-						return nil, d.ArgErr()
+					var err error
+					module.Filter, err = UnmarshalDirectiveJSONModuleObject(
+						d,
+						DigitaloceanFilter,
+						"filter",
+						warnings,
+					)
+					if err != nil {
+						return nil, err
 					}
-
-					keyValue := d.Val()
-					filter, value, ok := strings.Cut(keyValue, "=")
-					priority := int64(-1)
-					if ok {
-						var err error
-						priority, err = strconv.ParseInt(value, 10, 64)
-						if err != nil {
-							return nil, d.WrapErr(err)
-						}
-					}
-
-					module.Priority = append(module.Priority, digitalocean.Priority{
-						Filter: strutil.Matcher(filter),
-						Value:  int(priority),
-					})
 				default:
 					return nil, d.ArgErr()
 				}

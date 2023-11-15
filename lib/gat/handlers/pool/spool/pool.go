@@ -1,7 +1,6 @@
 package spool
 
 import (
-	"sort"
 	"sync"
 	"time"
 
@@ -9,11 +8,12 @@ import (
 	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
+	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/eqp"
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/ps"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool/kitchen"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
-	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
 type Pool struct {
@@ -22,10 +22,11 @@ type Pool struct {
 
 	closed chan struct{}
 
-	recipes          map[string]*Recipe
-	recipeScaleOrder []*Recipe
-	servers          map[uuid.UUID]*Server
-	mu               sync.RWMutex
+	oven kitchen.Oven
+
+	serversByID   map[uuid.UUID]*Server
+	serversByConn map[*fed.Conn]*Server
+	mu            sync.RWMutex
 }
 
 // MakePool will create a new pool with config. ScaleLoop must be called if this is used instead of NewPool
@@ -36,6 +37,11 @@ func MakePool(config Config) Pool {
 		pooler: pooler,
 
 		closed: make(chan struct{}),
+
+		oven: kitchen.MakeOven(kitchen.Config{
+			Critics: config.Critics,
+			Logger:  config.Logger,
+		}),
 	}
 }
 
@@ -45,100 +51,7 @@ func NewPool(config Config) *Pool {
 	return &p
 }
 
-func (T *Pool) removeServer(server *Server, deleteFromRecipe, freeFromRecipe bool) {
-	delete(T.servers, server.ID)
-
-	r := server.recipe
-	if deleteFromRecipe {
-		r.Servers = slices.Delete(r.Servers, server)
-	}
-	if freeFromRecipe {
-		r.Recipe.Free()
-	}
-}
-
-func (T *Pool) sortRecipeScaleOrder() {
-	sort.Slice(T.recipeScaleOrder, func(i, j int) bool {
-		a := T.recipeScaleOrder[i]
-		b := T.recipeScaleOrder[j]
-		// sort by priority first
-		if a.Recipe.Priority < b.Recipe.Priority {
-			return true
-		}
-		if a.Recipe.Priority > b.Recipe.Priority {
-			return false
-		}
-		// then sort by number of servers
-		return len(a.Servers) < len(b.Servers)
-	})
-}
-
-func (T *Pool) addRecipe(name string, recipe *pool.Recipe) *Recipe {
-	r := NewRecipe(name, recipe)
-
-	if T.recipes == nil {
-		T.recipes = make(map[string]*Recipe)
-	}
-	T.recipes[name] = r
-	T.recipeScaleOrder = append(T.recipeScaleOrder, r)
-	T.sortRecipeScaleOrder()
-
-	return r
-}
-
-func (T *Pool) removeRecipe(name string) {
-	r, ok := T.recipes[name]
-	if !ok {
-		return
-	}
-	delete(T.recipes, name)
-	T.recipeScaleOrder = slices.Delete(T.recipeScaleOrder, r)
-
-	for _, server := range r.Servers {
-		T.removeServer(server, false, true)
-	}
-}
-
-func (T *Pool) AddRecipe(name string, recipe *pool.Recipe) {
-	r := func() *Recipe {
-		T.mu.Lock()
-		defer T.mu.Unlock()
-
-		T.removeRecipe(name)
-		return T.addRecipe(name, recipe)
-	}()
-
-	c := r.Recipe.AllocateInitial()
-	for i := 0; i < c; i++ {
-		T.ScaleUpOnce(r)
-	}
-}
-
-func (T *Pool) RemoveRecipe(name string) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
-	T.removeRecipe(name)
-}
-
-func (T *Pool) scaleUpL0() *Recipe {
-	for _, recipe := range T.recipeScaleOrder {
-		if !recipe.Recipe.Allocate() {
-			continue
-		}
-		return recipe
-	}
-	return nil
-}
-
-func (T *Pool) ScaleUpOnce(recipe *Recipe) bool {
-	conn, err := recipe.Recipe.Dial()
-	if err != nil {
-		T.config.Logger.Error("failed to dial server", zap.Error(err))
-		recipe.Recipe.Free()
-		return false
-	}
-
+func (T *Pool) addServer(conn *fed.Conn) {
 	if T.config.UsePS {
 		conn.Middleware = append(
 			conn.Middleware,
@@ -153,35 +66,78 @@ func (T *Pool) ScaleUpOnce(recipe *Recipe) bool {
 		)
 	}
 
-	server := NewServer(recipe, conn)
+	server := NewServer(conn)
+
+	if T.serversByID == nil {
+		T.serversByID = make(map[uuid.UUID]*Server)
+	}
+	T.serversByID[server.ID] = server
+
+	if T.serversByConn == nil {
+		T.serversByConn = make(map[*fed.Conn]*Server)
+	}
+	T.serversByConn[server.Conn] = server
+
+	T.pooler.AddServer(server.ID)
+}
+
+func (T *Pool) removeServer(conn *fed.Conn) {
+	server, ok := T.serversByConn[conn]
+	if !ok {
+		return
+	}
+	delete(T.serversByConn, conn)
+	delete(T.serversByID, server.ID)
+}
+
+func (T *Pool) AddRecipe(name string, recipe *pool.Recipe) {
+	removed, added := T.oven.Learn(name, recipe)
+	if len(removed) == 0 && len(added) == 0 {
+		return
+	}
 
 	T.mu.Lock()
 	defer T.mu.Unlock()
-	recipe.Servers = append(recipe.Servers, server)
-	if T.servers == nil {
-		T.servers = make(map[uuid.UUID]*Server)
+
+	for _, server := range removed {
+		T.removeServer(server)
 	}
-	T.servers[server.ID] = server
-	T.sortRecipeScaleOrder()
 
-	T.pooler.AddServer(server.ID)
-
-	return true
+	for _, server := range added {
+		T.addServer(server)
+	}
 }
 
-func (T *Pool) ScaleUp() bool {
-	r := func() *Recipe {
-		T.mu.RLock()
-		defer T.mu.RUnlock()
-
-		return T.scaleUpL0()
-	}()
-
-	if r == nil {
-		T.config.Logger.Warn("no available recipes to scale up pool")
-		return false
+func (T *Pool) RemoveRecipe(name string) {
+	servers := T.oven.Forget(name)
+	if len(servers) == 0 {
+		return
 	}
-	return T.ScaleUpOnce(r)
+
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	for _, server := range servers {
+		T.removeServer(server)
+	}
+}
+
+func (T *Pool) Empty() bool {
+	return T.oven.Empty()
+}
+
+func (T *Pool) ScaleUp() error {
+	server, err := T.oven.Cook()
+	if err != nil {
+		return err
+	}
+
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	T.addServer(server)
+
+	return nil
 }
 
 func (T *Pool) ScaleDown(now time.Time) time.Duration {
@@ -190,7 +146,7 @@ func (T *Pool) ScaleDown(now time.Time) time.Duration {
 
 	var m time.Duration
 
-	for _, s := range T.servers {
+	for _, s := range T.serversByID {
 		since, state, _ := s.GetState()
 
 		if state != metrics.ConnStateIdle {
@@ -199,9 +155,10 @@ func (T *Pool) ScaleDown(now time.Time) time.Duration {
 
 		idle := now.Sub(since)
 		if idle > T.config.IdleTimeout {
-			// delete
-			if s.recipe.Recipe.TryFree() {
-				T.removeServer(s, true, false)
+			// try to free
+			if T.oven.Ignite(s.Conn) {
+				delete(T.serversByID, s.ID)
+				delete(T.serversByConn, s.Conn)
 			}
 		} else if idle > m {
 			m = idle
@@ -244,7 +201,7 @@ func (T *Pool) ScaleLoop() {
 			return
 		case <-backoffC:
 			// scale up
-			if T.ScaleUp() {
+			if err := T.ScaleUp(); err == nil {
 				backoffNext = 0
 				continue
 			}
@@ -258,7 +215,7 @@ func (T *Pool) ScaleLoop() {
 			// scale up
 			ok := true
 			for T.pooler.Waiters() > 0 {
-				if !T.ScaleUp() {
+				if err := T.ScaleUp(); err != nil {
 					ok = false
 					break
 				}
@@ -300,7 +257,7 @@ func (T *Pool) Acquire(client uuid.UUID) *Server {
 		}
 
 		T.mu.RLock()
-		c, ok := T.servers[serverID]
+		c, ok := T.serversByID[serverID]
 		T.mu.RUnlock()
 
 		if !ok {
@@ -329,14 +286,17 @@ func (T *Pool) Release(server *Server) {
 }
 
 func (T *Pool) RemoveServer(server *Server) {
+	T.oven.Burn(server.Conn)
+
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	T.removeServer(server, true, true)
+	delete(T.serversByID, server.ID)
+	delete(T.serversByConn, server.Conn)
 }
 
 func (T *Pool) Cancel(server *Server) {
-	server.recipe.Recipe.Cancel(server.Conn.BackendKey)
+	T.oven.Cancel(server.Conn)
 }
 
 func (T *Pool) ReadMetrics(m *metrics.Pool) {
@@ -346,7 +306,7 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 	if m.Servers == nil {
 		m.Servers = make(map[uuid.UUID]metrics.Conn)
 	}
-	for _, server := range T.servers {
+	for _, server := range T.serversByID {
 		var s metrics.Conn
 		server.ReadMetrics(&s)
 		m.Servers[server.ID] = s

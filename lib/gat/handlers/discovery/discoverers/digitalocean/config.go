@@ -1,16 +1,12 @@
 package digitalocean
 
-import "gfx.cafe/gfx/pggat/lib/util/strutil"
-
-type Priority struct {
-	Filter strutil.Matcher `json:"filter"`
-	Value  int             `json:"value"`
-}
+import (
+	"encoding/json"
+)
 
 type Config struct {
 	APIKey  string `json:"api_key"`
 	Private bool   `json:"private,omitempty"`
 
-	Filter   strutil.Matcher `json:"filter,omitempty"`
-	Priority []Priority      `json:"priority,omitempty"`
+	Filter json.RawMessage `json:"filter,omitempty" caddy:"namespace=pggat.handlers.discovery.discoverers.digitalocean.filters inline_key=filter"`
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// ReadWriteCloser was written before I knew io.Pipe existed. Keeping it for SetDeadline in conns.
 type ReadWriteCloser struct {
 	buf               []byte
 	r                 sync.Cond
