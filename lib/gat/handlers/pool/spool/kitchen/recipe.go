@@ -8,9 +8,10 @@ import (
 )
 
 type Recipe struct {
-	recipe *pool.Recipe
-	score  int
-	conns  map[*fed.Conn]struct{}
+	recipe  *pool.Recipe
+	ratings []Rating
+	score   int
+	conns   map[*fed.Conn]struct{}
 }
 
 func NewRecipe(recipe *pool.Recipe, initial []*fed.Conn) *Recipe {

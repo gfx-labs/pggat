@@ -4,6 +4,7 @@ import (
 	"math"
 	"sort"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -119,9 +120,6 @@ func (T *Oven) cook(r *Recipe) (*fed.Conn, error) {
 }
 
 func (T *Oven) score(r *Recipe) (int, error) {
-	T.mu.Unlock()
-	defer T.mu.Lock()
-
 	conn, err := r.recipe.Dial()
 	if err != nil {
 		return 0, err
@@ -130,12 +128,27 @@ func (T *Oven) score(r *Recipe) (int, error) {
 		_ = conn.Close()
 	}()
 
+	now := time.Now()
+
+	r.ratings = slices.Resize(r.ratings, len(T.config.Critics))
+
 	total := 0
-	for _, critic := range T.config.Critics {
+	for i, critic := range T.config.Critics {
+		if now.Before(r.ratings[i].Expiration) {
+			total += r.ratings[i].Score
+			continue
+		}
+
 		var score int
-		score, _, err = critic.Taste(conn)
+		var validity time.Duration
+		score, validity, err = critic.Taste(conn)
 		if err != nil {
 			return 0, err
+		}
+
+		r.ratings[i] = Rating{
+			Expiration: time.Now().Add(validity),
+			Score:      score,
 		}
 
 		total += score
