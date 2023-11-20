@@ -154,13 +154,7 @@ func (T *Module) updated(prev, next Cluster) {
 		// change # of replicas
 
 		for id, nextReplica := range next.Replicas {
-			prevReplica, ok := prev.Replicas[id]
-			if !ok {
-				T.addReplica(prev.Users, prev.Databases, id, nextReplica)
-			} else if prevReplica != nextReplica {
-				T.removeReplica(prev.Users, prev.Databases, id)
-				T.addReplica(prev.Users, prev.Databases, id, nextReplica)
-			}
+			T.addReplica(prev.Users, prev.Databases, id, nextReplica)
 		}
 		for id := range prev.Replicas {
 			_, ok := next.Replicas[id]
