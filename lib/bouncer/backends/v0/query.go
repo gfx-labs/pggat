@@ -26,7 +26,7 @@ func copyIn(ctx *context) error {
 		case packets.TypeCopyDone, packets.TypeCopyFail:
 			return ctx.ServerWrite()
 		default:
-			ctx.PeerFail(ErrUnexpectedPacket)
+			ctx.PeerFail(ctx.ErrUnexpectedPacket())
 		}
 	}
 }
@@ -50,7 +50,7 @@ func copyOut(ctx *context) error {
 			ctx.PeerWrite()
 			return nil
 		default:
-			return ErrUnexpectedPacket
+			return ctx.ErrUnexpectedPacket()
 		}
 	}
 }
@@ -95,7 +95,7 @@ func query(ctx *context) error {
 			ctx.PeerWrite()
 			return nil
 		default:
-			return ErrUnexpectedPacket
+			return ctx.ErrUnexpectedPacket()
 		}
 	}
 }
@@ -163,7 +163,7 @@ func functionCall(ctx *context) error {
 			ctx.PeerWrite()
 			return nil
 		default:
-			return ErrUnexpectedPacket
+			return ctx.ErrUnexpectedPacket()
 		}
 	}
 }
@@ -218,7 +218,7 @@ func sync(ctx *context) (bool, error) {
 			ctx.PeerWrite()
 			return true, nil
 		default:
-			return false, ErrUnexpectedPacket
+			return false, ctx.ErrUnexpectedPacket()
 		}
 	}
 }
@@ -267,7 +267,7 @@ func eqp(ctx *context) error {
 				return err
 			}
 		default:
-			ctx.PeerFail(ErrUnexpectedPacket)
+			ctx.PeerFail(ctx.ErrUnexpectedPacket())
 		}
 	}
 }
@@ -293,7 +293,7 @@ func transaction(ctx *context) error {
 				return err
 			}
 		default:
-			ctx.PeerFail(ErrUnexpectedPacket)
+			ctx.PeerFail(ctx.ErrUnexpectedPacket())
 		}
 
 		if ctx.TxState == 'I' {
@@ -308,7 +308,7 @@ func transaction(ctx *context) error {
 			}
 
 			if ctx.TxState != 'I' {
-				return ErrUnexpectedPacket
+				return ErrExpectedIdle
 			}
 			return nil
 		}

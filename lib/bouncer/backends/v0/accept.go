@@ -21,7 +21,7 @@ func authenticationSASLChallenge(ctx *acceptContext, encoder auth.SASLEncoder) (
 	}
 
 	if packet.Type() != packets.TypeAuthentication {
-		err = ErrUnexpectedPacket
+		err = ErrUnexpectedPacket(packet.Type())
 		return
 	}
 
@@ -55,7 +55,7 @@ func authenticationSASLChallenge(ctx *acceptContext, encoder auth.SASLEncoder) (
 
 		return true, nil
 	default:
-		err = ErrUnexpectedPacket
+		err = ErrUnexpectedAuthenticationResponse
 		return
 	}
 }
@@ -186,7 +186,7 @@ func startup0(ctx *acceptContext) (done bool, err error) {
 		err = errors.New("server wanted to negotiate protocol version")
 		return
 	default:
-		err = ErrUnexpectedPacket
+		err = ErrUnexpectedPacket(packet.Type())
 		return
 	}
 }
@@ -235,7 +235,7 @@ func startup1(ctx *acceptContext) (done bool, err error) {
 		// TODO(garet) do something with notice
 		return false, nil
 	default:
-		err = ErrUnexpectedPacket
+		err = ErrUnexpectedPacket(packet.Type())
 		return
 	}
 }

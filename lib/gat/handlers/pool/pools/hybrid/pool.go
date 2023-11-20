@@ -1,6 +1,7 @@
 package hybrid
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
@@ -235,7 +236,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 				err, serverErr = bouncers.Bounce(conn, replica.Conn, packet)
 			}
 			if serverErr != nil {
-				return serverErr
+				return fmt.Errorf("server error: %w", serverErr)
 			} else {
 				replica.TransactionComplete()
 			}
@@ -266,7 +267,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 					err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
 				}
 				if serverErr != nil {
-					return serverErr
+					return fmt.Errorf("server error: %w", serverErr)
 				} else {
 					primary.TransactionComplete()
 				}
@@ -294,7 +295,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 				err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
 			}
 			if serverErr != nil {
-				return serverErr
+				return fmt.Errorf("server error: %w", serverErr)
 			} else {
 				primary.TransactionComplete()
 			}
@@ -413,7 +414,7 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 			err, serverErr = bouncers.Bounce(conn, server.Conn, packet)
 		}
 		if serverErr != nil {
-			return serverErr
+			return fmt.Errorf("server error: %w", serverErr)
 		} else {
 			server.TransactionComplete()
 			client.TransactionComplete()

@@ -1,6 +1,7 @@
 package basic
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
@@ -243,7 +244,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 		}
 
 		if serverErr != nil {
-			return serverErr
+			return fmt.Errorf("server error: %w", serverErr)
 		} else {
 			client.TransactionComplete()
 			server.TransactionComplete()

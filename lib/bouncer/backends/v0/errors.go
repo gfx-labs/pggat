@@ -1,8 +1,17 @@
 package backends
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+
+	"gfx.cafe/gfx/pggat/lib/fed"
+)
+
+func ErrUnexpectedPacket(typ fed.Type) error {
+	return fmt.Errorf("unexpected packet: %c", typ)
+}
 
 var (
-	ErrBadFormat        = errors.New("bad packet format")
-	ErrUnexpectedPacket = errors.New("unexpected packet")
+	ErrExpectedIdle                     = errors.New("expected server to return ReadyForQuery(IDLE)")
+	ErrUnexpectedAuthenticationResponse = errors.New("unexpected authentication response")
 )

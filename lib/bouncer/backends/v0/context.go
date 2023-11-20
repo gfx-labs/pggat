@@ -17,6 +17,10 @@ type context struct {
 	TxState   byte
 }
 
+func (T *context) ErrUnexpectedPacket() error {
+	return ErrUnexpectedPacket(T.Packet.Type())
+}
+
 func (T *context) ServerRead() error {
 	var err error
 	T.Packet, err = T.Server.ReadPacket(true)

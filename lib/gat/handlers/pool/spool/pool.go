@@ -14,6 +14,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool/kitchen"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/util/maps"
 )
 
 type Pool struct {
@@ -316,5 +317,11 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 func (T *Pool) Close() {
 	close(T.closed)
 
+	T.oven.Close()
 	T.pooler.Close()
+
+	T.mu.Lock()
+	defer T.mu.Unlock()
+	maps.Clear(T.serversByID)
+	maps.Clear(T.serversByConn)
 }
