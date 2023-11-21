@@ -29,6 +29,8 @@ func NewDecoder(r io.Reader) *Decoder {
 }
 
 func (T *Decoder) Reset(r io.Reader) {
+	T.len = 0
+	T.pos = 0
 	T.reader.Reset(r)
 }
 
