@@ -58,6 +58,10 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 			continue
 		}
 
+		if cluster.Status != "online" {
+			continue
+		}
+
 		// filter by tags
 		if T.filter != nil && !T.filter.Allow(cluster) {
 			continue
@@ -93,6 +97,10 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 
 		c.Replicas = make(map[string]discovery.Node, len(replicas))
 		for _, replica := range replicas {
+			if replica.Status != "online" {
+				continue
+			}
+
 			// filter by tags
 			if T.filter != nil && !T.filter.AllowReplica(replica) {
 				continue
