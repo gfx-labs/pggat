@@ -12,6 +12,15 @@ stages:
   - build
   - deploy
 
+include:
+ - project: 'templates/ci'
+   file: "/kaniko.gitlab-ci.yml"
+
+
+variables:
+  CAFE_BUILD_DOCKERFILES: "Dockerfile"
+
+
 test:
   image: postgres:alpine
   variables:
@@ -64,26 +73,6 @@ coverage:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
-
-jsonnet:
-  stage: build
-  image: alpine:latest
-  script:
-    - apk add -U jsonnet
-    - jsonnet .gitlab-ci.jsonnet > generated-config.yml
-  artifacts:
-    paths:
-      - generated-config.yml
-
-trigger-builds:
-  stage: build
-  needs:
-    - jsonnet
-  trigger:
-    include:
-      - artifact: generated-config.yml
-        job: jsonnet
-    strategy: depend
 
 trigger-master-deploy:
   stage: deploy
