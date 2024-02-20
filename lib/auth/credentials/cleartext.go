@@ -92,7 +92,7 @@ func (T Cleartext) VerifySASL(mechanism auth.SASLMechanism) (auth.SASLVerifier, 
 				hasher := scram.Hasher(sha256.New)
 				keyInfo := scram.KeyInfo{
 					Salt:   salt[:],
-					Iters:  2048,
+					Iters:  4096,
 					Hasher: hasher,
 				}
 				saltedPassword := hasher.SaltedPassword([]byte(T.Password), keyInfo.Salt, keyInfo.Iters)
