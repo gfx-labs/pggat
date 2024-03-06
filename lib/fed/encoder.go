@@ -22,8 +22,12 @@ type Encoder struct {
 	buf [8]byte
 }
 
+const defaultBufferSize = 16 * 1024
+
 func NewEncoder(w io.Writer) *Encoder {
 	e := new(Encoder)
+	bw := bufio.NewWriterSize(w, defaultBufferSize)
+	e.writer = *bw
 	e.Reset(w)
 	return e
 }
