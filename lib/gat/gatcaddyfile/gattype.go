@@ -174,8 +174,8 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 					} else {
 						matcher = caddyconfig.JSONModuleObject(
 							and,
-							Matcher,
 							"matcher",
+							"and",
 							&warnings,
 						)
 					}
