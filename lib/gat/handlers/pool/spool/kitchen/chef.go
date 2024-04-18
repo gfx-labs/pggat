@@ -14,7 +14,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
-type Oven struct {
+type Chef struct {
 	config Config
 
 	byName map[string]*Recipe
@@ -23,19 +23,19 @@ type Oven struct {
 	mu     sync.Mutex
 }
 
-func MakeOven(config Config) Oven {
-	return Oven{
+func MakeChef(config Config) Chef {
+	return Chef{
 		config: config,
 	}
 }
 
-func NewOven(config Config) *Oven {
-	oven := MakeOven(config)
-	return &oven
+func NewChef(config Config) *Chef {
+	chef := MakeChef(config)
+	return &chef
 }
 
 // Learn will add a recipe to the kitchen. Returns initial removed and added conns
-func (T *Oven) Learn(name string, recipe *pool.Recipe) (removed []*fed.Conn, added []*fed.Conn) {
+func (T *Chef) Learn(name string, recipe *pool.Recipe) (removed []*fed.Conn, added []*fed.Conn) {
 	n := recipe.AllocateInitial()
 	added = make([]*fed.Conn, 0, n)
 	for i := 0; i < n; i++ {
@@ -76,7 +76,7 @@ func (T *Oven) Learn(name string, recipe *pool.Recipe) (removed []*fed.Conn, add
 	return
 }
 
-func (T *Oven) forget(name string) []*fed.Conn {
+func (T *Chef) forget(name string) []*fed.Conn {
 	r, ok := T.byName[name]
 	if !ok {
 		return nil
@@ -98,28 +98,28 @@ func (T *Oven) forget(name string) []*fed.Conn {
 
 // Forget will remove a recipe from the kitchen. All conn made with the recipe will be closed. Returns conns made with
 // recipe.
-func (T *Oven) Forget(name string) []*fed.Conn {
+func (T *Chef) Forget(name string) []*fed.Conn {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
 	return T.forget(name)
 }
 
-func (T *Oven) Empty() bool {
+func (T *Chef) Empty() bool {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
 	return len(T.byName) == 0
 }
 
-func (T *Oven) cook(r *Recipe) (*fed.Conn, error) {
+func (T *Chef) cook(r *Recipe) (*fed.Conn, error) {
 	T.mu.Unlock()
 	defer T.mu.Lock()
 
 	return r.recipe.Dial()
 }
 
-func (T *Oven) score(r *Recipe) error {
+func (T *Chef) score(r *Recipe) error {
 	now := time.Now()
 
 	r.ratings = slices.Resize(r.ratings, len(T.config.Critics))
@@ -207,7 +207,7 @@ func (T *Oven) score(r *Recipe) error {
 }
 
 // Cook will cook the best recipe
-func (T *Oven) Cook() (*fed.Conn, error) {
+func (T *Chef) Cook() (*fed.Conn, error) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -267,7 +267,7 @@ func (T *Oven) Cook() (*fed.Conn, error) {
 }
 
 // Burn forcefully closes conn and escorts it out of the kitchen.
-func (T *Oven) Burn(conn *fed.Conn) {
+func (T *Chef) Burn(conn *fed.Conn) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -282,7 +282,7 @@ func (T *Oven) Burn(conn *fed.Conn) {
 }
 
 // Ignite tries to Burn conn. If successful, conn is closed and returns true
-func (T *Oven) Ignite(conn *fed.Conn) bool {
+func (T *Chef) Ignite(conn *fed.Conn) bool {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -300,7 +300,7 @@ func (T *Oven) Ignite(conn *fed.Conn) bool {
 	return true
 }
 
-func (T *Oven) Cancel(conn *fed.Conn) {
+func (T *Chef) Cancel(conn *fed.Conn) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -312,7 +312,7 @@ func (T *Oven) Cancel(conn *fed.Conn) {
 	r.recipe.Cancel(conn.BackendKey)
 }
 
-func (T *Oven) Close() {
+func (T *Chef) Close() {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 

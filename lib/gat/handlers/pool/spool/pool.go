@@ -23,7 +23,7 @@ type Pool struct {
 
 	closed chan struct{}
 
-	oven kitchen.Oven
+	chef kitchen.Chef
 
 	serversByID   map[uuid.UUID]*Server
 	serversByConn map[*fed.Conn]*Server
@@ -39,7 +39,7 @@ func MakePool(config Config) Pool {
 
 		closed: make(chan struct{}),
 
-		oven: kitchen.MakeOven(kitchen.Config{
+		chef: kitchen.MakeChef(kitchen.Config{
 			Critics: config.Critics,
 			Logger:  config.Logger,
 		}),
@@ -92,7 +92,7 @@ func (T *Pool) removeServer(conn *fed.Conn) {
 }
 
 func (T *Pool) AddRecipe(name string, recipe *pool.Recipe) {
-	removed, added := T.oven.Learn(name, recipe)
+	removed, added := T.chef.Learn(name, recipe)
 	if len(removed) == 0 && len(added) == 0 {
 		return
 	}
@@ -110,7 +110,7 @@ func (T *Pool) AddRecipe(name string, recipe *pool.Recipe) {
 }
 
 func (T *Pool) RemoveRecipe(name string) {
-	servers := T.oven.Forget(name)
+	servers := T.chef.Forget(name)
 	if len(servers) == 0 {
 		return
 	}
@@ -124,11 +124,13 @@ func (T *Pool) RemoveRecipe(name string) {
 }
 
 func (T *Pool) Empty() bool {
-	return T.oven.Empty()
+	return T.chef.Empty()
 }
 
 func (T *Pool) ScaleUp() error {
-	server, err := T.oven.Cook()
+	T.chef.Empty()
+
+	server, err := T.chef.Cook()
 	if err != nil {
 		return err
 	}
@@ -157,7 +159,7 @@ func (T *Pool) ScaleDown(now time.Time) time.Duration {
 		idle := now.Sub(since)
 		if idle > T.config.IdleTimeout {
 			// try to free
-			if T.oven.Ignite(s.Conn) {
+			if T.chef.Ignite(s.Conn) {
 				delete(T.serversByID, s.ID)
 				delete(T.serversByConn, s.Conn)
 			}
@@ -287,7 +289,7 @@ func (T *Pool) Release(server *Server) {
 }
 
 func (T *Pool) RemoveServer(server *Server) {
-	T.oven.Burn(server.Conn)
+	T.chef.Burn(server.Conn)
 
 	T.mu.Lock()
 	defer T.mu.Unlock()
@@ -297,7 +299,7 @@ func (T *Pool) RemoveServer(server *Server) {
 }
 
 func (T *Pool) Cancel(server *Server) {
-	T.oven.Cancel(server.Conn)
+	T.chef.Cancel(server.Conn)
 }
 
 func (T *Pool) ReadMetrics(m *metrics.Pool) {
@@ -317,7 +319,7 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 func (T *Pool) Close() {
 	close(T.closed)
 
-	T.oven.Close()
+	T.chef.Close()
 	T.pooler.Close()
 
 	T.mu.Lock()
