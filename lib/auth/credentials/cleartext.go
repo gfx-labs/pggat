@@ -3,9 +3,10 @@ package credentials
 import (
 	"crypto/md5"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"strings"
+
+	"github.com/minio/sha256-simd"
 
 	"gfx.cafe/ghalliday1/scram"
 
