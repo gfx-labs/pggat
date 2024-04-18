@@ -162,6 +162,7 @@ func init() {
 					"provider",
 					warnings,
 				),
+				ServerMaxConnections: 20,
 			},
 		}
 
@@ -200,6 +201,26 @@ func init() {
 						return nil, d.WrapErr(err)
 					}
 					module.ReconcilePeriod = caddy.Duration(val)
+				case "max_connections":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					val, err := strconv.Atoi(d.Val())
+					if err != nil {
+						return nil, d.WrapErr(err)
+					}
+					module.ServerMaxConnections = val
+				case "min_connections":
+					if !d.NextArg() {
+						return nil, d.ArgErr()
+					}
+
+					val, err := strconv.Atoi(d.Val())
+					if err != nil {
+						return nil, d.WrapErr(err)
+					}
+					module.ServerMinConnections = val
 				case "discoverer":
 					if !d.NextArg() {
 						return nil, d.ArgErr()

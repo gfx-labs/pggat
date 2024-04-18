@@ -228,7 +228,9 @@ func (T *Module) addPrimaryNode(user User, database string, primary Node) {
 			SSLConfig:   T.sslConfig,
 			Parameters:  T.serverStartupParameters,
 		},
-		Priority: primary.Priority,
+		Priority:       primary.Priority,
+		MinConnections: T.ServerMinConnections,
+		MaxConnections: T.ServerMaxConnections,
 	}
 	p.pool.AddRecipe("primary", &d)
 }
@@ -252,7 +254,9 @@ func (T *Module) addReplicaNodes(user User, database string, replicas map[string
 					SSLConfig:   T.sslConfig,
 					Parameters:  T.serverStartupParameters,
 				},
-				Priority: replica.Priority,
+				Priority:       replica.Priority,
+				MinConnections: T.ServerMinConnections,
+				MaxConnections: T.ServerMaxConnections,
 			}
 			rp.AddReplicaRecipe(id, &d)
 		}
@@ -271,7 +275,9 @@ func (T *Module) addReplicaNodes(user User, database string, replicas map[string
 				SSLConfig:   T.sslConfig,
 				Parameters:  T.serverStartupParameters,
 			},
-			Priority: replica.Priority,
+			Priority:       replica.Priority,
+			MinConnections: T.ServerMinConnections,
+			MaxConnections: T.ServerMaxConnections,
 		}
 		rp.pool.AddRecipe(id, &d)
 	}
@@ -308,7 +314,9 @@ func (T *Module) addReplicaNode(user User, database string, id string, replica N
 			SSLConfig:   T.sslConfig,
 			Parameters:  T.serverStartupParameters,
 		},
-		Priority: replica.Priority,
+		Priority:       replica.Priority,
+		MinConnections: T.ServerMinConnections,
+		MaxConnections: T.ServerMaxConnections,
 	}
 
 	if rp, ok := p.pool.(pool.ReplicaPool); ok {

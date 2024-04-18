@@ -19,5 +19,8 @@ type Config struct {
 	ServerSSLMode bouncer.SSLMode `json:"server_ssl_mode,omitempty"`
 	ServerSSL     json.RawMessage `json:"server_ssl,omitempty" caddy:"namespace=pggat.ssl.clients inline_key=provider"`
 
+	ServerMinConnections int `json:"server_min_connections,omitempty"`
+	ServerMaxConnections int `json:"server_max_connections,omitempty"`
+
 	ServerStartupParameters map[string]string `json:"server_startup_parameters,omitempty"`
 }
