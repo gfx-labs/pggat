@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"time"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/fed"
@@ -218,5 +219,9 @@ func Authenticate(conn *fed.Conn, creds auth.Credentials) (err error) {
 		},
 	}
 	err = authenticate(&ctx)
+	if err != nil {
+		// sleep after incorrect password
+		time.Sleep(250 * time.Millisecond)
+	}
 	return
 }
