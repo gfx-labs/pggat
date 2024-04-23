@@ -2,6 +2,7 @@ package gatcaddyfile
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
@@ -69,7 +70,8 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 		server.Listen = make([]gat.ListenerConfig, 0, len(block.Keys))
 		for _, key := range block.Keys {
 			listen := gat.ListenerConfig{
-				Address: key,
+				Address:        key,
+				MaxConnections: 1000,
 			}
 			server.Listen = append(server.Listen, listen)
 		}
@@ -112,6 +114,23 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 						return nil, nil, d.Err("duplicate ssl directive")
 					}
 					server.Listen[i].SSL = val
+				}
+
+				if d.CountRemainingArgs() > 0 {
+					return nil, nil, d.ArgErr()
+				}
+			case directive == "max_connections":
+				if !d.NextArg() {
+					return nil, nil, d.ArgErr()
+				}
+
+				maxConnections, err := strconv.Atoi(d.Val())
+				if err != nil {
+					return nil, nil, d.Err(err.Error())
+				}
+
+				for i := range server.Listen {
+					server.Listen[i].MaxConnections = maxConnections
 				}
 
 				if d.CountRemainingArgs() > 0 {

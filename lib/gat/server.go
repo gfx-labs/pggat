@@ -164,6 +164,20 @@ func (T *Server) accept(listener *Listener, conn *fed.Conn) {
 		return
 	}
 
+	count := listener.open.Add(1)
+	defer listener.open.Add(-1)
+
+	if listener.MaxConnections != 0 && int(count) > listener.MaxConnections {
+		_ = conn.WritePacket(
+			perror.ToPacket(perror.New(
+				perror.FATAL,
+				perror.TooManyConnections,
+				"Too many connections, sorry",
+			)),
+		)
+		return
+	}
+
 	T.Serve(conn)
 }
 

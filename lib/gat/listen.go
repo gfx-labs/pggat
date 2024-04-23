@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/caddyserver/caddy/v2"
 	"go.uber.org/zap"
@@ -17,8 +18,9 @@ import (
 )
 
 type ListenerConfig struct {
-	Address string          `json:"address"`
-	SSL     json.RawMessage `json:"ssl,omitempty" caddy:"namespace=pggat.ssl.servers inline_key=provider"`
+	Address        string          `json:"address"`
+	SSL            json.RawMessage `json:"ssl,omitempty" caddy:"namespace=pggat.ssl.servers inline_key=provider"`
+	MaxConnections int             `json:"max_connections,omitempty"`
 }
 
 type Listener struct {
@@ -28,6 +30,7 @@ type Listener struct {
 	ssl            SSLServer
 
 	listener net.Listener
+	open     atomic.Int64
 
 	log *zap.Logger
 }
