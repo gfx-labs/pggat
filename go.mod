@@ -3,10 +3,16 @@ module gfx.cafe/gfx/pggat
 go 1.20
 
 require (
-	gfx.cafe/ghalliday1/scram v0.0.2
+	gfx.cafe/ghalliday1/scram v0.0.3
+	gfx.cafe/util/temple v0.0.0-20230312041217-0882540e78eb
+	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/caddyserver/caddy/v2 v2.7.4
+	github.com/caddyserver/certmagic v0.19.2
 	github.com/digitalocean/godo v1.102.1
 	github.com/google/uuid v1.3.0
+	github.com/minio/sha256-simd v1.0.1
+	github.com/spf13/cobra v1.7.0
+	github.com/spf13/pflag v1.0.5
 	github.com/zalando/postgres-operator v1.8.2
 	go.uber.org/zap v1.25.0
 	google.golang.org/api v0.126.0
@@ -17,13 +23,10 @@ require (
 require (
 	cloud.google.com/go/compute v1.20.1 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
-	gfx.cafe/util/temple v0.0.0-20230312041217-0882540e78eb // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.2.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
-	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/caddyserver/certmagic v0.19.2 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -60,7 +63,6 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/mholt/acmez v1.2.0 // indirect
 	github.com/miekg/dns v1.1.55 // indirect
-	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -80,8 +82,6 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/afero v1.9.3 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
-	github.com/spf13/cobra v1.7.0 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/zeebo/blake3 v0.2.3 // indirect
 	go.opencensus.io v0.24.0 // indirect

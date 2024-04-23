@@ -40,8 +40,8 @@ cloud.google.com/go/storage v1.8.0/go.mod h1:Wv1Oy7z6Yz3DshWRJFhqM/UCfaWIRTdp0RX
 cloud.google.com/go/storage v1.10.0/go.mod h1:FLPqc6j+Ki4BU591ie1oL6qBQGu2Bl/tZ9ullr3+Kg0=
 cloud.google.com/go/storage v1.14.0/go.mod h1:GrKmX003DSIwi9o29oFT7YDnHYwZoctc3fOKtUw0Xmo=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
-gfx.cafe/ghalliday1/scram v0.0.2 h1:uuScaL7DUEP/lKWJnA5kKHq5RJev26q8DMbP3gKviAg=
-gfx.cafe/ghalliday1/scram v0.0.2/go.mod h1:qt6+WJoFcX2id67G5w+/dktBJ56Se0sZAa7WjqfNNu0=
+gfx.cafe/ghalliday1/scram v0.0.3 h1:ScDO2WKij3E0a68adP9/6ZX4OXm+3rerjo51vRQ1agc=
+gfx.cafe/ghalliday1/scram v0.0.3/go.mod h1:qt6+WJoFcX2id67G5w+/dktBJ56Se0sZAa7WjqfNNu0=
 gfx.cafe/util/temple v0.0.0-20230312041217-0882540e78eb h1:E6gfSdAD5eBWHD5cLktd/umyivQlFTvEzoadoM33g3M=
 gfx.cafe/util/temple v0.0.0-20230312041217-0882540e78eb/go.mod h1:rDv4JeaN6NFCUXiNiewrmQnvm7npR7XbJ1jsturNDhc=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
