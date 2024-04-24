@@ -128,8 +128,6 @@ func (T *Pool) Empty() bool {
 }
 
 func (T *Pool) ScaleUp() error {
-	T.chef.Empty()
-
 	server, err := T.chef.Cook()
 	if err != nil {
 		return err
@@ -172,50 +170,27 @@ func (T *Pool) ScaleDown(now time.Time) time.Duration {
 }
 
 func (T *Pool) ScaleLoop() {
-	var idle *time.Timer
-	defer func() {
-		if idle != nil {
-			idle.Stop()
-		}
-	}()
-	var idleC <-chan time.Time
+	idle := new(time.Timer)
 	if T.config.IdleTimeout != 0 {
 		idle = time.NewTimer(T.config.IdleTimeout)
-		idleC = idle.C
+		defer idle.Stop()
 	}
 
-	var backoff *time.Timer
-	defer func() {
-		if backoff != nil {
-			backoff.Stop()
-		}
-	}()
-	var backoffC <-chan time.Time
-	var backoffNext time.Duration
+	backoff := time.NewTimer(0)
+	<-backoff.C
+	defer backoff.Stop()
+
+	var backoffAmount time.Duration
 
 	for {
-		var pending <-chan struct{}
-		if backoffNext == 0 {
-			pending = T.pooler.Waiting()
-		}
-
 		select {
 		case <-T.closed:
 			return
-		case <-backoffC:
-			// scale up
-			if err := T.ScaleUp(); err == nil {
-				backoffNext = 0
+		case <-backoff.C:
+			if backoffAmount == 0 {
 				continue
 			}
 
-			backoffNext *= 2
-			if T.config.ReconnectMaxTime != 0 && backoffNext > T.config.ReconnectMaxTime {
-				backoffNext = T.config.ReconnectMaxTime
-			}
-			backoff.Reset(backoffNext)
-		case <-pending:
-			// scale up
 			ok := true
 			for T.pooler.Waiters() > 0 {
 				if err := T.ScaleUp(); err != nil {
@@ -223,21 +198,41 @@ func (T *Pool) ScaleLoop() {
 					break
 				}
 			}
+
+			if ok {
+				backoffAmount = 0
+				continue
+			}
+
+			// increase backoff
+			backoffAmount = min(T.config.ReconnectMaxTime, 2*backoffAmount)
+			if backoffAmount != 0 {
+				backoff.Reset(backoffAmount)
+			}
+		case <-T.pooler.Waiting():
+			if backoffAmount != 0 {
+				// already backing off
+				continue
+			}
+
+			ok := true
+			for T.pooler.Waiters() > 0 {
+				if err := T.ScaleUp(); err != nil {
+					ok = false
+					break
+				}
+			}
+
 			if ok {
 				continue
 			}
 
-			// backoff
-			backoffNext = T.config.ReconnectInitialTime
-			if backoffNext != 0 {
-				if backoff == nil {
-					backoff = time.NewTimer(backoffNext)
-					backoffC = backoff.C
-				} else {
-					backoff.Reset(backoffNext)
-				}
+			// start backoff
+			backoffAmount = T.config.ReconnectInitialTime
+			if backoffAmount != 0 {
+				backoff.Reset(backoffAmount)
 			}
-		case now := <-idleC:
+		case now := <-idle.C:
 			// scale down
 			idle.Reset(T.ScaleDown(now))
 		}
