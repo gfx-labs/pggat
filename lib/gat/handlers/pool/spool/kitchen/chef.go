@@ -275,6 +275,7 @@ func (T *Chef) Burn(conn *fed.Conn) {
 	if !ok {
 		return
 	}
+	r.recipe.Free()
 	_ = conn.Close()
 
 	delete(T.byConn, conn)
@@ -318,8 +319,11 @@ func (T *Chef) Close() {
 
 	maps.Clear(T.byName)
 	T.order = T.order[:0]
-	for conn := range T.byConn {
+	for conn, r := range T.byConn {
+		r.recipe.Free()
 		_ = conn.Close()
+
 		delete(T.byConn, conn)
+		delete(r.conns, conn)
 	}
 }
