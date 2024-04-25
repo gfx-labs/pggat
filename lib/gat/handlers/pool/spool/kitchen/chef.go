@@ -88,7 +88,10 @@ func (T *Chef) forget(name string) []*fed.Conn {
 	for conn := range r.conns {
 		conns = append(conns, conn)
 		_ = conn.Close()
+		r.recipe.Free()
+
 		delete(T.byConn, conn)
+		delete(r.conns, conn)
 	}
 
 	T.order = slices.Remove(T.order, r)
@@ -263,6 +266,7 @@ func (T *Chef) Cook() (*fed.Conn, error) {
 		}
 	}
 
+	T.config.Logger.Warn("no available recipes to scale up pool")
 	return nil, ErrNoRecipes
 }
 

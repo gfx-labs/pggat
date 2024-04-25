@@ -161,12 +161,15 @@ func (T *Pool) ScaleDown(now time.Time) time.Duration {
 				delete(T.serversByID, s.ID)
 				delete(T.serversByConn, s.Conn)
 			}
-		} else if idle > m {
-			m = idle
+		} else {
+			util := T.config.IdleTimeout - idle
+			if idle < m {
+				m = util
+			}
 		}
 	}
 
-	return T.config.IdleTimeout - m
+	return m
 }
 
 func (T *Pool) ScaleLoop() {
