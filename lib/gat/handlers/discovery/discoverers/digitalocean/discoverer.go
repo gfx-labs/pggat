@@ -69,9 +69,9 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 
 		var primaryAddr string
 		if T.Private {
-			primaryAddr = net.JoinHostPort(cluster.PrivateConnection.Host, strconv.Itoa(cluster.PrivateConnection.Port))
+			primaryAddr = net.JoinHostPort(cluster.PrivateConnection.Host+".", strconv.Itoa(cluster.PrivateConnection.Port))
 		} else {
-			primaryAddr = net.JoinHostPort(cluster.Connection.Host, strconv.Itoa(cluster.Connection.Port))
+			primaryAddr = net.JoinHostPort(cluster.Connection.Host+".", strconv.Itoa(cluster.Connection.Port))
 		}
 
 		c := discovery.Cluster{
@@ -108,9 +108,9 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 
 			var replicaAddr string
 			if T.Private {
-				replicaAddr = net.JoinHostPort(replica.PrivateConnection.Host, strconv.Itoa(replica.PrivateConnection.Port))
+				replicaAddr = net.JoinHostPort(replica.PrivateConnection.Host+".", strconv.Itoa(replica.PrivateConnection.Port))
 			} else {
-				replicaAddr = net.JoinHostPort(replica.Connection.Host, strconv.Itoa(replica.Connection.Port))
+				replicaAddr = net.JoinHostPort(replica.Connection.Host+".", strconv.Itoa(replica.Connection.Port))
 			}
 			c.Replicas[replica.ID] = discovery.Node{
 				Address: replicaAddr,
