@@ -162,9 +162,9 @@ func (T *Pool) ScaleDown(now time.Time) time.Duration {
 				delete(T.serversByConn, s.Conn)
 			}
 		} else {
-			util := T.config.IdleTimeout - idle
+			until := T.config.IdleTimeout - idle
 			if idle < m {
-				m = util
+				m = until
 			}
 		}
 	}
