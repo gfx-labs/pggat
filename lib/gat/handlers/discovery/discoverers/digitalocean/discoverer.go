@@ -108,9 +108,9 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 
 			var replicaAddr string
 			if T.Private {
-				replicaAddr = net.JoinHostPort(replica.PrivateConnection.Host+".", strconv.Itoa(replica.PrivateConnection.Port))
+				replicaAddr = net.JoinHostPort(replica.PrivateConnection.Host, strconv.Itoa(replica.PrivateConnection.Port))
 			} else {
-				replicaAddr = net.JoinHostPort(replica.Connection.Host+".", strconv.Itoa(replica.Connection.Port))
+				replicaAddr = net.JoinHostPort(replica.Connection.Host, strconv.Itoa(replica.Connection.Port))
 			}
 			c.Replicas[replica.ID] = discovery.Node{
 				Address: replicaAddr,
