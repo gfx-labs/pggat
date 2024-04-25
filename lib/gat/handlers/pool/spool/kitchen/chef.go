@@ -1,6 +1,7 @@
 package kitchen
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"sync"
@@ -266,7 +267,12 @@ func (T *Chef) Cook() (*fed.Conn, error) {
 		}
 	}
 
-	T.config.Logger.Warn("no available recipes to scale up pool")
+	var fields = make([]zap.Field, 0, len(T.byName))
+	for name, recipe := range T.byName {
+		fields = append(fields, zap.String(name, fmt.Sprintf("%d / %d", len(recipe.conns), recipe.recipe.MaxConnections)))
+	}
+
+	T.config.Logger.Warn("no available recipes to scale up pool", fields...)
 	return nil, ErrNoRecipes
 }
 
