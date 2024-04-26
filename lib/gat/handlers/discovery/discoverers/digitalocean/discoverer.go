@@ -69,9 +69,9 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 
 		var primaryAddr string
 		if T.Private {
-			primaryAddr = net.JoinHostPort(cluster.PrivateConnection.Host+".", strconv.Itoa(cluster.PrivateConnection.Port))
+			primaryAddr = net.JoinHostPort(cluster.PrivateConnection.Host, strconv.Itoa(cluster.PrivateConnection.Port))
 		} else {
-			primaryAddr = net.JoinHostPort(cluster.Connection.Host+".", strconv.Itoa(cluster.Connection.Port))
+			primaryAddr = net.JoinHostPort(cluster.Connection.Host, strconv.Itoa(cluster.Connection.Port))
 		}
 
 		c := discovery.Cluster{
