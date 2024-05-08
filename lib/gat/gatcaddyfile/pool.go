@@ -12,11 +12,12 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-func defaultPoolConfig(base basic.Config) basic.Config {
-	base.ServerIdleTimeout = caddy.Duration(5 * time.Minute)
-	base.ServerReconnectInitialTime = caddy.Duration(5 * time.Second)
-	base.ServerReconnectMaxTime = caddy.Duration(1 * time.Minute)
-	base.TrackedParameters = []strutil.CIString{
+const defaultServerIdleTimeout = caddy.Duration(5 * time.Minute)
+const defaultServerReconnectInitialTime = caddy.Duration(5 * time.Second)
+const defaultServerReconnectMaxTime = caddy.Duration(1 * time.Minute)
+
+func defaultTrackedParameters() []strutil.CIString {
+	return []strutil.CIString{
 		strutil.MakeCIString("client_encoding"),
 		strutil.MakeCIString("datestyle"),
 		strutil.MakeCIString("timezone"),
@@ -25,6 +26,13 @@ func defaultPoolConfig(base basic.Config) basic.Config {
 		strutil.MakeCIString("intervalstyle"),
 		strutil.MakeCIString("search_path"),
 	}
+}
+
+func defaultPoolConfig(base basic.Config) basic.Config {
+	base.ServerIdleTimeout = defaultServerIdleTimeout
+	base.ServerReconnectInitialTime = defaultServerReconnectInitialTime
+	base.ServerReconnectMaxTime = defaultServerReconnectMaxTime
+	base.TrackedParameters = defaultTrackedParameters()
 	return base
 }
 
@@ -179,16 +187,10 @@ func init() {
 	RegisterDirective(Pool, "hybrid", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
 		module := hybrid.Factory{
 			Config: hybrid.Config{
-				ServerIdleTimeout:          caddy.Duration(5 * time.Minute),
-				ServerReconnectInitialTime: caddy.Duration(5 * time.Second),
-				ServerReconnectMaxTime:     caddy.Duration(1 * time.Minute),
-				TrackedParameters: []strutil.CIString{
-					strutil.MakeCIString("client_encoding"),
-					strutil.MakeCIString("datestyle"),
-					strutil.MakeCIString("timezone"),
-					strutil.MakeCIString("standard_conforming_strings"),
-					strutil.MakeCIString("application_name"),
-				},
+				ServerIdleTimeout:          defaultServerIdleTimeout,
+				ServerReconnectInitialTime: defaultServerReconnectInitialTime,
+				ServerReconnectMaxTime:     defaultServerReconnectMaxTime,
+				TrackedParameters:          defaultTrackedParameters(),
 			},
 		}
 
