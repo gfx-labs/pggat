@@ -23,6 +23,8 @@ func defaultTrackedParameters() []strutil.CIString {
 		strutil.MakeCIString("timezone"),
 		strutil.MakeCIString("standard_conforming_strings"),
 		strutil.MakeCIString("application_name"),
+		strutil.MakeCIString("intervalstyle"),
+		strutil.MakeCIString("search_path"),
 	}
 }
 
