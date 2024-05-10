@@ -248,7 +248,7 @@ func (T *Decoder) String() (string, error) {
 
 	for i, v := range T.buffer[T.bufferRead:T.bufferWrite] {
 		if v == 0 {
-			res := string(T.buffer[T.bufferRead : T.bufferRead+i-1])
+			res := string(T.buffer[T.bufferRead : T.bufferRead+i])
 			T.bufferRead += i
 			if T.bufferRead == T.bufferWrite {
 				T.bufferRead = 0
@@ -269,7 +269,7 @@ func (T *Decoder) String() (string, error) {
 
 		for i, v := range T.buffer[T.bufferRead:T.bufferWrite] {
 			if v == 0 {
-				builder.Write(T.buffer[T.bufferRead : T.bufferRead+i-1])
+				builder.Write(T.buffer[T.bufferRead : T.bufferRead+i])
 				T.bufferRead += i
 				if T.bufferRead == T.bufferWrite {
 					T.bufferRead = 0
