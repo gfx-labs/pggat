@@ -196,6 +196,7 @@ func (T *Encoder) String(v string) error {
 	for len(v) > 0 {
 		n := copy(T.buffer[T.bufferPos:], v)
 		T.bufferPos += n
+		T.packetPos += n
 		if T.bufferPos >= len(T.buffer) {
 			if err := T.Flush(); err != nil {
 				return err
@@ -203,5 +204,9 @@ func (T *Encoder) String(v string) error {
 		}
 		v = v[n:]
 	}
-	return T.writeByte(0)
+	if err := T.writeByte(0); err != nil {
+		return err
+	}
+	T.packetPos += 1
+	return nil
 }
