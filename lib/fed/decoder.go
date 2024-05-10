@@ -47,7 +47,7 @@ func (T *Decoder) refill() error {
 func (T *Decoder) discard(n int) error {
 	for n > 0 {
 		if T.bufferWrite != 0 {
-			count := max(n, T.bufferWrite-T.bufferRead)
+			count := min(n, T.bufferWrite-T.bufferRead)
 			T.bufferRead += count
 			n -= count
 			if T.bufferRead == T.bufferWrite {
@@ -67,6 +67,9 @@ func (T *Decoder) discard(n int) error {
 }
 
 func (T *Decoder) read(b []byte) (n int, err error) {
+	if len(b) == 0 {
+		return
+	}
 	if T.bufferWrite != 0 {
 		n = copy(b, T.buffer[T.bufferRead:T.bufferWrite])
 		T.bufferRead += n
@@ -83,8 +86,8 @@ func (T *Decoder) read(b []byte) (n int, err error) {
 
 	// read into buffer first
 	err = T.refill()
-	n = copy(b, T.buffer[:T.bufferWrite])
-	T.bufferRead = n
+	n = copy(b, T.buffer[T.bufferRead:T.bufferWrite])
+	T.bufferRead += n
 	if T.bufferRead == T.bufferWrite {
 		T.bufferRead = 0
 		T.bufferWrite = 0
@@ -159,10 +162,10 @@ func (T *Decoder) Next(typed bool) error {
 
 	var err error
 	if typed {
-		_, err = T.read(T.decodeBuf[:5])
+		_, err = T.readFull(T.decodeBuf[:5])
 	} else {
 		T.decodeBuf[0] = 0
-		_, err = T.read(T.decodeBuf[1:5])
+		_, err = T.readFull(T.decodeBuf[1:5])
 	}
 	if err != nil {
 		return err
@@ -249,18 +252,20 @@ func (T *Decoder) String() (string, error) {
 	for i, v := range T.buffer[T.bufferRead:T.bufferWrite] {
 		if v == 0 {
 			res := string(T.buffer[T.bufferRead : T.bufferRead+i])
-			T.bufferRead += i
+			T.bufferRead += i + 1
 			if T.bufferRead == T.bufferWrite {
 				T.bufferRead = 0
 				T.bufferWrite = 0
 			}
-			T.packetPos += i
+			T.packetPos += i + 1
 			return res, nil
 		}
 	}
 
 	var builder strings.Builder
 	builder.Write(T.buffer[T.bufferRead:T.bufferWrite])
+	T.bufferRead = 0
+	T.bufferWrite = 0
 	for {
 		if err := T.refill(); err != nil {
 			T.packetPos += builder.Len()
@@ -270,7 +275,7 @@ func (T *Decoder) String() (string, error) {
 		for i, v := range T.buffer[T.bufferRead:T.bufferWrite] {
 			if v == 0 {
 				builder.Write(T.buffer[T.bufferRead : T.bufferRead+i])
-				T.bufferRead += i
+				T.bufferRead += i + 1
 				if T.bufferRead == T.bufferWrite {
 					T.bufferRead = 0
 					T.bufferWrite = 0
@@ -279,5 +284,9 @@ func (T *Decoder) String() (string, error) {
 				return builder.String(), nil
 			}
 		}
+
+		builder.Write(T.buffer[T.bufferRead:T.bufferWrite])
+		T.bufferRead = 0
+		T.bufferWrite = 0
 	}
 }

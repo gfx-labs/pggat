@@ -9,7 +9,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/decorator"
 )
 
-const defaultBufferSize = 16 * 1024
+const defaultBufferSize = 4 * 1024
 
 type Encoder struct {
 	noCopy decorator.NoCopy
@@ -60,9 +60,8 @@ func (T *Encoder) ReadFrom(r *Decoder) (int, error) {
 }
 
 func (T *Encoder) Flush() error {
-	pos := T.bufferPos
+	_, err := T.writer.Write(T.buffer[:T.bufferPos])
 	T.bufferPos = 0
-	_, err := T.writer.Write(T.buffer[:pos])
 	return err
 }
 
@@ -197,12 +196,12 @@ func (T *Encoder) String(v string) error {
 		n := copy(T.buffer[T.bufferPos:], v)
 		T.bufferPos += n
 		T.packetPos += n
+		v = v[n:]
 		if T.bufferPos >= len(T.buffer) {
 			if err := T.Flush(); err != nil {
 				return err
 			}
 		}
-		v = v[n:]
 	}
 	if err := T.writeByte(0); err != nil {
 		return err
