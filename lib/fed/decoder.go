@@ -1,11 +1,11 @@
 package fed
 
 import (
-	"bufio"
 	"encoding/binary"
 	"errors"
 	"io"
 	"math"
+	"strings"
 
 	"gfx.cafe/gfx/pggat/lib/util/decorator"
 )
@@ -13,13 +13,15 @@ import (
 type Decoder struct {
 	noCopy decorator.NoCopy
 
-	reader bufio.Reader
+	buffer      [defaultBufferSize]byte
+	bufferWrite int
+	bufferRead  int
+	reader      io.Reader
 
-	typ Type
-	len int
-	pos int
-
-	buf [8]byte
+	packetType   Type
+	packetLength int
+	packetPos    int
+	decodeBuf    [8]byte
 }
 
 func NewDecoder(r io.Reader) *Decoder {
@@ -29,110 +31,182 @@ func NewDecoder(r io.Reader) *Decoder {
 }
 
 func (T *Decoder) Reset(r io.Reader) {
-	T.len = 0
-	T.pos = 0
-	T.reader.Reset(r)
+	T.packetLength = 0
+	T.packetPos = 0
+	T.bufferRead = 0
+	T.bufferWrite = 0
+	T.reader = r
+}
+
+func (T *Decoder) refill() error {
+	n, err := T.reader.Read(T.buffer[T.bufferWrite:])
+	T.bufferWrite += n
+	return err
+}
+
+func (T *Decoder) discard(n int) error {
+	for n > 0 {
+		if T.bufferWrite != 0 {
+			count := max(n, T.bufferWrite-T.bufferRead)
+			T.bufferRead += count
+			n -= count
+			if T.bufferRead == T.bufferWrite {
+				T.bufferRead = 0
+				T.bufferWrite = 0
+			} else {
+				break
+			}
+		}
+
+		if err := T.refill(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (T *Decoder) read(b []byte) (n int, err error) {
+	if T.bufferWrite != 0 {
+		n = copy(b, T.buffer[T.bufferRead:T.bufferWrite])
+		T.bufferRead += n
+		if T.bufferRead == T.bufferWrite {
+			T.bufferRead = 0
+			T.bufferWrite = 0
+		}
+		return
+	}
+
+	if len(b) > len(T.buffer) {
+		return T.reader.Read(b)
+	}
+
+	// read into buffer first
+	err = T.refill()
+	n = copy(b, T.buffer[:T.bufferWrite])
+	T.bufferRead = n
+	if T.bufferRead == T.bufferWrite {
+		T.bufferRead = 0
+		T.bufferWrite = 0
+	}
+	return
+}
+
+func (T *Decoder) readFull(b []byte) (n int, err error) {
+	for n < len(b) {
+		var count int
+		count, err = T.read(b[n:])
+		n += count
+		if err != nil {
+			if err == io.EOF && n != 0 {
+				err = io.ErrUnexpectedEOF
+			}
+			return
+		}
+	}
+	return
 }
 
 func (T *Decoder) Read(b []byte) (n int, err error) {
-	rem := T.len - T.pos
+	rem := T.packetLength - T.packetPos
 	if rem == 0 {
 		err = io.EOF
 		return
 	}
 	if len(b) > rem {
-		n, err = T.reader.Read(b[:rem])
+		n, err = T.read(b[:rem])
 	} else {
-		n, err = T.reader.Read(b)
+		n, err = T.read(b)
 	}
-	T.pos += n
+	T.packetPos += n
 	return
 }
 
 func (T *Decoder) Buffered() int {
-	return T.reader.Buffered()
+	return T.bufferWrite - T.bufferRead
 }
 
 var ErrOverranReadBuffer = errors.New("overran read buffer")
 
 func (T *Decoder) ReadByte() (byte, error) {
-	rem := T.len - T.pos
+	rem := T.packetLength - T.packetPos
 	if rem < 0 {
 		return 0, ErrOverranReadBuffer
 	} else if rem > 0 {
-		_, err := T.reader.Discard(rem)
-		if err != nil {
+		if err := T.discard(rem); err != nil {
 			return 0, err
 		}
 	}
 
-	T.typ = 0
-	T.len = 0
-	T.pos = 0
-	return T.reader.ReadByte()
+	T.packetType = 0
+	T.packetLength = 0
+	T.packetPos = 0
+	if _, err := T.readFull(T.decodeBuf[:1]); err != nil {
+		return 0, err
+	}
+	return T.decodeBuf[0], nil
 }
 
 func (T *Decoder) Next(typed bool) error {
-	rem := T.len - T.pos
+	rem := T.packetLength - T.packetPos
 	if rem < 0 {
 		return ErrOverranReadBuffer
 	} else if rem > 0 {
-		_, err := T.reader.Discard(rem)
-		if err != nil {
+		if err := T.discard(rem); err != nil {
 			return err
 		}
 	}
 
 	var err error
 	if typed {
-		_, err = io.ReadFull(&T.reader, T.buf[:5])
+		_, err = T.read(T.decodeBuf[:5])
 	} else {
-		T.buf[0] = 0
-		_, err = io.ReadFull(&T.reader, T.buf[1:5])
+		T.decodeBuf[0] = 0
+		_, err = T.read(T.decodeBuf[1:5])
 	}
 	if err != nil {
 		return err
 	}
-	T.typ = Type(T.buf[0])
-	T.len = int(binary.BigEndian.Uint32(T.buf[1:5])) - 4
-	T.pos = 0
+	T.packetType = Type(T.decodeBuf[0])
+	T.packetLength = int(binary.BigEndian.Uint32(T.decodeBuf[1:5])) - 4
+	T.packetPos = 0
 	return nil
 }
 
 func (T *Decoder) Type() Type {
-	return T.typ
+	return T.packetType
 }
 
 func (T *Decoder) Length() int {
-	return T.len
+	return T.packetLength
 }
 
 func (T *Decoder) Position() int {
-	return T.pos
+	return T.packetPos
 }
 
 func (T *Decoder) Uint8() (uint8, error) {
-	v, err := T.reader.ReadByte()
-	T.pos += 1
-	return v, err
+	_, err := T.readFull(T.decodeBuf[:1])
+	T.packetPos += 1
+	return T.decodeBuf[0], err
 }
 
 func (T *Decoder) Uint16() (uint16, error) {
-	_, err := io.ReadFull(&T.reader, T.buf[:2])
-	T.pos += 2
-	return binary.BigEndian.Uint16(T.buf[:2]), err
+	_, err := T.readFull(T.decodeBuf[:2])
+	T.packetPos += 2
+	return binary.BigEndian.Uint16(T.decodeBuf[:2]), err
 }
 
 func (T *Decoder) Uint32() (uint32, error) {
-	_, err := io.ReadFull(&T.reader, T.buf[:4])
-	T.pos += 4
-	return binary.BigEndian.Uint32(T.buf[:4]), err
+	_, err := T.readFull(T.decodeBuf[:4])
+	T.packetPos += 4
+	return binary.BigEndian.Uint32(T.decodeBuf[:4]), err
 }
 
 func (T *Decoder) Uint64() (uint64, error) {
-	_, err := io.ReadFull(&T.reader, T.buf[:8])
-	T.pos += 8
-	return binary.BigEndian.Uint64(T.buf[:8]), err
+	_, err := T.readFull(T.decodeBuf[:8])
+	T.packetPos += 8
+	return binary.BigEndian.Uint64(T.decodeBuf[:8]), err
 }
 
 func (T *Decoder) Int8() (int8, error) {
@@ -166,10 +240,44 @@ func (T *Decoder) Float64() (float64, error) {
 }
 
 func (T *Decoder) String() (string, error) {
-	s, err := T.reader.ReadString(0)
-	if err != nil {
-		return "", err
+	if T.bufferWrite == 0 {
+		if err := T.refill(); err != nil {
+			return "", err
+		}
 	}
-	T.pos += len(s)
-	return s[:len(s)-1], nil
+
+	for i, v := range T.buffer[T.bufferRead:T.bufferWrite] {
+		if v == 0 {
+			res := string(T.buffer[T.bufferRead : T.bufferRead+i-1])
+			T.bufferRead += i
+			if T.bufferRead == T.bufferWrite {
+				T.bufferRead = 0
+				T.bufferWrite = 0
+			}
+			T.packetPos += i
+			return res, nil
+		}
+	}
+
+	var builder strings.Builder
+	builder.Write(T.buffer[T.bufferRead:T.bufferWrite])
+	for {
+		if err := T.refill(); err != nil {
+			T.packetPos += builder.Len()
+			return builder.String(), err
+		}
+
+		for i, v := range T.buffer[T.bufferRead:T.bufferWrite] {
+			if v == 0 {
+				builder.Write(T.buffer[T.bufferRead : T.bufferRead+i-1])
+				T.bufferRead += i
+				if T.bufferRead == T.bufferWrite {
+					T.bufferRead = 0
+					T.bufferWrite = 0
+				}
+				T.packetPos += builder.Len() + 1
+				return builder.String(), nil
+			}
+		}
+	}
 }

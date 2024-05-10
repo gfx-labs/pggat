@@ -1,7 +1,6 @@
 package fed
 
 import (
-	"bufio"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -10,26 +9,24 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/decorator"
 )
 
+const defaultBufferSize = 16 * 1024
+
 type Encoder struct {
 	noCopy decorator.NoCopy
 
-	writer bufio.Writer
+	buffer    [defaultBufferSize]byte
+	bufferPos int
+	writer    io.Writer
 
-	typ Type
-	len int
-	pos int
-
-	buf [8]byte
+	packetType   Type
+	packetLength int
+	packetPos    int
 }
 
-const defaultBufferSize = 16 * 1024
-
 func NewEncoder(w io.Writer) *Encoder {
-	e := new(Encoder)
-	bw := bufio.NewWriterSize(w, defaultBufferSize)
-	e.writer = *bw
-	e.Reset(w)
-	return e
+	return &Encoder{
+		writer: w,
+	}
 }
 
 var (
@@ -37,86 +34,138 @@ var (
 )
 
 func (T *Encoder) Reset(w io.Writer) {
-	T.writer.Reset(w)
+	T.bufferPos = 0
+	T.writer = w
 }
 
-func (T *Encoder) ReadFrom(r io.Reader) (int64, error) {
-	return T.writer.ReadFrom(r)
+func (T *Encoder) ReadFrom(r *Decoder) (int, error) {
+	var n int
+	for {
+		if T.bufferPos >= len(T.buffer) {
+			if err := T.Flush(); err != nil {
+				return n, err
+			}
+		}
+		count, err := r.Read(T.buffer[T.bufferPos:])
+		T.bufferPos += count
+		n += count
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return n, err
+		}
+	}
+	return n, nil
 }
 
 func (T *Encoder) Flush() error {
-	return T.writer.Flush()
+	pos := T.bufferPos
+	T.bufferPos = 0
+	_, err := T.writer.Write(T.buffer[:pos])
+	return err
+}
+
+func (T *Encoder) writeByte(b byte) error {
+	if T.bufferPos+1 > len(T.buffer) {
+		if err := T.Flush(); err != nil {
+			return err
+		}
+	}
+	T.buffer[T.bufferPos] = b
+	T.bufferPos++
+	return nil
 }
 
 func (T *Encoder) WriteByte(b byte) error {
-	if T.pos != T.len {
+	if T.packetPos != T.packetLength {
 		return ErrWrongNumberOfBytes
 	}
 
-	T.typ = 0
-	T.len = 0
-	T.pos = 0
-	return T.writer.WriteByte(b)
+	T.packetType = 0
+	T.packetLength = 0
+	T.packetPos = 0
+	return T.writeByte(b)
 }
 
 func (T *Encoder) Next(typ Type, length int) error {
-	if T.pos != T.len {
+	if T.packetPos != T.packetLength {
 		return ErrWrongNumberOfBytes
 	}
 
 	if typ != 0 {
-		if err := T.writer.WriteByte(byte(typ)); err != nil {
+		if err := T.writeByte(byte(typ)); err != nil {
 			return err
 		}
 	}
 
-	binary.BigEndian.PutUint32(T.buf[:4], uint32(length+4))
-	_, err := T.writer.Write(T.buf[:4])
+	if T.bufferPos+4 > len(T.buffer) {
+		if err := T.Flush(); err != nil {
+			return err
+		}
+	}
+	binary.BigEndian.PutUint32(T.buffer[T.bufferPos:T.bufferPos+4], uint32(length+4))
+	T.bufferPos += 4
 
-	T.typ = typ
-	T.len = length
-	T.pos = 0
+	T.packetType = typ
+	T.packetLength = length
+	T.packetPos = 0
 
-	return err
+	return nil
 }
 
 func (T *Encoder) Type() Type {
-	return T.typ
+	return T.packetType
 }
 
 func (T *Encoder) Length() int {
-	return T.len
+	return T.packetLength
 }
 
 func (T *Encoder) Position() int {
-	return T.pos
+	return T.packetPos
 }
 
 func (T *Encoder) Uint8(v uint8) error {
-	err := T.writer.WriteByte(v)
-	T.pos += 1
+	err := T.writeByte(v)
+	T.packetPos += 1
 	return err
 }
 
 func (T *Encoder) Uint16(v uint16) error {
-	binary.BigEndian.PutUint16(T.buf[:2], v)
-	_, err := T.writer.Write(T.buf[:2])
-	T.pos += 2
-	return err
+	if T.bufferPos+2 > len(T.buffer) {
+		if err := T.Flush(); err != nil {
+			return err
+		}
+	}
+	binary.BigEndian.PutUint16(T.buffer[T.bufferPos:T.bufferPos+2], v)
+	T.bufferPos += 2
+	T.packetPos += 2
+	return nil
 }
 
 func (T *Encoder) Uint32(v uint32) error {
-	binary.BigEndian.PutUint32(T.buf[:4], v)
-	_, err := T.writer.Write(T.buf[:4])
-	T.pos += 4
-	return err
+	if T.bufferPos+4 > len(T.buffer) {
+		if err := T.Flush(); err != nil {
+			return err
+		}
+	}
+	binary.BigEndian.PutUint32(T.buffer[T.bufferPos:T.bufferPos+4], v)
+	T.bufferPos += 4
+	T.packetPos += 4
+	return nil
 }
 
 func (T *Encoder) Uint64(v uint64) error {
-	binary.BigEndian.PutUint64(T.buf[:8], v)
-	_, err := T.writer.Write(T.buf[:8])
-	T.pos += 8
-	return err
+	if T.bufferPos+8 > len(T.buffer) {
+		if err := T.Flush(); err != nil {
+			return err
+		}
+	}
+	binary.BigEndian.PutUint64(T.buffer[T.bufferPos:T.bufferPos+8], v)
+	T.bufferPos += 8
+	T.packetPos += 8
+	return nil
 }
 
 func (T *Encoder) Int8(v int8) error {
@@ -144,11 +193,15 @@ func (T *Encoder) Float64(v float64) error {
 }
 
 func (T *Encoder) String(v string) error {
-	n, err := T.writer.WriteString(v)
-	if err != nil {
-		return err
+	for len(v) > 0 {
+		n := copy(T.buffer[T.bufferPos:], v)
+		T.bufferPos += n
+		if T.bufferPos >= len(T.buffer) {
+			if err := T.Flush(); err != nil {
+				return err
+			}
+		}
+		v = v[n:]
 	}
-	err = T.writer.WriteByte(0)
-	T.pos += n + 1
-	return err
+	return T.writeByte(0)
 }

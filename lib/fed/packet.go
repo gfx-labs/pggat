@@ -32,7 +32,7 @@ func (T PendingPacket) WriteTo(encoder *Encoder) error {
 			return err
 		}
 	}
-	encoder.pos += count
+	encoder.packetPos += count
 	return nil
 }
 
