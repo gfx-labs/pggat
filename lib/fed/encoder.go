@@ -60,6 +60,9 @@ func (T *Encoder) ReadFrom(r *Decoder) (int, error) {
 }
 
 func (T *Encoder) Flush() error {
+	if T.bufferPos == 0 {
+		return nil
+	}
 	_, err := T.writer.Write(T.buffer[:T.bufferPos])
 	T.bufferPos = 0
 	return err

@@ -39,6 +39,9 @@ func (T *Decoder) Reset(r io.Reader) {
 }
 
 func (T *Decoder) refill() error {
+	if T.bufferWrite >= len(T.buffer) {
+		return nil
+	}
 	n, err := T.reader.Read(T.buffer[T.bufferWrite:])
 	T.bufferWrite += n
 	return err
