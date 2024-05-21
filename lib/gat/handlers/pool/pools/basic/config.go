@@ -48,6 +48,9 @@ type Config struct {
 
 	ServerResetQuery string `json:"server_reset_query,omitempty"`
 
+	// ClientAcquireTimeout defines how long a client may be in AWAITING_SERVER state before it is disconnected
+	ClientAcquireTimeout caddy.Duration `json:"client_acquire_timeout,omitempty"`
+
 	// ServerIdleTimeout defines how long a server may be idle before it is disconnected
 	ServerIdleTimeout caddy.Duration `json:"server_idle_timeout,omitempty"`
 
@@ -74,6 +77,7 @@ func (T Config) Spool() spool.Config {
 		UsePS:                T.ParameterStatusSync == ParameterStatusSyncDynamic,
 		UseEQP:               T.ExtendedQuerySync,
 		ResetQuery:           T.ServerResetQuery,
+		AcquireTimeout:       time.Duration(T.ClientAcquireTimeout),
 		IdleTimeout:          time.Duration(T.ServerIdleTimeout),
 		ReconnectInitialTime: time.Duration(T.ServerReconnectInitialTime),
 		ReconnectMaxTime:     time.Duration(T.ServerReconnectMaxTime),

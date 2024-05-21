@@ -18,6 +18,8 @@ type Config struct {
 
 	ResetQuery string
 
+	AcquireTimeout time.Duration
+
 	IdleTimeout time.Duration
 
 	ReconnectInitialTime time.Duration

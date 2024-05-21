@@ -166,7 +166,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 		if !T.replica.Empty() {
 			replica = T.replica.Acquire(client.ID)
 			if replica == nil {
-				return pool.ErrClosed
+				return pool.ErrFailedToAcquirePeer
 			}
 
 			err, serverErr = T.Pair(client, replica)
@@ -181,7 +181,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 
 			primary = T.primary.Acquire(client.ID)
 			if primary == nil {
-				return pool.ErrClosed
+				return pool.ErrFailedToAcquirePeer
 			}
 
 			err, serverErr = T.Pair(client, primary)
@@ -224,7 +224,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 		if !T.replica.Empty() {
 			replica = T.replica.Acquire(client.ID)
 			if replica == nil {
-				return pool.ErrClosed
+				return pool.ErrFailedToAcquirePeer
 			}
 
 			err, serverErr = T.Pair(client, replica)
@@ -258,7 +258,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 				// acquire primary
 				primary = T.primary.Acquire(client.ID)
 				if primary == nil {
-					return pool.ErrClosed
+					return pool.ErrFailedToAcquirePeer
 				}
 
 				serverErr = T.PairPrimary(client, psi, eqpi, primary)
@@ -286,7 +286,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 			// acquire primary
 			primary = T.primary.Acquire(client.ID)
 			if primary == nil {
-				return pool.ErrClosed
+				return pool.ErrFailedToAcquirePeer
 			}
 
 			err, serverErr = T.Pair(client, primary)
@@ -361,7 +361,7 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 			server = T.replica.Acquire(client.ID)
 		}
 		if server == nil {
-			return pool.ErrClosed
+			return pool.ErrFailedToAcquirePeer
 		}
 
 		err, serverErr = T.Pair(client, server)
@@ -405,7 +405,7 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 			server = T.replica.Acquire(client.ID)
 		}
 		if server == nil {
-			return pool.ErrClosed
+			return pool.ErrFailedToAcquirePeer
 		}
 
 		err, serverErr = T.Pair(client, server)

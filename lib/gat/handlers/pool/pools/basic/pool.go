@@ -196,7 +196,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 
 		server = T.servers.Acquire(client.ID)
 		if server == nil {
-			return pool.ErrClosed
+			return pool.ErrFailedToAcquirePeer
 		}
 
 		err, serverErr = T.Pair(client, server)
@@ -234,7 +234,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 
 			server = T.servers.Acquire(client.ID)
 			if server == nil {
-				return pool.ErrClosed
+				return pool.ErrFailedToAcquirePeer
 			}
 
 			err, serverErr = T.Pair(client, server)

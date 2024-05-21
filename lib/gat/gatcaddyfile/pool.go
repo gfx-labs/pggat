@@ -12,6 +12,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
+const defaultClientAcquireTimeout = caddy.Duration(time.Minute)
 const defaultServerIdleTimeout = caddy.Duration(5 * time.Minute)
 const defaultServerReconnectInitialTime = caddy.Duration(5 * time.Second)
 const defaultServerReconnectMaxTime = caddy.Duration(1 * time.Minute)
@@ -29,6 +30,7 @@ func defaultTrackedParameters() []strutil.CIString {
 }
 
 func defaultPoolConfig(base basic.Config) basic.Config {
+	base.ClientAcquireTimeout = defaultClientAcquireTimeout
 	base.ServerIdleTimeout = defaultServerIdleTimeout
 	base.ServerReconnectInitialTime = defaultServerReconnectInitialTime
 	base.ServerReconnectMaxTime = defaultServerReconnectMaxTime
@@ -187,6 +189,7 @@ func init() {
 	RegisterDirective(Pool, "hybrid", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
 		module := hybrid.Factory{
 			Config: hybrid.Config{
+				ClientAcquireTimeout:       defaultClientAcquireTimeout,
 				ServerIdleTimeout:          defaultServerIdleTimeout,
 				ServerReconnectInitialTime: defaultServerReconnectInitialTime,
 				ServerReconnectMaxTime:     defaultServerReconnectMaxTime,
