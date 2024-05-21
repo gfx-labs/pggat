@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"gfx.cafe/gfx/pggat/lib/rob"
 )
 
 type ShareTable struct {
@@ -43,7 +41,7 @@ func testSource(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
 	source := uuid.New()
 	sched.AddUser(source)
 	for {
-		sink := sched.Acquire(source, rob.SyncModeTryNonBlocking)
+		sink := sched.Acquire(source, 0)
 		start := time.Now()
 		for time.Since(start) < dur {
 			runtime.Gosched()
@@ -60,7 +58,7 @@ func testStarver(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
 			sched.AddUser(source)
 			defer sched.DeleteUser(source)
 
-			sink := sched.Acquire(source, rob.SyncModeTryNonBlocking)
+			sink := sched.Acquire(source, 0)
 			defer sched.Release(sink)
 			start := time.Now()
 			for time.Since(start) < dur {
