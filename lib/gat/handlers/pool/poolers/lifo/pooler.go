@@ -44,7 +44,7 @@ func (T *Pooler) AddServer(server uuid.UUID) {
 	}
 	T.servers[server] = struct{}{}
 
-	T.Release(server)
+	T.release(server)
 }
 
 func (T *Pooler) DeleteServer(server uuid.UUID) {
@@ -116,9 +116,10 @@ func (T *Pooler) Acquire(_ uuid.UUID, timeout time.Duration) uuid.UUID {
 				cc, _ := T.waiters.PopFront()
 				if c == cc {
 					found = true
-					break
+					// we still have to go around the whole thing to maintain order
+				} else {
+					T.waiters.PushBack(cc)
 				}
-				T.waiters.PushBack(cc)
 			}
 
 			if found {
