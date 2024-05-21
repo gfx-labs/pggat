@@ -1,6 +1,10 @@
 package pool
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type Pooler interface {
 	AddClient(id uuid.UUID)
@@ -9,7 +13,7 @@ type Pooler interface {
 	AddServer(id uuid.UUID)
 	DeleteServer(server uuid.UUID)
 
-	Acquire(client uuid.UUID) (server uuid.UUID)
+	Acquire(client uuid.UUID, timeout time.Duration) (server uuid.UUID)
 	Release(server uuid.UUID)
 
 	// Waiting is signalled when a client begins waiting

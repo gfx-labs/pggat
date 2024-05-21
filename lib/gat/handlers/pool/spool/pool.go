@@ -252,7 +252,7 @@ func (T *Pool) RemoveClient(client uuid.UUID) {
 
 func (T *Pool) Acquire(client uuid.UUID) *Server {
 	for {
-		serverID := T.pooler.Acquire(client)
+		serverID := T.pooler.Acquire(client, 0) // TODO(garet) timeout in config
 		if serverID == uuid.Nil {
 			return nil
 		}

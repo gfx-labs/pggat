@@ -2,6 +2,7 @@ package lifo
 
 import (
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -23,7 +24,9 @@ type Pooler struct {
 }
 
 func NewPooler() *Pooler {
-	return new(Pooler)
+	return &Pooler{
+		waiting: make(chan struct{}),
+	}
 }
 
 func (*Pooler) AddClient(_ uuid.UUID) {}
@@ -54,7 +57,7 @@ func (T *Pooler) DeleteServer(server uuid.UUID) {
 	delete(T.servers, server)
 }
 
-func (T *Pooler) Acquire(_ uuid.UUID) uuid.UUID {
+func (T *Pooler) Acquire(_ uuid.UUID, timeout time.Duration) uuid.UUID {
 	v, c := func() (uuid.UUID, chan uuid.UUID) {
 		T.mu.Lock()
 		defer T.mu.Unlock()
@@ -76,6 +79,11 @@ func (T *Pooler) Acquire(_ uuid.UUID) uuid.UUID {
 		}
 		T.waiters.PushBack(ready)
 
+		select {
+		case T.waiting <- struct{}{}:
+		default:
+		}
+
 		return uuid.Nil, ready
 	}()
 
@@ -84,10 +92,44 @@ func (T *Pooler) Acquire(_ uuid.UUID) uuid.UUID {
 	}
 
 	if c != nil {
+		var timeoutC <-chan time.Time
+		if timeout != 0 {
+			timer := time.NewTimer(timeout)
+			defer timer.Stop()
+			timeoutC = timer.C
+		}
+
 		var ok bool
-		v, ok = <-c
-		if ok {
-			T.pool.Put(c)
+		select {
+		case v, ok = <-c:
+			if ok {
+				T.pool.Put(c)
+			}
+		case <-timeoutC:
+			T.mu.Lock()
+			defer T.mu.Unlock()
+
+			// try to remove the channel from the queue, we might've lost the race though
+			waitCount := T.waiters.Length()
+			var found bool
+			for i := 0; i < waitCount; i++ {
+				cc, _ := T.waiters.PopFront()
+				if c == cc {
+					found = true
+					break
+				}
+				T.waiters.PushBack(cc)
+			}
+
+			if found {
+				T.pool.Put(c)
+			} else {
+				// we lost the race :(, we have a worker though
+				v, ok = <-c
+				if ok {
+					T.pool.Put(c)
+				}
+			}
 		}
 	}
 

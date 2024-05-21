@@ -1,10 +1,11 @@
 package rob
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
-	"gfx.cafe/gfx/pggat/lib/rob"
 	"gfx.cafe/gfx/pggat/lib/rob/schedulers/v3"
 )
 
@@ -34,8 +35,8 @@ func (T *Pooler) DeleteServer(server uuid.UUID) {
 	T.s.DeleteWorker(server)
 }
 
-func (T *Pooler) Acquire(client uuid.UUID) (server uuid.UUID) {
-	return T.s.Acquire(client, rob.SyncModeTryNonBlocking)
+func (T *Pooler) Acquire(client uuid.UUID, timeout time.Duration) (server uuid.UUID) {
+	return T.s.Acquire(client, timeout)
 }
 
 func (T *Pooler) Release(server uuid.UUID) {

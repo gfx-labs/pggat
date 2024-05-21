@@ -50,7 +50,7 @@ func (T *Scheduler) AddWorker(id uuid.UUID) {
 	}
 	T.workers[id] = worker
 
-	T.release(worker)
+	T.releaseWorker(worker)
 }
 
 func (T *Scheduler) DeleteWorker(worker uuid.UUID) {
@@ -116,7 +116,7 @@ func (T *Scheduler) DeleteUser(user uuid.UUID) {
 	}
 }
 
-func (T *Scheduler) Acquire(user uuid.UUID, sync rob.SyncMode) uuid.UUID {
+func (T *Scheduler) Acquire(user uuid.UUID, timeout time.Duration) uuid.UUID {
 	v, c := func() (uuid.UUID, chan uuid.UUID) {
 		T.mu.Lock()
 		defer T.mu.Unlock()
@@ -139,10 +139,6 @@ func (T *Scheduler) Acquire(user uuid.UUID, sync rob.SyncMode) uuid.UUID {
 			worker.Since = time.Now()
 
 			return worker.ID, nil
-		}
-
-		if sync == rob.SyncModeNonBlocking {
-			return uuid.Nil, nil
 		}
 
 		ready, _ := T.cc.Get()
@@ -176,17 +172,64 @@ func (T *Scheduler) Acquire(user uuid.UUID, sync rob.SyncMode) uuid.UUID {
 	}
 
 	if c != nil {
+		var timeoutC <-chan time.Time
+		if timeout != 0 {
+			timer := time.NewTimer(timeout)
+			defer timer.Stop()
+			timeoutC = timer.C
+		}
+
 		var ok bool
-		v, ok = <-c
-		if ok {
-			T.cc.Put(c)
+		select {
+		case v, ok = <-c:
+			if ok {
+				T.cc.Put(c)
+			}
+		case <-timeoutC:
+			T.mu.Lock()
+			defer T.mu.Unlock()
+
+			// try to remove the job from the queue, we might've lost the race though
+			var u *User
+			u, ok = T.users[user]
+			if !ok {
+				// we were removed? probably fine
+				select {
+				case v, ok = <-c:
+					// we got a job but we're removed so let's just give it back
+					if ok {
+						T.cc.Put(c)
+					}
+
+					if v != uuid.Nil {
+						T.release(v)
+					}
+					return uuid.Nil
+				default:
+					// we were removed before we got a job
+					return uuid.Nil
+				}
+			}
+
+			_, ok = T.schedule.Get(u.Stride)
+			if ok {
+				u.Scheduled = false
+				T.schedule.Delete(u.Stride)
+				T.cc.Put(c)
+			} else {
+				// we lost the race, but we got a worker
+				v, ok = <-c
+				if ok {
+					T.cc.Put(c)
+				}
+			}
 		}
 	}
 
 	return v
 }
 
-func (T *Scheduler) release(worker *Worker) {
+func (T *Scheduler) releaseWorker(worker *Worker) {
 	now := time.Now()
 
 	// update prev user and state
@@ -218,10 +261,7 @@ func (T *Scheduler) release(worker *Worker) {
 	job.Ready <- worker.ID
 }
 
-func (T *Scheduler) Release(worker uuid.UUID) {
-	T.mu.Lock()
-	defer T.mu.Unlock()
-
+func (T *Scheduler) release(worker uuid.UUID) {
 	if T.closed {
 		return
 	}
@@ -231,7 +271,14 @@ func (T *Scheduler) Release(worker uuid.UUID) {
 		return
 	}
 
-	T.release(w)
+	T.releaseWorker(w)
+}
+
+func (T *Scheduler) Release(worker uuid.UUID) {
+	T.mu.Lock()
+	defer T.mu.Unlock()
+
+	T.release(worker)
 }
 
 func (T *Scheduler) Waiting() <-chan struct{} {
