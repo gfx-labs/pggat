@@ -43,6 +43,7 @@ func (T *Encoder) ReadFrom(r *Decoder) (int, error) {
 	for {
 		if T.bufferPos >= len(T.buffer) {
 			if err := T.Flush(); err != nil {
+				T.packetPos += n
 				return n, err
 			}
 		}
@@ -53,9 +54,11 @@ func (T *Encoder) ReadFrom(r *Decoder) (int, error) {
 			break
 		}
 		if err != nil {
+			T.packetPos += n
 			return n, err
 		}
 	}
+	T.packetPos += n
 	return n, nil
 }
 
