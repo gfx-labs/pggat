@@ -259,6 +259,9 @@ func (T *Pool) Acquire(client uuid.UUID) *Server {
 
 		T.mu.RLock()
 		c, ok := T.serversByID[serverID]
+		if ok {
+			c.SetState(metrics.ConnStatePairing, client)
+		}
 		T.mu.RUnlock()
 
 		if !ok {
