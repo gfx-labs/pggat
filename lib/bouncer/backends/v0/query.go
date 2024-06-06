@@ -1,6 +1,7 @@
 package backends
 
 import (
+	"log"
 	"strings"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
@@ -173,10 +174,17 @@ func sync(ctx *context) (bool, error) {
 		return false, err
 	}
 
+	var i int
 	for {
+		i++
+
 		err := ctx.ServerRead()
 		if err != nil {
 			return false, err
+		}
+
+		if i > 10000 {
+			log.Printf("long sync, packet %c", ctx.Packet.Type())
 		}
 
 		switch ctx.Packet.Type() {
