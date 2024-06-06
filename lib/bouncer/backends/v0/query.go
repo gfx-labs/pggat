@@ -183,7 +183,7 @@ func sync(ctx *context) (bool, error) {
 			return false, err
 		}
 
-		if i > 10000 {
+		if i > 100000 {
 			log.Printf("long sync, packet %c", ctx.Packet.Type())
 		}
 
