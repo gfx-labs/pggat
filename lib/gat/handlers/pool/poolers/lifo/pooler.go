@@ -15,10 +15,11 @@ import (
 type Pooler struct {
 	waiting chan struct{}
 
+	pool pools.Locked[chan uuid.UUID]
+
 	servers map[uuid.UUID]struct{}
 	queue   []uuid.UUID
 	waiters ring.Ring[chan<- uuid.UUID]
-	pool    pools.Pool[chan uuid.UUID]
 	closed  bool
 	mu      sync.Mutex
 }
