@@ -155,7 +155,9 @@ func (T *Server) accept(listener *Listener, conn *fed.Conn) {
 	var err error
 	cancelKey, isCanceling, err = frontends.Accept(conn, tlsConfig)
 	if err != nil {
-		T.log.Warn("error accepting client", zap.Error(err))
+		if !errors.Is(err, io.EOF) {
+			T.log.Warn("error accepting client", zap.Error(err))
+		}
 		return
 	}
 
