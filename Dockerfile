@@ -10,7 +10,7 @@ copy lib lib
 copy cmd cmd
 
 RUN go mod tidy
-RUN CGO_ENABLED=1 go build -race -o pggat ./cmd/pggat
+RUN go build -o pggat ./cmd/pggat
 
 FROM alpine:latest
 WORKDIR /
