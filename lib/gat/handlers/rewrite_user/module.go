@@ -37,14 +37,14 @@ func (T *Module) Validate() error {
 	}
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
+func (T *Module) Handle(conn fed.Conn) error {
 	switch T.Mode {
 	case "strip_prefix":
-		conn.User = strings.TrimPrefix(conn.User, T.User)
+		conn.SetUser(strings.TrimPrefix(conn.User(), T.User))
 	case "strip_suffix":
-		conn.User = strings.TrimSuffix(conn.User, T.User)
+		conn.SetUser(strings.TrimSuffix(conn.User(), T.User))
 	default:
-		conn.User = T.User
+		conn.SetUser(T.User)
 	}
 
 	return nil

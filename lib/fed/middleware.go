@@ -9,8 +9,8 @@ type Middleware interface {
 	PostWrite() (Packet, error)
 }
 
-func LookupMiddleware[T Middleware](conn *Conn) (T, bool) {
-	for _, mw := range conn.Middleware {
+func LookupMiddleware[T Middleware](conn Conn) (T, bool) {
+	for _, mw := range conn.Middleware() {
 		m, ok := mw.(T)
 		if ok {
 			return m, true

@@ -14,7 +14,7 @@ import (
 
 type Client struct {
 	ID   uuid.UUID
-	Conn *fed.Conn
+	Conn fed.Conn
 
 	txnCount atomic.Int64
 
@@ -27,7 +27,7 @@ type Client struct {
 	mu              sync.Mutex
 }
 
-func NewClient(conn *fed.Conn) *Client {
+func NewClient(conn fed.Conn) *Client {
 	return &Client{
 		ID:   uuid.New(),
 		Conn: conn,

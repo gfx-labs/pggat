@@ -13,7 +13,7 @@ import (
 
 type Server struct {
 	ID   uuid.UUID
-	Conn *fed.Conn
+	Conn fed.Conn
 
 	txnCount atomic.Int64
 
@@ -25,7 +25,7 @@ type Server struct {
 	mu              sync.Mutex
 }
 
-func NewServer(conn *fed.Conn) *Server {
+func NewServer(conn fed.Conn) *Server {
 	return &Server{
 		ID:   uuid.New(),
 		Conn: conn,

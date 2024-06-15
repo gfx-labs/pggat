@@ -45,8 +45,8 @@ func (T *Pool) RemoveRecipe(name string) {
 }
 
 func (T *Pool) SyncInitialParameters(client *Client, server *spool.Server) (err, serverErr error) {
-	clientParams := client.Conn.InitialParameters
-	serverParams := server.Conn.InitialParameters
+	clientParams := client.Conn.InitialParameters()
+	serverParams := server.Conn.InitialParameters()
 
 	for key, value := range clientParams {
 		// skip already set params
@@ -145,26 +145,24 @@ func (T *Pool) addClient(client *Client) {
 	if T.clients == nil {
 		T.clients = make(map[fed.BackendKey]*Client)
 	}
-	T.clients[client.Conn.BackendKey] = client
+	T.clients[client.Conn.BackendKey()] = client
 }
 
 func (T *Pool) removeClient(client *Client) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	delete(T.clients, client.Conn.BackendKey)
+	delete(T.clients, client.Conn.BackendKey())
 }
 
-func (T *Pool) Serve(conn *fed.Conn) error {
+func (T *Pool) Serve(conn fed.Conn) error {
 	if T.config.ParameterStatusSync == ParameterStatusSyncDynamic {
-		conn.Middleware = append(
-			conn.Middleware,
-			ps.NewClient(conn.InitialParameters),
+		conn.AddMiddleware(
+			ps.NewClient(conn.InitialParameters()),
 		)
 	}
 	if T.config.ExtendedQuerySync {
-		conn.Middleware = append(
-			conn.Middleware,
+		conn.AddMiddleware(
 			eqp.NewClient(),
 		)
 	}
@@ -191,7 +189,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 		}
 	}()
 
-	if !client.Conn.Ready {
+	if !client.Conn.Ready() {
 		client.SetState(metrics.ConnStateAwaitingServer, nil)
 
 		server = T.servers.Acquire(client.ID)
@@ -213,7 +211,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 			return err
 		}
 
-		client.Conn.Ready = true
+		client.Conn.SetReady(true)
 	}
 
 	for {

@@ -26,7 +26,7 @@ type Pool struct {
 	chef kitchen.Chef
 
 	serversByID   map[uuid.UUID]*Server
-	serversByConn map[*fed.Conn]*Server
+	serversByConn map[fed.Conn]*Server
 	mu            sync.RWMutex
 }
 
@@ -52,19 +52,13 @@ func NewPool(config Config) *Pool {
 	return &p
 }
 
-func (T *Pool) addServer(conn *fed.Conn) {
+func (T *Pool) addServer(conn fed.Conn) {
 	if T.config.UsePS {
-		conn.Middleware = append(
-			conn.Middleware,
-			ps.NewServer(conn.InitialParameters),
-		)
+		conn.AddMiddleware(ps.NewServer(conn.InitialParameters()))
 	}
 
 	if T.config.UseEQP {
-		conn.Middleware = append(
-			conn.Middleware,
-			eqp.NewServer(),
-		)
+		conn.AddMiddleware(eqp.NewServer())
 	}
 
 	server := NewServer(conn)
@@ -75,14 +69,14 @@ func (T *Pool) addServer(conn *fed.Conn) {
 	T.serversByID[server.ID] = server
 
 	if T.serversByConn == nil {
-		T.serversByConn = make(map[*fed.Conn]*Server)
+		T.serversByConn = make(map[fed.Conn]*Server)
 	}
 	T.serversByConn[server.Conn] = server
 
 	T.pooler.AddServer(server.ID)
 }
 
-func (T *Pool) removeServer(conn *fed.Conn) {
+func (T *Pool) removeServer(conn fed.Conn) {
 	server, ok := T.serversByConn[conn]
 	if !ok {
 		return

@@ -5,14 +5,14 @@ import (
 )
 
 type acceptContext struct {
-	Conn    *fed.Conn
+	Conn    fed.Conn
 	Options acceptOptions
 }
 
 type context struct {
-	Server    *fed.Conn
+	Server    fed.Conn
 	Packet    fed.Packet
-	Peer      *fed.Conn
+	Peer      fed.Conn
 	PeerError error
 	TxState   byte
 }

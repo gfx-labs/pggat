@@ -24,8 +24,8 @@ func (T *SSL) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *SSL) Matches(conn *fed.Conn) bool {
-	return conn.SSL == T.SSL
+func (T *SSL) Matches(conn fed.Conn) bool {
+	return conn.SSL() == T.SSL
 }
 
 var _ gat.Matcher = (*SSL)(nil)

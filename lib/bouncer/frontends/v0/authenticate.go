@@ -179,7 +179,7 @@ func authenticate(ctx *authenticateContext) (err error) {
 	if err = ctx.Conn.WritePacket(&authOk); err != nil {
 		return
 	}
-	ctx.Conn.Authenticated = true
+	ctx.Conn.SetAuthenticated(true)
 
 	// send backend key data
 	var processID [4]byte
@@ -190,14 +190,14 @@ func authenticate(ctx *authenticateContext) (err error) {
 	if _, err = rand.Reader.Read(backendKey[:]); err != nil {
 		return
 	}
-	ctx.Conn.BackendKey = fed.BackendKey{
+	ctx.Conn.SetBackendKey(fed.BackendKey{
 		ProcessID: int32(binary.BigEndian.Uint32(processID[:])),
 		SecretKey: int32(binary.BigEndian.Uint32(backendKey[:])),
-	}
+	})
 
 	keyData := packets.BackendKeyData{
-		ProcessID: ctx.Conn.BackendKey.ProcessID,
-		SecretKey: ctx.Conn.BackendKey.SecretKey,
+		ProcessID: ctx.Conn.BackendKey().ProcessID,
+		SecretKey: ctx.Conn.BackendKey().SecretKey,
 	}
 	if err = ctx.Conn.WritePacket(&keyData); err != nil {
 		return
@@ -206,8 +206,8 @@ func authenticate(ctx *authenticateContext) (err error) {
 	return
 }
 
-func Authenticate(conn *fed.Conn, creds auth.Credentials) (err error) {
-	if conn.Authenticated {
+func Authenticate(conn fed.Conn, creds auth.Credentials) (err error) {
+	if conn.Authenticated() {
 		// already authenticated
 		return
 	}

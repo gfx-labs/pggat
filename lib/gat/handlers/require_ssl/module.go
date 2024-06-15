@@ -25,9 +25,9 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
+func (T *Module) Handle(conn fed.Conn) error {
 	if T.SSL {
-		if !conn.SSL {
+		if !conn.SSL() {
 			return perror.New(
 				perror.FATAL,
 				perror.InvalidPassword,
@@ -37,7 +37,7 @@ func (T *Module) Handle(conn *fed.Conn) error {
 		return nil
 	}
 
-	if conn.SSL {
+	if conn.SSL() {
 		return perror.New(
 			perror.FATAL,
 			perror.InvalidPassword,

@@ -106,7 +106,7 @@ func queryString(ctx *context, q string) error {
 	return query(ctx)
 }
 
-func QueryString(server, peer *fed.Conn, query string) (err, peerError error) {
+func QueryString(server, peer fed.Conn, query string) (err, peerError error) {
 	ctx := context{
 		Server: server,
 		Peer:   peer,
@@ -116,7 +116,7 @@ func QueryString(server, peer *fed.Conn, query string) (err, peerError error) {
 	return
 }
 
-func SetParameter(server, peer *fed.Conn, name strutil.CIString, value string) (err, peerError error) {
+func SetParameter(server, peer fed.Conn, name strutil.CIString, value string) (err, peerError error) {
 	var q strings.Builder
 	escapedName := strutil.Escape(name.String(), '"')
 	escapedValue := strutil.Escape(value, '\'')
@@ -223,7 +223,7 @@ func sync(ctx *context) (bool, error) {
 	}
 }
 
-func Sync(server, peer *fed.Conn) (err, peerErr error) {
+func Sync(server, peer fed.Conn) (err, peerErr error) {
 	ctx := context{
 		Server: server,
 		Peer:   peer,
@@ -315,7 +315,7 @@ func transaction(ctx *context) error {
 	}
 }
 
-func Transaction(server, peer *fed.Conn, initialPacket fed.Packet) (err, peerError error) {
+func Transaction(server, peer fed.Conn, initialPacket fed.Packet) (err, peerError error) {
 	ctx := context{
 		Server: server,
 		Peer:   peer,

@@ -19,7 +19,7 @@ type Chef struct {
 	config Config
 
 	byName map[string]*Recipe
-	byConn map[*fed.Conn]*Recipe
+	byConn map[fed.Conn]*Recipe
 	order  []*Recipe
 	mu     sync.Mutex
 }
@@ -36,9 +36,9 @@ func NewChef(config Config) *Chef {
 }
 
 // Learn will add a recipe to the kitchen. Returns initial removed and added conns
-func (T *Chef) Learn(name string, recipe *pool.Recipe) (removed []*fed.Conn, added []*fed.Conn) {
+func (T *Chef) Learn(name string, recipe *pool.Recipe) (removed []fed.Conn, added []fed.Conn) {
 	n := recipe.AllocateInitial()
-	added = make([]*fed.Conn, 0, n)
+	added = make([]fed.Conn, 0, n)
 	for i := 0; i < n; i++ {
 		conn, err := recipe.Dial()
 		if err != nil {
@@ -66,7 +66,7 @@ func (T *Chef) Learn(name string, recipe *pool.Recipe) (removed []*fed.Conn, add
 	T.byName[name] = r
 
 	if T.byConn == nil {
-		T.byConn = make(map[*fed.Conn]*Recipe)
+		T.byConn = make(map[fed.Conn]*Recipe)
 	}
 	for _, conn := range added {
 		T.byConn[conn] = r
@@ -77,14 +77,14 @@ func (T *Chef) Learn(name string, recipe *pool.Recipe) (removed []*fed.Conn, add
 	return
 }
 
-func (T *Chef) forget(name string) []*fed.Conn {
+func (T *Chef) forget(name string) []fed.Conn {
 	r, ok := T.byName[name]
 	if !ok {
 		return nil
 	}
 	delete(T.byName, name)
 
-	conns := make([]*fed.Conn, 0, len(r.conns))
+	conns := make([]fed.Conn, 0, len(r.conns))
 
 	for conn := range r.conns {
 		conns = append(conns, conn)
@@ -102,7 +102,7 @@ func (T *Chef) forget(name string) []*fed.Conn {
 
 // Forget will remove a recipe from the kitchen. All conn made with the recipe will be closed. Returns conns made with
 // recipe.
-func (T *Chef) Forget(name string) []*fed.Conn {
+func (T *Chef) Forget(name string) []fed.Conn {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -116,7 +116,7 @@ func (T *Chef) Empty() bool {
 	return len(T.byName) == 0
 }
 
-func (T *Chef) cook(r *Recipe) (*fed.Conn, error) {
+func (T *Chef) cook(r *Recipe) (fed.Conn, error) {
 	T.mu.Unlock()
 	defer T.mu.Lock()
 
@@ -211,7 +211,7 @@ func (T *Chef) score(r *Recipe) error {
 }
 
 // Cook will cook the best recipe
-func (T *Chef) Cook() (*fed.Conn, error) {
+func (T *Chef) Cook() (fed.Conn, error) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -245,12 +245,12 @@ func (T *Chef) Cook() (*fed.Conn, error) {
 		conn, err := T.cook(r)
 		if err == nil {
 			if r.conns == nil {
-				r.conns = make(map[*fed.Conn]struct{})
+				r.conns = make(map[fed.Conn]struct{})
 			}
 			r.conns[conn] = struct{}{}
 
 			if T.byConn == nil {
-				T.byConn = make(map[*fed.Conn]*Recipe)
+				T.byConn = make(map[fed.Conn]*Recipe)
 			}
 			T.byConn[conn] = r
 
@@ -277,7 +277,7 @@ func (T *Chef) Cook() (*fed.Conn, error) {
 }
 
 // Burn forcefully closes conn and escorts it out of the kitchen.
-func (T *Chef) Burn(conn *fed.Conn) {
+func (T *Chef) Burn(conn fed.Conn) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -293,7 +293,7 @@ func (T *Chef) Burn(conn *fed.Conn) {
 }
 
 // Ignite tries to Burn conn. If successful, conn is closed and returns true
-func (T *Chef) Ignite(conn *fed.Conn) bool {
+func (T *Chef) Ignite(conn fed.Conn) bool {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -311,7 +311,7 @@ func (T *Chef) Ignite(conn *fed.Conn) bool {
 	return true
 }
 
-func (T *Chef) Cancel(conn *fed.Conn) {
+func (T *Chef) Cancel(conn fed.Conn) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -320,7 +320,7 @@ func (T *Chef) Cancel(conn *fed.Conn) {
 		return
 	}
 
-	r.recipe.Cancel(conn.BackendKey)
+	r.recipe.Cancel(conn.BackendKey())
 }
 
 func (T *Chef) Close() {

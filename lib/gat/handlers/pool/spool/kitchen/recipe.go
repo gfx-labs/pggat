@@ -11,11 +11,11 @@ type Recipe struct {
 	recipe  *pool.Recipe
 	ratings []Rating
 	score   int
-	conns   map[*fed.Conn]struct{}
+	conns   map[fed.Conn]struct{}
 }
 
-func NewRecipe(recipe *pool.Recipe, initial []*fed.Conn) *Recipe {
-	conns := make(map[*fed.Conn]struct{}, len(initial))
+func NewRecipe(recipe *pool.Recipe, initial []fed.Conn) *Recipe {
+	conns := make(map[fed.Conn]struct{}, len(initial))
 	for _, conn := range initial {
 		conns[conn] = struct{}{}
 	}

@@ -28,7 +28,7 @@ func (T *Critic) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *Critic) Taste(conn *fed.Conn) (int, time.Duration, error) {
+func (T *Critic) Taste(conn fed.Conn) (int, time.Duration, error) {
 	start := time.Now()
 	err, _ := backends.QueryString(conn, nil, "select 0")
 	if err != nil {

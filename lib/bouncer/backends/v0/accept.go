@@ -117,7 +117,7 @@ func authentication(ctx *acceptContext, p *packets.Authentication) (done bool, e
 	switch mode := p.Mode.(type) {
 	case *packets.AuthenticationPayloadOk:
 		// we're good to go, that was easy
-		ctx.Conn.Authenticated = true
+		ctx.Conn.SetAuthenticated(true)
 		return true, nil
 	case *packets.AuthenticationPayloadKerberosV5:
 		err = errors.New("kerberos v5 is not supported")
@@ -205,8 +205,10 @@ func startup1(ctx *acceptContext) (done bool, err error) {
 		if err != nil {
 			return
 		}
-		ctx.Conn.BackendKey.SecretKey = p.SecretKey
-		ctx.Conn.BackendKey.ProcessID = p.ProcessID
+		k := ctx.Conn.BackendKey()
+		k.SecretKey = p.SecretKey
+		k.ProcessID = p.ProcessID
+		ctx.Conn.SetBackendKey(k)
 
 		return false, nil
 	case packets.TypeParameterStatus:
@@ -216,10 +218,11 @@ func startup1(ctx *acceptContext) (done bool, err error) {
 			return
 		}
 		ikey := strutil.MakeCIString(p.Key)
-		if ctx.Conn.InitialParameters == nil {
-			ctx.Conn.InitialParameters = make(map[strutil.CIString]string)
+		if ctx.Conn.InitialParameters() == nil {
+			ctx.Conn.SetInitialParameters(make(map[strutil.CIString]string))
 		}
-		ctx.Conn.InitialParameters[ikey] = p.Value
+		vals := ctx.Conn.InitialParameters()
+		vals[ikey] = p.Value
 		return false, nil
 	case packets.TypeReadyForQuery:
 		return true, nil
@@ -343,7 +346,7 @@ func accept(ctx *acceptContext) error {
 }
 
 func Accept(
-	conn *fed.Conn,
+	conn fed.Conn,
 	sslMode bouncer.SSLMode,
 	sslConfig *tls.Config,
 	username string,

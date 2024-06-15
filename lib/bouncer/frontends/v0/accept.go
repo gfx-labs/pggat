@@ -69,9 +69,9 @@ func startup0(
 		for _, parameter := range mode.Parameters {
 			switch parameter.Key {
 			case "user":
-				ctx.Conn.User = parameter.Value
+				ctx.Conn.SetUser(parameter.Value)
 			case "database":
-				ctx.Conn.Database = parameter.Value
+				ctx.Conn.SetDatabase(parameter.Value)
 			case "options":
 				fields := strings.Fields(parameter.Value)
 				for i := 0; i < len(fields); i++ {
@@ -90,11 +90,12 @@ func startup0(
 						}
 
 						ikey := strutil.MakeCIString(key)
-
 						if ctx.Conn.InitialParameters == nil {
-							ctx.Conn.InitialParameters = make(map[strutil.CIString]string)
+							values := make(map[strutil.CIString]string)
+							ctx.Conn.SetInitialParameters(values)
 						}
-						ctx.Conn.InitialParameters[ikey] = value
+						values := ctx.Conn.InitialParameters()
+						values[ikey] = value
 					default:
 						err = perror.New(
 							perror.FATAL,
@@ -117,11 +118,12 @@ func startup0(
 					unsupportedOptions = append(unsupportedOptions, parameter.Key)
 				} else {
 					ikey := strutil.MakeCIString(parameter.Key)
-
 					if ctx.Conn.InitialParameters == nil {
-						ctx.Conn.InitialParameters = make(map[strutil.CIString]string)
+						values := make(map[strutil.CIString]string)
+						ctx.Conn.SetInitialParameters(values)
 					}
-					ctx.Conn.InitialParameters[ikey] = parameter.Value
+					values := ctx.Conn.InitialParameters()
+					values[ikey] = parameter.Value
 				}
 			}
 		}
@@ -138,7 +140,7 @@ func startup0(
 			}
 		}
 
-		if ctx.Conn.User == "" {
+		if ctx.Conn.User() == "" {
 			err = perror.New(
 				perror.FATAL,
 				perror.InvalidAuthorizationSpecification,
@@ -146,8 +148,8 @@ func startup0(
 			)
 			return
 		}
-		if ctx.Conn.Database == "" {
-			ctx.Conn.Database = ctx.Conn.User
+		if ctx.Conn.Database() == "" {
+			ctx.Conn.SetDatabase(ctx.Conn.User())
 		}
 
 		done = true
@@ -179,7 +181,7 @@ func accept0(
 	return
 }
 
-func fail(client *fed.Conn, err error) {
+func fail(client fed.Conn, err error) {
 	resp := perror.ToPacket(perror.Wrap(err))
 	_ = client.WritePacket(resp)
 }
@@ -193,7 +195,7 @@ func accept(ctx *acceptContext) (acceptParams, error) {
 	return params, nil
 }
 
-func Accept(conn *fed.Conn, tlsConfig *tls.Config) (
+func Accept(conn fed.Conn, tlsConfig *tls.Config) (
 	cancelKey fed.BackendKey,
 	isCanceling bool,
 	err error,

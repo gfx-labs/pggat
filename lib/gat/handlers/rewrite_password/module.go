@@ -26,10 +26,10 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
+func (T *Module) Handle(conn fed.Conn) error {
 	return frontends.Authenticate(
 		conn,
-		credentials.FromString(conn.User, T.Password),
+		credentials.FromString(conn.User(), T.Password),
 	)
 }
 

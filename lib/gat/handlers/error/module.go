@@ -24,7 +24,7 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *Module) Handle(_ *fed.Conn) error {
+func (T *Module) Handle(_ fed.Conn) error {
 	return perror.New(
 		perror.FATAL,
 		perror.InternalError,

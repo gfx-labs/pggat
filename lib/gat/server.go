@@ -13,18 +13,21 @@ import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/gfed"
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
 type ServerConfig struct {
-	Listen []ListenerConfig `json:"listen,omitempty"`
-	Routes []RouteConfig    `json:"routes,omitempty"`
+	Listen  []ListenerConfig `json:"listen,omitempty"`
+	GListen []ListenerConfig `json:"glisten,omitempty"`
+	Routes  []RouteConfig    `json:"routes,omitempty"`
 }
 
 type Server struct {
 	ServerConfig
 
 	listen              []*Listener
+	glisten             []*GListener
 	routes              []*Route
 	cancellableHandlers []CancellableHandler
 	metricsHandlers     []MetricsHandler
@@ -44,6 +47,17 @@ func (T *Server) Provision(ctx caddy.Context) error {
 			return err
 		}
 		T.listen = append(T.listen, listener)
+	}
+
+	T.glisten = make([]*GListener, 0, len(T.GListen))
+	for _, config := range T.GListen {
+		glistener := &GListener{
+			ListenerConfig: config,
+		}
+		if err := glistener.Provision(ctx); err != nil {
+			return err
+		}
+		T.glisten = append(T.glisten, glistener)
 	}
 
 	T.routes = make([]*Route, 0, len(T.Routes))
@@ -81,6 +95,16 @@ func (T *Server) Start() error {
 		}(listener)
 	}
 
+	for _, glistener := range T.glisten {
+		// TODO: sort of hacky. should clean up.
+		glistener.server.Acceptor = func(c *gfed.Codec) {
+			T.gaccept(glistener, c)
+		}
+		if err := glistener.Start(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -106,7 +130,7 @@ func (T *Server) ReadMetrics(m *metrics.Server) {
 	}
 }
 
-func (T *Server) Serve(conn *fed.Conn) {
+func (T *Server) Serve(conn fed.Conn) {
 	for _, route := range T.routes {
 		if route.match != nil && !route.match.Matches(conn) {
 			continue
@@ -137,10 +161,10 @@ func (T *Server) Serve(conn *fed.Conn) {
 		),
 	)
 	_ = conn.WritePacket(errResp)
-	T.log.Warn("database not found", zap.String("user", conn.User), zap.String("database", conn.Database))
+	T.log.Warn("database not found", zap.String("user", conn.User()), zap.String("database", conn.Database()))
 }
 
-func (T *Server) accept(listener *Listener, conn *fed.Conn) {
+func (T *Server) accept(listener *Listener, conn fed.Conn) {
 	defer func() {
 		_ = conn.Close()
 	}()

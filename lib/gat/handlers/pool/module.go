@@ -49,7 +49,7 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	return nil
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
+func (T *Module) Handle(conn fed.Conn) error {
 	if err := frontends.Authenticate(conn, nil); err != nil {
 		return err
 	}

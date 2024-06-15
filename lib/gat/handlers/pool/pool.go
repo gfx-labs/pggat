@@ -12,7 +12,7 @@ type Pool interface {
 	// RemoveRecipe will remove a recipe and disconnect all servers created by that recipe.
 	RemoveRecipe(name string)
 
-	Serve(conn *fed.Conn) error
+	Serve(conn fed.Conn) error
 
 	Cancel(key fed.BackendKey)
 	ReadMetrics(m *metrics.Pool)

@@ -98,7 +98,7 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 		return c, nil
 	}
 
-	var admin *fed.Conn
+	var admin fed.Conn
 	defer func() {
 		if admin != nil {
 			_ = admin.Close()

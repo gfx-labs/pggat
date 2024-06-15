@@ -29,8 +29,8 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	for parameter := range conn.InitialParameters {
+func (T *Module) Handle(conn fed.Conn) error {
+	for parameter := range conn.InitialParameters() {
 		if !slices.Contains(T.Parameters, parameter) {
 			return perror.New(
 				perror.FATAL,

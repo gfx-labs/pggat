@@ -290,10 +290,10 @@ func (T *Module) lookup(user, database string) (poolAndCredentials, bool) {
 	return T.tryCreate(user, database)
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
+func (T *Module) Handle(conn fed.Conn) error {
 	// check ssl
 	if T.Config.PgBouncer.ClientTLSSSLMode.IsRequired() {
-		if !conn.SSL {
+		if !conn.SSL() {
 			return perror.New(
 				perror.FATAL,
 				perror.InvalidPassword,
@@ -303,7 +303,7 @@ func (T *Module) Handle(conn *fed.Conn) error {
 	}
 
 	// check startup parameters
-	for key := range conn.InitialParameters {
+	for key := range conn.InitialParameters() {
 		if slices.Contains([]strutil.CIString{
 			strutil.MakeCIString("client_encoding"),
 			strutil.MakeCIString("datestyle"),
@@ -327,7 +327,7 @@ func (T *Module) Handle(conn *fed.Conn) error {
 		)
 	}
 
-	p, ok := T.lookup(conn.User, conn.Database)
+	p, ok := T.lookup(conn.User(), conn.Database())
 	if !ok {
 		return nil
 	}

@@ -26,8 +26,11 @@ func (T *StartupParameter) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *StartupParameter) Matches(conn *fed.Conn) bool {
-	return T.Value.Matches(conn.InitialParameters[T.Key])
+func (T *StartupParameter) Matches(conn fed.Conn) bool {
+	if conn.InitialParameters() == nil {
+		conn.SetInitialParameters(make(map[strutil.CIString]string))
+	}
+	return T.Value.Matches(conn.InitialParameters()[T.Key])
 }
 
 var _ gat.Matcher = (*StartupParameter)(nil)

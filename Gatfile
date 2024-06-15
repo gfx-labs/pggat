@@ -1,3 +1,0 @@
-:5432 {
-	error "server is not configured"
-}

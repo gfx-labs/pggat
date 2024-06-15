@@ -9,7 +9,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-type Conn struct {
+type conn struct {
 	noCopy decorator.NoCopy
 
 	encoder Encoder
@@ -17,21 +17,38 @@ type Conn struct {
 
 	NetConn net.Conn
 
-	Middleware []Middleware
+	middleware []Middleware
 
-	SSL bool
+	ssl bool
 
-	User              string
-	Database          string
-	InitialParameters map[strutil.CIString]string
-	BackendKey        BackendKey
+	user              string
+	database          string
+	initialParameters map[strutil.CIString]string
+	backendKey        BackendKey
 
-	Authenticated bool
-	Ready         bool
+	authenticated bool
+	ready         bool
 }
 
-func NewConn(rw net.Conn) *Conn {
-	c := &Conn{
+func (c *conn) SetUser(u string)                                   { c.user = u }
+func (c *conn) SetDatabase(d string)                               { c.database = d }
+func (c *conn) SetBackendKey(i BackendKey)                         { c.backendKey = i }
+func (c *conn) AddMiddleware(xs ...Middleware)                     { c.middleware = append(c.middleware, xs...) }
+func (c *conn) SetReady(b bool)                                    { c.ready = b }
+func (c *conn) SetAuthenticated(b bool)                            { c.authenticated = b }
+func (c *conn) Authenticated() bool                                { return c.authenticated }
+func (c *conn) Ready() bool                                        { return c.ready }
+func (c *conn) User() string                                       { return c.user }
+func (c *conn) Database() string                                   { return c.database }
+func (c *conn) LocalAddr() net.Addr                                { return c.NetConn.LocalAddr() }
+func (c *conn) BackendKey() BackendKey                             { return c.backendKey }
+func (c *conn) SSL() bool                                          { return c.ssl }
+func (c *conn) Middleware() []Middleware                           { return c.middleware }
+func (c *conn) InitialParameters() map[strutil.CIString]string     { return c.initialParameters }
+func (c *conn) SetInitialParameters(i map[strutil.CIString]string) { c.initialParameters = i }
+
+func NewConn(rw net.Conn) Conn {
+	c := &conn{
 		NetConn: rw,
 	}
 	c.encoder.Reset(rw)
@@ -39,11 +56,11 @@ func NewConn(rw net.Conn) *Conn {
 	return c
 }
 
-func (T *Conn) Flush() error {
+func (T *conn) Flush() error {
 	return T.encoder.Flush()
 }
 
-func (T *Conn) readPacket(typed bool) (Packet, error) {
+func (T *conn) readPacket(typed bool) (Packet, error) {
 	if err := T.decoder.Next(typed); err != nil {
 		return nil, err
 	}
@@ -52,15 +69,15 @@ func (T *Conn) readPacket(typed bool) (Packet, error) {
 	}, nil
 }
 
-func (T *Conn) ReadPacket(typed bool) (Packet, error) {
+func (T *conn) ReadPacket(typed bool) (Packet, error) {
 	if err := T.Flush(); err != nil {
 		return nil, err
 	}
 
 	for {
 		// try doing PreRead
-		for i := 0; i < len(T.Middleware); i++ {
-			middleware := T.Middleware[i]
+		for i := 0; i < len(T.middleware); i++ {
+			middleware := T.middleware[i]
 			for {
 				packet, err := middleware.PreRead(typed)
 				if err != nil {
@@ -71,8 +88,8 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 					break
 				}
 
-				for j := i; j < len(T.Middleware); j++ {
-					packet, err = T.Middleware[j].ReadPacket(packet)
+				for j := i; j < len(T.middleware); j++ {
+					packet, err = T.middleware[j].ReadPacket(packet)
 					if err != nil {
 						return nil, err
 					}
@@ -91,7 +108,7 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 		if err != nil {
 			return nil, err
 		}
-		for _, middleware := range T.Middleware {
+		for _, middleware := range T.middleware {
 			packet, err = middleware.ReadPacket(packet)
 			if err != nil {
 				return nil, err
@@ -106,7 +123,7 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 	}
 }
 
-func (T *Conn) writePacket(packet Packet) error {
+func (T *conn) writePacket(packet Packet) error {
 	err := T.encoder.Next(packet.Type(), packet.Length())
 	if err != nil {
 		return err
@@ -115,9 +132,9 @@ func (T *Conn) writePacket(packet Packet) error {
 	return packet.WriteTo(&T.encoder)
 }
 
-func (T *Conn) WritePacket(packet Packet) error {
-	for i := len(T.Middleware) - 1; i >= 0; i-- {
-		middleware := T.Middleware[i]
+func (T *conn) WritePacket(packet Packet) error {
+	for i := len(T.middleware) - 1; i >= 0; i-- {
+		middleware := T.middleware[i]
 
 		var err error
 		packet, err = middleware.WritePacket(packet)
@@ -135,8 +152,8 @@ func (T *Conn) WritePacket(packet Packet) error {
 	}
 
 	// try doing PostWrite
-	for i := len(T.Middleware) - 1; i >= 0; i-- {
-		middleware := T.Middleware[i]
+	for i := len(T.middleware) - 1; i >= 0; i-- {
+		middleware := T.middleware[i]
 
 		for {
 			var err error
@@ -150,7 +167,7 @@ func (T *Conn) WritePacket(packet Packet) error {
 			}
 
 			for j := i; j >= 0; j-- {
-				packet, err = T.Middleware[j].WritePacket(packet)
+				packet, err = T.middleware[j].WritePacket(packet)
 				if err != nil {
 					return err
 				}
@@ -170,11 +187,11 @@ func (T *Conn) WritePacket(packet Packet) error {
 	return nil
 }
 
-func (T *Conn) WriteByte(b byte) error {
+func (T *conn) WriteByte(b byte) error {
 	return T.encoder.WriteByte(b)
 }
 
-func (T *Conn) ReadByte() (byte, error) {
+func (T *conn) ReadByte() (byte, error) {
 	if err := T.Flush(); err != nil {
 		return 0, err
 	}
@@ -182,11 +199,11 @@ func (T *Conn) ReadByte() (byte, error) {
 	return T.decoder.ReadByte()
 }
 
-func (T *Conn) EnableSSL(config *tls.Config, isClient bool) error {
-	if T.SSL {
+func (T *conn) EnableSSL(config *tls.Config, isClient bool) error {
+	if T.ssl {
 		return errors.New("SSL is already enabled")
 	}
-	T.SSL = true
+	T.ssl = true
 
 	// Flush buffers
 	if err := T.Flush(); err != nil {
@@ -208,7 +225,7 @@ func (T *Conn) EnableSSL(config *tls.Config, isClient bool) error {
 	return sslConn.Handshake()
 }
 
-func (T *Conn) Close() error {
+func (T *conn) Close() error {
 	if err := T.encoder.Flush(); err != nil {
 		return err
 	}

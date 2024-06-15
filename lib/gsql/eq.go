@@ -8,7 +8,7 @@ import (
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 )
 
-func ExtendedQuery(client *fed.Conn, result any, query string, args ...any) error {
+func ExtendedQuery(client fed.Conn, result any, query string, args ...any) error {
 	if len(args) == 0 {
 		return Query(client, []any{result}, query)
 	}

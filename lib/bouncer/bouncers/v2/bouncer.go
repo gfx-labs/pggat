@@ -5,7 +5,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 )
 
-func Bounce(client, server *fed.Conn, initialPacket fed.Packet) (clientError error, serverError error) {
+func Bounce(client, server fed.Conn, initialPacket fed.Packet) (clientError error, serverError error) {
 	serverError, clientError = backends.Transaction(server, client, initialPacket)
 	return
 }

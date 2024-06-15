@@ -568,8 +568,8 @@ func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 	})
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	p, ok := T.getPool(conn.User, conn.Database)
+func (T *Module) Handle(conn fed.Conn) error {
+	p, ok := T.getPool(conn.User(), conn.Database())
 	if !ok {
 		return nil
 	}

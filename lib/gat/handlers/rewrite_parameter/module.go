@@ -26,11 +26,12 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	if conn.InitialParameters == nil {
-		conn.InitialParameters = make(map[strutil.CIString]string)
+func (T *Module) Handle(conn fed.Conn) error {
+	if conn.InitialParameters() == nil {
+		conn.SetInitialParameters(make(map[strutil.CIString]string))
 	}
-	conn.InitialParameters[T.Key] = T.Value
+	values := conn.InitialParameters()
+	values[T.Key] = T.Value
 
 	return nil
 }

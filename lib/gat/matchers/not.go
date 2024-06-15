@@ -42,7 +42,7 @@ func (T *Not) Provision(ctx caddy.Context) error {
 	return nil
 }
 
-func (T *Not) Matches(conn *fed.Conn) bool {
+func (T *Not) Matches(conn fed.Conn) bool {
 	return !T.not.Matches(conn)
 }
 

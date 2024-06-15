@@ -37,14 +37,14 @@ func (T *Module) Validate() error {
 	}
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
+func (T *Module) Handle(conn fed.Conn) error {
 	switch T.Mode {
 	case "strip_prefix":
-		conn.Database = strings.TrimPrefix(conn.Database, T.Database)
+		conn.SetDatabase(strings.TrimPrefix(conn.Database(), T.Database))
 	case "strip_suffix":
-		conn.Database = strings.TrimSuffix(conn.Database, T.Database)
+		conn.SetDatabase(strings.TrimSuffix(conn.Database(), T.Database))
 	default:
-		conn.Database = T.Database
+		conn.SetDatabase(T.Database)
 	}
 
 	return nil

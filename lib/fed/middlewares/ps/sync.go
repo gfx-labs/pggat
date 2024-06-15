@@ -8,7 +8,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.Conn, s *Server, name strutil.CIString) (clientErr, serverErr error) {
+func sync(tracking []strutil.CIString, client fed.Conn, c *Client, server fed.Conn, s *Server, name strutil.CIString) (clientErr, serverErr error) {
 	value, hasValue := c.parameters[name]
 	expected, hasExpected := s.parameters[name]
 
@@ -55,7 +55,7 @@ func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.
 	return
 }
 
-func SyncMiddleware(tracking []strutil.CIString, c *Client, server *fed.Conn) error {
+func SyncMiddleware(tracking []strutil.CIString, c *Client, server fed.Conn) error {
 	s, ok := fed.LookupMiddleware[*Server](server)
 	if !ok {
 		panic("middleware not found")
@@ -79,7 +79,7 @@ func SyncMiddleware(tracking []strutil.CIString, c *Client, server *fed.Conn) er
 	return nil
 }
 
-func Sync(tracking []strutil.CIString, client, server *fed.Conn) (clientErr, serverErr error) {
+func Sync(tracking []strutil.CIString, client, server fed.Conn) (clientErr, serverErr error) {
 	c, ok := fed.LookupMiddleware[*Client](client)
 	if !ok {
 		panic("middleware not found")

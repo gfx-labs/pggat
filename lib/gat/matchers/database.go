@@ -25,8 +25,8 @@ func (T *Database) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *Database) Matches(conn *fed.Conn) bool {
-	return T.Database.Matches(conn.Database)
+func (T *Database) Matches(conn fed.Conn) bool {
+	return T.Database.Matches(conn.Database())
 }
 
 var _ gat.Matcher = (*Database)(nil)

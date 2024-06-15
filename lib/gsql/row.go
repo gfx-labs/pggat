@@ -9,7 +9,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
-func readRows(client *fed.Conn, result any) error {
+func readRows(client fed.Conn, result any) error {
 	res := reflect.ValueOf(result)
 	row := 0
 	var rd packets.RowDescription

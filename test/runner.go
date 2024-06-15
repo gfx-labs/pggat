@@ -27,7 +27,7 @@ func MakeRunner(config Config, test Test) Runner {
 	}
 }
 
-func (T *Runner) prepare(client *fed.Conn, until int) error {
+func (T *Runner) prepare(client fed.Conn, until int) error {
 	for i := 0; i < until; i++ {
 		x := T.test.Packets[i]
 		if err := client.WritePacket(x); err != nil {
@@ -42,7 +42,7 @@ func (T *Runner) prepare(client *fed.Conn, until int) error {
 	return client.Flush()
 }
 
-func (T *Runner) runModeL1(dialer pool.Dialer, client *fed.Conn) error {
+func (T *Runner) runModeL1(dialer pool.Dialer, client fed.Conn) error {
 	server, err := dialer.Dial()
 	if err != nil {
 		return err

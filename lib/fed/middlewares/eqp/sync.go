@@ -19,7 +19,7 @@ func preparedStatementsEqual(a, b *packets.Parse) bool {
 	return true
 }
 
-func SyncMiddleware(c *Client, server *fed.Conn) error {
+func SyncMiddleware(c *Client, server fed.Conn) error {
 	s, ok := fed.LookupMiddleware[*Server](server)
 	if !ok {
 		panic("middleware not found")
@@ -99,7 +99,7 @@ func SyncMiddleware(c *Client, server *fed.Conn) error {
 	return nil
 }
 
-func Sync(client, server *fed.Conn) error {
+func Sync(client, server fed.Conn) error {
 	c, ok := fed.LookupMiddleware[*Client](client)
 	if !ok {
 		panic("middleware not found")

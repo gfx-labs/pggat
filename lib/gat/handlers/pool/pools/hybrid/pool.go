@@ -102,26 +102,25 @@ func (T *Pool) addClient(client *Client) {
 	if T.clients == nil {
 		T.clients = make(map[fed.BackendKey]*Client)
 	}
-	T.clients[client.Conn.BackendKey] = client
+	T.clients[client.Conn.BackendKey()] = client
 }
 
 func (T *Pool) removeClient(client *Client) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	delete(T.clients, client.Conn.BackendKey)
+	delete(T.clients, client.Conn.BackendKey())
 }
 
-func (T *Pool) serveRW(conn *fed.Conn) error {
+func (T *Pool) serveRW(conn fed.Conn) error {
 	m := NewMiddleware()
 
 	eqpa := eqp.NewClient()
 	eqpi := eqp.NewClient()
-	psa := ps.NewClient(conn.InitialParameters)
+	psa := ps.NewClient(conn.InitialParameters())
 	psi := ps.NewClient(nil)
 
-	conn.Middleware = append(
-		conn.Middleware,
+	conn.AddMiddleware(
 		unterminate.Unterminate,
 		psa,
 		eqpa,
@@ -160,7 +159,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 		}
 	}()
 
-	if !conn.Ready {
+	if !conn.Ready() {
 		client.SetState(metrics.ConnStateAwaitingServer, nil, false)
 
 		if !T.replica.Empty() {
@@ -198,7 +197,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 			return err
 		}
 
-		conn.Ready = true
+		conn.SetReady(true)
 	}
 
 	for {
@@ -309,11 +308,10 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 	}
 }
 
-func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
-	conn.Middleware = append(
-		conn.Middleware,
+func (T *Pool) serveOnly(conn fed.Conn, write bool) error {
+	conn.AddMiddleware(
 		unterminate.Unterminate,
-		ps.NewClient(conn.InitialParameters),
+		ps.NewClient(conn.InitialParameters()),
 		eqp.NewClient(),
 	)
 
@@ -352,7 +350,7 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 		}
 	}()
 
-	if !conn.Ready {
+	if !conn.Ready() {
 		client.SetState(metrics.ConnStateAwaitingServer, nil, true)
 
 		if write {
@@ -377,7 +375,7 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 			return err
 		}
 
-		conn.Ready = true
+		conn.SetReady(true)
 	}
 
 	for {
@@ -426,8 +424,8 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 	}
 }
 
-func (T *Pool) Serve(conn *fed.Conn) error {
-	switch conn.InitialParameters[strutil.MakeCIString("hybrid.mode")] {
+func (T *Pool) Serve(conn fed.Conn) error {
+	switch conn.InitialParameters()[strutil.MakeCIString("hybrid.mode")] {
 	case "ro":
 		return T.serveOnly(conn, false)
 	case "wo":

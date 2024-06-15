@@ -60,14 +60,14 @@ func (T *Dialer) dial() (net.Conn, error) {
 	}
 }
 
-func (T *Dialer) Dial() (*fed.Conn, error) {
+func (T *Dialer) Dial() (fed.Conn, error) {
 	c, err := T.dial()
 	if err != nil {
 		return nil, err
 	}
 	conn := fed.NewConn(c)
-	conn.User = T.Username
-	conn.Database = T.Database
+	conn.SetUser(T.Username)
+	conn.SetDatabase(T.Database)
 	err = backends.Accept(
 		conn,
 		T.SSLMode,
@@ -80,7 +80,7 @@ func (T *Dialer) Dial() (*fed.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn.Ready = true
+	conn.SetReady(true)
 	return conn, nil
 }
 
