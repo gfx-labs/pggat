@@ -3,6 +3,7 @@ package gfed
 import (
 	"bufio"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 
@@ -61,7 +62,8 @@ func NewCodec() *Codec {
 	//TODO: pool buffers maybe? idk. weird use case.
 	rd := bufio.NewReader(out)
 	c := &Codec{
-		in: in,
+		in:                in,
+		initialParameters: map[strutil.CIString]string{},
 	}
 	c.decoder.Reset(rd)
 	return c
@@ -83,9 +85,10 @@ func (T *Codec) readPacket(typed bool) (fed.Packet, error) {
 	if err := T.decoder.Next(typed); err != nil {
 		return nil, err
 	}
-	return fed.PendingPacket{
+	pending := fed.PendingPacket{
 		Decoder: &T.decoder,
-	}, nil
+	}
+	return pending, nil
 }
 
 func (T *Codec) ReadPacket(typed bool) (fed.Packet, error) {
@@ -220,7 +223,7 @@ func (T *Codec) ReadByte() (byte, error) {
 }
 
 func (T *Codec) EnableSSL(config *tls.Config, isClient bool) error {
-	panic("ssl not supported")
+	return fmt.Errorf("ssl not supported")
 }
 
 func (T *Codec) Close() error {

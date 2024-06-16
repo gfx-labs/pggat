@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 
 	"github.com/caddyserver/caddy/v2"
 	"go.uber.org/zap"
@@ -18,9 +19,8 @@ import (
 )
 
 type ServerConfig struct {
-	Listen  []ListenerConfig `json:"listen,omitempty"`
-	GListen []ListenerConfig `json:"glisten,omitempty"`
-	Routes  []RouteConfig    `json:"routes,omitempty"`
+	Listen []ListenerConfig `json:"listen,omitempty"`
+	Routes []RouteConfig    `json:"routes,omitempty"`
 }
 
 type Server struct {
@@ -43,16 +43,22 @@ func (T *Server) Provision(ctx caddy.Context) error {
 		listener := &Listener{
 			ListenerConfig: config,
 		}
+		if strings.HasSuffix(config.Address, "66") {
+			continue
+		}
 		if err := listener.Provision(ctx); err != nil {
 			return err
 		}
 		T.listen = append(T.listen, listener)
 	}
 
-	T.glisten = make([]*GListener, 0, len(T.GListen))
-	for _, config := range T.GListen {
+	T.glisten = make([]*GListener, 0, len(T.Listen))
+	for _, config := range T.Listen {
 		glistener := &GListener{
 			ListenerConfig: config,
+		}
+		if !strings.HasSuffix(config.Address, "66") {
+			continue
 		}
 		if err := glistener.Provision(ctx); err != nil {
 			return err
@@ -98,7 +104,7 @@ func (T *Server) Start() error {
 	for _, glistener := range T.glisten {
 		// TODO: sort of hacky. should clean up.
 		glistener.server.Acceptor = func(c *gfed.Codec) {
-			T.gaccept(glistener, c)
+			go T.gaccept(glistener, c)
 		}
 		if err := glistener.Start(); err != nil {
 			return err

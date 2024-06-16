@@ -90,7 +90,7 @@ func startup0(
 						}
 
 						ikey := strutil.MakeCIString(key)
-						if ctx.Conn.InitialParameters == nil {
+						if ctx.Conn.InitialParameters() == nil {
 							values := make(map[strutil.CIString]string)
 							ctx.Conn.SetInitialParameters(values)
 						}
@@ -118,7 +118,7 @@ func startup0(
 					unsupportedOptions = append(unsupportedOptions, parameter.Key)
 				} else {
 					ikey := strutil.MakeCIString(parameter.Key)
-					if ctx.Conn.InitialParameters == nil {
+					if ctx.Conn.InitialParameters() == nil {
 						values := make(map[strutil.CIString]string)
 						ctx.Conn.SetInitialParameters(values)
 					}

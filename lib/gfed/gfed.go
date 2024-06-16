@@ -15,8 +15,9 @@ type Server struct {
 
 	log *slog.Logger
 
-	ready chan struct{}
-	conns chan *Codec
+	ready  chan struct{}
+	conns  chan *Codec
+	closed chan error
 
 	gnet.BuiltinEventEngine
 	eng       gnet.Engine
@@ -24,16 +25,15 @@ type Server struct {
 }
 
 func (s *Server) StartServer(ctx context.Context, addr string, opts ...gnet.Option) error {
-	errch := make(chan error)
 	go func() {
 		err := gnet.Run(s, addr, opts...)
 		if err != nil {
-			errch <- err
+			s.closed <- err
 		}
-		close(errch)
+		close(s.closed)
 	}()
 	select {
-	case err := <-errch:
+	case err := <-s.closed:
 		if err != nil {
 			return err
 		}
@@ -48,22 +48,26 @@ func (s *Server) StartServer(ctx context.Context, addr string, opts ...gnet.Opti
 func (T *Server) Provision(ctx caddy.Context) error {
 	T.log = ctx.Slogger()
 	T.ready = make(chan struct{})
+	T.closed = make(chan error)
 	return nil
 }
 
 func (s *Server) OnOpen(c gnet.Conn) ([]byte, gnet.Action) {
-	dec := new(Codec)
+	slog.Info("new conn", "conn", c.RemoteAddr().String())
+	dec := NewCodec()
 	c.SetContext(dec)
 	dec.localAddr = c.LocalAddr()
 	dec.gnetConn = c
+	dec.encoder.Reset(c)
 	s.connected.Add(1)
 	s.Acceptor(dec)
 	return nil, gnet.None
 }
 
 func (s *Server) OnTraffic(c gnet.Conn) gnet.Action {
+	//slog.Info("got traffic", "conn", c.RemoteAddr().String())
 	uc := c.Context().(*Codec)
-	bts, err := c.Next(c.InboundBuffered())
+	bts, err := c.Next(-1)
 	if err != nil {
 		s.log.Error("short read", "conn", c.RemoteAddr(), "err", err)
 		return gnet.Close
@@ -75,6 +79,7 @@ func (s *Server) OnTraffic(c gnet.Conn) gnet.Action {
 	return gnet.None
 }
 func (s *Server) OnBoot(eng gnet.Engine) gnet.Action {
+	close(s.ready)
 	return gnet.None
 }
 func (s *Server) OnShutdown(eng gnet.Engine) {

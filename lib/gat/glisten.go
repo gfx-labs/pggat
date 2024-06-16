@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
+	"github.com/panjf2000/gnet/v2"
 	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/gfed"
@@ -74,7 +75,8 @@ func (T *GListener) Provision(ctx caddy.Context) error {
 		T.ssl = val.(SSLServer)
 	}
 
-	return nil
+	T.server = &gfed.Server{}
+	return T.server.Provision(ctx)
 }
 
 func (T *GListener) Start() error {
@@ -85,7 +87,9 @@ func (T *GListener) Start() error {
 	}
 	ctx, cn := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cn()
-	err := T.server.StartServer(ctx, T.networkAddress.String())
+	err := T.server.StartServer(ctx, T.networkAddress.Network+"://"+T.networkAddress.String(),
+		gnet.WithMulticore(true),
+	)
 	if err != nil {
 		return err
 	}

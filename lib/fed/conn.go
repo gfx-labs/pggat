@@ -49,7 +49,8 @@ func (c *conn) SetInitialParameters(i map[strutil.CIString]string) { c.initialPa
 
 func NewConn(rw net.Conn) Conn {
 	c := &conn{
-		NetConn: rw,
+		NetConn:           rw,
+		initialParameters: map[strutil.CIString]string{},
 	}
 	c.encoder.Reset(rw)
 	c.decoder.Reset(rw)
