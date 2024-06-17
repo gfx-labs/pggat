@@ -114,7 +114,7 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 
 		var b flip.Bank
 
-		inward, outward := gsql.NewPair()
+		inward, outward, _, _ := gsql.NewPair()
 		b.Queue(func() error {
 			if err := gsql.ExtendedQuery(inward, &result, T.Config.PgBouncer.AuthQuery, user); err != nil {
 				return err

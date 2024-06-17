@@ -168,7 +168,7 @@ func (T *Conn) ReadByte() (byte, error) {
 }
 
 func (T *Conn) EnableSSL(config *tls.Config, isClient bool) error {
-	return T.EnableSSL(config, isClient)
+	return T.codec.EnableSSL(config, isClient)
 }
 
 func (T *Conn) Close() error {

@@ -76,7 +76,7 @@ func (T *Runner) runModeL1(dialer pool.Dialer, client *fed.Conn) error {
 }
 
 func (T *Runner) runModeOnce(dialer pool.Dialer) ([]byte, error) {
-	inward, outward := gsql.NewPair()
+	inward, outward, in, _ := gsql.NewPair()
 	if err := T.prepare(inward, len(T.test.Packets)); err != nil {
 		return nil, err
 	}
@@ -89,12 +89,12 @@ func (T *Runner) runModeOnce(dialer pool.Dialer) ([]byte, error) {
 		return nil, err
 	}
 
-	return io.ReadAll(inward.NetConn)
+	return io.ReadAll(in)
 }
 
 func (T *Runner) runModeFail(dialer pool.Dialer) error {
 	for i := 1; i <= len(T.test.Packets); i++ {
-		inward, outward := gsql.NewPair()
+		inward, outward, _, _ := gsql.NewPair()
 		if err := T.prepare(inward, i); err != nil {
 			return err
 		}

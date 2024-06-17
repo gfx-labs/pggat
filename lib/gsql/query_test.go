@@ -49,7 +49,7 @@ func TestQuery(t *testing.T) {
 		return
 	}
 
-	inward, outward := gsql.NewPair()
+	inward, outward, _, _ := gsql.NewPair()
 
 	var res Result
 
