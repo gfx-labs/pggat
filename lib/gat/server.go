@@ -121,7 +121,7 @@ func (T *Server) Serve(conn *fed.Conn) {
 		T.log.Warn("database not found", zap.String("user", conn.User), zap.String("database", conn.Database))
 		return nil
 	}))
-	for j := 0; j < len(T.routes); j++ {
+	for j := len(T.routes) - 1; j >= 0; j-- {
 		route := T.routes[j]
 		if route.match != nil && !route.match.Matches(conn) {
 			continue
