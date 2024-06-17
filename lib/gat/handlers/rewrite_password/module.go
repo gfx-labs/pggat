@@ -28,10 +28,14 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 
 func (T *Module) Handle(next gat.Router) gat.Router {
 	return gat.RouterFunc(func(conn *fed.Conn) error {
-		return frontends.Authenticate(
+		if err := frontends.Authenticate(
 			conn,
 			credentials.FromString(conn.User, T.Password),
-		)
+		); err != nil {
+			return err
+		}
+
+		return next.Route(conn)
 	})
 }
 
