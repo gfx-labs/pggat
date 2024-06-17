@@ -2,7 +2,6 @@ package fed
 
 import (
 	"crypto/tls"
-	"errors"
 	"net"
 
 	"gfx.cafe/gfx/pggat/lib/util/decorator"
@@ -12,10 +11,7 @@ import (
 type Conn struct {
 	noCopy decorator.NoCopy
 
-	encoder Encoder
-	decoder Decoder
-
-	NetConn net.Conn
+	codec PacketCodec
 
 	Middleware []Middleware
 
@@ -30,26 +26,19 @@ type Conn struct {
 	Ready         bool
 }
 
-func NewConn(rw net.Conn) *Conn {
+func NewConn(codec PacketCodec) *Conn {
 	c := &Conn{
-		NetConn: rw,
+		codec: codec,
 	}
-	c.encoder.Reset(rw)
-	c.decoder.Reset(rw)
 	return c
 }
 
 func (T *Conn) Flush() error {
-	return T.encoder.Flush()
+	return T.codec.Flush()
 }
 
 func (T *Conn) readPacket(typed bool) (Packet, error) {
-	if err := T.decoder.Next(typed); err != nil {
-		return nil, err
-	}
-	return PendingPacket{
-		Decoder: &T.decoder,
-	}, nil
+	return T.codec.ReadPacket(typed)
 }
 
 func (T *Conn) ReadPacket(typed bool) (Packet, error) {
@@ -107,12 +96,7 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 }
 
 func (T *Conn) writePacket(packet Packet) error {
-	err := T.encoder.Next(packet.Type(), packet.Length())
-	if err != nil {
-		return err
-	}
-
-	return packet.WriteTo(&T.encoder)
+	return T.codec.WritePacket(packet)
 }
 
 func (T *Conn) WritePacket(packet Packet) error {
@@ -171,47 +155,22 @@ func (T *Conn) WritePacket(packet Packet) error {
 }
 
 func (T *Conn) WriteByte(b byte) error {
-	return T.encoder.WriteByte(b)
+	return T.codec.WriteByte(b)
+}
+
+func (T *Conn) LocalAddr() net.Addr {
+	return T.codec.LocalAddr()
+
 }
 
 func (T *Conn) ReadByte() (byte, error) {
-	if err := T.Flush(); err != nil {
-		return 0, err
-	}
-
-	return T.decoder.ReadByte()
+	return T.codec.ReadByte()
 }
 
 func (T *Conn) EnableSSL(config *tls.Config, isClient bool) error {
-	if T.SSL {
-		return errors.New("SSL is already enabled")
-	}
-	T.SSL = true
-
-	// Flush buffers
-	if err := T.Flush(); err != nil {
-		return err
-	}
-	if T.decoder.Buffered() > 0 {
-		return errors.New("expected empty read buffer")
-	}
-
-	var sslConn *tls.Conn
-	if isClient {
-		sslConn = tls.Client(T.NetConn, config)
-	} else {
-		sslConn = tls.Server(T.NetConn, config)
-	}
-	T.encoder.Reset(sslConn)
-	T.decoder.Reset(sslConn)
-	T.NetConn = sslConn
-	return sslConn.Handshake()
+	return T.codec.EnableSSL(config, isClient)
 }
 
 func (T *Conn) Close() error {
-	if err := T.encoder.Flush(); err != nil {
-		return err
-	}
-
-	return T.NetConn.Close()
+	return T.codec.Close()
 }

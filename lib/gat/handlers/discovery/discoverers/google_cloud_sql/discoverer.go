@@ -135,7 +135,7 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 
 			var result authQueryResult
 
-			inward, outward := gsql.NewPair()
+			inward, outward, _, _ := gsql.NewPair()
 
 			var b flip.Bank
 			b.Queue(func() error {

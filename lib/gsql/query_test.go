@@ -1,6 +1,7 @@
 package gsql_test
 
 import (
+	"crypto/tls"
 	"log"
 	"net"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/bouncer/bouncers/v2"
 	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/fed/codecs/netconncodec"
 	"gfx.cafe/gfx/pggat/lib/gsql"
 	"gfx.cafe/gfx/pggat/lib/util/flip"
 )
@@ -30,15 +32,15 @@ func TestQuery(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	server := fed.NewConn(s)
+	server := fed.NewConn(netconncodec.NewCodec(s))
 	err = backends.Accept(
 		server,
-		"",
-		nil,
+		"disable",
+		&tls.Config{},
 		"postgres",
 		credentials.Cleartext{
 			Username: "postgres",
-			Password: "password",
+			Password: "postgres",
 		},
 		"postgres",
 		nil,
@@ -48,7 +50,7 @@ func TestQuery(t *testing.T) {
 		return
 	}
 
-	inward, outward := gsql.NewPair()
+	inward, outward, _, _ := gsql.NewPair()
 
 	var res Result
 

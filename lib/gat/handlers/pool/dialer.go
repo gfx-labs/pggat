@@ -14,6 +14,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/bouncer"
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/fed/codecs/netconncodec"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
@@ -65,7 +66,7 @@ func (T *Dialer) Dial() (*fed.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn := fed.NewConn(c)
+	conn := fed.NewConn(netconncodec.NewCodec(c))
 	conn.User = T.Username
 	conn.Database = T.Database
 	err = backends.Accept(
@@ -89,7 +90,7 @@ func (T *Dialer) Cancel(key fed.BackendKey) {
 	if err != nil {
 		return
 	}
-	conn := fed.NewConn(c)
+	conn := fed.NewConn(netconncodec.NewCodec(c))
 	defer func() {
 		_ = conn.Close()
 	}()
