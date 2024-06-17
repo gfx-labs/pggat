@@ -196,7 +196,7 @@ func (T *Scheduler) Acquire(user uuid.UUID, timeout time.Duration) uuid.UUID {
 				// we were removed? probably fine
 				select {
 				case v, ok = <-c:
-					// we got a job but we're removed so let's just give it back
+					// we got a worker, but we're removed so let's just give it back
 					if ok {
 						T.cc.Put(c)
 					}
