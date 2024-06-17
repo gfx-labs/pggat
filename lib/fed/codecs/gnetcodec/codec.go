@@ -9,12 +9,13 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/util/decorator"
+	"github.com/panjf2000/gnet/v2"
 )
 
 type Codec struct {
 	noCopy decorator.NoCopy
 
-	conn net.Conn
+	conn gnet.Conn
 	ssl  bool
 
 	encoder fed.Encoder
