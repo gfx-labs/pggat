@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
-	"gfx.cafe/gfx/pggat/lib/fed/codecs/netconncodec"
+	"gfx.cafe/gfx/pggat/lib/fed/listeners/netconnlistener"
 )
 
 type ListenerConfig struct {
@@ -30,18 +30,10 @@ type Listener struct {
 	networkAddress caddy.NetworkAddress
 	ssl            SSLServer
 
-	listener net.Listener
+	listener fed.Listener
 	open     atomic.Int64
 
 	log *zap.Logger
-}
-
-func (T *Listener) accept() (*fed.Conn, error) {
-	raw, err := T.listener.Accept()
-	if err != nil {
-		return nil, err
-	}
-	return fed.NewConn(netconncodec.NewCodec(raw)), nil
 }
 
 func (T *Listener) Provision(ctx caddy.Context) error {
@@ -95,9 +87,10 @@ func (T *Listener) Start() error {
 	if err != nil {
 		return err
 	}
-	T.listener = listener.(net.Listener)
+	ncn := &netconnlistener.Listener{Listener: listener.(net.Listener)}
+	T.listener = ncn
 
-	T.log.Info("listening", zap.String("address", T.listener.Addr().String()))
+	T.log.Info("listening", zap.String("address", ncn.Listener.Addr().String()))
 
 	return nil
 }
