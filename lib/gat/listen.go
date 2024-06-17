@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
-	"gfx.cafe/gfx/pggat/lib/fed/codecs/netconncodec"
+	"gfx.cafe/gfx/pggat/lib/fed/listeners/netconnlistener"
 )
 
 type ListenerConfig struct {
@@ -30,18 +30,10 @@ type Listener struct {
 	networkAddress caddy.NetworkAddress
 	ssl            SSLServer
 
-	listener net.Listener
+	listener fed.Listener
 	open     atomic.Int64
 
 	log *zap.Logger
-}
-
-func (T *Listener) accept() (*fed.Conn, error) {
-	raw, err := T.listener.Accept()
-	if err != nil {
-		return nil, err
-	}
-	return fed.NewConn(netconncodec.NewCodec(raw)), nil
 }
 
 func (T *Listener) Provision(ctx caddy.Context) error {
@@ -86,19 +78,22 @@ func (T *Listener) Provision(ctx caddy.Context) error {
 }
 
 func (T *Listener) Start() error {
-	if T.networkAddress.Network == "unix" {
-		if err := os.MkdirAll(filepath.Dir(T.networkAddress.Host), 0o660); err != nil {
+	addr := T.networkAddress
+	if addr.Network == "unix" {
+		if err := os.MkdirAll(filepath.Dir(addr.Host), 0o660); err != nil {
 			return err
 		}
 	}
-	listener, err := T.networkAddress.Listen(context.Background(), 0, net.ListenConfig{})
+	listener, err := addr.Listen(context.Background(), 0, net.ListenConfig{})
 	if err != nil {
 		return err
 	}
-	T.listener = listener.(net.Listener)
-
-	T.log.Info("listening", zap.String("address", T.listener.Addr().String()))
-
+	if netListener, ok := listener.(net.Listener); ok {
+		T.listener = &netconnlistener.Listener{Listener: netListener}
+	} else if fedListener, ok := listener.(fed.Listener); ok {
+		T.listener = fedListener
+	}
+	T.log.Info("listening", zap.String("address", T.networkAddress.String()))
 	return nil
 }
 

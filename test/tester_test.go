@@ -13,6 +13,7 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
+	"gfx.cafe/gfx/pggat/lib/bouncer"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/gat/gatcaddyfile"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
@@ -22,6 +23,8 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 	"gfx.cafe/gfx/pggat/test"
 	"gfx.cafe/gfx/pggat/test/tests"
+
+	_ "gfx.cafe/gfx/pggat/lib/fed/listeners/netconnlistener"
 )
 
 func wrapConfig(conf basic.Config) basic.Config {
@@ -97,6 +100,7 @@ func createServer(parent dialer, pools map[string]caddy.Module) (server gat.Serv
 				Dialer: pool.Dialer{
 					Address:     parent.Address,
 					Username:    parent.Username,
+					SSLMode:     bouncer.SSLModeDisable,
 					RawPassword: parent.Password,
 					Database:    parent.Database,
 				},
@@ -164,9 +168,10 @@ func TestTester(t *testing.T) {
 	control := pool.Dialer{
 		Address:  "localhost:5432",
 		Username: "postgres",
+		SSLMode:  bouncer.SSLModeDisable,
 		Credentials: credentials.Cleartext{
 			Username: "postgres",
-			Password: "password",
+			Password: "postgres",
 		},
 		Database: "postgres",
 	}
@@ -176,7 +181,7 @@ func TestTester(t *testing.T) {
 	parent, err := daisyChain(&config, dialer{
 		Address:  "localhost:5432",
 		Username: "postgres",
-		Password: "password",
+		Password: "postgres",
 		Database: "postgres",
 	}, 16)
 	if err != nil {

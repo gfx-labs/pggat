@@ -2,11 +2,17 @@ package fed
 
 import (
 	"crypto/tls"
+	"io"
 	"net"
 
 	"gfx.cafe/gfx/pggat/lib/util/decorator"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
+
+type Listener interface {
+	Accept(fn func(*Conn)) error
+	io.Closer
+}
 
 type Conn struct {
 	noCopy decorator.NoCopy

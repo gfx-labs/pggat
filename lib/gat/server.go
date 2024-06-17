@@ -184,7 +184,9 @@ func (T *Server) accept(listener *Listener, conn *fed.Conn) {
 }
 
 func (T *Server) acceptFrom(listener *Listener) bool {
-	conn, err := listener.accept()
+	err := listener.listener.Accept(func(c *fed.Conn) {
+		T.accept(listener, c)
+	})
 	if err != nil {
 		if errors.Is(err, net.ErrClosed) {
 			return false
@@ -198,8 +200,6 @@ func (T *Server) acceptFrom(listener *Listener) bool {
 		T.log.Warn("error accepting client", zap.Error(err))
 		return true
 	}
-
-	go T.accept(listener, conn)
 	return true
 }
 
