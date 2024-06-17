@@ -273,11 +273,13 @@ func (T Config) Listen() []gat.ListenerConfig {
 
 		listen := net.JoinHostPort(listenAddr, strconv.Itoa(T.PgBouncer.ListenPort))
 
+		config, _ := json.Marshal(map[string]any{
+			"address": listen,
+		})
 		listeners = append(listeners, gat.ListenerConfig{
-			Address: listen,
+			ListenerRaw: config,
 		})
 	}
-
 	// listen on unix socket
 	dir := T.PgBouncer.UnixSocketDir
 	port := T.PgBouncer.ListenPort
@@ -286,10 +288,13 @@ func (T Config) Listen() []gat.ListenerConfig {
 		dir = dir + "/"
 	}
 	dir = dir + ".s.PGSQL." + strconv.Itoa(port)
+	config, _ := json.Marshal(map[string]any{
+		"address": dir,
+		"ssl":     ssl,
+	})
 
 	listeners = append(listeners, gat.ListenerConfig{
-		Address: dir,
-		SSL:     ssl,
+		ListenerRaw: config,
 	})
 
 	return listeners

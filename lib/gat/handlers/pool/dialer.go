@@ -101,5 +101,3 @@ func (T *Dialer) Cancel(key fed.BackendKey) {
 	// wait for server to close the connection, this means that the server received it ok
 	_, _ = conn.ReadPacket(true)
 }
-
-var _ caddy.Provisioner = (*gat.Listener)(nil)

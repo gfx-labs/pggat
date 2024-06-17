@@ -24,7 +24,7 @@ type ServerConfig struct {
 }
 
 type ListenerConfig struct {
-	ListenerRaw json.RawMessage `json:"listener,omitempty" caddy:"namespace=pggat.listener inline_key=listener"`
+	ListenerRaw json.RawMessage `json:"listener,omitempty" caddy:"namespace=pggat.listener inline_key=runtime"`
 }
 
 type Server struct {
@@ -154,6 +154,7 @@ func (T *Server) Serve(conn *fed.Conn) {
 	T.log.Warn("database not found", zap.String("user", conn.User), zap.String("database", conn.Database))
 }
 
+// TODO: accept/acceptFrom is super dirty.. we should rewrite this to be cleaner
 func (T *Server) accept(listener listeners.Listener, conn *fed.Conn) {
 	defer func() {
 		_ = conn.Close()
@@ -181,25 +182,13 @@ func (T *Server) accept(listener listeners.Listener, conn *fed.Conn) {
 		return
 	}
 
-	count := listener.open.Add(1)
-	defer listener.open.Add(-1)
-
-	if listener.MaxConnections != 0 && int(count) > listener.MaxConnections {
-		_ = conn.WritePacket(
-			perror.ToPacket(perror.New(
-				perror.FATAL,
-				perror.TooManyConnections,
-				"Too many connections, sorry",
-			)),
-		)
-		return
-	}
-
 	T.Serve(conn)
 }
 
 func (T *Server) acceptFrom(listener listeners.Listener) bool {
-	conn, err := listener.Accept()
+	err := listener.Accept(func(c *fed.Conn) {
+		T.accept(listener, c)
+	})
 	if err != nil {
 		if errors.Is(err, net.ErrClosed) {
 			return false
@@ -213,8 +202,6 @@ func (T *Server) acceptFrom(listener listeners.Listener) bool {
 		T.log.Warn("error accepting client", zap.Error(err))
 		return true
 	}
-
-	go T.accept(listener, conn)
 	return true
 }
 

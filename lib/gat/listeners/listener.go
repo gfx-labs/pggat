@@ -23,7 +23,7 @@ type Listener interface {
 	caddy.Module
 
 	TLSConfig() (bool, *tls.Config)
-	Accept() (*fed.Conn, error)
+	Accept(func(*fed.Conn)) error
 }
 
 type SSLServer interface {

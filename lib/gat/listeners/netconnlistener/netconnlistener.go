@@ -15,6 +15,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/fed/codecs/netconncodec"
 	"gfx.cafe/gfx/pggat/lib/gat/listeners"
+	"gfx.cafe/gfx/pggat/lib/perror"
 	"github.com/caddyserver/caddy/v2"
 	"go.uber.org/zap"
 )
@@ -38,12 +39,29 @@ func (T *Listener) TLSConfig() (bool, *tls.Config) {
 	}
 	return true, T.ssl.ServerTLSConfig()
 }
-func (T *Listener) Accept() (*fed.Conn, error) {
+func (T *Listener) Accept(fn func(*fed.Conn)) error {
 	raw, err := T.listener.Accept()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return fed.NewConn(netconncodec.NewCodec(raw)), nil
+	fedConn := fed.NewConn(netconncodec.NewCodec(raw))
+	if T.MaxConnections != 0 {
+		count := T.open.Add(1)
+		defer T.open.Add(-1)
+		if int(count) > T.MaxConnections {
+			_ = fedConn.WritePacket(
+				perror.ToPacket(perror.New(
+					perror.FATAL,
+					perror.TooManyConnections,
+					"Too many connections, sorry",
+				)),
+			)
+			return nil
+		}
+		fn(fedConn)
+		return nil
+	}
+	return nil
 }
 
 type Listener struct {
