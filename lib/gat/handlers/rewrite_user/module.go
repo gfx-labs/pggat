@@ -37,17 +37,18 @@ func (T *Module) Validate() error {
 	}
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	switch T.Mode {
-	case "strip_prefix":
-		conn.User = strings.TrimPrefix(conn.User, T.User)
-	case "strip_suffix":
-		conn.User = strings.TrimSuffix(conn.User, T.User)
-	default:
-		conn.User = T.User
-	}
-
-	return nil
+func (T *Module) Handle(next gat.Router) gat.Router {
+	return gat.RouterFunc(func(conn *fed.Conn) error {
+		switch T.Mode {
+		case "strip_prefix":
+			conn.User = strings.TrimPrefix(conn.User, T.User)
+		case "strip_suffix":
+			conn.User = strings.TrimSuffix(conn.User, T.User)
+		default:
+			conn.User = T.User
+		}
+		return next.Route(conn)
+	})
 }
 
 var _ gat.Handler = (*Module)(nil)

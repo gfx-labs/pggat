@@ -108,37 +108,37 @@ func (T *Server) ReadMetrics(m *metrics.Server) {
 }
 
 func (T *Server) Serve(conn *fed.Conn) {
-	for _, route := range T.routes {
+	composed := Router(RouterFunc(func(conn *fed.Conn) error {
+		// database not found
+		errResp := perror.ToPacket(
+			perror.New(
+				perror.FATAL,
+				perror.InvalidPassword,
+				fmt.Sprintf(`Database "%s" not found`, conn.Database),
+			),
+		)
+		_ = conn.WritePacket(errResp)
+		T.log.Warn("database not found", zap.String("user", conn.User), zap.String("database", conn.Database))
+		return nil
+	}))
+	for j := 0; j < len(T.routes); j++ {
+		route := T.routes[j]
 		if route.match != nil && !route.match.Matches(conn) {
 			continue
 		}
-
-		if route.handle == nil {
-			continue
-		}
-		err := route.handle.Handle(conn)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				// normal closure
-				return
-			}
-
-			errResp := perror.ToPacket(perror.Wrap(err))
-			_ = conn.WritePacket(errResp)
+		composed = route.handle.Handle(composed)
+	}
+	err := composed.Route(conn)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			// normal closure
 			return
 		}
-	}
 
-	// database not found
-	errResp := perror.ToPacket(
-		perror.New(
-			perror.FATAL,
-			perror.InvalidPassword,
-			fmt.Sprintf(`Database "%s" not found`, conn.Database),
-		),
-	)
-	_ = conn.WritePacket(errResp)
-	T.log.Warn("database not found", zap.String("user", conn.User), zap.String("database", conn.Database))
+		errResp := perror.ToPacket(perror.Wrap(err))
+		_ = conn.WritePacket(errResp)
+		return
+	}
 }
 
 func (T *Server) accept(listener *Listener, conn *fed.Conn) {
@@ -169,11 +169,11 @@ func (T *Server) accept(listener *Listener, conn *fed.Conn) {
 	}
 
 	count := listener.open.Add(1)
-	prom.Listener.ClientConnections(labels).Inc()
-	prom.Listener.IncomingConnections(labels).Inc()
+	prom.Listener.Client(labels).Inc()
+	prom.Listener.Incoming(labels).Inc()
 	defer func() {
 		listener.open.Add(-1)
-		prom.Listener.ClientConnections(labels).Dec()
+		prom.Listener.Client(labels).Dec()
 	}()
 
 	if listener.MaxConnections != 0 && int(count) > listener.MaxConnections {
@@ -186,7 +186,7 @@ func (T *Server) accept(listener *Listener, conn *fed.Conn) {
 		)
 		return
 	}
-	prom.Listener.AcceptedConnections(labels).Inc()
+	prom.Listener.Accepted(labels).Inc()
 	T.Serve(conn)
 }
 

@@ -49,12 +49,14 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	return nil
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	if err := frontends.Authenticate(conn, nil); err != nil {
-		return err
-	}
+func (T *Module) Handle(next gat.Router) gat.Router {
+	return gat.RouterFunc(func(c *fed.Conn) error {
+		if err := frontends.Authenticate(c, nil); err != nil {
+			return err
+		}
 
-	return T.pool.Serve(conn)
+		return T.pool.Serve(c)
+	})
 }
 
 func (T *Module) ReadMetrics(metrics *metrics.Handler) {

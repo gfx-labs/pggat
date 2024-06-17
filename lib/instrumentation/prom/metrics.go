@@ -10,23 +10,21 @@ type ListenerLabels struct {
 }
 
 var Listener struct {
-	Incoming func(ListenerLabels) prometheus.Counter `name:"incoming"`
-	Accepted func(ListenerLabels) prometheus.Counter `name:"accepted"`
-	Client   func(ListenerLabels) prometheus.Gauge   `name:"client"`
+	Incoming func(ListenerLabels) prometheus.Counter `name:"incoming" help:"incoming connections"`
+	Accepted func(ListenerLabels) prometheus.Counter `name:"accepted" help:"accepted connetions"`
+	Client   func(ListenerLabels) prometheus.Gauge   `name:"client" help:"current clients"`
 }
 
 type ServingLabels struct {
 }
 
 var Serving struct {
-	Route func() `name:""`
 }
 
 type InstanceLabels struct {
 }
 
 var Instance struct {
-	Route func() `name:""`
 }
 
 func init() {

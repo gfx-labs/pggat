@@ -24,12 +24,14 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *Module) Handle(_ *fed.Conn) error {
-	return perror.New(
-		perror.FATAL,
-		perror.InternalError,
-		T.Message,
-	)
+func (T *Module) Handle(gat.Router) gat.Router {
+	return gat.RouterFunc(func(c *fed.Conn) error {
+		return perror.New(
+			perror.FATAL,
+			perror.InternalError,
+			T.Message,
+		)
+	})
 }
 
 var _ gat.Handler = (*Module)(nil)

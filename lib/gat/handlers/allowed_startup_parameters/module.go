@@ -29,18 +29,19 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	for parameter := range conn.InitialParameters {
-		if !slices.Contains(T.Parameters, parameter) {
-			return perror.New(
-				perror.FATAL,
-				perror.FeatureNotSupported,
-				fmt.Sprintf(`Startup parameter "%s" is not supported`, parameter.String()),
-			)
+func (T *Module) Handle(next gat.Router) gat.Router {
+	return gat.RouterFunc(func(conn *fed.Conn) error {
+		for parameter := range conn.InitialParameters {
+			if !slices.Contains(T.Parameters, parameter) {
+				return perror.New(
+					perror.FATAL,
+					perror.FeatureNotSupported,
+					fmt.Sprintf(`Startup parameter "%s" is not supported`, parameter.String()),
+				)
+			}
 		}
-	}
-
-	return nil
+		return next.Route(conn)
+	})
 }
 
 var _ gat.Handler = (*Module)(nil)

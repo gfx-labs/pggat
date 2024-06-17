@@ -568,17 +568,17 @@ func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 	})
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	p, ok := T.getPool(conn.User, conn.Database)
-	if !ok {
-		return nil
-	}
-
-	if err := frontends.Authenticate(conn, p.creds); err != nil {
-		return err
-	}
-
-	return p.pool.Serve(conn)
+func (T *Module) Handle(next gat.Router) gat.Router {
+	return gat.RouterFunc(func(conn *fed.Conn) error {
+		p, ok := T.getPool(conn.User, conn.Database)
+		if !ok {
+			return next.Route(conn)
+		}
+		if err := frontends.Authenticate(conn, p.creds); err != nil {
+			return err
+		}
+		return p.pool.Serve(conn)
+	})
 }
 
 func (T *Module) Cancel(key fed.BackendKey) {

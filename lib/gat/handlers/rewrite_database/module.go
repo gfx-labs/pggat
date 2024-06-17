@@ -37,17 +37,18 @@ func (T *Module) Validate() error {
 	}
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	switch T.Mode {
-	case "strip_prefix":
-		conn.Database = strings.TrimPrefix(conn.Database, T.Database)
-	case "strip_suffix":
-		conn.Database = strings.TrimSuffix(conn.Database, T.Database)
-	default:
-		conn.Database = T.Database
-	}
-
-	return nil
+func (T *Module) Handle(next gat.Router) gat.Router {
+	return gat.RouterFunc(func(conn *fed.Conn) error {
+		switch T.Mode {
+		case "strip_prefix":
+			conn.Database = strings.TrimPrefix(conn.Database, T.Database)
+		case "strip_suffix":
+			conn.Database = strings.TrimSuffix(conn.Database, T.Database)
+		default:
+			conn.Database = T.Database
+		}
+		return next.Route(conn)
+	})
 }
 
 var _ gat.Handler = (*Module)(nil)
