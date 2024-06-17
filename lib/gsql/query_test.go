@@ -1,6 +1,7 @@
 package gsql_test
 
 import (
+	"crypto/tls"
 	"log"
 	"net"
 	"net/http"
@@ -34,12 +35,12 @@ func TestQuery(t *testing.T) {
 	server := fed.NewConn(netconncodec.NewCodec(s))
 	err = backends.Accept(
 		server,
-		"",
-		nil,
+		"disable",
+		&tls.Config{},
 		"postgres",
 		credentials.Cleartext{
 			Username: "postgres",
-			Password: "password",
+			Password: "postgres",
 		},
 		"postgres",
 		nil,

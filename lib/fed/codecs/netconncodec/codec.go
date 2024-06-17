@@ -3,6 +3,7 @@ package netconncodec
 import (
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 
@@ -104,5 +105,9 @@ func (c *Codec) EnableSSL(config *tls.Config, isClient bool) error {
 	c.encoder.Reset(sslConn)
 	c.decoder.Reset(sslConn)
 	c.conn = sslConn
-	return sslConn.Handshake()
+	err := sslConn.Handshake()
+	if err != nil {
+		return fmt.Errorf("ssl handshake fail client(%v): %w", isClient, err)
+	}
+	return nil
 }
