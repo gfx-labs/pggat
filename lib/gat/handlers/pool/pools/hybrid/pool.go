@@ -15,6 +15,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/instrumentation/prom"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -409,12 +410,19 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 }
 
 func (T *Pool) Serve(conn *fed.Conn) error {
+	labels := prom.HybridPoolLabels{}
 	switch conn.InitialParameters[strutil.MakeCIString("hybrid.mode")] {
 	case "ro":
+		labels.Mode = "ro"
+		prom.Pool.AcceptedHybrid(labels).Inc()
 		return T.serveOnly(conn, false)
 	case "wo":
+		labels.Mode = "wo"
+		prom.Pool.AcceptedHybrid(labels).Inc()
 		return T.serveOnly(conn, true)
 	default:
+		labels.Mode = "rw"
+		prom.Pool.AcceptedHybrid(labels).Inc()
 		return T.serveRW(conn)
 	}
 }
