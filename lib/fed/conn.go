@@ -2,6 +2,7 @@ package fed
 
 import (
 	"crypto/tls"
+	"net"
 
 	"gfx.cafe/gfx/pggat/lib/util/decorator"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
@@ -155,6 +156,11 @@ func (T *Conn) WritePacket(packet Packet) error {
 
 func (T *Conn) WriteByte(b byte) error {
 	return T.codec.WriteByte(b)
+}
+
+func (T *Conn) LocalAddr() net.Addr {
+	return T.codec.LocalAddr()
+
 }
 
 func (T *Conn) ReadByte() (byte, error) {

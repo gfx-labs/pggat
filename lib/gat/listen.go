@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/fed/codecs/netconncodec"
 )
 
 type ListenerConfig struct {
@@ -40,7 +41,7 @@ func (T *Listener) accept() (*fed.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return fed.NewConn(raw), nil
+	return fed.NewConn(netconncodec.NewCodec(raw)), nil
 }
 
 func (T *Listener) Provision(ctx caddy.Context) error {
