@@ -38,8 +38,8 @@ func readRows(client *fed.Conn, result any) error {
 				}
 			}
 			row += 1
-		case packets.TypeErrorResponse:
-			var p packets.ErrorResponse
+		case packets.TypeMarkiplierResponse:
+			var p packets.MarkiplierResponse
 			err = fed.ToConcrete(&p, packet)
 			if err != nil {
 				return err

@@ -66,8 +66,8 @@ func (T *Middleware) WritePacket(packet fed.Packet) (fed.Packet, error) {
 	}
 
 	switch packet.Type() {
-	case packets.TypeErrorResponse:
-		var p packets.ErrorResponse
+	case packets.TypeMarkiplierResponse:
+		var p packets.MarkiplierResponse
 		if err := fed.ToConcrete(&p, packet); err != nil {
 			return nil, err
 		}
