@@ -310,6 +310,13 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 }
 
 func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
+	var sp *spool.Pool
+	if write {
+		sp = &T.primary
+	} else {
+		sp = &T.replica
+	}
+
 	conn.Middleware = append(
 		conn.Middleware,
 		unterminate.Unterminate,
@@ -322,13 +329,8 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 	T.addClient(client)
 	defer T.removeClient(client)
 
-	if write {
-		T.primary.AddClient(client.ID)
-		defer T.primary.RemoveClient(client.ID)
-	} else {
-		T.replica.AddClient(client.ID)
-		defer T.replica.RemoveClient(client.ID)
-	}
+	sp.AddClient(client.ID)
+	defer sp.RemoveClient(client.ID)
 
 	var err, serverErr error
 
@@ -336,17 +338,9 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 	defer func() {
 		if server != nil {
 			if serverErr != nil {
-				if write {
-					T.primary.RemoveServer(server)
-				} else {
-					T.replica.RemoveServer(server)
-				}
+				sp.RemoveServer(server)
 			} else {
-				if write {
-					T.primary.Release(server)
-				} else {
-					T.replica.Release(server)
-				}
+				sp.Release(server)
 			}
 			server = nil
 		}
@@ -355,11 +349,7 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 	if !conn.Ready {
 		client.SetState(metrics.ConnStateAwaitingServer, nil, true)
 
-		if write {
-			server = T.primary.Acquire(client.ID)
-		} else {
-			server = T.replica.Acquire(client.ID)
-		}
+		server = sp.Acquire(client.ID)
 		if server == nil {
 			return pool.ErrFailedToAcquirePeer
 		}
@@ -382,11 +372,7 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 
 	for {
 		if server != nil {
-			if write {
-				T.primary.Release(server)
-			} else {
-				T.replica.Release(server)
-			}
+			sp.Release(server)
 			server = nil
 		}
 		client.SetState(metrics.ConnStateIdle, nil, true)
@@ -399,11 +385,7 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 
 		client.SetState(metrics.ConnStateAwaitingServer, nil, true)
 
-		if write {
-			server = T.primary.Acquire(client.ID)
-		} else {
-			server = T.replica.Acquire(client.ID)
-		}
+		server = sp.Acquire(client.ID)
 		if server == nil {
 			return pool.ErrFailedToAcquirePeer
 		}

@@ -89,6 +89,7 @@ func (T *Pool) removeServer(conn *fed.Conn) {
 	}
 	delete(T.serversByConn, conn)
 	delete(T.serversByID, server.ID)
+	T.pooler.DeleteServer(server.ID)
 }
 
 func (T *Pool) AddRecipe(name string, recipe *pool.Recipe) {
@@ -160,6 +161,7 @@ func (T *Pool) ScaleDown(now time.Time) time.Duration {
 			if T.chef.Ignite(s.Conn) {
 				delete(T.serversByID, s.ID)
 				delete(T.serversByConn, s.Conn)
+				T.pooler.DeleteServer(s.ID)
 			}
 		} else {
 			until := T.config.IdleTimeout - idle
@@ -291,12 +293,14 @@ func (T *Pool) Release(server *Server) {
 
 func (T *Pool) RemoveServer(server *Server) {
 	T.chef.Burn(server.Conn)
+	T.pooler.DeleteServer(server.ID)
 
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
 	delete(T.serversByID, server.ID)
 	delete(T.serversByConn, server.Conn)
+	T.pooler.DeleteServer(server.ID)
 }
 
 func (T *Pool) Cancel(server *Server) {
