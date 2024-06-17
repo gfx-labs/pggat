@@ -48,6 +48,17 @@ func (c *Codec) WritePacket(packet fed.Packet) error {
 
 	return packet.WriteTo(&c.encoder)
 }
+func (c *Codec) WriteByte(b byte) error {
+	return c.encoder.WriteByte(b)
+}
+
+func (c *Codec) ReadByte() (byte, error) {
+	if err := c.Flush(); err != nil {
+		return 0, err
+	}
+
+	return c.decoder.ReadByte()
+}
 
 func (c *Codec) Flush() error {
 	return c.encoder.Flush()

@@ -2,7 +2,6 @@ package fed
 
 import (
 	"crypto/tls"
-	"errors"
 
 	"gfx.cafe/gfx/pggat/lib/util/decorator"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
@@ -155,47 +154,17 @@ func (T *Conn) WritePacket(packet Packet) error {
 }
 
 func (T *Conn) WriteByte(b byte) error {
-	return T.encoder.WriteByte(b)
+	return T.codec.WriteByte(b)
 }
 
 func (T *Conn) ReadByte() (byte, error) {
-	if err := T.Flush(); err != nil {
-		return 0, err
-	}
-
-	return T.decoder.ReadByte()
+	return T.codec.ReadByte()
 }
 
 func (T *Conn) EnableSSL(config *tls.Config, isClient bool) error {
-	if T.SSL {
-		return errors.New("SSL is already enabled")
-	}
-	T.SSL = true
-
-	// Flush buffers
-	if err := T.Flush(); err != nil {
-		return err
-	}
-	if T.decoder.Buffered() > 0 {
-		return errors.New("expected empty read buffer")
-	}
-
-	var sslConn *tls.Conn
-	if isClient {
-		sslConn = tls.Client(T.NetConn, config)
-	} else {
-		sslConn = tls.Server(T.NetConn, config)
-	}
-	T.encoder.Reset(sslConn)
-	T.decoder.Reset(sslConn)
-	T.NetConn = sslConn
-	return sslConn.Handshake()
+	return T.EnableSSL(config, isClient)
 }
 
 func (T *Conn) Close() error {
-	if err := T.encoder.Flush(); err != nil {
-		return err
-	}
-
-	return T.NetConn.Close()
+	return T.codec.Close()
 }

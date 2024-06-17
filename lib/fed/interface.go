@@ -8,6 +8,9 @@ import (
 type PacketCodec interface {
 	ReadPacket(typed bool) (Packet, error)
 	WritePacket(packet Packet) error
+	WriteByte(b byte) error
+	ReadByte() (byte, error)
+
 	LocalAddr() net.Addr
 	Flush() error
 	Close() error
