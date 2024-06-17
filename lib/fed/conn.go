@@ -10,7 +10,7 @@ import (
 )
 
 type Listener interface {
-	Accept(func(*Conn)) error
+	Accept(fn func(*Conn)) error
 	io.Closer
 }
 

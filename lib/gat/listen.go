@@ -2,9 +2,11 @@ package gat
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -13,27 +15,8 @@ import (
 	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/fed/listeners/netconnlistener"
 )
-
-var networkTypes = map[string]ListenerFunc{}
-
-type ListenerFunc func(ctx context.Context, addr caddy.NetworkAddress, config *tls.Config) (fed.Listener, error)
-
-func RegisterNetwork(network string, getListener ListenerFunc) {
-	network = strings.TrimSpace(strings.ToLower(network))
-
-	if network == "tcp" || network == "tcp4" || network == "tcp6" ||
-		network == "udp" || network == "udp4" || network == "udp6" ||
-		network == "unix" || network == "unixpacket" || network == "unixgram" ||
-		strings.HasPrefix("ip:", network) || strings.HasPrefix("ip4:", network) || strings.HasPrefix("ip6:", network) {
-		panic("network type " + network + " is reserved")
-	}
-
-	if _, ok := networkTypes[strings.ToLower(network)]; ok {
-		panic("network type " + network + " is already registered")
-	}
-	networkTypes[network] = getListener
-}
 
 type ListenerConfig struct {
 	Address        string          `json:"address"`
@@ -95,25 +78,22 @@ func (T *Listener) Provision(ctx caddy.Context) error {
 }
 
 func (T *Listener) Start() error {
-	listenerFunc, ok := networkTypes[T.networkAddress.Network]
-	if !ok {
-		listenerFunc, ok = networkTypes["default"]
-		if !ok {
-			return fmt.Errorf("no default listenerFunc registered. forgot to import gfx.cafe/gfx/pggat/lib/fed/listeners/netconnlistener ?")
+	addr := T.networkAddress
+	if addr.Network == "unix" {
+		if err := os.MkdirAll(filepath.Dir(addr.Host), 0o660); err != nil {
+			return err
 		}
 	}
-	var tlsConfig *tls.Config
-	if T.ssl != nil {
-		tlsConfig = T.ssl.ServerTLSConfig()
-	}
-	listener, err := listenerFunc(context.Background(), T.networkAddress, tlsConfig)
+	listener, err := addr.Listen(context.Background(), 0, net.ListenConfig{})
 	if err != nil {
 		return err
 	}
-	T.listener = listener
-
+	if netListener, ok := listener.(net.Listener); ok {
+		T.listener = &netconnlistener.Listener{Listener: netListener}
+	} else if fedListener, ok := listener.(fed.Listener); ok {
+		T.listener = fedListener
+	}
 	T.log.Info("listening", zap.String("address", T.networkAddress.String()))
-
 	return nil
 }
 
