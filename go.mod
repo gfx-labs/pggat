@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	gfx.cafe/ghalliday1/scram v0.0.3
+	gfx.cafe/open/gotoprom v0.0.2
 	gfx.cafe/util/temple v0.0.0-20230312041217-0882540e78eb
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/caddyserver/caddy/v2 v2.7.4

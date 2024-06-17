@@ -13,6 +13,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/instrumentation/prom"
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
@@ -144,6 +145,7 @@ func (T *Server) accept(listener *Listener, conn *fed.Conn) {
 	defer func() {
 		_ = conn.Close()
 	}()
+	labels := prom.ListenerLabels{ListenAddr: listener.networkAddress.String()}
 
 	var tlsConfig *tls.Config
 	if listener.ssl != nil {
@@ -167,7 +169,12 @@ func (T *Server) accept(listener *Listener, conn *fed.Conn) {
 	}
 
 	count := listener.open.Add(1)
-	defer listener.open.Add(-1)
+	prom.Listener.ClientConnections(labels).Inc()
+	prom.Listener.IncomingConnections(labels).Inc()
+	defer func() {
+		listener.open.Add(-1)
+		prom.Listener.ClientConnections(labels).Dec()
+	}()
 
 	if listener.MaxConnections != 0 && int(count) > listener.MaxConnections {
 		_ = conn.WritePacket(
@@ -179,7 +186,7 @@ func (T *Server) accept(listener *Listener, conn *fed.Conn) {
 		)
 		return
 	}
-
+	prom.Listener.AcceptedConnections(labels).Inc()
 	T.Serve(conn)
 }
 
