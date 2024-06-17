@@ -70,7 +70,7 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 		server.Listen = make([]gat.ListenerConfig, 0, len(block.Keys))
 		for _, key := range block.Keys {
 			listen := gat.ListenerConfig{
-				Address:        key,
+				Address:        key.Text,
 				MaxConnections: 1000,
 			}
 			server.Listen = append(server.Listen, listen)

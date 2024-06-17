@@ -3,6 +3,7 @@ package gnetcodec
 import (
 	"context"
 	"log/slog"
+	"net"
 	"sync/atomic"
 
 	"github.com/caddyserver/caddy/v2"
@@ -10,8 +11,7 @@ import (
 )
 
 type Server struct {
-	Acceptor func(*Codec)
-	opts     []gnet.Option
+	opts []gnet.Option
 
 	log *slog.Logger
 
@@ -22,6 +22,15 @@ type Server struct {
 	gnet.BuiltinEventEngine
 	eng       gnet.Engine
 	connected atomic.Int64
+}
+
+func (s *Server) Accept() (*Codec, error) {
+	val, ok := <-s.conns
+	if ok {
+		return val, nil
+	}
+	// TODO: maybe use a better error here :)
+	return nil, net.ErrClosed
 }
 
 func (s *Server) StartServer(ctx context.Context, addr string, opts ...gnet.Option) error {
@@ -49,6 +58,7 @@ func (T *Server) Provision(ctx caddy.Context) error {
 	T.log = ctx.Slogger()
 	T.ready = make(chan struct{})
 	T.closed = make(chan error)
+	T.conns = make(chan *Codec)
 	return nil
 }
 
@@ -56,33 +66,43 @@ func (s *Server) OnOpen(c gnet.Conn) ([]byte, gnet.Action) {
 	slog.Info("new conn", "conn", c.RemoteAddr().String())
 	dec := NewCodec()
 	c.SetContext(dec)
-	dec.localAddr = c.LocalAddr()
-	dec.gnetConn = c
+	dec.conn = c
 	dec.encoder.Reset(c)
 	s.connected.Add(1)
-	s.Acceptor(dec)
+	// TODO: consider an ant pool, but likely not needed here
+	// if we fall behind on accept handling, that seems to be our own fault i think.
+	go func() {
+		s.conns <- dec
+	}()
 	return nil, gnet.None
 }
 
 func (s *Server) OnTraffic(c gnet.Conn) gnet.Action {
 	//slog.Info("got traffic", "conn", c.RemoteAddr().String())
 	uc := c.Context().(*Codec)
+	uc.mu.Lock()
+	defer uc.mu.Lock()
 	bts, err := c.Next(-1)
 	if err != nil {
 		s.log.Error("short read", "conn", c.RemoteAddr(), "err", err)
 		return gnet.Close
 	}
-	err = uc.OnData(bts)
-	if err != nil {
-		s.log.Error("data pipe", "conn", c.RemoteAddr(), "err", err)
+	if len(bts) > 0 {
+		err = uc.OnData(bts)
+		if err != nil {
+			s.log.Error("data pipe", "conn", c.RemoteAddr(), "err", err)
+			return gnet.Close
+		}
 	}
 	return gnet.None
 }
+
 func (s *Server) OnBoot(eng gnet.Engine) gnet.Action {
 	close(s.ready)
 	return gnet.None
 }
 func (s *Server) OnShutdown(eng gnet.Engine) {
+	close(s.conns)
 }
 
 func (s *Server) OnClose(c gnet.Conn, err error) (action gnet.Action) {
@@ -93,4 +113,8 @@ func (s *Server) OnClose(c gnet.Conn, err error) (action gnet.Action) {
 	slog.Warn("conn disconnected", "conn", c.RemoteAddr().String())
 
 	return gnet.None
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.eng.Stop(ctx)
 }

@@ -2,49 +2,42 @@ package gat
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/caddyserver/caddy/v2"
 	"go.uber.org/zap"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
-	"gfx.cafe/gfx/pggat/lib/fed/codecs/netconncodec"
+	"gfx.cafe/gfx/pggat/lib/fed/codecs/gnetcodec"
 )
 
-type ListenerConfig struct {
-	Address        string          `json:"address"`
-	SSL            json.RawMessage `json:"ssl,omitempty" caddy:"namespace=pggat.ssl.servers inline_key=provider"`
-	MaxConnections int             `json:"max_connections,omitempty"`
-}
-
-type Listener struct {
+type GListener struct {
 	ListenerConfig
 
 	networkAddress caddy.NetworkAddress
 	ssl            SSLServer
 
-	listener net.Listener
-	open     atomic.Int64
+	server *gnetcodec.Server
+	open   atomic.Int64
 
 	log *zap.Logger
 }
 
-func (T *Listener) accept() (*fed.Conn, error) {
-	raw, err := T.listener.Accept()
+func (T *GListener) accept() (*fed.Conn, error) {
+	raw, err := T.server.Accept()
 	if err != nil {
 		return nil, err
 	}
-	return fed.NewConn(netconncodec.NewCodec(raw)), nil
+	return fed.NewConn(raw), nil
 }
 
-func (T *Listener) Provision(ctx caddy.Context) error {
+func (T *GListener) Provision(ctx caddy.Context) error {
 	T.log = ctx.Logger()
 
 	if strings.HasPrefix(T.Address, "/") {
@@ -81,29 +74,35 @@ func (T *Listener) Provision(ctx caddy.Context) error {
 		}
 		T.ssl = val.(SSLServer)
 	}
+	T.server = &gnetcodec.Server{}
 
-	return nil
+	return T.server.Provision(ctx)
 }
 
-func (T *Listener) Start() error {
+func (T *GListener) Start() error {
 	if T.networkAddress.Network == "unix" {
 		if err := os.MkdirAll(filepath.Dir(T.networkAddress.Host), 0o660); err != nil {
 			return err
 		}
 	}
-	listener, err := T.networkAddress.Listen(context.Background(), 0, net.ListenConfig{})
+	ctx, cn := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cn()
+	bindAddr := caddy.JoinNetworkAddress(
+		T.networkAddress.Network,
+		T.networkAddress.Host,
+		strconv.Itoa(int(T.networkAddress.StartPort)),
+	)
+	err := T.server.StartServer(ctx, bindAddr)
 	if err != nil {
 		return err
 	}
-	T.listener = listener.(net.Listener)
-
-	T.log.Info("listening", zap.String("address", T.listener.Addr().String()))
+	T.log.Info("listening", zap.String("address", bindAddr))
 
 	return nil
 }
 
-func (T *Listener) Stop() error {
-	return T.listener.Close()
+func (T *GListener) Stop() error {
+	return T.server.Shutdown(context.Background())
 }
 
 var _ caddy.App = (*Listener)(nil)

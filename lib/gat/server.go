@@ -2,6 +2,7 @@ package gat
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
+	"gfx.cafe/gfx/pggat/lib/gat/listeners"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
@@ -21,10 +23,14 @@ type ServerConfig struct {
 	Routes []RouteConfig    `json:"routes,omitempty"`
 }
 
+type ListenerConfig struct {
+	ListenerRaw json.RawMessage `json:"listener,omitempty" caddy:"namespace=pggat.listener inline_key=listener"`
+}
+
 type Server struct {
 	ServerConfig
 
-	listen              []*Listener
+	listen              []listeners.Listener
 	routes              []*Route
 	cancellableHandlers []CancellableHandler
 	metricsHandlers     []MetricsHandler
@@ -35,11 +41,19 @@ type Server struct {
 func (T *Server) Provision(ctx caddy.Context) error {
 	T.log = ctx.Logger()
 
-	T.listen = make([]*Listener, 0, len(T.Listen))
+	T.listen = make([]listeners.Listener, 0, len(T.Listen))
 	for _, config := range T.Listen {
-		listener := &Listener{
-			ListenerConfig: config,
+		var listener listeners.Listener
+		if config.ListenerRaw == nil {
+			config.ListenerRaw, _ = json.Marshal(map[string]any{
+				"address": "",
+			})
 		}
+		val, err := ctx.LoadModule(config, "ListenerRaw")
+		if err != nil {
+			return fmt.Errorf("loading gadget module: %v", err)
+		}
+		listener = val.(listeners.Listener)
 		if err := listener.Provision(ctx); err != nil {
 			return err
 		}
@@ -72,7 +86,7 @@ func (T *Server) Start() error {
 			return err
 		}
 
-		go func(listener *Listener) {
+		go func(listener listeners.Listener) {
 			for {
 				if !T.acceptFrom(listener) {
 					break
@@ -140,14 +154,15 @@ func (T *Server) Serve(conn *fed.Conn) {
 	T.log.Warn("database not found", zap.String("user", conn.User), zap.String("database", conn.Database))
 }
 
-func (T *Server) accept(listener *Listener, conn *fed.Conn) {
+func (T *Server) accept(listener listeners.Listener, conn *fed.Conn) {
 	defer func() {
 		_ = conn.Close()
 	}()
 
 	var tlsConfig *tls.Config
-	if listener.ssl != nil {
-		tlsConfig = listener.ssl.ServerTLSConfig()
+
+	if enabled, config := listener.TLSConfig(); enabled {
+		tlsConfig = config
 	}
 
 	var cancelKey fed.BackendKey
@@ -183,8 +198,8 @@ func (T *Server) accept(listener *Listener, conn *fed.Conn) {
 	T.Serve(conn)
 }
 
-func (T *Server) acceptFrom(listener *Listener) bool {
-	conn, err := listener.accept()
+func (T *Server) acceptFrom(listener listeners.Listener) bool {
+	conn, err := listener.Accept()
 	if err != nil {
 		if errors.Is(err, net.ErrClosed) {
 			return false
