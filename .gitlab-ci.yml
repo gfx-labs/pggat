@@ -24,7 +24,7 @@ variables:
 test:
   image: postgres:alpine
   variables:
-    POSTGRES_PASSWORD: password
+    POSTGRES_PASSWORD: postgres
   stage: test
   extends: .go-cache
   script:
@@ -56,7 +56,7 @@ coverage:
   stage: test
   image: postgres:alpine
   variables:
-    POSTGRES_PASSWORD: password
+    POSTGRES_PASSWORD: postgres
   coverage: '/\(statements\)(?:\s+)?(\d+(?:\.\d+)?%)/'
   extends: .go-cache
   script:
