@@ -262,8 +262,10 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 			{
 				start := time.Now()
 				err, serverErr = bouncers.Bounce(client.Conn, server.Conn, packet)
-				dur := time.Since(start)
-				prom.OperationSimple.Execution(opLabels).Observe(float64(dur) / float64(time.Millisecond))
+				if serverErr == nil {
+					dur := time.Since(start)
+					prom.OperationSimple.Execution(opLabels).Observe(float64(dur) / float64(time.Millisecond))
+				}
 			}
 		}
 

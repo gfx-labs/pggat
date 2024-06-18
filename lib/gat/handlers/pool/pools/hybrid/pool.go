@@ -240,7 +240,7 @@ func (T *Pool) serveRW(l prom.PoolHybridLabels, conn *fed.Conn) error {
 				prom.OperationHybrid.Acquire(l.ToOperation("replica")).Observe(float64(dur) / float64(time.Millisecond))
 				start := time.Now()
 				err, serverErr = bouncers.Bounce(conn, replica.Conn, packet)
-				if serverErr != nil {
+				if serverErr == nil {
 					dur := time.Since(start)
 					prom.OperationHybrid.Execution(l.ToOperation("replica")).Observe(float64(dur) / float64(time.Millisecond))
 				}
@@ -317,7 +317,7 @@ func (T *Pool) serveRW(l prom.PoolHybridLabels, conn *fed.Conn) error {
 				prom.OperationHybrid.Acquire(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
 				start := time.Now()
 				err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
-				if serverErr != nil {
+				if serverErr == nil {
 					dur := time.Since(start)
 					prom.OperationHybrid.Execution(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
 				}
@@ -432,7 +432,7 @@ func (T *Pool) serveOnly(l prom.PoolHybridLabels, conn *fed.Conn, write bool) er
 			prom.OperationHybrid.Acquire(opL).Observe(float64(dur) / float64(time.Millisecond))
 			start := time.Now()
 			err, serverErr = bouncers.Bounce(conn, server.Conn, packet)
-			if serverErr != nil {
+			if serverErr == nil {
 				dur := time.Since(start)
 				prom.OperationHybrid.Execution(opL).Observe(float64(dur) / float64(time.Millisecond))
 			}
