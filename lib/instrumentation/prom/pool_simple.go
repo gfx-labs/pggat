@@ -32,6 +32,6 @@ type OperationSimpleLabels struct {
 }
 
 var OperationSimple struct {
-	Acquire   func(OperationSimpleLabels) prometheus.Histogram `name:"acquire_ms"    buckets:"0.005,0.01,0.1,0.25,0.5,0.75,1,5,10,100,500,1000,5000"  help:"ms to acquire from pool"`
+	Acquire   func(OperationSimpleLabels) prometheus.Histogram `name:"acquire_ms"    buckets:"0.005,0.01,0.1,0.25,0.5,0.75,1,5,10,100,500,1000"  help:"ms to acquire from pool"`
 	Execution func(OperationSimpleLabels) prometheus.Histogram `name:"execution_ms"  buckets:"1,5,10,30,75,150,300,500,1000,2000,5000,7500,10000,15000,30000" help:"ms that the txn took to execute on remote"`
 }

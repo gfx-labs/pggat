@@ -402,8 +402,7 @@ func (T *Pool) serveOnly(l prom.PoolHybridLabels, conn *fed.Conn, write bool) er
 	if write {
 		opL = l.ToOperation("primary")
 	} else {
-
-		opL = l.ToOperation("primary")
+		opL = l.ToOperation("replica")
 	}
 
 	for {
