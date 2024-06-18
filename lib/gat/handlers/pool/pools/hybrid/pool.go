@@ -240,8 +240,10 @@ func (T *Pool) serveRW(l prom.PoolHybridLabels, conn *fed.Conn) error {
 				prom.OperationHybrid.Acquire(l.ToOperation("replica")).Observe(float64(dur) / float64(time.Millisecond))
 				start := time.Now()
 				err, serverErr = bouncers.Bounce(conn, replica.Conn, packet)
-				dur := time.Since(start)
-				prom.OperationHybrid.Execution(l.ToOperation("replica")).Observe(float64(dur) / float64(time.Millisecond))
+				if serverErr != nil {
+					dur := time.Since(start)
+					prom.OperationHybrid.Execution(l.ToOperation("replica")).Observe(float64(dur) / float64(time.Millisecond))
+				}
 			}
 			if serverErr != nil {
 				return fmt.Errorf("server error: %w", serverErr)
@@ -315,9 +317,10 @@ func (T *Pool) serveRW(l prom.PoolHybridLabels, conn *fed.Conn) error {
 				prom.OperationHybrid.Acquire(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
 				start := time.Now()
 				err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
-				dur := time.Since(start)
-				prom.OperationHybrid.Execution(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
-
+				if serverErr != nil {
+					dur := time.Since(start)
+					prom.OperationHybrid.Execution(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
+				}
 			}
 			if serverErr != nil {
 				return fmt.Errorf("server error: %w", serverErr)
@@ -395,6 +398,14 @@ func (T *Pool) serveOnly(l prom.PoolHybridLabels, conn *fed.Conn, write bool) er
 		conn.Ready = true
 	}
 
+	var opL prom.OperationHybridLabels
+	if write {
+		opL = l.ToOperation("primary")
+	} else {
+
+		opL = l.ToOperation("primary")
+	}
+
 	for {
 		if server != nil {
 			sp.Release(server)
@@ -410,15 +421,21 @@ func (T *Pool) serveOnly(l prom.PoolHybridLabels, conn *fed.Conn, write bool) er
 
 		client.SetState(metrics.ConnStateAwaitingServer, nil, true)
 
+		start := time.Now()
 		server = sp.Acquire(client.ID)
 		if server == nil {
 			return pool.ErrFailedToAcquirePeer
 		}
-
 		err, serverErr = T.Pair(client, server)
-
+		dur := time.Since(start)
 		if err == nil && serverErr == nil {
+			prom.OperationHybrid.Acquire(opL).Observe(float64(dur) / float64(time.Millisecond))
+			start := time.Now()
 			err, serverErr = bouncers.Bounce(conn, server.Conn, packet)
+			if serverErr != nil {
+				dur := time.Since(start)
+				prom.OperationHybrid.Execution(opL).Observe(float64(dur) / float64(time.Millisecond))
+			}
 		}
 		if serverErr != nil {
 			return fmt.Errorf("server error: %w", serverErr)
