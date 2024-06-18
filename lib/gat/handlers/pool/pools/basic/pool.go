@@ -3,6 +3,7 @@ package basic
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -15,6 +16,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/instrumentation/prom"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
@@ -216,6 +218,18 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 		client.Conn.Ready = true
 	}
 
+	poolLabels := prom.PoolSimpleLabels{}
+	{
+		if T.config.ReleaseAfterTransaction {
+			poolLabels.Mode = "transaction"
+		} else {
+			poolLabels.Mode = "session"
+		}
+		prom.PoolSimple.Accepted(poolLabels).Inc()
+		prom.PoolSimple.Current(poolLabels).Inc()
+		defer prom.PoolSimple.Current(poolLabels).Dec()
+	}
+	opLabels := poolLabels.ToOperation()
 	for {
 		if server != nil && T.config.ReleaseAfterTransaction {
 			client.SetState(metrics.ConnStateIdle, nil)
@@ -230,6 +244,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 		}
 
 		if server == nil {
+			start := time.Now()
 			client.SetState(metrics.ConnStateAwaitingServer, nil)
 
 			server = T.servers.Acquire(client.ID)
@@ -238,9 +253,18 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 			}
 
 			err, serverErr = T.Pair(client, server)
+			dur := time.Since(start)
+			if err == nil && serverErr == nil {
+				prom.OperationSimple.Acquire(opLabels).Observe(float64(dur) / float64(time.Millisecond))
+			}
 		}
 		if err == nil && serverErr == nil {
-			err, serverErr = bouncers.Bounce(client.Conn, server.Conn, packet)
+			{
+				start := time.Now()
+				err, serverErr = bouncers.Bounce(client.Conn, server.Conn, packet)
+				dur := time.Since(start)
+				prom.OperationSimple.Execution(opLabels).Observe(float64(dur) / float64(time.Millisecond))
+			}
 		}
 
 		if serverErr != nil {

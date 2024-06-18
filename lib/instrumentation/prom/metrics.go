@@ -15,15 +15,6 @@ var Listener struct {
 	Client   func(ListenerLabels) prometheus.Gauge   `name:"client" help:"current clients"`
 }
 
-type HybridPoolLabels struct {
-	Mode string `label:"hybrid_mode"`
-}
-
-var Pool struct {
-	AcceptedHybrid func(HybridPoolLabels) prometheus.Counter `name:"accepted_hybrid" help:"hybrid connections accepted"`
-}
-
 func init() {
 	gotoprom.MustInit(&Listener, "pggat_listener", prometheus.Labels{})
-	gotoprom.MustInit(&Pool, "pggat_pool", prometheus.Labels{})
 }

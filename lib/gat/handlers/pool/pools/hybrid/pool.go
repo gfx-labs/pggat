@@ -3,6 +3,7 @@ package hybrid
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -113,7 +114,7 @@ func (T *Pool) removeClient(client *Client) {
 	delete(T.clients, client.Conn.BackendKey)
 }
 
-func (T *Pool) serveRW(conn *fed.Conn) error {
+func (T *Pool) serveRW(l prom.PoolHybridLabels, conn *fed.Conn) error {
 	m := NewMiddleware()
 
 	eqpa := eqp.NewClient()
@@ -223,18 +224,24 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 
 		// try replica first (if it isn't empty)
 		if !T.replica.Empty() {
+			start := time.Now()
 			replica = T.replica.Acquire(client.ID)
 			if replica == nil {
 				return pool.ErrFailedToAcquirePeer
 			}
 
 			err, serverErr = T.Pair(client, replica)
+			dur := time.Since(start)
 
 			psi.Set(psa)
 			eqpi.Set(eqpa)
 
 			if err == nil && serverErr == nil {
+				prom.OperationHybrid.Acquire(l.ToOperation("replica")).Observe(float64(dur) / float64(time.Millisecond))
+				start := time.Now()
 				err, serverErr = bouncers.Bounce(conn, replica.Conn, packet)
+				dur := time.Since(start)
+				prom.OperationHybrid.Execution(l.ToOperation("replica")).Observe(float64(dur) / float64(time.Millisecond))
 			}
 			if serverErr != nil {
 				return fmt.Errorf("server error: %w", serverErr)
@@ -244,6 +251,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 
 			// fallback to primary
 			if err == (ErrReadOnly{}) {
+				prom.OperationHybrid.Miss(l.ToOperation("replica")).Inc()
 				m.Primary()
 
 				T.replica.Release(replica)
@@ -257,21 +265,29 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 				client.SetState(metrics.ConnStateAwaitingServer, nil, false)
 
 				// acquire primary
+				start := time.Now()
 				primary = T.primary.Acquire(client.ID)
 				if primary == nil {
 					return pool.ErrFailedToAcquirePeer
 				}
 
 				serverErr = T.PairPrimary(client, psi, eqpi, primary)
+				dur := time.Since(start)
 
 				if serverErr == nil {
+					prom.OperationHybrid.Acquire(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
+					start := time.Now()
 					err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
+					dur := time.Since(start)
+					prom.OperationHybrid.Execution(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
 				}
 				if serverErr != nil {
 					return fmt.Errorf("server error: %w", serverErr)
 				} else {
 					primary.TransactionComplete()
 				}
+			} else {
+				prom.OperationHybrid.Hit(l.ToOperation("replica")).Inc()
 			}
 		} else {
 			// straight to primary
@@ -284,6 +300,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 
 			client.SetState(metrics.ConnStateAwaitingServer, nil, false)
 
+			start := time.Now()
 			// acquire primary
 			primary = T.primary.Acquire(client.ID)
 			if primary == nil {
@@ -292,8 +309,15 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 
 			err, serverErr = T.Pair(client, primary)
 
+			dur := time.Since(start)
+
 			if err == nil && serverErr == nil {
+				prom.OperationHybrid.Acquire(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
+				start := time.Now()
 				err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
+				dur := time.Since(start)
+				prom.OperationHybrid.Execution(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
+
 			}
 			if serverErr != nil {
 				return fmt.Errorf("server error: %w", serverErr)
@@ -310,7 +334,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 	}
 }
 
-func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
+func (T *Pool) serveOnly(l prom.PoolHybridLabels, conn *fed.Conn, write bool) error {
 	var sp *spool.Pool
 	if write {
 		sp = &T.primary
@@ -410,20 +434,27 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 }
 
 func (T *Pool) Serve(conn *fed.Conn) error {
-	labels := prom.HybridPoolLabels{}
+	labels := prom.PoolHybridLabels{}
 	switch conn.InitialParameters[strutil.MakeCIString("hybrid.mode")] {
 	case "ro":
 		labels.Mode = "ro"
-		prom.Pool.AcceptedHybrid(labels).Inc()
-		return T.serveOnly(conn, false)
 	case "wo":
 		labels.Mode = "wo"
-		prom.Pool.AcceptedHybrid(labels).Inc()
-		return T.serveOnly(conn, true)
 	default:
 		labels.Mode = "rw"
-		prom.Pool.AcceptedHybrid(labels).Inc()
-		return T.serveRW(conn)
+	}
+	prom.PoolHybrid.Accepted(labels).Inc()
+	prom.PoolHybrid.Current(labels).Inc()
+	defer prom.PoolHybrid.Current(labels).Dec()
+	switch labels.Mode {
+	case "ro":
+		return T.serveOnly(labels, conn, false)
+	case "wo":
+		return T.serveOnly(labels, conn, true)
+	case "rw":
+		return T.serveRW(labels, conn)
+	default:
+		panic("impossible")
 	}
 }
 
