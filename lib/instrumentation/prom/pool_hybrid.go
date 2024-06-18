@@ -11,7 +11,7 @@ func init() {
 }
 
 type PoolHybridLabels struct {
-	Mode string `label:"hybrid_mode"`
+	Mode string `label:"mode"`
 }
 
 type OperationHybridLabels struct {
