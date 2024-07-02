@@ -162,7 +162,7 @@ func init() {
 					"provider",
 					warnings,
 				),
-				ServerMaxConnections: 50,
+				ServerMaxConnections: 100,
 			},
 		}
 
