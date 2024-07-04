@@ -16,19 +16,24 @@ var PoolSimple struct {
 }
 
 type PoolSimpleLabels struct {
-	Mode string `label:"mode"`
+	Mode     string `label:"mode"`
+	Database string `label:"database"`
+	User     string `label:"user"`
 }
 
 func (s *PoolSimpleLabels) ToOperation() OperationSimpleLabels {
 	return OperationSimpleLabels{
-		Pool: "basic",
-		Mode: s.Mode,
+		Pool:     "basic",
+		Mode:     s.Mode,
+		Database: s.Database,
 	}
 }
 
 type OperationSimpleLabels struct {
-	Pool string `label:"pool"`
-	Mode string `label:"mode"`
+	Pool     string `label:"pool"`
+	Mode     string `label:"mode"`
+	Database string `label:"database"`
+	User     string `label:"user"`
 }
 
 var OperationSimple struct {

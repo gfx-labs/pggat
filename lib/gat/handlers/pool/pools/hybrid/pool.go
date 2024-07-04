@@ -450,7 +450,10 @@ func (T *Pool) serveOnly(l prom.PoolHybridLabels, conn *fed.Conn, write bool) er
 }
 
 func (T *Pool) Serve(conn *fed.Conn) error {
-	labels := prom.PoolHybridLabels{}
+	labels := prom.PoolHybridLabels{
+		Database: conn.Database,
+		User:     conn.User,
+	}
 	switch conn.InitialParameters[strutil.MakeCIString("hybrid.mode")] {
 	case "ro":
 		labels.Mode = "ro"

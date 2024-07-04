@@ -11,23 +11,28 @@ func init() {
 }
 
 type PoolHybridLabels struct {
-	Mode string `label:"mode"`
+	Mode     string `label:"mode"`
+	Database string `label:"database"`
+	User     string `label:"user"`
 }
 
 type OperationHybridLabels struct {
 	Pool string `label:"pool"`
 	Mode string `label:"mode"`
 
-	Target string `label:"target"`
+	Target   string `label:"target"`
+	Database string `label:"database"`
+	User     string `label:"user"`
 }
 
 func (s *PoolHybridLabels) ToOperation(
 	target string,
 ) OperationHybridLabels {
 	return OperationHybridLabels{
-		Pool:   "hybrid",
-		Mode:   s.Mode,
-		Target: target,
+		Pool:     "hybrid",
+		Mode:     s.Mode,
+		Database: s.Database,
+		Target:   target,
 	}
 }
 

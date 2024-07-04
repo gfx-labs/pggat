@@ -218,7 +218,10 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 		client.Conn.Ready = true
 	}
 
-	poolLabels := prom.PoolSimpleLabels{}
+	poolLabels := prom.PoolSimpleLabels{
+		Database: conn.Database,
+		User:     conn.User,
+	}
 	{
 		if T.config.ReleaseAfterTransaction {
 			poolLabels.Mode = "transaction"
