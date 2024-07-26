@@ -1,6 +1,7 @@
 package fed
 
 import (
+	"context"
 	"crypto/tls"
 	"io"
 	"net"
@@ -18,6 +19,7 @@ type Conn struct {
 	noCopy decorator.NoCopy
 
 	codec PacketCodec
+	Ctx   context.Context
 
 	Middleware []Middleware
 
@@ -32,8 +34,9 @@ type Conn struct {
 	Ready         bool
 }
 
-func NewConn(codec PacketCodec) *Conn {
+func NewConn(ctx context.Context, codec PacketCodec) *Conn {
 	c := &Conn{
+		Ctx:   ctx,
 		codec: codec,
 	}
 	return c
@@ -57,7 +60,7 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 		for i := 0; i < len(T.Middleware); i++ {
 			middleware := T.Middleware[i]
 			for {
-				packet, err := middleware.PreRead(typed)
+				packet, err := middleware.PreRead(T.Ctx, typed)
 				if err != nil {
 					return nil, err
 				}
@@ -67,7 +70,7 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 				}
 
 				for j := i; j < len(T.Middleware); j++ {
-					packet, err = T.Middleware[j].ReadPacket(packet)
+					packet, err = T.Middleware[j].ReadPacket(T.Ctx, packet)
 					if err != nil {
 						return nil, err
 					}
@@ -87,7 +90,7 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 			return nil, err
 		}
 		for _, middleware := range T.Middleware {
-			packet, err = middleware.ReadPacket(packet)
+			packet, err = middleware.ReadPacket(T.Ctx, packet)
 			if err != nil {
 				return nil, err
 			}
@@ -110,7 +113,7 @@ func (T *Conn) WritePacket(packet Packet) error {
 		middleware := T.Middleware[i]
 
 		var err error
-		packet, err = middleware.WritePacket(packet)
+		packet, err = middleware.WritePacket(T.Ctx, packet)
 		if err != nil {
 			return err
 		}
@@ -130,7 +133,7 @@ func (T *Conn) WritePacket(packet Packet) error {
 
 		for {
 			var err error
-			packet, err = middleware.PostWrite()
+			packet, err = middleware.PostWrite(T.Ctx)
 			if err != nil {
 				return err
 			}
@@ -140,7 +143,7 @@ func (T *Conn) WritePacket(packet Packet) error {
 			}
 
 			for j := i; j >= 0; j-- {
-				packet, err = T.Middleware[j].WritePacket(packet)
+				packet, err = T.Middleware[j].WritePacket(T.Ctx, packet)
 				if err != nil {
 					return err
 				}
