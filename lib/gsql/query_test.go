@@ -1,6 +1,7 @@
 package gsql_test
 
 import (
+	"context"
 	"crypto/tls"
 	"log"
 	"net"
@@ -32,7 +33,7 @@ func TestQuery(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	server := fed.NewConn(netconncodec.NewCodec(s))
+	server := fed.NewConn(context.Background(), netconncodec.NewCodec(s))
 	err = backends.Accept(
 		server,
 		"disable",

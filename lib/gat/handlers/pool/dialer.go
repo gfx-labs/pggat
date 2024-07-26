@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -66,7 +67,7 @@ func (T *Dialer) Dial() (*fed.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn := fed.NewConn(netconncodec.NewCodec(c))
+	conn := fed.NewConn(context.Background(), netconncodec.NewCodec(c))
 	conn.User = T.Username
 	conn.Database = T.Database
 	err = backends.Accept(
@@ -90,7 +91,7 @@ func (T *Dialer) Cancel(key fed.BackendKey) {
 	if err != nil {
 		return
 	}
-	conn := fed.NewConn(netconncodec.NewCodec(c))
+	conn := fed.NewConn(context.Background(), netconncodec.NewCodec(c))
 	defer func() {
 		_ = conn.Close()
 	}()

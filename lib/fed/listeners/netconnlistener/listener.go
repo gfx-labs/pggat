@@ -1,6 +1,7 @@
 package netconnlistener
 
 import (
+	"context"
 	"net"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
@@ -16,7 +17,7 @@ func (listener *Listener) Accept(fn func(*fed.Conn)) error {
 	if err != nil {
 		return err
 	}
-	fedConn := fed.NewConn(netconncodec.NewCodec(raw))
+	fedConn := fed.NewConn(context.Background(), netconncodec.NewCodec(raw))
 	go func() {
 		fn(fedConn)
 	}()
