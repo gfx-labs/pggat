@@ -2,6 +2,7 @@ package basic
 
 import (
 	"fmt"
+	"gfx.cafe/gfx/pggat/lib/fed/middlewares/tracing"
 	"sync"
 
 	"github.com/google/uuid"
@@ -156,6 +157,10 @@ func (T *Pool) removeClient(client *Client) {
 }
 
 func (T *Pool) Serve(conn *fed.Conn) error {
+	conn.Middleware = append(
+		conn.Middleware,
+		tracing.NewPgTrace(conn.Ctx))
+
 	if T.config.ParameterStatusSync == ParameterStatusSyncDynamic {
 		conn.Middleware = append(
 			conn.Middleware,
