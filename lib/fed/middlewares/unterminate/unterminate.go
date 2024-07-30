@@ -10,7 +10,7 @@ import (
 
 // Unterminate catches the Terminate packet and returns io.EOF instead.
 // Useful if you don't want to forward to the server and close the connection.
-var Unterminate = unterm{}
+var Unterminate fed.Middleware = unterm{}
 
 type unterm struct{}
 
@@ -29,8 +29,6 @@ func (unterm) WritePacket(ctx context.Context, packet fed.Packet) (fed.Packet, e
 	return packet, nil
 }
 
-func (unterm) PostWrite(ctx context.Context, ) (fed.Packet, error) {
+func (unterm) PostWrite(ctx context.Context) (fed.Packet, error) {
 	return nil, nil
 }
-
-var _ fed.Middleware = unterm{}

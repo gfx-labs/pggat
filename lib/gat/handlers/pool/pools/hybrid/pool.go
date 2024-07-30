@@ -2,7 +2,6 @@ package hybrid
 
 import (
 	"fmt"
-	"gfx.cafe/gfx/pggat/lib/fed/middlewares/tracing"
 	"sync"
 
 	"github.com/google/uuid"
@@ -123,7 +122,6 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 
 	conn.Middleware = append(
 		conn.Middleware,
-		tracing.NewPgTrace(conn.Ctx),
 		unterminate.Unterminate,
 		psa,
 		eqpa,
@@ -321,7 +319,6 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 
 	conn.Middleware = append(
 		conn.Middleware,
-		tracing.NewPgTrace(conn.Ctx),
 		unterminate.Unterminate,
 		ps.NewClient(conn.InitialParameters),
 		eqp.NewClient(),

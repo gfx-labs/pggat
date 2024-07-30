@@ -159,7 +159,8 @@ func (T *Pool) removeClient(client *Client) {
 func (T *Pool) Serve(conn *fed.Conn) error {
 	conn.Middleware = append(
 		conn.Middleware,
-		tracing.NewPgTrace(conn.Ctx))
+		tracing.NewPgTrace(conn.Ctx),
+		tracing.NewOtelTrace(conn.Ctx))
 
 	if T.config.ParameterStatusSync == ParameterStatusSyncDynamic {
 		conn.Middleware = append(
