@@ -1,7 +1,6 @@
 package basic
 
 import (
-	"context"
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/tracing"
 	"sync"
@@ -161,13 +160,13 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 	if (T.config.PacketTracingOption & TracingOptionClient) != 0 {
 		conn.Middleware = append(
 			conn.Middleware,
-			tracing.NewPacketTrace(context.Background()))
+			tracing.NewPacketTrace())
 	}
 
 	if (T.config.OtelTracingOption & TracingOptionClient) != 0 {
 		conn.Middleware = append(
 			conn.Middleware,
-			tracing.NewOtelTrace(context.Background()))
+			tracing.NewOtelTrace())
 	}
 
 	if T.config.ParameterStatusSync == ParameterStatusSyncDynamic {

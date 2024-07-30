@@ -1,7 +1,6 @@
 package ps
 
 import (
-	"context"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/util/maps"
@@ -19,15 +18,15 @@ func NewClient(parameters map[strutil.CIString]string) *Client {
 	}
 }
 
-func (T *Client) PreRead(ctx context.Context, _ bool) (fed.Packet, error) {
+func (T *Client) PreRead(_ bool) (fed.Packet, error) {
 	return nil, nil
 }
 
-func (T *Client) ReadPacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
+func (T *Client) ReadPacket(packet fed.Packet) (fed.Packet, error) {
 	return packet, nil
 }
 
-func (T *Client) WritePacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
+func (T *Client) WritePacket(packet fed.Packet) (fed.Packet, error) {
 	switch packet.Type() {
 	case packets.TypeParameterStatus:
 		var p packets.ParameterStatus
@@ -50,7 +49,7 @@ func (T *Client) WritePacket(ctx context.Context, packet fed.Packet) (fed.Packet
 	}
 }
 
-func (T *Client) PostWrite(ctx context.Context) (fed.Packet, error) {
+func (T *Client) PostWrite() (fed.Packet, error) {
 	return nil, nil
 }
 

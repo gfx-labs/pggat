@@ -25,7 +25,7 @@ type otelTrace struct {
 	span   trace.Span
 }
 
-func NewOtelTrace(ctx context.Context) fed.Middleware {
+func NewOtelTrace() fed.Middleware {
 	return &otelTrace{
 		tracer: otel.Tracer(
 			"pggat",
@@ -34,46 +34,46 @@ func NewOtelTrace(ctx context.Context) fed.Middleware {
 	}
 }
 
-func (t *otelTrace) ReadPacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
-	t.process(ctx, packet)
+func (t *otelTrace) ReadPacket(packet fed.Packet) (fed.Packet, error) {
+	t.process(packet)
 	return packet, nil
 }
 
-func (t *otelTrace) WritePacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
-	t.process(ctx, packet)
+func (t *otelTrace) WritePacket(packet fed.Packet) (fed.Packet, error) {
+	t.process(packet)
 	return packet, nil
 }
 
-func (t *otelTrace) PreRead(ctx context.Context, _ bool) (fed.Packet, error) {
+func (t *otelTrace) PreRead(_ bool) (fed.Packet, error) {
 	return nil, nil
 }
 
-func (t *otelTrace) PostWrite(ctx context.Context) (fed.Packet, error) {
+func (t *otelTrace) PostWrite() (fed.Packet, error) {
 	return nil, nil
 }
 
-func (t *otelTrace) process(ctx context.Context, packet fed.Packet) {
+func (t *otelTrace) process(packet fed.Packet) {
 	switch t.state {
 	case Init:
 		switch packet.Type() {
 		case packets.TypeReadyForQuery:
-			t.setState(ctx, Waiting)
+			t.setState(Waiting)
 		}
 	case Waiting:
 		switch packet.Type() {
 		case packets.TypeQuery:
-			t.setState(ctx, Query)
-			t.startQuery(ctx, packet)
+			t.setState(Query)
+			t.startQuery(context.Background(),packet)
 		}
 	case Query:
 		switch packet.Type() {
 		case packets.TypeReadyForQuery:
-			t.endQuery(ctx)
-			t.setState(ctx, Waiting)
+			t.endQuery()
+			t.setState(Waiting)
 		case packets.TypeErrorResponse:
-			t.recordError(ctx, packet)
+			t.recordError(packet)
 		case packets.TypeCommandComplete:
-			t.recordSummary(ctx, packet)
+			t.recordSummary(packet)
 		}
 	}
 }
@@ -93,7 +93,7 @@ func getStateName(state queryState) (str string) {
 	return
 }
 
-func (t *otelTrace) setState(ctx context.Context, state queryState) {
+func (t *otelTrace) setState(state queryState) {
 	// slog.Warn(fmt.Sprintf("State Change: %s => %s", getStateName(t.state), getStateName(state)))
 	t.state = state
 }
@@ -111,21 +111,21 @@ func (t *otelTrace) startQuery(ctx context.Context, packet fed.Packet) {
 		}
 	}
 
-	t.endQuery(ctx)
+	t.endQuery()
 
 	_, t.span = t.tracer.Start(ctx, "Query",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(attribute.String("sql", sql)))
 }
 
-func (t *otelTrace) endQuery(ctx context.Context) {
+func (t *otelTrace) endQuery() {
 	if t.span != nil {
 		t.span.End()
 		t.span = nil
 	}
 }
 
-func (t *otelTrace) recordError(ctx context.Context, packet fed.Packet) {
+func (t *otelTrace) recordError(packet fed.Packet) {
 	errMsg := "<unresolved error message>"
 
 	if pp, ok := packet.(fed.PendingPacket); ok {
@@ -144,7 +144,7 @@ func (t *otelTrace) recordError(ctx context.Context, packet fed.Packet) {
 	t.span.SetStatus(codes.Error, errMsg)
 }
 
-func (t *otelTrace) recordSummary(ctx context.Context, packet fed.Packet) {
+func (t *otelTrace) recordSummary(packet fed.Packet) {
 	summary := "<unresolved query summary>"
 
 	if pp, ok := packet.(fed.PendingPacket); ok {

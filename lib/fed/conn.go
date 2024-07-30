@@ -1,7 +1,6 @@
 package fed
 
 import (
-	"context"
 	"crypto/tls"
 	"io"
 	"net"
@@ -58,7 +57,7 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 		for i := 0; i < len(T.Middleware); i++ {
 			middleware := T.Middleware[i]
 			for {
-				packet, err := middleware.PreRead(context.Background(), typed)
+				packet, err := middleware.PreRead(typed)
 				if err != nil {
 					return nil, err
 				}
@@ -68,7 +67,7 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 				}
 
 				for j := i; j < len(T.Middleware); j++ {
-					packet, err = T.Middleware[j].ReadPacket(context.Background(), packet)
+					packet, err = T.Middleware[j].ReadPacket(packet)
 					if err != nil {
 						return nil, err
 					}
@@ -88,7 +87,7 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 			return nil, err
 		}
 		for _, middleware := range T.Middleware {
-			packet, err = middleware.ReadPacket(context.Background(), packet)
+			packet, err = middleware.ReadPacket(packet)
 			if err != nil {
 				return nil, err
 			}
@@ -111,7 +110,7 @@ func (T *Conn) WritePacket(packet Packet) error {
 		middleware := T.Middleware[i]
 
 		var err error
-		packet, err = middleware.WritePacket(context.Background(), packet)
+		packet, err = middleware.WritePacket(packet)
 		if err != nil {
 			return err
 		}
@@ -131,7 +130,7 @@ func (T *Conn) WritePacket(packet Packet) error {
 
 		for {
 			var err error
-			packet, err = middleware.PostWrite(context.Background())
+			packet, err = middleware.PostWrite()
 			if err != nil {
 				return err
 			}
@@ -141,7 +140,7 @@ func (T *Conn) WritePacket(packet Packet) error {
 			}
 
 			for j := i; j >= 0; j-- {
-				packet, err = T.Middleware[j].WritePacket(context.Background(), packet)
+				packet, err = T.Middleware[j].WritePacket(packet)
 				if err != nil {
 					return err
 				}

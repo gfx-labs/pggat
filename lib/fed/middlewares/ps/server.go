@@ -1,7 +1,6 @@
 package ps
 
 import (
-	"context"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
@@ -17,11 +16,11 @@ func NewServer(parameters map[strutil.CIString]string) *Server {
 	}
 }
 
-func (T *Server) PreRead(ctx context.Context, _ bool) (fed.Packet, error) {
+func (T *Server) PreRead(_ bool) (fed.Packet, error) {
 	return nil, nil
 }
 
-func (T *Server) ReadPacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
+func (T *Server) ReadPacket(packet fed.Packet) (fed.Packet, error) {
 	switch packet.Type() {
 	case packets.TypeParameterStatus:
 		var p packets.ParameterStatus
@@ -40,11 +39,11 @@ func (T *Server) ReadPacket(ctx context.Context, packet fed.Packet) (fed.Packet,
 	}
 }
 
-func (T *Server) WritePacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
+func (T *Server) WritePacket(packet fed.Packet) (fed.Packet, error) {
 	return packet, nil
 }
 
-func (T *Server) PostWrite(ctx context.Context) (fed.Packet, error) {
+func (T *Server) PostWrite() (fed.Packet, error) {
 	return nil, nil
 }
 
