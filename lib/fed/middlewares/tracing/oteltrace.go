@@ -9,7 +9,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"log/slog"
 )
 
 type queryState int
@@ -95,7 +94,7 @@ func getStateName(state queryState) (str string) {
 }
 
 func (t *otelTrace) setState(ctx context.Context, state queryState) {
-	slog.Warn(fmt.Sprintf("State Change: %s => %s", getStateName(t.state), getStateName(state)))
+	// slog.Warn(fmt.Sprintf("State Change: %s => %s", getStateName(t.state), getStateName(state)))
 	t.state = state
 }
 

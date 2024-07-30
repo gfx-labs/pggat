@@ -1,7 +1,6 @@
 package gsql
 
 import (
-	"context"
 	"net"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
@@ -14,14 +13,12 @@ func NewPair() (*fed.Conn, *fed.Conn, net.Conn, net.Conn) {
 	in := mio.InwardConn{Conn: conn}
 	out := mio.OutwardConn{Conn: conn}
 	inward := fed.NewConn(
-		context.Background(),
 		netconncodec.NewCodec(
 			in,
 		),
 	)
 	inward.Ready = true
 	outward := fed.NewConn(
-		context.Background(),
 		netconncodec.NewCodec(
 			out,
 		),

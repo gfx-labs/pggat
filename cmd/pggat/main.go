@@ -3,10 +3,9 @@ package main
 import (
 	"context"
 	caddycmd "gfx.cafe/gfx/pggat/cmd"
-	"gfx.cafe/util/go/gotel"
-
 	_ "gfx.cafe/gfx/pggat/lib/gat/gatcaddyfile"
 	_ "gfx.cafe/gfx/pggat/lib/gat/standard"
+	"gfx.cafe/util/go/gotel"
 )
 
 func main() {

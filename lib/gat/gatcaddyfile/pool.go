@@ -1,6 +1,7 @@
 package gatcaddyfile
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
@@ -114,6 +115,26 @@ func init() {
 						}
 					} else {
 						module.ExtendedQuerySync = true
+					}
+				case "packet_tracing_option":
+					if d.NextArg() {
+						val, err := strconv.Atoi(d.Val())
+						if err != nil {
+							return nil, err
+						}
+						module.PacketTracingOption = basic.TracingOption(val)
+					} else {
+						module.PacketTracingOption = basic.TracingOptionDisabled
+					}
+				case "otel_tracing_option":
+					if d.NextArg() {
+						val, err := strconv.Atoi(d.Val())
+						if err != nil {
+							return nil, err
+						}
+						module.OtelTracingOption = basic.TracingOption(val)
+					} else {
+						module.OtelTracingOption = basic.TracingOptionDisabled
 					}
 				case "reset_query":
 					if !d.NextArg() {
