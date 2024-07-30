@@ -12,12 +12,12 @@ func NewPgTrace(ctx context.Context) fed.Middleware {
 }
 
 func (t *pgtrace) ReadPacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
-	logPacket("ReadPacket ", packet)
+	logPacket("Read ", packet)
 	return packet, nil
 }
 
 func (t *pgtrace) WritePacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
-	logPacket("WritePacket", packet)
+	logPacket("Write", packet)
 	return packet, nil
 }
 
