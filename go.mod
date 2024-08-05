@@ -6,7 +6,7 @@ toolchain go1.22.4
 
 require (
 	gfx.cafe/ghalliday1/scram v0.0.3
-	gfx.cafe/util/go v1.13.1-0.20240723165950-fe5cbbc347a6
+	gfx.cafe/util/go v1.13.2-0.20240802175716-22a4af3187f6
 	gfx.cafe/util/temple v0.0.0-20230312041217-0882540e78eb
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/caddyserver/caddy/v2 v2.7.4
