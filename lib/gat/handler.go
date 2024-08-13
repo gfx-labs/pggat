@@ -10,7 +10,7 @@ import (
 type Handler interface {
 	// Handle will attempt to handle the Conn. Return io.EOF for normal disconnection or nil to continue to the next
 	// handle. The error will be relayed to the client so there is no need to send it yourself.
-	Handle(ctx context.Context, conn *fed.Conn) error
+	Handle(conn *fed.Conn) error
 }
 
 type CancellableHandler interface {

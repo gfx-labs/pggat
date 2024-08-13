@@ -116,7 +116,7 @@ func (T *Server) Serve(ctx context.Context, conn *fed.Conn) {
 		if route.handle == nil {
 			continue
 		}
-		err := route.handle.Handle(ctx,conn)
+		err := route.handle.Handle(conn)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				// normal closure
