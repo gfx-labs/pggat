@@ -29,7 +29,7 @@ type Pool struct {
 	mu      sync.RWMutex
 }
 
-func NewPool(config Config) *Pool {
+func NewPool(ctx context.Context, config Config) *Pool {
 	c := config.Spool()
 
 	p := &Pool{
@@ -38,25 +38,25 @@ func NewPool(config Config) *Pool {
 		primary: spool.MakePool(c),
 		replica: spool.MakePool(c),
 	}
-	go p.primary.ScaleLoop()
-	go p.replica.ScaleLoop()
+	go p.primary.ScaleLoop(ctx)
+	go p.replica.ScaleLoop(ctx)
 	return p
 }
 
-func (T *Pool) AddReplicaRecipe(name string, recipe *pool.Recipe) {
-	T.replica.AddRecipe(name, recipe)
+func (T *Pool) AddReplicaRecipe(ctx context.Context, name string, recipe *pool.Recipe) {
+	T.replica.AddRecipe(ctx, name, recipe)
 }
 
-func (T *Pool) RemoveReplicaRecipe(name string) {
-	T.replica.RemoveRecipe(name)
+func (T *Pool) RemoveReplicaRecipe(ctx context.Context, name string) {
+	T.replica.RemoveRecipe(ctx, name)
 }
 
-func (T *Pool) AddRecipe(name string, recipe *pool.Recipe) {
-	T.primary.AddRecipe(name, recipe)
+func (T *Pool) AddRecipe(ctx context.Context, name string, recipe *pool.Recipe) {
+	T.primary.AddRecipe(ctx, name, recipe)
 }
 
-func (T *Pool) RemoveRecipe(name string) {
-	T.primary.RemoveRecipe(name)
+func (T *Pool) RemoveRecipe(ctx context.Context, name string) {
+	T.primary.RemoveRecipe(ctx, name)
 }
 
 func (T *Pool) Pair(ctx context.Context, client *Client, server *spool.Server) (err, serverErr error) {
@@ -145,7 +145,7 @@ func (T *Pool) serveRW(ctx context.Context, conn *fed.Conn) error {
 	defer func() {
 		if primary != nil {
 			if serverErr != nil {
-				T.primary.RemoveServer(primary)
+				T.primary.RemoveServer(ctx, primary)
 			} else {
 				T.primary.Release(ctx, primary)
 			}
@@ -153,7 +153,7 @@ func (T *Pool) serveRW(ctx context.Context, conn *fed.Conn) error {
 		}
 		if replica != nil {
 			if serverErr != nil {
-				T.replica.RemoveServer(replica)
+				T.replica.RemoveServer(ctx, replica)
 			} else {
 				T.replica.Release(ctx, replica)
 			}
@@ -339,7 +339,7 @@ func (T *Pool) serveOnly(ctx context.Context, conn *fed.Conn, write bool) error 
 	defer func() {
 		if server != nil {
 			if serverErr != nil {
-				sp.RemoveServer(server)
+				sp.RemoveServer(ctx, server)
 			} else {
 				sp.Release(ctx, server)
 			}
@@ -439,9 +439,9 @@ func (T *Pool) Cancel(ctx context.Context, key fed.BackendKey) {
 	}
 
 	if replica {
-		T.replica.Cancel(peer)
+		T.replica.Cancel(ctx, peer)
 	} else {
-		T.primary.Cancel(peer)
+		T.primary.Cancel(ctx, peer)
 	}
 }
 
@@ -462,9 +462,9 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 	}
 }
 
-func (T *Pool) Close(_ context.Context) {
-	T.primary.Close()
-	T.replica.Close()
+func (T *Pool) Close(ctx context.Context) {
+	T.primary.Close(ctx)
+	T.replica.Close(ctx)
 }
 
 var _ pool.Pool = (*Pool)(nil)

@@ -28,21 +28,21 @@ type Pool struct {
 	mu      sync.RWMutex
 }
 
-func NewPool(config Config) *Pool {
+func NewPool(ctx context.Context, config Config) *Pool {
 	p := &Pool{
 		config:  config,
 		servers: spool.MakePool(config.Spool()),
 	}
-	go p.servers.ScaleLoop()
+	go p.servers.ScaleLoop(ctx)
 	return p
 }
 
-func (T *Pool) AddRecipe(name string, recipe *pool.Recipe) {
-	T.servers.AddRecipe(name, recipe)
+func (T *Pool) AddRecipe(ctx context.Context, name string, recipe *pool.Recipe) {
+	T.servers.AddRecipe(ctx, name, recipe)
 }
 
-func (T *Pool) RemoveRecipe(name string) {
-	T.servers.RemoveRecipe(name)
+func (T *Pool) RemoveRecipe(ctx context.Context, name string) {
+	T.servers.RemoveRecipe(ctx, name)
 }
 
 func (T *Pool) SyncInitialParameters(ctx context.Context, client *Client, server *spool.Server) (err, serverErr error) {
@@ -184,9 +184,9 @@ func (T *Pool) Serve(ctx context.Context, conn *fed.Conn) error {
 	defer func() {
 		if server != nil {
 			if serverErr != nil {
-				T.servers.RemoveServer(server)
+				T.servers.RemoveServer(ctx, server)
 			} else {
-				T.servers.Release(server)
+				T.servers.Release(ctx, server)
 			}
 			server = nil
 		}
@@ -209,7 +209,7 @@ func (T *Pool) Serve(ctx context.Context, conn *fed.Conn) error {
 		}
 
 		p := packets.ReadyForQuery('I')
-		err = client.Conn.WritePacket(&p)
+		err = client.Conn.WritePacket(ctx, &p)
 		if err != nil {
 			return err
 		}
@@ -220,7 +220,7 @@ func (T *Pool) Serve(ctx context.Context, conn *fed.Conn) error {
 	for {
 		if server != nil && T.config.ReleaseAfterTransaction {
 			client.SetState(metrics.ConnStateIdle, nil)
-			T.servers.Release(server)
+			T.servers.Release(ctx, server)
 			server = nil
 		}
 
@@ -275,7 +275,7 @@ func (T *Pool) Cancel(ctx context.Context, key fed.BackendKey) {
 		return
 	}
 
-	T.servers.Cancel(peer)
+	T.servers.Cancel(ctx, peer)
 }
 
 func (T *Pool) ReadMetrics(m *metrics.Pool) {
@@ -294,8 +294,8 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 	}
 }
 
-func (T *Pool) Close() {
-	T.servers.Close()
+func (T *Pool) Close(ctx context.Context) {
+	T.servers.Close(ctx)
 }
 
 var _ pool.Pool = (*Pool)(nil)

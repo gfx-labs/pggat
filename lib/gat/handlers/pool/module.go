@@ -40,22 +40,22 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	if err != nil {
 		return err
 	}
-	T.pool = raw.(PoolFactory).NewPool()
+	T.pool = raw.(PoolFactory).NewPool(ctx)
 
 	if err = T.Recipe.Provision(ctx); err != nil {
 		return err
 	}
 
-	T.pool.AddRecipe("recipe", &T.Recipe)
+	T.pool.AddRecipe(ctx, "recipe", &T.Recipe)
 	return nil
 }
 
-func (T *Module) Handle(ctx context.Context, conn *fed.Conn) error {
-	if err := frontends.Authenticate(ctx, conn, nil); err != nil {
+func (T *Module) Handle(conn *fed.Conn) error {
+	if err := frontends.Authenticate(context.Background(), conn, nil); err != nil {
 		return err
 	}
 
-	return T.pool.Serve(ctx, conn)
+	return T.pool.Serve(context.Background(), conn)
 }
 
 func (T *Module) ReadMetrics(metrics *metrics.Handler) {

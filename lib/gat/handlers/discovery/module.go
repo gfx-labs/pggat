@@ -98,10 +98,10 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	}
 	T.closed = make(chan struct{})
 
-	if err := T.reconcile(); err != nil {
+	if err := T.reconcile(ctx); err != nil {
 		return err
 	}
-	go T.discoverLoop()
+	go T.discoverLoop(ctx)
 
 	return nil
 }
@@ -123,9 +123,9 @@ func (T *Module) Cleanup() error {
 	return nil
 }
 
-func (T *Module) added(cluster Cluster) {
+func (T *Module) added(ctx context.Context, cluster Cluster) {
 	if prev, ok := T.clusters[cluster.ID]; ok {
-		T.updated(prev, cluster)
+		T.updated(ctx, prev, cluster)
 		return
 	}
 	if T.clusters == nil {
@@ -134,33 +134,33 @@ func (T *Module) added(cluster Cluster) {
 	T.clusters[cluster.ID] = cluster
 
 	for _, user := range cluster.Users {
-		T.addUser(cluster.Primary, cluster.Replicas, cluster.Databases, user)
+		T.addUser(ctx, cluster.Primary, cluster.Replicas, cluster.Databases, user)
 	}
 }
 
-func (T *Module) updated(prev, next Cluster) {
+func (T *Module) updated(ctx context.Context, prev, next Cluster) {
 	T.clusters[next.ID] = next
 
 	// primary endpoints
 	if prev.Primary != next.Primary {
-		T.replacePrimary(prev.Users, prev.Databases, next.Primary)
+		T.replacePrimary(ctx, prev.Users, prev.Databases, next.Primary)
 	}
 
 	// replica endpoints
 	if len(prev.Replicas) != 0 && len(next.Replicas) == 0 {
-		T.removeReplicas(prev.Replicas, prev.Users, prev.Databases)
+		T.removeReplicas(ctx, prev.Replicas, prev.Users, prev.Databases)
 	} else if len(prev.Replicas) == 0 && len(next.Replicas) != 0 {
-		T.addReplicas(next.Replicas, prev.Users, prev.Databases)
+		T.addReplicas(ctx, next.Replicas, prev.Users, prev.Databases)
 	} else {
 		// change # of replicas
 
 		for id, nextReplica := range next.Replicas {
 			prevReplica, ok := prev.Replicas[id]
 			if !ok {
-				T.addReplica(prev.Users, prev.Databases, id, nextReplica)
+				T.addReplica(ctx, prev.Users, prev.Databases, id, nextReplica)
 			} else if prevReplica != nextReplica {
 				// don't need to remove, add will replace the recipe atomically
-				T.addReplica(prev.Users, prev.Databases, id, nextReplica)
+				T.addReplica(ctx, prev.Users, prev.Databases, id, nextReplica)
 			}
 		}
 		for id := range prev.Replicas {
@@ -169,7 +169,7 @@ func (T *Module) updated(prev, next Cluster) {
 				continue // already handled
 			}
 
-			T.removeReplica(prev.Users, prev.Databases, id)
+			T.removeReplica(ctx, prev.Users, prev.Databases, id)
 		}
 	}
 
@@ -187,10 +187,10 @@ func (T *Module) updated(prev, next Cluster) {
 		}
 
 		if !ok {
-			T.addUser(next.Primary, next.Replicas, prev.Databases, nextUser)
+			T.addUser(ctx, next.Primary, next.Replicas, prev.Databases, nextUser)
 		} else if nextUser.Password != prevUser.Password {
-			T.removeUser(next.Replicas, prev.Databases, nextUser.Username)
-			T.addUser(next.Primary, next.Replicas, prev.Databases, nextUser)
+			T.removeUser(ctx, next.Replicas, prev.Databases, nextUser.Username)
+			T.addUser(ctx, next.Primary, next.Replicas, prev.Databases, nextUser)
 		}
 	}
 outer:
@@ -201,23 +201,23 @@ outer:
 			}
 		}
 
-		T.removeUser(next.Replicas, prev.Databases, prevUser.Username)
+		T.removeUser(ctx, next.Replicas, prev.Databases, prevUser.Username)
 	}
 
 	for _, nextDatabase := range next.Databases {
 		if !slices.Contains(prev.Databases, nextDatabase) {
-			T.addDatabase(next.Primary, next.Replicas, next.Users, nextDatabase)
+			T.addDatabase(ctx, next.Primary, next.Replicas, next.Users, nextDatabase)
 		}
 	}
 	for _, prevDatabase := range prev.Databases {
 		if !slices.Contains(next.Databases, prevDatabase) {
-			T.removeDatabase(next.Replicas, next.Users, prevDatabase)
+			T.removeDatabase(ctx, next.Replicas, next.Users, prevDatabase)
 		}
 	}
 }
 
-func (T *Module) addPrimaryNode(user User, database string, primary Node) {
-	p := T.getOrAddPool(user, database)
+func (T *Module) addPrimaryNode(ctx context.Context, user User, database string, primary Node) {
+	p := T.getOrAddPool(ctx, user, database)
 
 	d := pool.Recipe{
 		Dialer: pool.Dialer{
@@ -233,15 +233,15 @@ func (T *Module) addPrimaryNode(user User, database string, primary Node) {
 		MinConnections: T.ServerMinConnections,
 		MaxConnections: T.ServerMaxConnections,
 	}
-	p.pool.AddRecipe("primary", &d)
+	p.pool.AddRecipe(ctx, "primary", &d)
 }
 
 func (T *Module) removePrimaryNode(username, database string) {
 	T.removePool(username, database)
 }
 
-func (T *Module) addReplicaNodes(user User, database string, replicas map[string]Node) {
-	p := T.getOrAddPool(user, database)
+func (T *Module) addReplicaNodes(ctx context.Context, user User, database string, replicas map[string]Node) {
+	p := T.getOrAddPool(ctx, user, database)
 
 	if rp, ok := p.pool.(pool.ReplicaPool); ok {
 		for id, replica := range replicas {
@@ -259,12 +259,12 @@ func (T *Module) addReplicaNodes(user User, database string, replicas map[string
 				MinConnections: T.ServerMinConnections,
 				MaxConnections: T.ServerMaxConnections,
 			}
-			rp.AddReplicaRecipe(id, &d)
+			rp.AddReplicaRecipe(ctx, id, &d)
 		}
 		return
 	}
 
-	rp := T.getOrAddReplicaPool(user, database)
+	rp := T.getOrAddReplicaPool(ctx, user, database)
 	for id, replica := range replicas {
 		d := pool.Recipe{
 			Dialer: pool.Dialer{
@@ -280,11 +280,11 @@ func (T *Module) addReplicaNodes(user User, database string, replicas map[string
 			MinConnections: T.ServerMinConnections,
 			MaxConnections: T.ServerMaxConnections,
 		}
-		rp.pool.AddRecipe(id, &d)
+		rp.pool.AddRecipe(ctx, id, &d)
 	}
 }
 
-func (T *Module) removeReplicaNodes(username string, database string, replicas map[string]Node) {
+func (T *Module) removeReplicaNodes(ctx context.Context, username string, database string, replicas map[string]Node) {
 	p, ok := T.getPool(username, database)
 	if !ok {
 		return
@@ -293,7 +293,7 @@ func (T *Module) removeReplicaNodes(username string, database string, replicas m
 	// remove endpoints from replica pool
 	if rp, ok := p.pool.(pool.ReplicaPool); ok {
 		for key := range replicas {
-			rp.RemoveReplicaRecipe(key)
+			rp.RemoveReplicaRecipe(ctx, key)
 		}
 		return
 	}
@@ -302,8 +302,8 @@ func (T *Module) removeReplicaNodes(username string, database string, replicas m
 	T.removeReplicaPool(username, database)
 }
 
-func (T *Module) addReplicaNode(user User, database string, id string, replica Node) {
-	p := T.getOrAddPool(user, database)
+func (T *Module) addReplicaNode(ctx context.Context, user User, database string, id string, replica Node) {
+	p := T.getOrAddPool(ctx, user, database)
 
 	d := pool.Recipe{
 		Dialer: pool.Dialer{
@@ -321,15 +321,15 @@ func (T *Module) addReplicaNode(user User, database string, id string, replica N
 	}
 
 	if rp, ok := p.pool.(pool.ReplicaPool); ok {
-		rp.AddReplicaRecipe(id, &d)
+		rp.AddReplicaRecipe(ctx, id, &d)
 		return
 	}
 
-	rp := T.getOrAddReplicaPool(user, database)
-	rp.pool.AddRecipe(id, &d)
+	rp := T.getOrAddReplicaPool(ctx, user, database)
+	rp.pool.AddRecipe(ctx, id, &d)
 }
 
-func (T *Module) removeReplicaNode(username string, database string, id string) {
+func (T *Module) removeReplicaNode(ctx context.Context, username string, database string, id string) {
 	p, ok := T.getPool(username, database)
 	if !ok {
 		return
@@ -337,7 +337,7 @@ func (T *Module) removeReplicaNode(username string, database string, id string) 
 
 	// remove endpoints from replica pool
 	if rp, ok := p.pool.(pool.ReplicaPool); ok {
-		rp.RemoveReplicaRecipe(id)
+		rp.RemoveReplicaRecipe(ctx, id)
 		return
 	}
 
@@ -346,87 +346,87 @@ func (T *Module) removeReplicaNode(username string, database string, id string) 
 	if !ok {
 		return
 	}
-	rp.pool.RemoveRecipe(id)
+	rp.pool.RemoveRecipe(ctx, id)
 }
 
 // replacePrimary replaces the primary endpoint.
-func (T *Module) replacePrimary(users []User, databases []string, primary Node) {
+func (T *Module) replacePrimary(ctx context.Context, users []User, databases []string, primary Node) {
 	for _, user := range users {
 		for _, database := range databases {
-			T.addPrimaryNode(user, database, primary)
+			T.addPrimaryNode(ctx, user, database, primary)
 		}
 	}
 }
 
 // addReplicas adds multiple replicas. Other replicas must not exist.
-func (T *Module) addReplicas(replicas map[string]Node, users []User, databases []string) {
+func (T *Module) addReplicas(ctx context.Context, replicas map[string]Node, users []User, databases []string) {
 	for _, user := range users {
 		for _, database := range databases {
-			T.addReplicaNodes(user, database, replicas)
+			T.addReplicaNodes(ctx, user, database, replicas)
 		}
 	}
 }
 
 // removeReplicas removes all replicas.
-func (T *Module) removeReplicas(replicas map[string]Node, users []User, databases []string) {
+func (T *Module) removeReplicas(ctx context.Context, replicas map[string]Node, users []User, databases []string) {
 	for _, user := range users {
 		for _, database := range databases {
-			T.removeReplicaNodes(user.Username, database, replicas)
+			T.removeReplicaNodes(ctx, user.Username, database, replicas)
 		}
 	}
 }
 
 // addReplica adds a single replica.
-func (T *Module) addReplica(users []User, databases []string, id string, replica Node) {
+func (T *Module) addReplica(ctx context.Context, users []User, databases []string, id string, replica Node) {
 	for _, user := range users {
 		for _, database := range databases {
-			T.addReplicaNode(user, database, id, replica)
+			T.addReplicaNode(ctx, user, database, id, replica)
 		}
 	}
 }
 
 // removeReplica removes a single replica.
-func (T *Module) removeReplica(users []User, databases []string, id string) {
+func (T *Module) removeReplica(ctx context.Context, users []User, databases []string, id string) {
 	for _, user := range users {
 		for _, database := range databases {
-			T.removeReplicaNode(user.Username, database, id)
+			T.removeReplicaNode(ctx, user.Username, database, id)
 		}
 	}
 }
 
 // addUser adds a new user.
-func (T *Module) addUser(primary Node, replicas map[string]Node, databases []string, user User) {
+func (T *Module) addUser(ctx context.Context, primary Node, replicas map[string]Node, databases []string, user User) {
 	for _, database := range databases {
-		T.addPrimaryNode(user, database, primary)
-		T.addReplicaNodes(user, database, replicas)
+		T.addPrimaryNode(ctx, user, database, primary)
+		T.addReplicaNodes(ctx, user, database, replicas)
 	}
 }
 
 // removeUser removes a user.
-func (T *Module) removeUser(replicas map[string]Node, databases []string, username string) {
+func (T *Module) removeUser(ctx context.Context, replicas map[string]Node, databases []string, username string) {
 	for _, database := range databases {
-		T.removeReplicaNodes(username, database, replicas)
+		T.removeReplicaNodes(ctx, username, database, replicas)
 		T.removePrimaryNode(username, database)
 	}
 }
 
 // addDatabase adds a new database.
-func (T *Module) addDatabase(primary Node, replicas map[string]Node, users []User, database string) {
+func (T *Module) addDatabase(ctx context.Context, primary Node, replicas map[string]Node, users []User, database string) {
 	for _, user := range users {
-		T.addPrimaryNode(user, database, primary)
-		T.addReplicaNodes(user, database, replicas)
+		T.addPrimaryNode(ctx, user, database, primary)
+		T.addReplicaNodes(ctx, user, database, replicas)
 	}
 }
 
 // removeDatabase removes a single database.
-func (T *Module) removeDatabase(replicas map[string]Node, users []User, database string) {
+func (T *Module) removeDatabase(ctx context.Context, replicas map[string]Node, users []User, database string) {
 	for _, user := range users {
-		T.removeReplicaNodes(user.Username, database, replicas)
+		T.removeReplicaNodes(ctx, user.Username, database, replicas)
 		T.removePrimaryNode(user.Username, database)
 	}
 }
 
-func (T *Module) removed(id string) {
+func (T *Module) removed(ctx context.Context, id string) {
 	cluster, ok := T.clusters[id]
 	if !ok {
 		return
@@ -434,11 +434,11 @@ func (T *Module) removed(id string) {
 	delete(T.clusters, id)
 
 	for _, database := range cluster.Databases {
-		T.removeDatabase(cluster.Replicas, cluster.Users, database)
+		T.removeDatabase(ctx, cluster.Replicas, cluster.Users, database)
 	}
 }
 
-func (T *Module) reconcile() error {
+func (T *Module) reconcile(ctx context.Context) error {
 	clusters, err := T.discoverer.Clusters()
 	if err != nil {
 		return err
@@ -447,9 +447,9 @@ func (T *Module) reconcile() error {
 	for _, cluster := range clusters {
 		prev, ok := T.clusters[cluster.ID]
 		if !ok {
-			T.added(cluster)
+			T.added(ctx, cluster)
 		} else {
-			T.updated(prev, cluster)
+			T.updated(ctx, prev, cluster)
 		}
 	}
 
@@ -461,13 +461,13 @@ outer:
 				continue outer
 			}
 		}
-		T.removed(id)
+		T.removed(ctx, id)
 	}
 
 	return nil
 }
 
-func (T *Module) discoverLoop() {
+func (T *Module) discoverLoop(ctx context.Context) {
 	var reconcile <-chan time.Time
 	if T.ReconcilePeriod != 0 {
 		r := time.NewTicker(time.Duration(T.ReconcilePeriod))
@@ -478,11 +478,11 @@ func (T *Module) discoverLoop() {
 	for {
 		select {
 		case cluster := <-T.discoverer.Added():
-			T.added(cluster)
+			T.added(ctx,cluster)
 		case id := <-T.discoverer.Removed():
-			T.removed(id)
+			T.removed(ctx, id)
 		case <-reconcile:
-			err := T.reconcile()
+			err := T.reconcile(ctx)
 			if err != nil {
 				T.log.Warn("failed to reconcile", zap.Error(err))
 			}
@@ -513,7 +513,7 @@ func (T *Module) getCreds(user User) auth.Credentials {
 	return creds
 }
 
-func (T *Module) getOrAddPool(user User, database string) poolAndCredentials {
+func (T *Module) getOrAddPool(ctx context.Context, user User, database string) poolAndCredentials {
 	T.poolsMu.Lock()
 	defer T.poolsMu.Unlock()
 	if old, ok := T.pools.Load(user.Username, database); ok {
@@ -522,7 +522,7 @@ func (T *Module) getOrAddPool(user User, database string) poolAndCredentials {
 
 	creds := T.getCreds(user)
 	p := poolAndCredentials{
-		pool:  T.poolFactory.NewPool(),
+		pool:  T.poolFactory.NewPool(ctx),
 		creds: creds,
 	}
 	T.pools.Store(user.Username, database, p)
@@ -530,8 +530,8 @@ func (T *Module) getOrAddPool(user User, database string) poolAndCredentials {
 	return p
 }
 
-func (T *Module) getOrAddReplicaPool(user User, database string) poolAndCredentials {
-	return T.getOrAddPool(T.toReplicaUser(user), database)
+func (T *Module) getOrAddReplicaPool(ctx context.Context, user User, database string) poolAndCredentials {
+	return T.getOrAddPool(ctx, T.toReplicaUser(user), database)
 }
 
 func (T *Module) getPool(user, database string) (poolAndCredentials, bool) {
@@ -569,17 +569,17 @@ func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 	})
 }
 
-func (T *Module) Handle(ctx context.Context, conn *fed.Conn) error {
+func (T *Module) Handle(conn *fed.Conn) error {
 	p, ok := T.getPool(conn.User, conn.Database)
 	if !ok {
 		return nil
 	}
 
-	if err := frontends.Authenticate(ctx, conn, p.creds); err != nil {
+	if err := frontends.Authenticate(context.Background(), conn, p.creds); err != nil {
 		return err
 	}
 
-	return p.pool.Serve(ctx, conn)
+	return p.pool.Serve(context.Background(), conn)
 }
 
 func (T *Module) Cancel(ctx context.Context, key fed.BackendKey) {

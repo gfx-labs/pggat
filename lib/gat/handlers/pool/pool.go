@@ -9,9 +9,9 @@ import (
 type Pool interface {
 	// AddRecipe will add the recipe to the pool for use. The pool should delete any existing recipes with the same name
 	// and scale the recipe to min.
-	AddRecipe(name string, recipe *Recipe)
+	AddRecipe(ctx context.Context, name string, recipe *Recipe)
 	// RemoveRecipe will remove a recipe and disconnect all servers created by that recipe.
-	RemoveRecipe(name string)
+	RemoveRecipe(ctx context.Context, name string)
 
 	Serve(ctx context.Context, conn *fed.Conn) error
 
@@ -23,10 +23,10 @@ type Pool interface {
 type ReplicaPool interface {
 	Pool
 
-	AddReplicaRecipe(name string, recipe *Recipe)
-	RemoveReplicaRecipe(name string)
+	AddReplicaRecipe(ctx context.Context, name string, recipe *Recipe)
+	RemoveReplicaRecipe(ctx context.Context, name string)
 }
 
 type PoolFactory interface {
-	NewPool() Pool
+	NewPool(ctx context.Context) Pool
 }
