@@ -138,13 +138,14 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 
 			inward, outward, _, _ := gsql.NewPair()
 
+			ctx := context.Background()
+
 			var b flip.Bank
 			b.Queue(func() error {
-				return gsql.ExtendedQuery(context.Background(), inward, &result, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", user.Name)
+				return gsql.ExtendedQuery(ctx, inward, &result, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", user.Name)
 			})
 
 			b.Queue(func() error {
-				ctx := context.Background()
 				initialPacket, err := outward.ReadPacket(ctx, true)
 				if err != nil {
 					return err
