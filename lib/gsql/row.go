@@ -1,6 +1,7 @@
 package gsql
 
 import (
+	"context"
 	"reflect"
 	"strconv"
 
@@ -9,13 +10,13 @@ import (
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
-func readRows(client *fed.Conn, result any) error {
+func readRows(ctx context.Context,client *fed.Conn, result any) error {
 	res := reflect.ValueOf(result)
 	row := 0
 	var rd packets.RowDescription
 
 	for {
-		packet, err := client.ReadPacket(true)
+		packet, err := client.ReadPacket(ctx,true)
 		if err != nil {
 			return err
 		}

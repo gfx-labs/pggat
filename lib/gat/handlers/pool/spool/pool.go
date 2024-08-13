@@ -1,6 +1,7 @@
 package spool
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -275,11 +276,11 @@ func (T *Pool) Acquire(client uuid.UUID) *Server {
 	}
 }
 
-func (T *Pool) Release(server *Server) {
+func (T *Pool) Release(ctx context.Context, server *Server) {
 	if T.config.ResetQuery != "" {
 		server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
 
-		if err, _ := backends.QueryString(server.Conn, nil, T.config.ResetQuery); err != nil {
+		if err, _ := backends.QueryString(ctx, server.Conn, nil, T.config.ResetQuery); err != nil {
 			T.config.Logger.Error("failed to run reset query", zap.Error(err))
 			T.RemoveServer(server)
 			return

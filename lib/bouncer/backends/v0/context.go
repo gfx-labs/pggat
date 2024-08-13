@@ -1,44 +1,40 @@
 package backends
 
 import (
+	"context"
 	"gfx.cafe/gfx/pggat/lib/fed"
 )
 
-type acceptContext struct {
-	Conn    *fed.Conn
-	Options acceptOptions
-}
-
-type context struct {
+type serverToPeerBinding struct {
 	Server    *fed.Conn
-	Packet    fed.Packet
 	Peer      *fed.Conn
+	Packet    fed.Packet
 	PeerError error
 	TxState   byte
 }
 
-func (T *context) ErrUnexpectedPacket() error {
+func (T *serverToPeerBinding) ErrUnexpectedPacket() error {
 	return ErrUnexpectedPacket(T.Packet.Type())
 }
 
-func (T *context) ServerRead() error {
+func (T *serverToPeerBinding) ServerRead(ctx context.Context) error {
 	var err error
-	T.Packet, err = T.Server.ReadPacket(true)
+	T.Packet, err = T.Server.ReadPacket(ctx, true)
 	return err
 }
 
-func (T *context) ServerWrite() error {
-	return T.Server.WritePacket(T.Packet)
+func (T *serverToPeerBinding) ServerWrite(ctx context.Context) error {
+	return T.Server.WritePacket(ctx, T.Packet)
 }
 
-func (T *context) PeerOK() bool {
+func (T *serverToPeerBinding) PeerOK() bool {
 	if T == nil {
 		return false
 	}
 	return T.Peer != nil && T.PeerError == nil
 }
 
-func (T *context) PeerFail(err error) {
+func (T *serverToPeerBinding) PeerFail(err error) {
 	if T == nil {
 		return
 	}
@@ -46,7 +42,7 @@ func (T *context) PeerFail(err error) {
 	T.PeerError = err
 }
 
-func (T *context) PeerRead() bool {
+func (T *serverToPeerBinding) PeerRead(ctx context.Context) bool {
 	if T == nil {
 		return false
 	}
@@ -54,7 +50,7 @@ func (T *context) PeerRead() bool {
 		return false
 	}
 	var err error
-	T.Packet, err = T.Peer.ReadPacket(true)
+	T.Packet, err = T.Peer.ReadPacket(ctx, true)
 	if err != nil {
 		T.PeerFail(err)
 		return false
@@ -62,14 +58,14 @@ func (T *context) PeerRead() bool {
 	return true
 }
 
-func (T *context) PeerWrite() {
+func (T *serverToPeerBinding) PeerWrite(ctx context.Context) {
 	if T == nil {
 		return
 	}
 	if !T.PeerOK() {
 		return
 	}
-	err := T.Peer.WritePacket(T.Packet)
+	err := T.Peer.WritePacket(ctx, T.Packet)
 	if err != nil {
 		T.PeerFail(err)
 	}

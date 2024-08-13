@@ -1,6 +1,7 @@
 package ps
 
 import (
+	"context"
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
@@ -8,7 +9,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.Conn, s *Server, name strutil.CIString) (clientErr, serverErr error) {
+func sync(ctx context.Context, tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.Conn, s *Server, name strutil.CIString) (clientErr, serverErr error) {
 	value, hasValue := c.parameters[name]
 	expected, hasExpected := s.parameters[name]
 
@@ -18,7 +19,7 @@ func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.
 				Key:   name.String(),
 				Value: expected,
 			}
-			clientErr = client.WritePacket(&ps)
+			clientErr = client.WritePacket(ctx, &ps)
 		}
 		return
 	}
@@ -26,7 +27,7 @@ func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.
 	var doSet bool
 
 	if hasValue && slices.Contains(tracking, name) {
-		if serverErr, _ = backends.SetParameter(server, nil, name, value); serverErr != nil {
+		if serverErr, _ = backends.SetParameter(ctx, server, nil, name, value); serverErr != nil {
 			return
 		}
 		if s.parameters == nil {
@@ -47,7 +48,7 @@ func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.
 			Key:   name.String(),
 			Value: expected,
 		}
-		if clientErr = client.WritePacket(&ps); clientErr != nil {
+		if clientErr = client.WritePacket(ctx, &ps); clientErr != nil {
 			return
 		}
 	}
@@ -55,14 +56,14 @@ func sync(tracking []strutil.CIString, client *fed.Conn, c *Client, server *fed.
 	return
 }
 
-func SyncMiddleware(tracking []strutil.CIString, c *Client, server *fed.Conn) error {
+func SyncMiddleware(ctx context.Context, tracking []strutil.CIString, c *Client, server *fed.Conn) error {
 	s, ok := fed.LookupMiddleware[*Server](server)
 	if !ok {
 		panic("middleware not found")
 	}
 
 	for name := range c.parameters {
-		if _, err := sync(tracking, nil, c, server, s, name); err != nil {
+		if _, err := sync(ctx, tracking, nil, c, server, s, name); err != nil {
 			return err
 		}
 	}
@@ -71,7 +72,7 @@ func SyncMiddleware(tracking []strutil.CIString, c *Client, server *fed.Conn) er
 		if _, ok = c.parameters[name]; ok {
 			continue
 		}
-		if _, err := sync(tracking, nil, c, server, s, name); err != nil {
+		if _, err := sync(ctx, tracking, nil, c, server, s, name); err != nil {
 			return err
 		}
 	}
@@ -79,7 +80,7 @@ func SyncMiddleware(tracking []strutil.CIString, c *Client, server *fed.Conn) er
 	return nil
 }
 
-func Sync(tracking []strutil.CIString, client, server *fed.Conn) (clientErr, serverErr error) {
+func Sync(ctx context.Context, tracking []strutil.CIString, client, server *fed.Conn) (clientErr, serverErr error) {
 	c, ok := fed.LookupMiddleware[*Client](client)
 	if !ok {
 		panic("middleware not found")
@@ -90,7 +91,7 @@ func Sync(tracking []strutil.CIString, client, server *fed.Conn) (clientErr, ser
 	}
 
 	for name := range c.parameters {
-		if clientErr, serverErr = sync(tracking, client, c, server, s, name); clientErr != nil || serverErr != nil {
+		if clientErr, serverErr = sync(ctx, tracking, client, c, server, s, name); clientErr != nil || serverErr != nil {
 			return
 		}
 	}
@@ -99,7 +100,7 @@ func Sync(tracking []strutil.CIString, client, server *fed.Conn) (clientErr, ser
 		if _, ok = c.parameters[name]; ok {
 			continue
 		}
-		if clientErr, serverErr = sync(tracking, client, c, server, s, name); clientErr != nil || serverErr != nil {
+		if clientErr, serverErr = sync(ctx, tracking, client, c, server, s, name); clientErr != nil || serverErr != nil {
 			return
 		}
 	}

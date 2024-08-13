@@ -10,6 +10,6 @@ type acceptOptions struct {
 	SSLConfig *tls.Config
 }
 
-type authenticateOptions struct {
+type authOptions struct {
 	Credentials auth.Credentials
 }

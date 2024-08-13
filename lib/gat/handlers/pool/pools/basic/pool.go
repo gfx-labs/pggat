@@ -1,6 +1,7 @@
 package basic
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -44,7 +45,7 @@ func (T *Pool) RemoveRecipe(name string) {
 	T.servers.RemoveRecipe(name)
 }
 
-func (T *Pool) SyncInitialParameters(client *Client, server *spool.Server) (err, serverErr error) {
+func (T *Pool) SyncInitialParameters(ctx context.Context, client *Client, server *spool.Server) (err, serverErr error) {
 	clientParams := client.Conn.InitialParameters
 	serverParams := server.Conn.InitialParameters
 
@@ -55,7 +56,7 @@ func (T *Pool) SyncInitialParameters(client *Client, server *spool.Server) (err,
 				Key:   key.String(),
 				Value: serverParams[key],
 			}
-			err = client.Conn.WritePacket(&p)
+			err = client.Conn.WritePacket(ctx, &p)
 			if err != nil {
 				return
 			}
@@ -72,7 +73,7 @@ func (T *Pool) SyncInitialParameters(client *Client, server *spool.Server) (err,
 			Key:   key.String(),
 			Value: value,
 		}
-		err = client.Conn.WritePacket(&p)
+		err = client.Conn.WritePacket(ctx, &p)
 		if err != nil {
 			return
 		}
@@ -81,7 +82,7 @@ func (T *Pool) SyncInitialParameters(client *Client, server *spool.Server) (err,
 			continue
 		}
 
-		serverErr, _ = backends.SetParameter(server.Conn, nil, key, value)
+		serverErr, _ = backends.SetParameter(ctx, server.Conn, nil, key, value)
 		if serverErr != nil {
 			return
 		}
@@ -99,7 +100,7 @@ func (T *Pool) SyncInitialParameters(client *Client, server *spool.Server) (err,
 			Key:   key.String(),
 			Value: value,
 		}
-		err = client.Conn.WritePacket(&p)
+		err = client.Conn.WritePacket(ctx, &p)
 		if err != nil {
 			return
 		}
@@ -108,16 +109,16 @@ func (T *Pool) SyncInitialParameters(client *Client, server *spool.Server) (err,
 	return
 }
 
-func (T *Pool) Pair(client *Client, server *spool.Server) (err, serverErr error) {
+func (T *Pool) Pair(ctx context.Context, client *Client, server *spool.Server) (err, serverErr error) {
 	if T.config.ParameterStatusSync != ParameterStatusSyncNone || T.config.ExtendedQuerySync {
 		client.SetState(metrics.ConnStatePairing, server)
 		server.SetState(metrics.ConnStatePairing, client.ID)
 
 		switch T.config.ParameterStatusSync {
 		case ParameterStatusSyncDynamic:
-			err, serverErr = ps.Sync(T.config.TrackedParameters, client.Conn, server.Conn)
+			err, serverErr = ps.Sync(ctx, T.config.TrackedParameters, client.Conn, server.Conn)
 		case ParameterStatusSyncInitial:
-			err, serverErr = T.SyncInitialParameters(client, server)
+			err, serverErr = T.SyncInitialParameters(ctx, client, server)
 		}
 
 		if err != nil || serverErr != nil {
@@ -125,7 +126,7 @@ func (T *Pool) Pair(client *Client, server *spool.Server) (err, serverErr error)
 		}
 
 		if T.config.ExtendedQuerySync {
-			serverErr = eqp.Sync(client.Conn, server.Conn)
+			serverErr = eqp.Sync(ctx, client.Conn, server.Conn)
 		}
 
 		if serverErr != nil {
@@ -155,7 +156,7 @@ func (T *Pool) removeClient(client *Client) {
 	delete(T.clients, client.Conn.BackendKey)
 }
 
-func (T *Pool) Serve(conn *fed.Conn) error {
+func (T *Pool) Serve(ctx context.Context, conn *fed.Conn) error {
 	if T.config.ParameterStatusSync == ParameterStatusSyncDynamic {
 		conn.Middleware = append(
 			conn.Middleware,
@@ -199,7 +200,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 			return pool.ErrFailedToAcquirePeer
 		}
 
-		err, serverErr = T.Pair(client, server)
+		err, serverErr = T.Pair(ctx, client, server)
 		if serverErr != nil {
 			return serverErr
 		}
@@ -224,7 +225,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 		}
 
 		var packet fed.Packet
-		packet, err = client.Conn.ReadPacket(true)
+		packet, err = client.Conn.ReadPacket(ctx, true)
 		if err != nil {
 			return err
 		}
@@ -237,10 +238,10 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 				return pool.ErrFailedToAcquirePeer
 			}
 
-			err, serverErr = T.Pair(client, server)
+			err, serverErr = T.Pair(ctx, client, server)
 		}
 		if err == nil && serverErr == nil {
-			err, serverErr = bouncers.Bounce(client.Conn, server.Conn, packet)
+			err, serverErr = bouncers.Bounce(ctx, client.Conn, server.Conn, packet)
 		}
 
 		if serverErr != nil {
@@ -256,7 +257,7 @@ func (T *Pool) Serve(conn *fed.Conn) error {
 	}
 }
 
-func (T *Pool) Cancel(key fed.BackendKey) {
+func (T *Pool) Cancel(ctx context.Context, key fed.BackendKey) {
 	peer := func() *spool.Server {
 		T.mu.RLock()
 		defer T.mu.RUnlock()

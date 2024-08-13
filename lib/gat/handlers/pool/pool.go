@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"context"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 )
@@ -12,11 +13,11 @@ type Pool interface {
 	// RemoveRecipe will remove a recipe and disconnect all servers created by that recipe.
 	RemoveRecipe(name string)
 
-	Serve(conn *fed.Conn) error
+	Serve(ctx context.Context, conn *fed.Conn) error
 
-	Cancel(key fed.BackendKey)
+	Cancel(ctx context.Context, key fed.BackendKey)
 	ReadMetrics(m *metrics.Pool)
-	Close()
+	Close(ctx context.Context)
 }
 
 type ReplicaPool interface {

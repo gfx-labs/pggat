@@ -132,7 +132,7 @@ func (T *Server) Serve(conn *fed.Conn) {
 	errResp := perror.ToPacket(
 		perror.New(
 			perror.FATAL,
-			perror.InvalidPassword,
+			perror.InvalidCatalogName,
 			fmt.Sprintf(`Database "%s" not found`, conn.Database),
 		),
 	)

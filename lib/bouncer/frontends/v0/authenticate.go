@@ -1,6 +1,7 @@
 package frontends
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
@@ -13,10 +14,15 @@ import (
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
-func authenticationSASLInitial(ctx *authenticateContext, creds auth.SASLServer) (tool auth.SASLVerifier, resp []byte, done bool, err error) {
+type authParams struct {
+	Conn    *fed.Conn
+	Options authOptions
+}
+
+func authenticationSASLInitial(ctx context.Context, params *authParams, creds auth.SASLServer) (tool auth.SASLVerifier, resp []byte, done bool, err error) {
 	// check which authentication method the client wants
 	var packet fed.Packet
-	packet, err = ctx.Conn.ReadPacket(true)
+	packet, err = params.Conn.ReadPacket(ctx, true)
 	if err != nil {
 		return
 	}
@@ -43,9 +49,9 @@ func authenticationSASLInitial(ctx *authenticateContext, creds auth.SASLServer) 
 	return
 }
 
-func authenticationSASLContinue(ctx *authenticateContext, tool auth.SASLVerifier) (resp []byte, done bool, err error) {
+func authenticationSASLContinue(ctx context.Context, params *authParams, tool auth.SASLVerifier) (resp []byte, done bool, err error) {
 	var packet fed.Packet
-	packet, err = ctx.Conn.ReadPacket(true)
+	packet, err = params.Conn.ReadPacket(ctx, true)
 	if err != nil {
 		return
 	}
@@ -67,7 +73,7 @@ func authenticationSASLContinue(ctx *authenticateContext, tool auth.SASLVerifier
 	return
 }
 
-func authenticationSASL(ctx *authenticateContext, creds auth.SASLServer) error {
+func authenticationSASL(ctx context.Context, params *authParams, creds auth.SASLServer) error {
 	var mode packets.AuthenticationPayloadSASL
 	mechanisms := creds.SupportedSASLMechanisms()
 	for _, mechanism := range mechanisms {
@@ -79,12 +85,12 @@ func authenticationSASL(ctx *authenticateContext, creds auth.SASLServer) error {
 	saslInitial := packets.Authentication{
 		Mode: &mode,
 	}
-	err := ctx.Conn.WritePacket(&saslInitial)
+	err := params.Conn.WritePacket(ctx, &saslInitial)
 	if err != nil {
 		return err
 	}
 
-	tool, resp, done, err := authenticationSASLInitial(ctx, creds)
+	tool, resp, done, err := authenticationSASLInitial(ctx, params, creds)
 	if err != nil {
 		return err
 	}
@@ -95,7 +101,7 @@ func authenticationSASL(ctx *authenticateContext, creds auth.SASLServer) error {
 			final := packets.Authentication{
 				Mode: &m,
 			}
-			err = ctx.Conn.WritePacket(&final)
+			err = params.Conn.WritePacket(ctx, &final)
 			if err != nil {
 				return err
 			}
@@ -105,13 +111,13 @@ func authenticationSASL(ctx *authenticateContext, creds auth.SASLServer) error {
 			cont := packets.Authentication{
 				Mode: &m,
 			}
-			err = ctx.Conn.WritePacket(&cont)
+			err = params.Conn.WritePacket(ctx, &cont)
 			if err != nil {
 				return err
 			}
 		}
 
-		resp, done, err = authenticationSASLContinue(ctx, tool)
+		resp, done, err = authenticationSASLContinue(ctx, params, tool)
 		if err != nil {
 			return err
 		}
@@ -120,7 +126,7 @@ func authenticationSASL(ctx *authenticateContext, creds auth.SASLServer) error {
 	return nil
 }
 
-func authenticationMD5(ctx *authenticateContext, creds auth.MD5Server) error {
+func authenticationMD5(ctx context.Context, params *authParams, creds auth.MD5Server) error {
 	var salt [4]byte
 	_, err := rand.Read(salt[:])
 	if err != nil {
@@ -130,13 +136,14 @@ func authenticationMD5(ctx *authenticateContext, creds auth.MD5Server) error {
 	md5Initial := packets.Authentication{
 		Mode: &mode,
 	}
-	err = ctx.Conn.WritePacket(&md5Initial)
+
+	err = params.Conn.WritePacket(ctx, &md5Initial)
 	if err != nil {
 		return err
 	}
 
 	var packet fed.Packet
-	packet, err = ctx.Conn.ReadPacket(true)
+	packet, err = params.Conn.ReadPacket(ctx, true)
 	if err != nil {
 		return err
 	}
@@ -154,12 +161,12 @@ func authenticationMD5(ctx *authenticateContext, creds auth.MD5Server) error {
 	return nil
 }
 
-func authenticate(ctx *authenticateContext) (err error) {
-	if ctx.Options.Credentials != nil {
-		if credsSASL, ok := ctx.Options.Credentials.(auth.SASLServer); ok {
-			err = authenticationSASL(ctx, credsSASL)
-		} else if credsMD5, ok := ctx.Options.Credentials.(auth.MD5Server); ok {
-			err = authenticationMD5(ctx, credsMD5)
+func authenticate(ctx context.Context, params *authParams) (err error) {
+	if params.Options.Credentials != nil {
+		if credsSASL, ok := params.Options.Credentials.(auth.SASLServer); ok {
+			err = authenticationSASL(ctx, params, credsSASL)
+		} else if credsMD5, ok := params.Options.Credentials.(auth.MD5Server); ok {
+			err = authenticationMD5(ctx, params, credsMD5)
 		} else {
 			err = perror.New(
 				perror.FATAL,
@@ -176,10 +183,10 @@ func authenticate(ctx *authenticateContext) (err error) {
 	authOk := packets.Authentication{
 		Mode: &packets.AuthenticationPayloadOk{},
 	}
-	if err = ctx.Conn.WritePacket(&authOk); err != nil {
+	if err = params.Conn.WritePacket(ctx, &authOk); err != nil {
 		return
 	}
-	ctx.Conn.Authenticated = true
+	params.Conn.Authenticated = true
 
 	// send backend key data
 	var processID [4]byte
@@ -190,35 +197,35 @@ func authenticate(ctx *authenticateContext) (err error) {
 	if _, err = rand.Reader.Read(backendKey[:]); err != nil {
 		return
 	}
-	ctx.Conn.BackendKey = fed.BackendKey{
+	params.Conn.BackendKey = fed.BackendKey{
 		ProcessID: int32(binary.BigEndian.Uint32(processID[:])),
 		SecretKey: int32(binary.BigEndian.Uint32(backendKey[:])),
 	}
 
 	keyData := packets.BackendKeyData{
-		ProcessID: ctx.Conn.BackendKey.ProcessID,
-		SecretKey: ctx.Conn.BackendKey.SecretKey,
+		ProcessID: params.Conn.BackendKey.ProcessID,
+		SecretKey: params.Conn.BackendKey.SecretKey,
 	}
-	if err = ctx.Conn.WritePacket(&keyData); err != nil {
+	if err = params.Conn.WritePacket(ctx, &keyData); err != nil {
 		return
 	}
 
 	return
 }
 
-func Authenticate(conn *fed.Conn, creds auth.Credentials) (err error) {
+func Authenticate(ctx context.Context, conn *fed.Conn, creds auth.Credentials) (err error) {
 	if conn.Authenticated {
 		// already authenticated
 		return
 	}
 
-	ctx := authenticateContext{
+	params := authParams{
 		Conn: conn,
-		Options: authenticateOptions{
+		Options: authOptions{
 			Credentials: creds,
 		},
 	}
-	err = authenticate(&ctx)
+	err = authenticate(ctx, &params)
 	if err != nil {
 		// sleep after incorrect password
 		time.Sleep(250 * time.Millisecond)

@@ -1,6 +1,7 @@
 package gat
 
 import (
+	"context"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 )
@@ -15,7 +16,7 @@ type Handler interface {
 type CancellableHandler interface {
 	Handler
 
-	Cancel(key fed.BackendKey)
+	Cancel(ctx context.Context, key fed.BackendKey)
 }
 
 type MetricsHandler interface {
