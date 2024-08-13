@@ -7,7 +7,7 @@
         address localhost:5432
 
         username postgres
-        password password
-        database postgres
+        password postgres
+        database base
     }
 }
