@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"sync"
@@ -115,7 +116,7 @@ func (T *Module) Cleanup() error {
 	T.poolsMu.Lock()
 	defer T.poolsMu.Unlock()
 	T.pools.Range(func(user string, database string, p poolAndCredentials) bool {
-		p.pool.Close()
+		p.pool.Close(context.Background())
 		T.pools.Delete(user, database)
 		return true
 	})
@@ -550,7 +551,7 @@ func (T *Module) removePool(user, database string) {
 	if !ok {
 		return
 	}
-	p.pool.Close()
+	p.pool.Close(context.Background())
 	T.log.Info("removed pool", zap.String("user", user), zap.String("database", database))
 	T.pools.Delete(user, database)
 }
@@ -568,24 +569,24 @@ func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 	})
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
+func (T *Module) Handle(ctx context.Context, conn *fed.Conn) error {
 	p, ok := T.getPool(conn.User, conn.Database)
 	if !ok {
 		return nil
 	}
 
-	if err := frontends.Authenticate(conn, p.creds); err != nil {
+	if err := frontends.Authenticate(ctx, conn, p.creds); err != nil {
 		return err
 	}
 
-	return p.pool.Serve(conn)
+	return p.pool.Serve(ctx, conn)
 }
 
-func (T *Module) Cancel(key fed.BackendKey) {
+func (T *Module) Cancel(ctx context.Context, key fed.BackendKey) {
 	T.poolsMu.RLock()
 	defer T.poolsMu.RUnlock()
 	T.pools.Range(func(_ string, _ string, p poolAndCredentials) bool {
-		p.pool.Cancel(key)
+		p.pool.Cancel(ctx, key)
 		return true
 	})
 }
