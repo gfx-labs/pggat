@@ -179,7 +179,7 @@ func TestTester(t *testing.T) {
 	config := gat.Config{}
 
 	parent, err := daisyChain(&config, dialer{
-		Address:  "localhost:5432",
+		Address:  "localhost:5433",
 		Username: "postgres",
 		Password: "postgres",
 		Database: "postgres",
