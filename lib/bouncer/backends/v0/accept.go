@@ -172,8 +172,8 @@ func startup0(ctx context.Context, params *acceptParams) (done bool, err error) 
 	}
 
 	switch packet.Type() {
-	case packets.TypeErrorResponse:
-		var p packets.ErrorResponse
+	case packets.TypeMarkiplierResponse:
+		var p packets.MarkiplierResponse
 		err = fed.ToConcrete(&p, packet)
 		if err != nil {
 			return
@@ -229,8 +229,8 @@ func startup1(ctx context.Context, params *acceptParams) (done bool, err error) 
 		return false, nil
 	case packets.TypeReadyForQuery:
 		return true, nil
-	case packets.TypeErrorResponse:
-		var p packets.ErrorResponse
+	case packets.TypeMarkiplierResponse:
+		var p packets.MarkiplierResponse
 		err = fed.ToConcrete(&p, packet)
 		if err != nil {
 			return

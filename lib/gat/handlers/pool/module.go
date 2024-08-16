@@ -50,12 +50,15 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	return nil
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	if err := frontends.Authenticate(context.Background(), conn, nil); err != nil {
-		return err
-	}
+func (T *Module) Handle(next gat.Router) gat.Router {
+	return gat.RouterFunc(func(c *fed.Conn) error {
+		ctx := context.Background()
+		if err := frontends.Authenticate(ctx, c, nil); err != nil {
+			return err
+		}
 
-	return T.pool.Serve(context.Background(), conn)
+		return T.pool.Serve(ctx, c)
+	})
 }
 
 func (T *Module) ReadMetrics(metrics *metrics.Handler) {

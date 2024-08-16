@@ -14,6 +14,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/instrumentation/prom"
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
@@ -107,44 +108,50 @@ func (T *Server) ReadMetrics(m *metrics.Server) {
 	}
 }
 
-func (T *Server) Serve(ctx context.Context, conn *fed.Conn) {
-	for _, route := range T.routes {
+func (T *Server) Serve(conn *fed.Conn) {
+	ctx := context.Background()
+
+	composed := Router(RouterFunc(func(conn *fed.Conn) error {
+		// database not found
+		errResp := perror.ToPacket(
+			perror.New(
+				perror.FATAL,
+				perror.InvalidPassword,
+				fmt.Sprintf(`Database "%s" not found`, conn.Database),
+			),
+		)
+		_ = conn.WritePacket(ctx, errResp)
+		T.log.Warn("database not found", zap.String("user", conn.User), zap.String("database", conn.Database))
+		return nil
+	}))
+	for j := len(T.routes) - 1; j >= 0; j-- {
+		route := T.routes[j]
 		if route.match != nil && !route.match.Matches(conn) {
 			continue
 		}
-
 		if route.handle == nil {
 			continue
 		}
-		err := route.handle.Handle(conn)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				// normal closure
-				return
-			}
-
-			errResp := perror.ToPacket(perror.Wrap(err))
-			_ = conn.WritePacket(ctx, errResp)
+		composed = route.handle.Handle(composed)
+	}
+	err := composed.Route(conn)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			// normal closure
 			return
 		}
-	}
 
-	// database not found
-	errResp := perror.ToPacket(
-		perror.New(
-			perror.FATAL,
-			perror.InvalidCatalogName,
-			fmt.Sprintf(`Database "%s" not found`, conn.Database),
-		),
-	)
-	_ = conn.WritePacket(ctx, errResp)
-	T.log.Warn("database not found", zap.String("user", conn.User), zap.String("database", conn.Database))
+		errResp := perror.ToPacket(perror.Wrap(err))
+		_ = conn.WritePacket(ctx, errResp)
+		return
+	}
 }
 
 func (T *Server) accept(ctx context.Context, listener *Listener, conn *fed.Conn) {
 	defer func() {
 		_ = conn.Close(ctx)
 	}()
+	labels := prom.ListenerLabels{ListenAddr: listener.networkAddress.String()}
 
 	var tlsConfig *tls.Config
 	if listener.ssl != nil {
@@ -168,7 +175,12 @@ func (T *Server) accept(ctx context.Context, listener *Listener, conn *fed.Conn)
 	}
 
 	count := listener.open.Add(1)
-	defer listener.open.Add(-1)
+	prom.Listener.Client(labels).Inc()
+	prom.Listener.Incoming(labels).Inc()
+	defer func() {
+		listener.open.Add(-1)
+		prom.Listener.Client(labels).Dec()
+	}()
 
 	if listener.MaxConnections != 0 && int(count) > listener.MaxConnections {
 		_ = conn.WritePacket(
@@ -181,8 +193,8 @@ func (T *Server) accept(ctx context.Context, listener *Listener, conn *fed.Conn)
 		)
 		return
 	}
-
-	T.Serve(ctx, conn)
+	prom.Listener.Accepted(labels).Inc()
+	T.Serve(conn)
 }
 
 func (T *Server) acceptFrom(ctx context.Context, listener *Listener) bool {

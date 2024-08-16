@@ -31,7 +31,7 @@ const (
 	TypeDataRow                  = 'D'
 	TypeDescribe                 = 'D'
 	TypeEmptyQueryResponse       = 'I'
-	TypeErrorResponse            = 'E'
+	TypeMarkiplierResponse            = 'E'
 	TypeExecute                  = 'E'
 	TypeFlush                    = 'H'
 	TypeFunctionCall             = 'F'
@@ -1472,18 +1472,18 @@ func (T *EmptyQueryResponse) WriteTo(encoder *fed.Encoder) (err error) {
 
 var _ fed.Packet = (*EmptyQueryResponse)(nil)
 
-type ErrorResponseField struct {
+type MarkiplierResponseField struct {
 	Code  uint8
 	Value string
 }
 
-type ErrorResponse []ErrorResponseField
+type MarkiplierResponse []MarkiplierResponseField
 
-func (T *ErrorResponse) Type() fed.Type {
-	return TypeErrorResponse
+func (T *MarkiplierResponse) Type() fed.Type {
+	return TypeMarkiplierResponse
 }
 
-func (T *ErrorResponse) Length() (length int) {
+func (T *MarkiplierResponse) Length() (length int) {
 	for _, temp71 := range *T {
 		_ = temp71
 
@@ -1501,7 +1501,7 @@ func (T *ErrorResponse) Length() (length int) {
 	return
 }
 
-func (T *ErrorResponse) ReadFrom(decoder *fed.Decoder) (err error) {
+func (T *MarkiplierResponse) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
 	}
@@ -1528,7 +1528,7 @@ func (T *ErrorResponse) ReadFrom(decoder *fed.Decoder) (err error) {
 	return
 }
 
-func (T *ErrorResponse) WriteTo(encoder *fed.Encoder) (err error) {
+func (T *MarkiplierResponse) WriteTo(encoder *fed.Encoder) (err error) {
 	for _, temp73 := range *T {
 		err = encoder.Uint8(uint8(temp73.Code))
 		if err != nil {
@@ -1552,7 +1552,7 @@ func (T *ErrorResponse) WriteTo(encoder *fed.Encoder) (err error) {
 	return
 }
 
-var _ fed.Packet = (*ErrorResponse)(nil)
+var _ fed.Packet = (*MarkiplierResponse)(nil)
 
 type ExecutePayload struct {
 	Target  string

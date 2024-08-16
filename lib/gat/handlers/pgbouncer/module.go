@@ -291,55 +291,56 @@ func (T *Module) lookup(ctx context.Context, user, database string) (poolAndCred
 	return T.tryCreate(ctx, user, database)
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	// check ssl
-	if T.Config.PgBouncer.ClientTLSSSLMode.IsRequired() {
-		if !conn.SSL {
+func (T *Module) Handle(next gat.Router) gat.Router {
+	return gat.RouterFunc(func(conn *fed.Conn) error {
+		ctx := context.Background()
+
+		// check ssl
+		if T.Config.PgBouncer.ClientTLSSSLMode.IsRequired() {
+			if !conn.SSL {
+				return perror.New(
+					perror.FATAL,
+					perror.InvalidPassword,
+					"SSL is required",
+				)
+			}
+		}
+		// check startup parameters
+		for key := range conn.InitialParameters {
+			if slices.Contains([]strutil.CIString{
+				strutil.MakeCIString("client_encoding"),
+				strutil.MakeCIString("datestyle"),
+				strutil.MakeCIString("timezone"),
+				strutil.MakeCIString("standard_conforming_strings"),
+				strutil.MakeCIString("application_name"),
+			}, key) {
+				continue
+			}
+			if slices.Contains(T.Config.PgBouncer.TrackExtraParameters, key) {
+				continue
+			}
+			if slices.Contains(T.Config.PgBouncer.IgnoreStartupParameters, key) {
+				continue
+			}
+
 			return perror.New(
 				perror.FATAL,
-				perror.InvalidPassword,
-				"SSL is required",
+				perror.FeatureNotSupported,
+				fmt.Sprintf(`Startup parameter "%s" is not supported`, key.String()),
 			)
 		}
-	}
 
-	// check startup parameters
-	for key := range conn.InitialParameters {
-		if slices.Contains([]strutil.CIString{
-			strutil.MakeCIString("client_encoding"),
-			strutil.MakeCIString("datestyle"),
-			strutil.MakeCIString("timezone"),
-			strutil.MakeCIString("standard_conforming_strings"),
-			strutil.MakeCIString("application_name"),
-		}, key) {
-			continue
-		}
-		if slices.Contains(T.Config.PgBouncer.TrackExtraParameters, key) {
-			continue
-		}
-		if slices.Contains(T.Config.PgBouncer.IgnoreStartupParameters, key) {
-			continue
+		p, ok := T.lookup(ctx, conn.User, conn.Database)
+		if !ok {
+			return next.Route(conn)
 		}
 
-		return perror.New(
-			perror.FATAL,
-			perror.FeatureNotSupported,
-			fmt.Sprintf(`Startup parameter "%s" is not supported`, key.String()),
-		)
-	}
+		if err := frontends.Authenticate(ctx, conn, p.creds); err != nil {
+			return err
+		}
 
-	ctx := context.Background()
-
-	p, ok := T.lookup(ctx, conn.User, conn.Database)
-	if !ok {
-		return nil
-	}
-
-	if err := frontends.Authenticate(ctx, conn, p.creds); err != nil {
-		return err
-	}
-
-	return p.pool.Serve(ctx, conn)
+		return p.pool.Serve(ctx, conn)
+	})
 }
 
 func (T *Module) ReadMetrics(metrics *metrics.Handler) {

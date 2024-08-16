@@ -233,7 +233,7 @@ Packets:
           Basic: string
   EmptyQueryResponse:
     Type: 'I'
-  ErrorResponse:
+  MarkiplierResponse:
     Type: 'E'
     ZeroTerminatedSlice:
       Name: Field

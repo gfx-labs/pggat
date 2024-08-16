@@ -478,7 +478,7 @@ func (T *Module) discoverLoop(ctx context.Context) {
 	for {
 		select {
 		case cluster := <-T.discoverer.Added():
-			T.added(ctx,cluster)
+			T.added(ctx, cluster)
 		case id := <-T.discoverer.Removed():
 			T.removed(ctx, id)
 		case <-reconcile:
@@ -569,17 +569,19 @@ func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 	})
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	p, ok := T.getPool(conn.User, conn.Database)
-	if !ok {
-		return nil
-	}
+func (T *Module) Handle(next gat.Router) gat.Router {
+	return gat.RouterFunc(func(conn *fed.Conn) error {
+		ctx := context.Background()
 
-	if err := frontends.Authenticate(context.Background(), conn, p.creds); err != nil {
-		return err
-	}
-
-	return p.pool.Serve(context.Background(), conn)
+		p, ok := T.getPool(conn.User, conn.Database)
+		if !ok {
+			return next.Route(conn)
+		}
+		if err := frontends.Authenticate(ctx, conn, p.creds); err != nil {
+			return err
+		}
+		return p.pool.Serve(ctx, conn)
+	})
 }
 
 func (T *Module) Cancel(ctx context.Context, key fed.BackendKey) {

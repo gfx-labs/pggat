@@ -1,3 +1,13 @@
 :5432 {
-	error "server is not configured"
+    ssl self_signed
+
+    pool /base {
+        pool basic session
+
+        address localhost:5434
+
+        username postgres
+        password postgres
+        database base
+    }
 }

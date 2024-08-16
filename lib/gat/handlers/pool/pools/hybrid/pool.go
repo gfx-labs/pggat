@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -16,6 +17,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/instrumentation/prom"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -113,7 +115,7 @@ func (T *Pool) removeClient(client *Client) {
 	delete(T.clients, client.Conn.BackendKey)
 }
 
-func (T *Pool) serveRW(ctx context.Context, conn *fed.Conn) error {
+func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.Conn) error {
 	m := NewMiddleware()
 
 	eqpa := eqp.NewClient()
@@ -223,18 +225,26 @@ func (T *Pool) serveRW(ctx context.Context, conn *fed.Conn) error {
 
 		// try replica first (if it isn't empty)
 		if !T.replica.Empty() {
+			start := time.Now()
 			replica = T.replica.Acquire(client.ID)
 			if replica == nil {
 				return pool.ErrFailedToAcquirePeer
 			}
 
 			err, serverErr = T.Pair(ctx, client, replica)
+			dur := time.Since(start)
 
 			psi.Set(ctx, psa)
 			eqpi.Set(ctx, eqpa)
 
 			if err == nil && serverErr == nil {
+				prom.OperationHybrid.Acquire(l.ToOperation("replica")).Observe(float64(dur) / float64(time.Millisecond))
+				start := time.Now()
 				err, serverErr = bouncers.Bounce(ctx, conn, replica.Conn, packet)
+				if serverErr == nil {
+					dur := time.Since(start)
+					prom.OperationHybrid.Execution(l.ToOperation("replica")).Observe(float64(dur) / float64(time.Millisecond))
+				}
 			}
 			if serverErr != nil {
 				return fmt.Errorf("server error: %w", serverErr)
@@ -257,21 +267,29 @@ func (T *Pool) serveRW(ctx context.Context, conn *fed.Conn) error {
 				client.SetState(metrics.ConnStateAwaitingServer, nil, false)
 
 				// acquire primary
+				start := time.Now()
 				primary = T.primary.Acquire(client.ID)
 				if primary == nil {
 					return pool.ErrFailedToAcquirePeer
 				}
 
 				serverErr = T.PairPrimary(ctx, client, psi, eqpi, primary)
+				dur := time.Since(start)
 
 				if serverErr == nil {
+					prom.OperationHybrid.Acquire(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
+					start := time.Now()
 					err, serverErr = bouncers.Bounce(ctx, conn, primary.Conn, packet)
+					dur := time.Since(start)
+					prom.OperationHybrid.Execution(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
 				}
 				if serverErr != nil {
 					return fmt.Errorf("server error: %w", serverErr)
 				} else {
 					primary.TransactionComplete()
 				}
+			} else {
+				prom.OperationHybrid.Hit(l.ToOperation("replica")).Inc()
 			}
 		} else {
 			// straight to primary
@@ -284,6 +302,7 @@ func (T *Pool) serveRW(ctx context.Context, conn *fed.Conn) error {
 
 			client.SetState(metrics.ConnStateAwaitingServer, nil, false)
 
+			start := time.Now()
 			// acquire primary
 			primary = T.primary.Acquire(client.ID)
 			if primary == nil {
@@ -292,8 +311,16 @@ func (T *Pool) serveRW(ctx context.Context, conn *fed.Conn) error {
 
 			err, serverErr = T.Pair(ctx, client, primary)
 
+			dur := time.Since(start)
+
 			if err == nil && serverErr == nil {
+				prom.OperationHybrid.Acquire(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
+				start := time.Now()
 				err, serverErr = bouncers.Bounce(ctx, conn, primary.Conn, packet)
+				if serverErr == nil {
+					dur := time.Since(start)
+					prom.OperationHybrid.Execution(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
+				}
 			}
 			if serverErr != nil {
 				return fmt.Errorf("server error: %w", serverErr)
@@ -310,7 +337,7 @@ func (T *Pool) serveRW(ctx context.Context, conn *fed.Conn) error {
 	}
 }
 
-func (T *Pool) serveOnly(ctx context.Context, conn *fed.Conn, write bool) error {
+func (T *Pool) serveOnly(ctx context.Context, l prom.PoolHybridLabels, conn *fed.Conn, write bool) error {
 	var sp *spool.Pool
 	if write {
 		sp = &T.primary
@@ -371,6 +398,13 @@ func (T *Pool) serveOnly(ctx context.Context, conn *fed.Conn, write bool) error 
 		conn.Ready = true
 	}
 
+	var opL prom.OperationHybridLabels
+	if write {
+		opL = l.ToOperation("primary")
+	} else {
+		opL = l.ToOperation("replica")
+	}
+
 	for {
 		if server != nil {
 			sp.Release(ctx, server)
@@ -386,15 +420,21 @@ func (T *Pool) serveOnly(ctx context.Context, conn *fed.Conn, write bool) error 
 
 		client.SetState(metrics.ConnStateAwaitingServer, nil, true)
 
+		start := time.Now()
 		server = sp.Acquire(client.ID)
 		if server == nil {
 			return pool.ErrFailedToAcquirePeer
 		}
-
 		err, serverErr = T.Pair(ctx, client, server)
-
+		dur := time.Since(start)
 		if err == nil && serverErr == nil {
+			prom.OperationHybrid.Acquire(opL).Observe(float64(dur) / float64(time.Millisecond))
+			start := time.Now()
 			err, serverErr = bouncers.Bounce(ctx, conn, server.Conn, packet)
+			if serverErr == nil {
+				dur := time.Since(start)
+				prom.OperationHybrid.Execution(opL).Observe(float64(dur) / float64(time.Millisecond))
+			}
 		}
 		if serverErr != nil {
 			return fmt.Errorf("server error: %w", serverErr)
@@ -410,13 +450,30 @@ func (T *Pool) serveOnly(ctx context.Context, conn *fed.Conn, write bool) error 
 }
 
 func (T *Pool) Serve(ctx context.Context, conn *fed.Conn) error {
+	labels := prom.PoolHybridLabels{
+		Database: conn.Database,
+		User:     conn.User,
+	}
 	switch conn.InitialParameters[strutil.MakeCIString("hybrid.mode")] {
 	case "ro":
-		return T.serveOnly(ctx, conn, false)
+		labels.Mode = "ro"
 	case "wo":
-		return T.serveOnly(ctx, conn, true)
+		labels.Mode = "wo"
 	default:
-		return T.serveRW(ctx, conn)
+		labels.Mode = "rw"
+	}
+	prom.PoolHybrid.Accepted(labels).Inc()
+	prom.PoolHybrid.Current(labels).Inc()
+	defer prom.PoolHybrid.Current(labels).Dec()
+	switch labels.Mode {
+	case "ro":
+		return T.serveOnly(ctx, labels, conn, false)
+	case "wo":
+		return T.serveOnly(ctx, labels, conn, true)
+	case "rw":
+		return T.serveRW(ctx, labels, conn)
+	default:
+		panic("impossible")
 	}
 }
 

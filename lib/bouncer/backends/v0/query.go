@@ -47,7 +47,7 @@ func copyOut(ctx context.Context, binding *serverToPeerBinding) error {
 			packets.TypeParameterStatus,
 			packets.TypeNotificationResponse:
 			binding.PeerWrite(ctx)
-		case packets.TypeCopyDone, packets.TypeErrorResponse:
+		case packets.TypeCopyDone, packets.TypeMarkiplierResponse:
 			binding.PeerWrite(ctx)
 			return nil
 		default:
@@ -72,7 +72,7 @@ func query(ctx context.Context, binding *serverToPeerBinding) error {
 			packets.TypeRowDescription,
 			packets.TypeDataRow,
 			packets.TypeEmptyQueryResponse,
-			packets.TypeErrorResponse,
+			packets.TypeMarkiplierResponse,
 			packets.TypeNoticeResponse,
 			packets.TypeParameterStatus,
 			packets.TypeNotificationResponse:
@@ -148,7 +148,7 @@ func functionCall(ctx context.Context, binding *serverToPeerBinding) error {
 		}
 
 		switch binding.Packet.Type() {
-		case packets.TypeErrorResponse,
+		case packets.TypeMarkiplierResponse,
 			packets.TypeFunctionCallResponse,
 			packets.TypeNoticeResponse,
 			packets.TypeParameterStatus,
@@ -185,7 +185,7 @@ func sync(ctx context.Context, binding *serverToPeerBinding) (bool, error) {
 		case packets.TypeParseComplete,
 			packets.TypeBindComplete,
 			packets.TypeCloseComplete,
-			packets.TypeErrorResponse,
+			packets.TypeMarkiplierResponse,
 			packets.TypeRowDescription,
 			packets.TypeNoData,
 			packets.TypeParameterDescription,

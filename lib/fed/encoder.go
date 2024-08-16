@@ -59,6 +59,9 @@ func (T *Encoder) ReadFrom(r *Decoder) (int, error) {
 		}
 	}
 	T.packetPos += n
+	if n == 0 {
+		return n, io.ErrUnexpectedEOF
+	}
 	return n, nil
 }
 
