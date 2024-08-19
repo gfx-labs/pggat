@@ -59,7 +59,7 @@ func TestQuery(t *testing.T) {
 
 	var b flip.Bank
 	b.Queue(func() error {
-		if err := gsql.ExtendedQuery(inward, &res, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", "postgres"); err != nil {
+		if err := gsql.ExtendedQuery(context.Background(), inward, &res, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", "postgres"); err != nil {
 			return err
 		}
 		return nil
