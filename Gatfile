@@ -1,13 +1,23 @@
-:5432 {
+:5433 {
     ssl self_signed
 
     pool /base {
         pool basic session
 
-        address localhost:5434
+        address localhost:5432
 
         username postgres
         password postgres
         database base
+    }
+
+    pool /pgbench {
+        pool basic session
+
+        address localhost:5432
+
+        username postgres
+        password postgres
+        database test
     }
 }
