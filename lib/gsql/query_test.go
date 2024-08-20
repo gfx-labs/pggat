@@ -1,6 +1,7 @@
 package gsql_test
 
 import (
+	"context"
 	"crypto/tls"
 	"log"
 	"net"
@@ -32,8 +33,10 @@ func TestQuery(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	ctx := context.Background()
 	server := fed.NewConn(netconncodec.NewCodec(s))
 	err = backends.Accept(
+		ctx,
 		server,
 		"disable",
 		&tls.Config{},
@@ -56,25 +59,25 @@ func TestQuery(t *testing.T) {
 
 	var b flip.Bank
 	b.Queue(func() error {
-		if err := gsql.ExtendedQuery(inward, &res, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", "postgres"); err != nil {
+		if err := gsql.ExtendedQuery(context.Background(), inward, &res, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", "postgres"); err != nil {
 			return err
 		}
 		return nil
 	})
 
 	b.Queue(func() error {
-		initial, err := outward.ReadPacket(true)
+		initial, err := outward.ReadPacket(ctx, true)
 		if err != nil {
 			return err
 		}
-		clientErr, serverErr := bouncers.Bounce(outward, server, initial)
+		clientErr, serverErr := bouncers.Bounce(ctx, outward, server, initial)
 		if clientErr != nil {
 			return clientErr
 		}
 		if serverErr != nil {
 			return serverErr
 		}
-		if err := outward.Close(); err != nil {
+		if err := outward.Close(ctx); err != nil {
 			return err
 		}
 		return nil

@@ -1,6 +1,7 @@
 package backends
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"io"
@@ -13,9 +14,14 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-func authenticationSASLChallenge(ctx *acceptContext, encoder auth.SASLEncoder) (done bool, err error) {
+type acceptParams struct {
+	Conn    *fed.Conn
+	Options acceptOptions
+}
+
+func authenticationSASLChallenge(ctx context.Context, params *acceptParams, encoder auth.SASLEncoder) (done bool, err error) {
 	var packet fed.Packet
-	packet, err = ctx.Conn.ReadPacket(true)
+	packet, err = params.Conn.ReadPacket(ctx, true)
 	if err != nil {
 		return
 	}
@@ -41,7 +47,7 @@ func authenticationSASLChallenge(ctx *acceptContext, encoder auth.SASLEncoder) (
 		}
 
 		resp := packets.SASLResponse(response)
-		err = ctx.Conn.WritePacket(&resp)
+		err = params.Conn.WritePacket(ctx, &resp)
 		return
 	case *packets.AuthenticationPayloadSASLFinal:
 		// finish
@@ -60,7 +66,7 @@ func authenticationSASLChallenge(ctx *acceptContext, encoder auth.SASLEncoder) (
 	}
 }
 
-func authenticationSASL(ctx *acceptContext, mechanisms []string, creds auth.SASLClient) error {
+func authenticationSASL(ctx context.Context, params *acceptParams, mechanisms []string, creds auth.SASLClient) error {
 	mechanism, encoder, err := creds.EncodeSASL(mechanisms)
 	if err != nil {
 		return err
@@ -74,7 +80,7 @@ func authenticationSASL(ctx *acceptContext, mechanisms []string, creds auth.SASL
 		Mechanism:             mechanism,
 		InitialClientResponse: initialResponse,
 	}
-	err = ctx.Conn.WritePacket(&saslInitialResponse)
+	err = params.Conn.WritePacket(ctx, &saslInitialResponse)
 	if err != nil {
 		return err
 	}
@@ -82,7 +88,7 @@ func authenticationSASL(ctx *acceptContext, mechanisms []string, creds auth.SASL
 	// challenge loop
 	for {
 		var done bool
-		done, err = authenticationSASLChallenge(ctx, encoder)
+		done, err = authenticationSASLChallenge(ctx, params, encoder)
 		if err != nil {
 			return err
 		}
@@ -94,46 +100,46 @@ func authenticationSASL(ctx *acceptContext, mechanisms []string, creds auth.SASL
 	return nil
 }
 
-func authenticationMD5(ctx *acceptContext, salt [4]byte, creds auth.MD5Client) error {
+func authenticationMD5(ctx context.Context, params *acceptParams, salt [4]byte, creds auth.MD5Client) error {
 	pw := packets.PasswordMessage(creds.EncodeMD5(salt))
-	err := ctx.Conn.WritePacket(&pw)
+	err := params.Conn.WritePacket(ctx, &pw)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func authenticationCleartext(ctx *acceptContext, creds auth.CleartextClient) error {
+func authenticationCleartext(ctx context.Context, params *acceptParams, creds auth.CleartextClient) error {
 	pw := packets.PasswordMessage(creds.EncodeCleartext())
-	err := ctx.Conn.WritePacket(&pw)
+	err := params.Conn.WritePacket(ctx, &pw)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func authentication(ctx *acceptContext, p *packets.Authentication) (done bool, err error) {
+func authentication(ctx context.Context, params *acceptParams, p *packets.Authentication) (done bool, err error) {
 	// they have more authentication methods than there are pokemon
 	switch mode := p.Mode.(type) {
 	case *packets.AuthenticationPayloadOk:
 		// we're good to go, that was easy
-		ctx.Conn.Authenticated = true
+		params.Conn.Authenticated = true
 		return true, nil
 	case *packets.AuthenticationPayloadKerberosV5:
 		err = errors.New("kerberos v5 is not supported")
 		return
 	case *packets.AuthenticationPayloadCleartextPassword:
-		c, ok := ctx.Options.Credentials.(auth.CleartextClient)
+		c, ok := params.Options.Credentials.(auth.CleartextClient)
 		if !ok {
 			return false, auth.ErrMethodNotSupported
 		}
-		return false, authenticationCleartext(ctx, c)
+		return false, authenticationCleartext(ctx, params, c)
 	case *packets.AuthenticationPayloadMD5Password:
-		c, ok := ctx.Options.Credentials.(auth.MD5Client)
+		c, ok := params.Options.Credentials.(auth.MD5Client)
 		if !ok {
 			return false, auth.ErrMethodNotSupported
 		}
-		return false, authenticationMD5(ctx, *mode, c)
+		return false, authenticationMD5(ctx, params, *mode, c)
 	case *packets.AuthenticationPayloadGSS:
 		err = errors.New("gss is not supported")
 		return
@@ -141,7 +147,7 @@ func authentication(ctx *acceptContext, p *packets.Authentication) (done bool, e
 		err = errors.New("sspi is not supported")
 		return
 	case *packets.AuthenticationPayloadSASL:
-		c, ok := ctx.Options.Credentials.(auth.SASLClient)
+		c, ok := params.Options.Credentials.(auth.SASLClient)
 		if !ok {
 			return false, auth.ErrMethodNotSupported
 		}
@@ -151,16 +157,16 @@ func authentication(ctx *acceptContext, p *packets.Authentication) (done bool, e
 			mechanisms = append(mechanisms, m.Method)
 		}
 
-		return false, authenticationSASL(ctx, mechanisms, c)
+		return false, authenticationSASL(ctx, params, mechanisms, c)
 	default:
 		err = errors.New("unknown authentication method")
 		return
 	}
 }
 
-func startup0(ctx *acceptContext) (done bool, err error) {
+func startup0(ctx context.Context, params *acceptParams) (done bool, err error) {
 	var packet fed.Packet
-	packet, err = ctx.Conn.ReadPacket(true)
+	packet, err = params.Conn.ReadPacket(ctx, true)
 	if err != nil {
 		return
 	}
@@ -180,7 +186,7 @@ func startup0(ctx *acceptContext) (done bool, err error) {
 		if err != nil {
 			return
 		}
-		return authentication(ctx, &p)
+		return authentication(ctx, params, &p)
 	case packets.TypeNegotiateProtocolVersion:
 		// we only support protocol 3.0 for now
 		err = errors.New("server wanted to negotiate protocol version")
@@ -191,9 +197,9 @@ func startup0(ctx *acceptContext) (done bool, err error) {
 	}
 }
 
-func startup1(ctx *acceptContext) (done bool, err error) {
+func startup1(ctx context.Context, params *acceptParams) (done bool, err error) {
 	var packet fed.Packet
-	packet, err = ctx.Conn.ReadPacket(true)
+	packet, err = params.Conn.ReadPacket(ctx, true)
 	if err != nil {
 		return
 	}
@@ -205,8 +211,8 @@ func startup1(ctx *acceptContext) (done bool, err error) {
 		if err != nil {
 			return
 		}
-		ctx.Conn.BackendKey.SecretKey = p.SecretKey
-		ctx.Conn.BackendKey.ProcessID = p.ProcessID
+		params.Conn.BackendKey.SecretKey = p.SecretKey
+		params.Conn.BackendKey.ProcessID = p.ProcessID
 
 		return false, nil
 	case packets.TypeParameterStatus:
@@ -216,10 +222,10 @@ func startup1(ctx *acceptContext) (done bool, err error) {
 			return
 		}
 		ikey := strutil.MakeCIString(p.Key)
-		if ctx.Conn.InitialParameters == nil {
-			ctx.Conn.InitialParameters = make(map[strutil.CIString]string)
+		if params.Conn.InitialParameters == nil {
+			params.Conn.InitialParameters = make(map[strutil.CIString]string)
 		}
-		ctx.Conn.InitialParameters[ikey] = p.Value
+		params.Conn.InitialParameters[ikey] = p.Value
 		return false, nil
 	case packets.TypeReadyForQuery:
 		return true, nil
@@ -240,19 +246,19 @@ func startup1(ctx *acceptContext) (done bool, err error) {
 	}
 }
 
-func enableSSL(ctx *acceptContext) (bool, error) {
+func enableSSL(ctx context.Context, params *acceptParams) (bool, error) {
 	p := packets.Startup{
 		Mode: &packets.StartupPayloadControl{
 			Mode: &packets.StartupPayloadControlPayloadSSL{},
 		},
 	}
 
-	if err := ctx.Conn.WritePacket(&p); err != nil {
+	if err := params.Conn.WritePacket(ctx, &p); err != nil {
 		return false, err
 	}
 
 	// read byte to see if ssl is allowed
-	yn, err := ctx.Conn.ReadByte()
+	yn, err := params.Conn.ReadByte(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -262,26 +268,26 @@ func enableSSL(ctx *acceptContext) (bool, error) {
 		return false, nil
 	}
 
-	if err = ctx.Conn.EnableSSL(ctx.Options.SSLConfig, true); err != nil {
+	if err = params.Conn.EnableSSL(ctx, params.Options.SSLConfig, true); err != nil {
 		return false, err
 	}
 
 	return true, nil
 }
 
-func accept(ctx *acceptContext) error {
-	username := ctx.Options.Username
+func accept(ctx context.Context, params *acceptParams) error {
+	username := params.Options.Username
 
-	if ctx.Options.Database == "" {
-		ctx.Options.Database = username
+	if params.Options.Database == "" {
+		params.Options.Database = username
 	}
 
-	if ctx.Options.SSLMode.ShouldAttempt() {
-		sslEnabled, err := enableSSL(ctx)
+	if params.Options.SSLMode.ShouldAttempt() {
+		sslEnabled, err := enableSSL(ctx, params)
 		if err != nil {
 			return err
 		}
-		if !sslEnabled && ctx.Options.SSLMode.IsRequired() {
+		if !sslEnabled && params.Options.SSLMode.IsRequired() {
 			return errors.New("server rejected SSL encryption")
 		}
 	}
@@ -295,12 +301,12 @@ func accept(ctx *acceptContext) error {
 			},
 			{
 				Key:   "database",
-				Value: ctx.Options.Database,
+				Value: params.Options.Database,
 			},
 		},
 	}
 
-	for key, value := range ctx.Options.StartupParameters {
+	for key, value := range params.Options.StartupParameters {
 		m.Parameters = append(m.Parameters, packets.StartupPayloadVersion3PayloadParameter{
 			Key:   key.String(),
 			Value: value,
@@ -311,14 +317,14 @@ func accept(ctx *acceptContext) error {
 		Mode: &m,
 	}
 
-	err := ctx.Conn.WritePacket(&p)
+	err := params.Conn.WritePacket(ctx, &p)
 	if err != nil {
 		return err
 	}
 
 	for {
 		var done bool
-		done, err = startup0(ctx)
+		done, err = startup0(ctx, params)
 		if err != nil {
 			return err
 		}
@@ -329,7 +335,7 @@ func accept(ctx *acceptContext) error {
 
 	for {
 		var done bool
-		done, err = startup1(ctx)
+		done, err = startup1(ctx, params)
 		if err != nil {
 			return err
 		}
@@ -343,6 +349,7 @@ func accept(ctx *acceptContext) error {
 }
 
 func Accept(
+	ctx context.Context,
 	conn *fed.Conn,
 	sslMode bouncer.SSLMode,
 	sslConfig *tls.Config,
@@ -351,7 +358,7 @@ func Accept(
 	database string,
 	startupParameters map[strutil.CIString]string,
 ) error {
-	ctx := acceptContext{
+	params := acceptParams{
 		Conn: conn,
 		Options: acceptOptions{
 			SSLMode:           sslMode,
@@ -362,5 +369,5 @@ func Accept(
 			StartupParameters: startupParameters,
 		},
 	}
-	return accept(&ctx)
+	return accept(ctx, &params)
 }

@@ -1,6 +1,7 @@
 package pgbouncer
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -80,7 +81,7 @@ func (T *Module) Cleanup() error {
 	defer T.mu.Unlock()
 
 	T.pools.Range(func(user string, database string, p poolAndCredentials) bool {
-		p.pool.Close()
+		p.pool.Close(context.Background())
 		T.pools.Delete(user, database)
 		return true
 	})
@@ -88,7 +89,7 @@ func (T *Module) Cleanup() error {
 	return nil
 }
 
-func (T *Module) getPassword(user, database string) (string, bool) {
+func (T *Module) getPassword(ctx context.Context, user, database string) (string, bool) {
 	// try to get password
 	password, ok := T.Config.PgBouncer.AuthFile[user]
 	if !ok {
@@ -105,7 +106,7 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 			}
 		}
 
-		authPool, ok := T.lookup(authUser, database)
+		authPool, ok := T.lookup(ctx, authUser, database)
 		if !ok {
 			return "", false
 		}
@@ -116,14 +117,14 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 
 		inward, outward, _, _ := gsql.NewPair()
 		b.Queue(func() error {
-			if err := gsql.ExtendedQuery(inward, &result, T.Config.PgBouncer.AuthQuery, user); err != nil {
+			if err := gsql.ExtendedQuery(ctx, inward, &result, T.Config.PgBouncer.AuthQuery, user); err != nil {
 				return err
 			}
-			return inward.Close()
+			return inward.Close(ctx)
 		})
 
 		b.Queue(func() error {
-			err := authPool.pool.Serve(outward)
+			err := authPool.pool.Serve(ctx, outward)
 			if err != nil && !errors.Is(err, io.EOF) {
 				return err
 			}
@@ -148,7 +149,7 @@ func (T *Module) getPassword(user, database string) (string, bool) {
 	return password, true
 }
 
-func (T *Module) tryCreate(user, database string) (poolAndCredentials, bool) {
+func (T *Module) tryCreate(ctx context.Context, user, database string) (poolAndCredentials, bool) {
 	db, ok := T.Config.Databases[database]
 	if !ok {
 		// try wildcard
@@ -159,7 +160,7 @@ func (T *Module) tryCreate(user, database string) (poolAndCredentials, bool) {
 	}
 
 	// try to get password
-	password, ok := T.getPassword(user, database)
+	password, ok := T.getPassword(ctx, user, database)
 	if !ok {
 		return poolAndCredentials{}, false
 	}
@@ -275,23 +276,25 @@ func (T *Module) tryCreate(user, database string) (poolAndCredentials, bool) {
 		r.MaxConnections = T.Config.PgBouncer.MaxDBConnections
 	}
 
-	p.pool.AddRecipe("pgbouncer", &r)
+	p.pool.AddRecipe(ctx, "pgbouncer", &r)
 
 	return p, true
 }
 
-func (T *Module) lookup(user, database string) (poolAndCredentials, bool) {
+func (T *Module) lookup(ctx context.Context, user, database string) (poolAndCredentials, bool) {
 	p, ok := T.pools.Load(user, database)
 	if ok {
 		return p, true
 	}
 
 	// try to create pool
-	return T.tryCreate(user, database)
+	return T.tryCreate(ctx, user, database)
 }
 
 func (T *Module) Handle(next gat.Router) gat.Router {
 	return gat.RouterFunc(func(conn *fed.Conn) error {
+		ctx := context.Background()
+
 		// check ssl
 		if T.Config.PgBouncer.ClientTLSSSLMode.IsRequired() {
 			if !conn.SSL {
@@ -327,16 +330,16 @@ func (T *Module) Handle(next gat.Router) gat.Router {
 			)
 		}
 
-		p, ok := T.lookup(conn.User, conn.Database)
+		p, ok := T.lookup(ctx, conn.User, conn.Database)
 		if !ok {
 			return next.Route(conn)
 		}
 
-		if err := frontends.Authenticate(conn, p.creds); err != nil {
+		if err := frontends.Authenticate(ctx, conn, p.creds); err != nil {
 			return err
 		}
 
-		return p.pool.Serve(conn)
+		return p.pool.Serve(ctx, conn)
 	})
 }
 
@@ -349,11 +352,11 @@ func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 	})
 }
 
-func (T *Module) Cancel(key fed.BackendKey) {
+func (T *Module) Cancel(ctx context.Context, key fed.BackendKey) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 	T.pools.Range(func(_ string, _ string, p poolAndCredentials) bool {
-		p.pool.Cancel(key)
+		p.pool.Cancel(ctx, key)
 		return true
 	})
 }

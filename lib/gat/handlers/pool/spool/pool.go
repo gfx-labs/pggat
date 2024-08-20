@@ -1,6 +1,7 @@
 package spool
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -46,9 +47,9 @@ func MakePool(config Config) Pool {
 	}
 }
 
-func NewPool(config Config) *Pool {
+func NewPool(ctx context.Context, config Config) *Pool {
 	p := MakePool(config)
-	go p.ScaleLoop()
+	go p.ScaleLoop(ctx)
 	return &p
 }
 
@@ -92,8 +93,8 @@ func (T *Pool) removeServer(conn *fed.Conn) {
 	T.pooler.DeleteServer(server.ID)
 }
 
-func (T *Pool) AddRecipe(name string, recipe *pool.Recipe) {
-	removed, added := T.chef.Learn(name, recipe)
+func (T *Pool) AddRecipe(ctx context.Context, name string, recipe *pool.Recipe) {
+	removed, added := T.chef.Learn(ctx, name, recipe)
 	if len(removed) == 0 && len(added) == 0 {
 		return
 	}
@@ -110,8 +111,8 @@ func (T *Pool) AddRecipe(name string, recipe *pool.Recipe) {
 	}
 }
 
-func (T *Pool) RemoveRecipe(name string) {
-	servers := T.chef.Forget(name)
+func (T *Pool) RemoveRecipe(ctx context.Context, name string) {
+	servers := T.chef.Forget(ctx, name)
 	if len(servers) == 0 {
 		return
 	}
@@ -128,8 +129,8 @@ func (T *Pool) Empty() bool {
 	return T.chef.Empty()
 }
 
-func (T *Pool) ScaleUp() error {
-	server, err := T.chef.Cook()
+func (T *Pool) ScaleUp(ctx context.Context) error {
+	server, err := T.chef.Cook(ctx)
 	if err != nil {
 		return err
 	}
@@ -142,7 +143,7 @@ func (T *Pool) ScaleUp() error {
 	return nil
 }
 
-func (T *Pool) ScaleDown(now time.Time) time.Duration {
+func (T *Pool) ScaleDown(ctx context.Context, now time.Time) time.Duration {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -158,7 +159,7 @@ func (T *Pool) ScaleDown(now time.Time) time.Duration {
 		idle := now.Sub(since)
 		if idle > T.config.IdleTimeout {
 			// try to free
-			if T.chef.Ignite(s.Conn) {
+			if T.chef.Ignite(ctx, s.Conn) {
 				delete(T.serversByID, s.ID)
 				delete(T.serversByConn, s.Conn)
 				T.pooler.DeleteServer(s.ID)
@@ -174,7 +175,7 @@ func (T *Pool) ScaleDown(now time.Time) time.Duration {
 	return m
 }
 
-func (T *Pool) ScaleLoop() {
+func (T *Pool) ScaleLoop(ctx context.Context) {
 	idle := new(time.Timer)
 	if T.config.IdleTimeout != 0 {
 		idle = time.NewTimer(T.config.IdleTimeout)
@@ -198,7 +199,7 @@ func (T *Pool) ScaleLoop() {
 
 			ok := true
 			for T.pooler.Waiters() > 0 {
-				if err := T.ScaleUp(); err != nil {
+				if err := T.ScaleUp(ctx); err != nil {
 					ok = false
 					break
 				}
@@ -222,7 +223,7 @@ func (T *Pool) ScaleLoop() {
 
 			ok := true
 			for T.pooler.Waiters() > 0 {
-				if err := T.ScaleUp(); err != nil {
+				if err := T.ScaleUp(ctx); err != nil {
 					ok = false
 					break
 				}
@@ -239,7 +240,7 @@ func (T *Pool) ScaleLoop() {
 			}
 		case now := <-idle.C:
 			// scale down
-			idle.Reset(T.ScaleDown(now))
+			idle.Reset(T.ScaleDown(ctx, now))
 		}
 	}
 }
@@ -275,13 +276,13 @@ func (T *Pool) Acquire(client uuid.UUID) *Server {
 	}
 }
 
-func (T *Pool) Release(server *Server) {
+func (T *Pool) Release(ctx context.Context, server *Server) {
 	if T.config.ResetQuery != "" {
 		server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
 
-		if err, _ := backends.QueryString(server.Conn, nil, T.config.ResetQuery); err != nil {
+		if err, _ := backends.QueryString(ctx, server.Conn, nil, T.config.ResetQuery); err != nil {
 			T.config.Logger.Error("failed to run reset query", zap.Error(err))
-			T.RemoveServer(server)
+			T.RemoveServer(ctx,server)
 			return
 		}
 	}
@@ -291,8 +292,8 @@ func (T *Pool) Release(server *Server) {
 	server.SetState(metrics.ConnStateIdle, uuid.Nil)
 }
 
-func (T *Pool) RemoveServer(server *Server) {
-	T.chef.Burn(server.Conn)
+func (T *Pool) RemoveServer(ctx context.Context, server *Server) {
+	T.chef.Burn(ctx, server.Conn)
 	T.pooler.DeleteServer(server.ID)
 
 	T.mu.Lock()
@@ -303,8 +304,8 @@ func (T *Pool) RemoveServer(server *Server) {
 	T.pooler.DeleteServer(server.ID)
 }
 
-func (T *Pool) Cancel(server *Server) {
-	T.chef.Cancel(server.Conn)
+func (T *Pool) Cancel(ctx context.Context, server *Server) {
+	T.chef.Cancel(ctx, server.Conn)
 }
 
 func (T *Pool) ReadMetrics(m *metrics.Pool) {
@@ -321,10 +322,10 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 	}
 }
 
-func (T *Pool) Close() {
+func (T *Pool) Close(ctx context.Context) {
 	close(T.closed)
 
-	T.chef.Close()
+	T.chef.Close(ctx)
 	T.pooler.Close()
 
 	T.mu.Lock()

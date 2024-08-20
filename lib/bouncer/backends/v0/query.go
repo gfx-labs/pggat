@@ -1,6 +1,7 @@
 package backends
 
 import (
+	"context"
 	"strings"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
@@ -8,65 +9,65 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
-func copyIn(ctx *context) error {
-	ctx.PeerWrite()
+func copyIn(ctx context.Context, binding *serverToPeerBinding) error {
+	binding.PeerWrite(ctx)
 
 	for {
-		if !ctx.PeerRead() {
+		if !binding.PeerRead(ctx) {
 			copyFail := packets.CopyFail("peer failed")
-			ctx.Packet = &copyFail
-			return ctx.ServerWrite()
+			binding.Packet = &copyFail
+			return binding.ServerWrite(ctx)
 		}
 
-		switch ctx.Packet.Type() {
+		switch binding.Packet.Type() {
 		case packets.TypeCopyData:
-			if err := ctx.ServerWrite(); err != nil {
+			if err := binding.ServerWrite(ctx); err != nil {
 				return err
 			}
 		case packets.TypeCopyDone, packets.TypeCopyFail:
-			return ctx.ServerWrite()
+			return binding.ServerWrite(ctx)
 		default:
-			ctx.PeerFail(ctx.ErrUnexpectedPacket())
+			binding.PeerFail(binding.ErrUnexpectedPacket())
 		}
 	}
 }
 
-func copyOut(ctx *context) error {
-	ctx.PeerWrite()
+func copyOut(ctx context.Context, binding *serverToPeerBinding) error {
+	binding.PeerWrite(ctx)
 
 	for {
-		err := ctx.ServerRead()
+		err := binding.ServerRead(ctx)
 		if err != nil {
 			return err
 		}
 
-		switch ctx.Packet.Type() {
+		switch binding.Packet.Type() {
 		case packets.TypeCopyData,
 			packets.TypeNoticeResponse,
 			packets.TypeParameterStatus,
 			packets.TypeNotificationResponse:
-			ctx.PeerWrite()
+			binding.PeerWrite(ctx)
 		case packets.TypeCopyDone, packets.TypeMarkiplierResponse:
-			ctx.PeerWrite()
+			binding.PeerWrite(ctx)
 			return nil
 		default:
-			return ctx.ErrUnexpectedPacket()
+			return binding.ErrUnexpectedPacket()
 		}
 	}
 }
 
-func query(ctx *context) error {
-	if err := ctx.ServerWrite(); err != nil {
+func query(ctx context.Context, binding *serverToPeerBinding) error {
+	if err := binding.ServerWrite(ctx); err != nil {
 		return err
 	}
 
 	for {
-		err := ctx.ServerRead()
+		err := binding.ServerRead(ctx)
 		if err != nil {
 			return err
 		}
 
-		switch ctx.Packet.Type() {
+		switch binding.Packet.Type() {
 		case packets.TypeCommandComplete,
 			packets.TypeRowDescription,
 			packets.TypeDataRow,
@@ -75,48 +76,48 @@ func query(ctx *context) error {
 			packets.TypeNoticeResponse,
 			packets.TypeParameterStatus,
 			packets.TypeNotificationResponse:
-			ctx.PeerWrite()
+			binding.PeerWrite(ctx)
 		case packets.TypeCopyInResponse:
-			if err = copyIn(ctx); err != nil {
+			if err = copyIn(ctx, binding); err != nil {
 				return err
 			}
 		case packets.TypeCopyOutResponse:
-			if err = copyOut(ctx); err != nil {
+			if err = copyOut(ctx, binding); err != nil {
 				return err
 			}
 		case packets.TypeReadyForQuery:
 			var p packets.ReadyForQuery
-			err = fed.ToConcrete(&p, ctx.Packet)
+			err = fed.ToConcrete(&p, binding.Packet)
 			if err != nil {
 				return err
 			}
-			ctx.Packet = &p
-			ctx.TxState = byte(p)
-			ctx.PeerWrite()
+			binding.Packet = &p
+			binding.TxState = byte(p)
+			binding.PeerWrite(ctx)
 			return nil
 		default:
-			return ctx.ErrUnexpectedPacket()
+			return binding.ErrUnexpectedPacket()
 		}
 	}
 }
 
-func queryString(ctx *context, q string) error {
+func queryString(ctx context.Context, binding *serverToPeerBinding, q string) error {
 	qq := packets.Query(q)
-	ctx.Packet = &qq
-	return query(ctx)
+	binding.Packet = &qq
+	return query(ctx, binding)
 }
 
-func QueryString(server, peer *fed.Conn, query string) (err, peerError error) {
-	ctx := context{
+func QueryString(ctx context.Context, server, peer *fed.Conn, query string) (err, peerError error) {
+	binding := serverToPeerBinding{
 		Server: server,
 		Peer:   peer,
 	}
-	err = queryString(&ctx, query)
-	peerError = ctx.PeerError
+	err = queryString(ctx, &binding, query)
+	peerError = binding.PeerError
 	return
 }
 
-func SetParameter(server, peer *fed.Conn, name strutil.CIString, value string) (err, peerError error) {
+func SetParameter(ctx context.Context, server, peer *fed.Conn, name strutil.CIString, value string) (err, peerError error) {
 	var q strings.Builder
 	escapedName := strutil.Escape(name.String(), '"')
 	escapedValue := strutil.Escape(value, '\'')
@@ -128,58 +129,59 @@ func SetParameter(server, peer *fed.Conn, name strutil.CIString, value string) (
 	q.WriteString(`'`)
 
 	return QueryString(
+		ctx,
 		server,
 		peer,
 		q.String(),
 	)
 }
 
-func functionCall(ctx *context) error {
-	if err := ctx.ServerWrite(); err != nil {
+func functionCall(ctx context.Context, binding *serverToPeerBinding) error {
+	if err := binding.ServerWrite(ctx); err != nil {
 		return err
 	}
 
 	for {
-		err := ctx.ServerRead()
+		err := binding.ServerRead(ctx)
 		if err != nil {
 			return err
 		}
 
-		switch ctx.Packet.Type() {
+		switch binding.Packet.Type() {
 		case packets.TypeMarkiplierResponse,
 			packets.TypeFunctionCallResponse,
 			packets.TypeNoticeResponse,
 			packets.TypeParameterStatus,
 			packets.TypeNotificationResponse:
-			ctx.PeerWrite()
+			binding.PeerWrite(ctx)
 		case packets.TypeReadyForQuery:
 			var p packets.ReadyForQuery
-			err = fed.ToConcrete(&p, ctx.Packet)
+			err = fed.ToConcrete(&p, binding.Packet)
 			if err != nil {
 				return err
 			}
-			ctx.Packet = &p
-			ctx.TxState = byte(p)
-			ctx.PeerWrite()
+			binding.Packet = &p
+			binding.TxState = byte(p)
+			binding.PeerWrite(ctx)
 			return nil
 		default:
-			return ctx.ErrUnexpectedPacket()
+			return binding.ErrUnexpectedPacket()
 		}
 	}
 }
 
-func sync(ctx *context) (bool, error) {
-	if err := ctx.ServerWrite(); err != nil {
+func sync(ctx context.Context, binding *serverToPeerBinding) (bool, error) {
+	if err := binding.ServerWrite(ctx); err != nil {
 		return false, err
 	}
 
 	for {
-		err := ctx.ServerRead()
+		err := binding.ServerRead(ctx)
 		if err != nil {
 			return false, err
 		}
 
-		switch ctx.Packet.Type() {
+		switch binding.Packet.Type() {
 		case packets.TypeParseComplete,
 			packets.TypeBindComplete,
 			packets.TypeCloseComplete,
@@ -196,54 +198,54 @@ func sync(ctx *context) (bool, error) {
 			packets.TypeNoticeResponse,
 			packets.TypeParameterStatus,
 			packets.TypeNotificationResponse:
-			ctx.PeerWrite()
+			binding.PeerWrite(ctx)
 		case packets.TypeCopyInResponse:
-			if err = copyIn(ctx); err != nil {
+			if err = copyIn(ctx, binding); err != nil {
 				return false, err
 			}
 			// why
 			return false, nil
 		case packets.TypeCopyOutResponse:
-			if err = copyOut(ctx); err != nil {
+			if err = copyOut(ctx, binding); err != nil {
 				return false, err
 			}
 		case packets.TypeReadyForQuery:
 			var p packets.ReadyForQuery
-			err = fed.ToConcrete(&p, ctx.Packet)
+			err = fed.ToConcrete(&p, binding.Packet)
 			if err != nil {
 				return false, err
 			}
-			ctx.Packet = &p
-			ctx.TxState = byte(p)
-			ctx.PeerWrite()
+			binding.Packet = &p
+			binding.TxState = byte(p)
+			binding.PeerWrite(ctx)
 			return true, nil
 		default:
-			return false, ctx.ErrUnexpectedPacket()
+			return false, binding.ErrUnexpectedPacket()
 		}
 	}
 }
 
-func Sync(server, peer *fed.Conn) (err, peerErr error) {
-	ctx := context{
+func Sync(ctx context.Context, server, peer *fed.Conn) (err, peerErr error) {
+	binding := serverToPeerBinding{
 		Server: server,
 		Peer:   peer,
 		Packet: &packets.Sync{},
 	}
-	_, err = sync(&ctx)
-	peerErr = ctx.PeerError
+	_, err = sync(ctx, &binding)
+	peerErr = binding.PeerError
 	return
 }
 
-func eqp(ctx *context) error {
-	if err := ctx.ServerWrite(); err != nil {
+func eqp(ctx context.Context, binding *serverToPeerBinding) error {
+	if err := binding.ServerWrite(ctx); err != nil {
 		return err
 	}
 
 	for {
-		if !ctx.PeerRead() {
+		if !binding.PeerRead(ctx) {
 			for {
-				ctx.Packet = &packets.Sync{}
-				ok, err := sync(ctx)
+				binding.Packet = &packets.Sync{}
+				ok, err := sync(ctx, binding)
 				if err != nil {
 					return err
 				}
@@ -253,9 +255,9 @@ func eqp(ctx *context) error {
 			}
 		}
 
-		switch ctx.Packet.Type() {
+		switch binding.Packet.Type() {
 		case packets.TypeSync:
-			ok, err := sync(ctx)
+			ok, err := sync(ctx, binding)
 			if err != nil {
 				return err
 			}
@@ -263,51 +265,51 @@ func eqp(ctx *context) error {
 				return nil
 			}
 		case packets.TypeParse, packets.TypeBind, packets.TypeClose, packets.TypeDescribe, packets.TypeExecute, packets.TypeFlush:
-			if err := ctx.ServerWrite(); err != nil {
+			if err := binding.ServerWrite(ctx); err != nil {
 				return err
 			}
 		default:
-			ctx.PeerFail(ctx.ErrUnexpectedPacket())
+			binding.PeerFail(binding.ErrUnexpectedPacket())
 		}
 	}
 }
 
-func transaction(ctx *context) error {
+func transaction(ctx context.Context, binding *serverToPeerBinding) error {
 	for {
-		switch ctx.Packet.Type() {
+		switch binding.Packet.Type() {
 		case packets.TypeQuery:
-			if err := query(ctx); err != nil {
+			if err := query(ctx, binding); err != nil {
 				return err
 			}
 		case packets.TypeFunctionCall:
-			if err := functionCall(ctx); err != nil {
+			if err := functionCall(ctx, binding); err != nil {
 				return err
 			}
 		case packets.TypeSync:
 			// phony sync call, we can just reply with a fake ReadyForQuery(TxState)
-			rfq := packets.ReadyForQuery(ctx.TxState)
-			ctx.Packet = &rfq
-			ctx.PeerWrite()
+			rfq := packets.ReadyForQuery(binding.TxState)
+			binding.Packet = &rfq
+			binding.PeerWrite(ctx)
 		case packets.TypeParse, packets.TypeBind, packets.TypeClose, packets.TypeDescribe, packets.TypeExecute, packets.TypeFlush:
-			if err := eqp(ctx); err != nil {
+			if err := eqp(ctx, binding); err != nil {
 				return err
 			}
 		default:
-			ctx.PeerFail(ctx.ErrUnexpectedPacket())
+			binding.PeerFail(binding.ErrUnexpectedPacket())
 		}
 
-		if ctx.TxState == 'I' {
+		if binding.TxState == 'I' {
 			return nil
 		}
 
-		if !ctx.PeerRead() {
+		if !binding.PeerRead(ctx) {
 			// abort tx
-			err := queryString(ctx, "ABORT;")
+			err := queryString(ctx, binding, "ABORT;")
 			if err != nil {
 				return err
 			}
 
-			if ctx.TxState != 'I' {
+			if binding.TxState != 'I' {
 				return ErrExpectedIdle
 			}
 			return nil
@@ -315,13 +317,13 @@ func transaction(ctx *context) error {
 	}
 }
 
-func Transaction(server, peer *fed.Conn, initialPacket fed.Packet) (err, peerError error) {
-	ctx := context{
+func Transaction(ctx context.Context, server, peer *fed.Conn, initialPacket fed.Packet) (err, peerError error) {
+	pgState := serverToPeerBinding{
 		Server: server,
 		Peer:   peer,
 		Packet: initialPacket,
 	}
-	err = transaction(&ctx)
-	peerError = ctx.PeerError
+	err = transaction(ctx, &pgState)
+	peerError = pgState.PeerError
 	return
 }

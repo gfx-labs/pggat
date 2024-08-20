@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -30,16 +31,16 @@ func MakeRunner(config Config, test Test) Runner {
 func (T *Runner) prepare(client *fed.Conn, until int) error {
 	for i := 0; i < until; i++ {
 		x := T.test.Packets[i]
-		if err := client.WritePacket(x); err != nil {
+		if err := client.WritePacket(context.Background(), x); err != nil {
 			return err
 		}
 	}
 
-	if err := client.WritePacket(&packets.Terminate{}); err != nil {
+	if err := client.WritePacket(context.Background(), &packets.Terminate{}); err != nil {
 		return err
 	}
 
-	return client.Flush()
+	return client.Flush(context.Background())
 }
 
 func (T *Runner) runModeL1(dialer pool.Dialer, client *fed.Conn) error {
@@ -48,14 +49,14 @@ func (T *Runner) runModeL1(dialer pool.Dialer, client *fed.Conn) error {
 		return err
 	}
 	defer func() {
-		_ = server.Close()
+		_ = server.Close(context.Background())
 	}()
 
 	client.Middleware = append(client.Middleware, unterminate.Unterminate)
 
 	for {
 		var p fed.Packet
-		p, err = client.ReadPacket(true)
+		p, err = client.ReadPacket(context.Background(), true)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
@@ -63,7 +64,7 @@ func (T *Runner) runModeL1(dialer pool.Dialer, client *fed.Conn) error {
 			return err
 		}
 
-		clientErr, serverErr := bouncers.Bounce(client, server, p)
+		clientErr, serverErr := bouncers.Bounce(context.Background(), client, server, p)
 		if clientErr != nil {
 			return clientErr
 		}
@@ -85,7 +86,7 @@ func (T *Runner) runModeOnce(dialer pool.Dialer) ([]byte, error) {
 		return nil, err
 	}
 
-	if err := inward.Close(); err != nil {
+	if err := inward.Close(context.Background()); err != nil {
 		return nil, err
 	}
 

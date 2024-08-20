@@ -1,6 +1,7 @@
 package gat
 
 import (
+	"context"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 )
@@ -30,7 +31,7 @@ func (R RouterFunc) Route(conn *fed.Conn) error {
 type CancellableHandler interface {
 	Handler
 
-	Cancel(key fed.BackendKey)
+	Cancel(ctx context.Context, key fed.BackendKey)
 }
 
 type MetricsHandler interface {

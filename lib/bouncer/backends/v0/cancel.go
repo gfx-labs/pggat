@@ -1,11 +1,12 @@
 package backends
 
 import (
+	"context"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 )
 
-func Cancel(server *fed.Conn, key fed.BackendKey) error {
+func Cancel(ctx context.Context, server *fed.Conn, key fed.BackendKey) error {
 	p := packets.Startup{
 		Mode: &packets.StartupPayloadControl{
 			Mode: &packets.StartupPayloadControlPayloadCancel{
@@ -14,5 +15,5 @@ func Cancel(server *fed.Conn, key fed.BackendKey) error {
 			},
 		},
 	}
-	return server.WritePacket(&p)
+	return server.WritePacket(ctx, &p)
 }
