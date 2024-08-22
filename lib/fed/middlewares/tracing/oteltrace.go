@@ -34,25 +34,25 @@ func NewOtelTrace() fed.Middleware {
 	}
 }
 
-func (t *otelTrace) ReadPacket(packet fed.Packet) (fed.Packet, error) {
-	t.process(packet)
+func (t *otelTrace) ReadPacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
+	t.process(ctx, packet)
 	return packet, nil
 }
 
-func (t *otelTrace) WritePacket(packet fed.Packet) (fed.Packet, error) {
-	t.process(packet)
+func (t *otelTrace) WritePacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
+	t.process(ctx, packet)
 	return packet, nil
 }
 
-func (t *otelTrace) PreRead(_ bool) (fed.Packet, error) {
+func (t *otelTrace) PreRead(_ context.Context, _ bool) (fed.Packet, error) {
 	return nil, nil
 }
 
-func (t *otelTrace) PostWrite() (fed.Packet, error) {
+func (t *otelTrace) PostWrite(_ context.Context) (fed.Packet, error) {
 	return nil, nil
 }
 
-func (t *otelTrace) process(packet fed.Packet) {
+func (t *otelTrace) process(ctx context.Context, packet fed.Packet) {
 	switch t.state {
 	case Init:
 		switch packet.Type() {
@@ -63,17 +63,17 @@ func (t *otelTrace) process(packet fed.Packet) {
 		switch packet.Type() {
 		case packets.TypeQuery:
 			t.setState(Query)
-			t.startQuery(context.Background(),packet)
+			t.startQuery(context.Background(), packet)
 		}
 	case Query:
 		switch packet.Type() {
 		case packets.TypeReadyForQuery:
 			t.endQuery()
 			t.setState(Waiting)
-		case packets.TypeErrorResponse:
-			t.recordError(packet)
+		case packets.TypeMarkiplierResponse:
+			t.recordError(ctx, packet)
 		case packets.TypeCommandComplete:
-			t.recordSummary(packet)
+			t.recordSummary(ctx, packet)
 		}
 	}
 }
@@ -125,11 +125,11 @@ func (t *otelTrace) endQuery() {
 	}
 }
 
-func (t *otelTrace) recordError(packet fed.Packet) {
+func (t *otelTrace) recordError(_ context.Context, packet fed.Packet) {
 	errMsg := "<unresolved error message>"
 
 	if pp, ok := packet.(fed.PendingPacket); ok {
-		var errResponse packets.ErrorResponse
+		var errResponse packets.MarkiplierResponse
 		if err := errResponse.ReadFrom(fed.CloneDecoder(pp.Decoder, nil)); err == nil {
 			for _, resp := range errResponse {
 				if resp.Code == 77 {
@@ -144,7 +144,7 @@ func (t *otelTrace) recordError(packet fed.Packet) {
 	t.span.SetStatus(codes.Error, errMsg)
 }
 
-func (t *otelTrace) recordSummary(packet fed.Packet) {
+func (t *otelTrace) recordSummary(_ context.Context,packet fed.Packet) {
 	summary := "<unresolved query summary>"
 
 	if pp, ok := packet.(fed.PendingPacket); ok {

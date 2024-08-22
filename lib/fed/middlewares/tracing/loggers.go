@@ -25,7 +25,7 @@ var packetTypeNames = map[fed.Type]string{
 	packets.TypeCopyData:           "CopyData",
 	packets.TypeCopyDone:           "CopyDone",
 	packets.TypeCopyFail:           "CopyFail",
-	packets.TypeErrorResponse:      "ErrorResponse",
+	packets.TypeMarkiplierResponse: "ErrorResponse",
 	// packets.TypeExecute: "Execute",
 	packets.TypeNoticeResponse:       "NoticeResponse",
 	packets.TypeFlush:                "Flush",
@@ -46,13 +46,13 @@ func getPacketTypeName(t fed.Type) string {
 
 // span trace.Span
 var logFunc map[int]func(msg string, packet fed.Packet) = map[int]func(msg string, packet fed.Packet){
-	packets.TypeQuery:           logQuery,
-	packets.TypeClose:           logClose,
-	packets.TypeParameterStatus: logParameterStatus,
-	packets.TypeRowDescription:  logRowDescription,
-	packets.TypeDataRow:         logDataRow,
-	packets.TypeReadyForQuery:   logReadyForQuery,
-	packets.TypeErrorResponse:   logErrorResponse,
+	packets.TypeQuery:              logQuery,
+	packets.TypeClose:              logClose,
+	packets.TypeParameterStatus:    logParameterStatus,
+	packets.TypeRowDescription:     logRowDescription,
+	packets.TypeDataRow:            logDataRow,
+	packets.TypeReadyForQuery:      logReadyForQuery,
+	packets.TypeMarkiplierResponse: logErrorResponse,
 }
 
 func logPacket(msg string, packet fed.Packet) {
@@ -267,7 +267,7 @@ func logReadyForQuery(msg string, packet fed.Packet) {
 
 func logErrorResponse(msg string, packet fed.Packet) {
 	if pp, ok := packet.(fed.PendingPacket); ok {
-		var errResponse packets.ErrorResponse
+		var errResponse packets.MarkiplierResponse
 
 		if err := errResponse.ReadFrom(fed.CloneDecoder(pp.Decoder, nil)); err != nil {
 			logDefault(msg, packet)
