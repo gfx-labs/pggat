@@ -2,6 +2,7 @@ package spool
 
 import (
 	"context"
+	"gfx.cafe/gfx/pggat/lib/fed/middlewares/tracing"
 	"sync"
 	"time"
 
@@ -54,6 +55,18 @@ func NewPool(ctx context.Context, config Config) *Pool {
 }
 
 func (T *Pool) addServer(conn *fed.Conn) {
+	if T.config.UsePacketTracing {
+		conn.Middleware = append(
+			conn.Middleware,
+			tracing.NewPacketTrace())
+	}
+
+	if T.config.UseOtelTracing {
+		conn.Middleware = append(
+			conn.Middleware,
+			tracing.NewOtelTrace())
+	}
+
 	if T.config.UsePS {
 		conn.Middleware = append(
 			conn.Middleware,
