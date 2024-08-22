@@ -1,6 +1,7 @@
 package gat
 
 import (
+	"context"
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
@@ -80,7 +81,7 @@ func (T *App) Start() error {
 	}
 
 	for _, server := range T.servers {
-		if err := server.Start(); err != nil {
+		if err := server.Start(context.Background()); err != nil {
 			return err
 		}
 	}
@@ -92,7 +93,7 @@ func (T *App) Stop() error {
 	close(T.closed)
 
 	for _, server := range T.servers {
-		if err := server.Stop(); err != nil {
+		if err := server.Stop(context.Background()); err != nil {
 			return err
 		}
 	}

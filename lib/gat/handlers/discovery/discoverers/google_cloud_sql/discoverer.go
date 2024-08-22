@@ -1,6 +1,7 @@
 package google_cloud_sql
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -101,7 +102,7 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 	var admin *fed.Conn
 	defer func() {
 		if admin != nil {
-			_ = admin.Close()
+			_ = admin.Close(context.Background())
 		}
 	}()
 
@@ -137,24 +138,26 @@ func (T *Discoverer) instanceToCluster(primary *sqladmin.DatabaseInstance, repli
 
 			inward, outward, _, _ := gsql.NewPair()
 
+			ctx := context.Background()
+
 			var b flip.Bank
 			b.Queue(func() error {
-				return gsql.ExtendedQuery(inward, &result, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", user.Name)
+				return gsql.ExtendedQuery(ctx, inward, &result, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1", user.Name)
 			})
 
 			b.Queue(func() error {
-				initialPacket, err := outward.ReadPacket(true)
+				initialPacket, err := outward.ReadPacket(ctx, true)
 				if err != nil {
 					return err
 				}
-				err, err2 := bouncers.Bounce(outward, admin, initialPacket)
+				err, err2 := bouncers.Bounce(ctx, outward, admin, initialPacket)
 				if err != nil {
 					return err
 				}
 				if err2 != nil {
 					return err2
 				}
-				return outward.Close()
+				return outward.Close(ctx)
 			})
 
 			if err = b.Wait(); err != nil {

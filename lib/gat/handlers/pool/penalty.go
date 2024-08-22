@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"context"
 	"time"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
@@ -8,5 +9,5 @@ import (
 
 type Critic interface {
 	// Taste calculates how much conn should be penalized. Lower is better
-	Taste(conn *fed.Conn) (score int, validity time.Duration, err error)
+	Taste(ctx context.Context, conn *fed.Conn) (score int, validity time.Duration, err error)
 }

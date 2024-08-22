@@ -1,6 +1,7 @@
 package fed
 
 import (
+	"context"
 	"crypto/tls"
 	"io"
 	"net"
@@ -39,16 +40,16 @@ func NewConn(codec PacketCodec) *Conn {
 	return c
 }
 
-func (T *Conn) Flush() error {
-	return T.codec.Flush()
+func (T *Conn) Flush(ctx context.Context) error {
+	return T.codec.Flush(ctx)
 }
 
-func (T *Conn) readPacket(typed bool) (Packet, error) {
-	return T.codec.ReadPacket(typed)
+func (T *Conn) readPacket(ctx context.Context, typed bool) (Packet, error) {
+	return T.codec.ReadPacket(ctx, typed)
 }
 
-func (T *Conn) ReadPacket(typed bool) (Packet, error) {
-	if err := T.Flush(); err != nil {
+func (T *Conn) ReadPacket(ctx context.Context, typed bool) (Packet, error) {
+	if err := T.Flush(ctx); err != nil {
 		return nil, err
 	}
 
@@ -57,7 +58,7 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 		for i := 0; i < len(T.Middleware); i++ {
 			middleware := T.Middleware[i]
 			for {
-				packet, err := middleware.PreRead(typed)
+				packet, err := middleware.PreRead(ctx, typed)
 				if err != nil {
 					return nil, err
 				}
@@ -67,7 +68,7 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 				}
 
 				for j := i; j < len(T.Middleware); j++ {
-					packet, err = T.Middleware[j].ReadPacket(packet)
+					packet, err = T.Middleware[j].ReadPacket(ctx, packet)
 					if err != nil {
 						return nil, err
 					}
@@ -82,12 +83,12 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 			}
 		}
 
-		packet, err := T.readPacket(typed)
+		packet, err := T.readPacket(ctx, typed)
 		if err != nil {
 			return nil, err
 		}
 		for _, middleware := range T.Middleware {
-			packet, err = middleware.ReadPacket(packet)
+			packet, err = middleware.ReadPacket(ctx, packet)
 			if err != nil {
 				return nil, err
 			}
@@ -101,16 +102,16 @@ func (T *Conn) ReadPacket(typed bool) (Packet, error) {
 	}
 }
 
-func (T *Conn) writePacket(packet Packet) error {
-	return T.codec.WritePacket(packet)
+func (T *Conn) writePacket(ctx context.Context, packet Packet) error {
+	return T.codec.WritePacket(ctx, packet)
 }
 
-func (T *Conn) WritePacket(packet Packet) error {
+func (T *Conn) WritePacket(ctx context.Context, packet Packet) error {
 	for i := len(T.Middleware) - 1; i >= 0; i-- {
 		middleware := T.Middleware[i]
 
 		var err error
-		packet, err = middleware.WritePacket(packet)
+		packet, err = middleware.WritePacket(ctx, packet)
 		if err != nil {
 			return err
 		}
@@ -119,7 +120,7 @@ func (T *Conn) WritePacket(packet Packet) error {
 		}
 	}
 	if packet != nil {
-		if err := T.writePacket(packet); err != nil {
+		if err := T.writePacket(ctx, packet); err != nil {
 			return err
 		}
 	}
@@ -130,7 +131,7 @@ func (T *Conn) WritePacket(packet Packet) error {
 
 		for {
 			var err error
-			packet, err = middleware.PostWrite()
+			packet, err = middleware.PostWrite(ctx)
 			if err != nil {
 				return err
 			}
@@ -140,7 +141,7 @@ func (T *Conn) WritePacket(packet Packet) error {
 			}
 
 			for j := i; j >= 0; j-- {
-				packet, err = T.Middleware[j].WritePacket(packet)
+				packet, err = T.Middleware[j].WritePacket(ctx, packet)
 				if err != nil {
 					return err
 				}
@@ -150,7 +151,7 @@ func (T *Conn) WritePacket(packet Packet) error {
 			}
 
 			if packet != nil {
-				if err = T.writePacket(packet); err != nil {
+				if err = T.writePacket(ctx, packet); err != nil {
 					return err
 				}
 			}
@@ -160,8 +161,8 @@ func (T *Conn) WritePacket(packet Packet) error {
 	return nil
 }
 
-func (T *Conn) WriteByte(b byte) error {
-	return T.codec.WriteByte(b)
+func (T *Conn) WriteByte(ctx context.Context, b byte) error {
+	return T.codec.WriteByte(ctx, b)
 }
 
 func (T *Conn) LocalAddr() net.Addr {
@@ -169,14 +170,14 @@ func (T *Conn) LocalAddr() net.Addr {
 
 }
 
-func (T *Conn) ReadByte() (byte, error) {
-	return T.codec.ReadByte()
+func (T *Conn) ReadByte(ctx context.Context) (byte, error) {
+	return T.codec.ReadByte(ctx)
 }
 
-func (T *Conn) EnableSSL(config *tls.Config, isClient bool) error {
-	return T.codec.EnableSSL(config, isClient)
+func (T *Conn) EnableSSL(ctx context.Context, config *tls.Config, isClient bool) error {
+	return T.codec.EnableSSL(ctx, config, isClient)
 }
 
-func (T *Conn) Close() error {
-	return T.codec.Close()
+func (T *Conn) Close(ctx context.Context) error {
+	return T.codec.Close(ctx)
 }

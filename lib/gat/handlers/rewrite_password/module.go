@@ -1,6 +1,7 @@
 package rewrite_password
 
 import (
+	"context"
 	"github.com/caddyserver/caddy/v2"
 
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
@@ -26,11 +27,18 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	return frontends.Authenticate(
-		conn,
-		credentials.FromString(conn.User, T.Password),
-	)
+func (T *Module) Handle(next gat.Router) gat.Router {
+	return gat.RouterFunc(func(conn *fed.Conn) error {
+		if err := frontends.Authenticate(
+			context.Background(),
+			conn,
+			credentials.FromString(conn.User, T.Password),
+		); err != nil {
+			return err
+		}
+
+		return next.Route(conn)
+	})
 }
 
 var _ gat.Handler = (*Module)(nil)

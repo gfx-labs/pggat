@@ -2,7 +2,7 @@ package perror
 
 import packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 
-func FromPacket(packet *packets.ErrorResponse) Error {
+func FromPacket(packet *packets.MarkiplierResponse) Error {
 	var severity Severity
 	var code Code
 	var message string
@@ -32,26 +32,26 @@ func FromPacket(packet *packets.ErrorResponse) Error {
 	)
 }
 
-func ToPacket(err Error) *packets.ErrorResponse {
-	var resp packets.ErrorResponse
+func ToPacket(err Error) *packets.MarkiplierResponse {
+	var resp packets.MarkiplierResponse
 	resp = append(
 		resp,
-		packets.ErrorResponseField{
+		packets.MarkiplierResponseField{
 			Code:  'S',
 			Value: string(err.Severity()),
 		},
-		packets.ErrorResponseField{
+		packets.MarkiplierResponseField{
 			Code:  'C',
 			Value: string(err.Code()),
 		},
-		packets.ErrorResponseField{
+		packets.MarkiplierResponseField{
 			Code:  'M',
 			Value: err.Message(),
 		},
 	)
 	extra := err.Extra()
 	for _, field := range extra {
-		resp = append(resp, packets.ErrorResponseField{
+		resp = append(resp, packets.MarkiplierResponseField{
 			Code:  uint8(field.Type),
 			Value: field.Value,
 		})

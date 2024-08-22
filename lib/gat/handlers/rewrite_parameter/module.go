@@ -26,13 +26,15 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	if conn.InitialParameters == nil {
-		conn.InitialParameters = make(map[strutil.CIString]string)
-	}
-	conn.InitialParameters[T.Key] = T.Value
+func (T *Module) Handle(next gat.Router) gat.Router {
+	return gat.RouterFunc(func(conn *fed.Conn) error {
+		if conn.InitialParameters == nil {
+			conn.InitialParameters = make(map[strutil.CIString]string)
+		}
+		conn.InitialParameters[T.Key] = T.Value
 
-	return nil
+		return next.Route(conn)
+	})
 }
 
 var _ gat.Handler = (*Module)(nil)

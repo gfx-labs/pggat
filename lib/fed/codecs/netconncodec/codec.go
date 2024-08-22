@@ -1,6 +1,7 @@
 package netconncodec
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -32,7 +33,7 @@ func NewCodec(rw net.Conn) fed.PacketCodec {
 	return c
 }
 
-func (c *Codec) ReadPacket(typed bool) (fed.Packet, error) {
+func (c *Codec) ReadPacket(ctx context.Context, typed bool) (fed.Packet, error) {
 	if err := c.decoder.Next(typed); err != nil {
 		return nil, err
 	}
@@ -41,7 +42,7 @@ func (c *Codec) ReadPacket(typed bool) (fed.Packet, error) {
 	}, nil
 }
 
-func (c *Codec) WritePacket(packet fed.Packet) error {
+func (c *Codec) WritePacket(ctx context.Context, packet fed.Packet) error {
 	err := c.encoder.Next(packet.Type(), packet.Length())
 	if err != nil {
 		return err
@@ -49,23 +50,23 @@ func (c *Codec) WritePacket(packet fed.Packet) error {
 
 	return packet.WriteTo(&c.encoder)
 }
-func (c *Codec) WriteByte(b byte) error {
+func (c *Codec) WriteByte(ctx context.Context, b byte) error {
 	return c.encoder.WriteByte(b)
 }
 
-func (c *Codec) ReadByte() (byte, error) {
-	if err := c.Flush(); err != nil {
+func (c *Codec) ReadByte(ctx context.Context) (byte, error) {
+	if err := c.Flush(ctx); err != nil {
 		return 0, err
 	}
 
 	return c.decoder.ReadByte()
 }
 
-func (c *Codec) Flush() error {
+func (c *Codec) Flush(ctx context.Context) error {
 	return c.encoder.Flush()
 }
 
-func (c *Codec) Close() error {
+func (c *Codec) Close(ctx context.Context) error {
 	if err := c.encoder.Flush(); err != nil {
 		return err
 	}
@@ -80,7 +81,7 @@ func (c *Codec) SSL() bool {
 	return c.ssl
 }
 
-func (c *Codec) EnableSSL(config *tls.Config, isClient bool) error {
+func (c *Codec) EnableSSL(ctx context.Context, config *tls.Config, isClient bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.ssl {
@@ -89,7 +90,7 @@ func (c *Codec) EnableSSL(config *tls.Config, isClient bool) error {
 	c.ssl = true
 
 	// Flush buffers
-	if err := c.Flush(); err != nil {
+	if err := c.Flush(ctx); err != nil {
 		return err
 	}
 	if c.decoder.Buffered() > 0 {

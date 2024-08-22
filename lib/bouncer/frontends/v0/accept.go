@@ -1,6 +1,7 @@
 package frontends
 
 import (
+	"context"
 	"crypto/tls"
 	"strings"
 
@@ -10,12 +11,23 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
+type acceptParams struct {
+	Conn    *fed.Conn
+	Options acceptOptions
+}
+
+type acceptResult struct {
+	CancelKey   fed.BackendKey
+	IsCanceling bool
+}
+
 func startup0(
-	ctx *acceptContext,
+	ctx context.Context,
 	params *acceptParams,
+	result *acceptResult,
 ) (cancelling bool, done bool, err error) {
 	var packet fed.Packet
-	packet, err = ctx.Conn.ReadPacket(false)
+	packet, err = params.Conn.ReadPacket(ctx, false)
 	if err != nil {
 		return
 	}
@@ -31,29 +43,29 @@ func startup0(
 		switch control := mode.Mode.(type) {
 		case *packets.StartupPayloadControlPayloadCancel:
 			// Cancel
-			params.CancelKey.ProcessID = control.ProcessID
-			params.CancelKey.SecretKey = control.SecretKey
+			result.CancelKey.ProcessID = control.ProcessID
+			result.CancelKey.SecretKey = control.SecretKey
 			cancelling = true
 			done = true
 			return
 		case *packets.StartupPayloadControlPayloadSSL:
 			// ssl is not enabled
-			if ctx.Options.SSLConfig == nil {
-				err = ctx.Conn.WriteByte('N')
+			if params.Options.SSLConfig == nil {
+				err = params.Conn.WriteByte(ctx, 'N')
 				return
 			}
 
 			// do ssl
-			if err = ctx.Conn.WriteByte('S'); err != nil {
+			if err = params.Conn.WriteByte(ctx, 'S'); err != nil {
 				return
 			}
-			if err = ctx.Conn.EnableSSL(ctx.Options.SSLConfig, false); err != nil {
+			if err = params.Conn.EnableSSL(ctx, params.Options.SSLConfig, false); err != nil {
 				return
 			}
 			return
 		case *packets.StartupPayloadControlPayloadGSSAPI:
 			// GSSAPI is not supported yet
-			err = ctx.Conn.WriteByte('N')
+			err = params.Conn.WriteByte(ctx, 'N')
 			return
 		default:
 			err = perror.New(
@@ -69,9 +81,9 @@ func startup0(
 		for _, parameter := range mode.Parameters {
 			switch parameter.Key {
 			case "user":
-				ctx.Conn.User = parameter.Value
+				params.Conn.User = parameter.Value
 			case "database":
-				ctx.Conn.Database = parameter.Value
+				params.Conn.Database = parameter.Value
 			case "options":
 				fields := strings.Fields(parameter.Value)
 				for i := 0; i < len(fields); i++ {
@@ -91,10 +103,10 @@ func startup0(
 
 						ikey := strutil.MakeCIString(key)
 
-						if ctx.Conn.InitialParameters == nil {
-							ctx.Conn.InitialParameters = make(map[strutil.CIString]string)
+						if params.Conn.InitialParameters == nil {
+							params.Conn.InitialParameters = make(map[strutil.CIString]string)
 						}
-						ctx.Conn.InitialParameters[ikey] = value
+						params.Conn.InitialParameters[ikey] = value
 					default:
 						err = perror.New(
 							perror.FATAL,
@@ -118,10 +130,10 @@ func startup0(
 				} else {
 					ikey := strutil.MakeCIString(parameter.Key)
 
-					if ctx.Conn.InitialParameters == nil {
-						ctx.Conn.InitialParameters = make(map[strutil.CIString]string)
+					if params.Conn.InitialParameters == nil {
+						params.Conn.InitialParameters = make(map[strutil.CIString]string)
 					}
-					ctx.Conn.InitialParameters[ikey] = parameter.Value
+					params.Conn.InitialParameters[ikey] = parameter.Value
 				}
 			}
 		}
@@ -132,13 +144,13 @@ func startup0(
 				MinorProtocolVersion:        0,
 				UnrecognizedProtocolOptions: unsupportedOptions,
 			}
-			err = ctx.Conn.WritePacket(&uopts)
+			err = params.Conn.WritePacket(ctx, &uopts)
 			if err != nil {
 				return
 			}
 		}
 
-		if ctx.Conn.User == "" {
+		if params.Conn.User == "" {
 			err = perror.New(
 				perror.FATAL,
 				perror.InvalidAuthorizationSpecification,
@@ -146,8 +158,8 @@ func startup0(
 			)
 			return
 		}
-		if ctx.Conn.Database == "" {
-			ctx.Conn.Database = ctx.Conn.User
+		if params.Conn.Database == "" {
+			params.Conn.Database = params.Conn.User
 		}
 
 		done = true
@@ -163,11 +175,12 @@ func startup0(
 }
 
 func accept0(
-	ctx *acceptContext,
-) (params acceptParams, err error) {
+	ctx context.Context,
+	params *acceptParams,
+) (result acceptResult, err error) {
 	for {
 		var done bool
-		params.IsCanceling, done, err = startup0(ctx, &params)
+		result.IsCanceling, done, err = startup0(ctx, params, &result)
 		if err != nil {
 			return
 		}
@@ -179,18 +192,18 @@ func accept0(
 	return
 }
 
-func fail(client *fed.Conn, err error) {
+func fail(ctx context.Context, client *fed.Conn, err error) {
 	resp := perror.ToPacket(perror.Wrap(err))
-	_ = client.WritePacket(resp)
+	_ = client.WritePacket(ctx, resp)
 }
 
-func accept(ctx *acceptContext) (acceptParams, error) {
-	params, err := accept0(ctx)
+func accept(ctx context.Context, params *acceptParams) (acceptResult, error) {
+	result, err := accept0(ctx, params)
 	if err != nil {
-		fail(ctx.Conn, err)
-		return acceptParams{}, err
+		fail(ctx, params.Conn, err)
+		return acceptResult{}, err
 	}
-	return params, nil
+	return result, nil
 }
 
 func Accept(conn *fed.Conn, tlsConfig *tls.Config) (
@@ -198,15 +211,16 @@ func Accept(conn *fed.Conn, tlsConfig *tls.Config) (
 	isCanceling bool,
 	err error,
 ) {
-	ctx := acceptContext{
+	params := acceptParams{
 		Conn: conn,
 		Options: acceptOptions{
 			SSLConfig: tlsConfig,
 		},
 	}
-	var params acceptParams
-	params, err = accept(&ctx)
-	cancelKey = params.CancelKey
-	isCanceling = params.IsCanceling
+	var result acceptResult
+	if result, err = accept(context.Background(), &params); err == nil {
+		cancelKey = result.CancelKey
+		isCanceling = result.IsCanceling
+	}
 	return
 }

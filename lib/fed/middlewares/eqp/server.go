@@ -1,6 +1,7 @@
 package eqp
 
 import (
+	"context"
 	"gfx.cafe/gfx/pggat/lib/fed"
 )
 
@@ -12,19 +13,19 @@ func NewServer() *Server {
 	return new(Server)
 }
 
-func (T *Server) PreRead(_ bool) (fed.Packet, error) {
+func (T *Server) PreRead(ctx context.Context, _ bool) (fed.Packet, error) {
 	return nil, nil
 }
 
-func (T *Server) ReadPacket(packet fed.Packet) (fed.Packet, error) {
+func (T *Server) ReadPacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
 	return T.state.S2C(packet)
 }
 
-func (T *Server) WritePacket(packet fed.Packet) (fed.Packet, error) {
+func (T *Server) WritePacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
 	return T.state.C2S(packet)
 }
 
-func (T *Server) PostWrite() (fed.Packet, error) {
+func (T *Server) PostWrite(ctx context.Context) (fed.Packet, error) {
 	return nil, nil
 }
 

@@ -1,6 +1,7 @@
 package gsql
 
 import (
+	"context"
 	"reflect"
 	"strconv"
 
@@ -8,16 +9,16 @@ import (
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 )
 
-func ExtendedQuery(client *fed.Conn, result any, query string, args ...any) error {
+func ExtendedQuery(ctx context.Context, client *fed.Conn, result any, query string, args ...any) error {
 	if len(args) == 0 {
-		return Query(client, []any{result}, query)
+		return Query(ctx, client, []any{result}, query)
 	}
 
 	// parse
 	parse := packets.Parse{
 		Query: query,
 	}
-	if err := client.WritePacket(&parse); err != nil {
+	if err := client.WritePacket(ctx, &parse); err != nil {
 		return err
 	}
 
@@ -59,7 +60,7 @@ outer:
 	bind := packets.Bind{
 		Parameters: params,
 	}
-	if err := client.WritePacket(&bind); err != nil {
+	if err := client.WritePacket(ctx, &bind); err != nil {
 		return err
 	}
 
@@ -67,29 +68,29 @@ outer:
 	describe := packets.Describe{
 		Which: 'P',
 	}
-	if err := client.WritePacket(&describe); err != nil {
+	if err := client.WritePacket(ctx, &describe); err != nil {
 		return err
 	}
 
 	// execute
 	execute := packets.Execute{}
-	if err := client.WritePacket(&execute); err != nil {
+	if err := client.WritePacket(ctx, &execute); err != nil {
 		return err
 	}
 
 	// sync
 	sync := packets.Sync{}
-	if err := client.WritePacket(&sync); err != nil {
+	if err := client.WritePacket(ctx, &sync); err != nil {
 		return err
 	}
 
 	// result
-	if err := readQueryResults(client, result); err != nil {
+	if err := readQueryResults(ctx, client, result); err != nil {
 		return err
 	}
 
 	// make sure we receive ready for query
-	packet, err := client.ReadPacket(true)
+	packet, err := client.ReadPacket(ctx, true)
 	if err != nil {
 		return err
 	}

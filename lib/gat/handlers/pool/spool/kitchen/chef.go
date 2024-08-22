@@ -1,6 +1,7 @@
 package kitchen
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sort"
@@ -36,7 +37,7 @@ func NewChef(config Config) *Chef {
 }
 
 // Learn will add a recipe to the kitchen. Returns initial removed and added conns
-func (T *Chef) Learn(name string, recipe *pool.Recipe) (removed []*fed.Conn, added []*fed.Conn) {
+func (T *Chef) Learn(ctx context.Context, name string, recipe *pool.Recipe) (removed []*fed.Conn, added []*fed.Conn) {
 	n := recipe.AllocateInitial()
 	added = make([]*fed.Conn, 0, n)
 	for i := 0; i < n; i++ {
@@ -56,7 +57,7 @@ func (T *Chef) Learn(name string, recipe *pool.Recipe) (removed []*fed.Conn, add
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	removed = T.forget(name)
+	removed = T.forget(ctx, name)
 
 	r := NewRecipe(recipe, added)
 
@@ -77,7 +78,7 @@ func (T *Chef) Learn(name string, recipe *pool.Recipe) (removed []*fed.Conn, add
 	return
 }
 
-func (T *Chef) forget(name string) []*fed.Conn {
+func (T *Chef) forget(ctx context.Context, name string) []*fed.Conn {
 	r, ok := T.byName[name]
 	if !ok {
 		return nil
@@ -88,7 +89,7 @@ func (T *Chef) forget(name string) []*fed.Conn {
 
 	for conn := range r.conns {
 		conns = append(conns, conn)
-		_ = conn.Close()
+		_ = conn.Close(ctx)
 		r.recipe.Free()
 
 		delete(T.byConn, conn)
@@ -102,11 +103,11 @@ func (T *Chef) forget(name string) []*fed.Conn {
 
 // Forget will remove a recipe from the kitchen. All conn made with the recipe will be closed. Returns conns made with
 // recipe.
-func (T *Chef) Forget(name string) []*fed.Conn {
+func (T *Chef) Forget(ctx context.Context, name string) []*fed.Conn {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
-	return T.forget(name)
+	return T.forget(ctx, name)
 }
 
 func (T *Chef) Empty() bool {
@@ -123,7 +124,7 @@ func (T *Chef) cook(r *Recipe) (*fed.Conn, error) {
 	return r.recipe.Dial()
 }
 
-func (T *Chef) score(r *Recipe) error {
+func (T *Chef) score(ctx context.Context, r *Recipe) error {
 	now := time.Now()
 
 	r.ratings = slices.Resize(r.ratings, len(T.config.Critics))
@@ -164,7 +165,7 @@ func (T *Chef) score(r *Recipe) error {
 			return err
 		}
 		defer func() {
-			_ = conn.Close()
+			_ = conn.Close(ctx)
 		}()
 
 		for i, critic := range critics {
@@ -174,7 +175,7 @@ func (T *Chef) score(r *Recipe) error {
 
 			var score int
 			var validity time.Duration
-			score, validity, err = critic.Taste(conn)
+			score, validity, err = critic.Taste(ctx, conn)
 			if err != nil {
 				return err
 			}
@@ -211,12 +212,12 @@ func (T *Chef) score(r *Recipe) error {
 }
 
 // Cook will cook the best recipe
-func (T *Chef) Cook() (*fed.Conn, error) {
+func (T *Chef) Cook(ctx context.Context) (*fed.Conn, error) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
 	for _, r := range T.byName {
-		if err := T.score(r); err != nil {
+		if err := T.score(ctx, r); err != nil {
 			r.score = math.MaxInt
 			T.config.Logger.Error("failed to score recipe", zap.Error(err))
 			continue
@@ -277,7 +278,7 @@ func (T *Chef) Cook() (*fed.Conn, error) {
 }
 
 // Burn forcefully closes conn and escorts it out of the kitchen.
-func (T *Chef) Burn(conn *fed.Conn) {
+func (T *Chef) Burn(ctx context.Context, conn *fed.Conn) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -286,14 +287,14 @@ func (T *Chef) Burn(conn *fed.Conn) {
 		return
 	}
 	r.recipe.Free()
-	_ = conn.Close()
+	_ = conn.Close(ctx)
 
 	delete(T.byConn, conn)
 	delete(r.conns, conn)
 }
 
 // Ignite tries to Burn conn. If successful, conn is closed and returns true
-func (T *Chef) Ignite(conn *fed.Conn) bool {
+func (T *Chef) Ignite(ctx context.Context, conn *fed.Conn) bool {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -304,14 +305,14 @@ func (T *Chef) Ignite(conn *fed.Conn) bool {
 	if !r.recipe.TryFree() {
 		return false
 	}
-	_ = conn.Close()
+	_ = conn.Close(ctx)
 
 	delete(T.byConn, conn)
 	delete(r.conns, conn)
 	return true
 }
 
-func (T *Chef) Cancel(conn *fed.Conn) {
+func (T *Chef) Cancel(ctx context.Context, conn *fed.Conn) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -320,10 +321,10 @@ func (T *Chef) Cancel(conn *fed.Conn) {
 		return
 	}
 
-	r.recipe.Cancel(conn.BackendKey)
+	r.recipe.Cancel(ctx, conn.BackendKey)
 }
 
-func (T *Chef) Close() {
+func (T *Chef) Close(ctx context.Context) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 
@@ -331,7 +332,7 @@ func (T *Chef) Close() {
 	T.order = T.order[:0]
 	for conn, r := range T.byConn {
 		r.recipe.Free()
-		_ = conn.Close()
+		_ = conn.Close(ctx)
 
 		delete(T.byConn, conn)
 		delete(r.conns, conn)

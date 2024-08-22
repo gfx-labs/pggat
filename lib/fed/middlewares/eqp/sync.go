@@ -1,6 +1,7 @@
 package eqp
 
 import (
+	"context"
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
@@ -19,7 +20,7 @@ func preparedStatementsEqual(a, b *packets.Parse) bool {
 	return true
 }
 
-func SyncMiddleware(c *Client, server *fed.Conn) error {
+func SyncMiddleware(ctx context.Context, c *Client, server *fed.Conn) error {
 	s, ok := fed.LookupMiddleware[*Server](server)
 	if !ok {
 		panic("middleware not found")
@@ -35,7 +36,7 @@ func SyncMiddleware(c *Client, server *fed.Conn) error {
 			Which: 'P',
 			Name:  name,
 		}
-		if err := server.WritePacket(&p); err != nil {
+		if err := server.WritePacket(ctx, &p); err != nil {
 			return err
 		}
 
@@ -59,7 +60,7 @@ func SyncMiddleware(c *Client, server *fed.Conn) error {
 			Which: 'S',
 			Name:  name,
 		}
-		if err := server.WritePacket(&p); err != nil {
+		if err := server.WritePacket(ctx, &p); err != nil {
 			return err
 		}
 
@@ -74,7 +75,7 @@ func SyncMiddleware(c *Client, server *fed.Conn) error {
 			}
 		}
 
-		if err := server.WritePacket(preparedStatement); err != nil {
+		if err := server.WritePacket(ctx, preparedStatement); err != nil {
 			return err
 		}
 
@@ -83,7 +84,7 @@ func SyncMiddleware(c *Client, server *fed.Conn) error {
 
 	// bind all portals
 	for _, portal := range c.state.portals {
-		if err := server.WritePacket(portal); err != nil {
+		if err := server.WritePacket(ctx, portal); err != nil {
 			return err
 		}
 
@@ -92,18 +93,18 @@ func SyncMiddleware(c *Client, server *fed.Conn) error {
 
 	if needsBackendSync {
 		var err error
-		err, _ = backends.Sync(server, nil)
+		err, _ = backends.Sync(ctx, server, nil)
 		return err
 	}
 
 	return nil
 }
 
-func Sync(client, server *fed.Conn) error {
+func Sync(ctx context.Context, client, server *fed.Conn) error {
 	c, ok := fed.LookupMiddleware[*Client](client)
 	if !ok {
 		panic("middleware not found")
 	}
 
-	return SyncMiddleware(c, server)
+	return SyncMiddleware(ctx, c, server)
 }

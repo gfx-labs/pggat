@@ -1,6 +1,7 @@
 package basic
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/caddyserver/caddy/v2"
@@ -50,8 +51,8 @@ func (T *Factory) Provision(ctx caddy.Context) error {
 	return nil
 }
 
-func (T *Factory) NewPool() pool.Pool {
-	return NewPool(T.Config)
+func (T *Factory) NewPool(ctx context.Context) pool.Pool {
+	return NewPool(ctx, T.Config)
 }
 
 var _ pool.PoolFactory = (*Factory)(nil)

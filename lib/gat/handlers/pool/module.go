@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/caddyserver/caddy/v2"
@@ -39,30 +40,33 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	if err != nil {
 		return err
 	}
-	T.pool = raw.(PoolFactory).NewPool()
+	T.pool = raw.(PoolFactory).NewPool(ctx)
 
 	if err = T.Recipe.Provision(ctx); err != nil {
 		return err
 	}
 
-	T.pool.AddRecipe("recipe", &T.Recipe)
+	T.pool.AddRecipe(ctx, "recipe", &T.Recipe)
 	return nil
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	if err := frontends.Authenticate(conn, nil); err != nil {
-		return err
-	}
+func (T *Module) Handle(next gat.Router) gat.Router {
+	return gat.RouterFunc(func(c *fed.Conn) error {
+		ctx := context.Background()
+		if err := frontends.Authenticate(ctx, c, nil); err != nil {
+			return err
+		}
 
-	return T.pool.Serve(conn)
+		return T.pool.Serve(ctx, c)
+	})
 }
 
 func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 	T.pool.ReadMetrics(&metrics.Pool)
 }
 
-func (T *Module) Cancel(key fed.BackendKey) {
-	T.pool.Cancel(key)
+func (T *Module) Cancel(ctx context.Context, key fed.BackendKey) {
+	T.pool.Cancel(ctx, key)
 }
 
 var _ gat.Handler = (*Module)(nil)

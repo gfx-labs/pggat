@@ -25,26 +25,28 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *Module) Handle(conn *fed.Conn) error {
-	if T.SSL {
-		if !conn.SSL {
+func (T *Module) Handle(next gat.Router) gat.Router {
+	return gat.RouterFunc(func(conn *fed.Conn) error {
+		if T.SSL {
+			if !conn.SSL {
+				return perror.New(
+					perror.FATAL,
+					perror.InvalidPassword,
+					"SSL is required",
+				)
+			}
+			return next.Route(conn)
+		}
+
+		if conn.SSL {
 			return perror.New(
 				perror.FATAL,
 				perror.InvalidPassword,
-				"SSL is required",
+				"SSL is not allowed",
 			)
 		}
-		return nil
-	}
-
-	if conn.SSL {
-		return perror.New(
-			perror.FATAL,
-			perror.InvalidPassword,
-			"SSL is not allowed",
-		)
-	}
-	return nil
+		return next.Route(conn)
+	})
 }
 
 var _ gat.Handler = (*Module)(nil)

@@ -1,6 +1,7 @@
 package hybrid
 
 import (
+	"context"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/perror"
@@ -20,7 +21,7 @@ func NewMiddleware() *Middleware {
 	return m
 }
 
-func (T *Middleware) PreRead(typed bool) (fed.Packet, error) {
+func (T *Middleware) PreRead(ctx context.Context, typed bool) (fed.Packet, error) {
 	if !T.primary {
 		return nil, nil
 	}
@@ -37,7 +38,7 @@ func (T *Middleware) PreRead(typed bool) (fed.Packet, error) {
 	}, nil
 }
 
-func (T *Middleware) ReadPacket(packet fed.Packet) (fed.Packet, error) {
+func (T *Middleware) ReadPacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
 	if T.primary {
 		return packet, nil
 	}
@@ -60,14 +61,14 @@ func (T *Middleware) ReadPacket(packet fed.Packet) (fed.Packet, error) {
 	return p, nil
 }
 
-func (T *Middleware) WritePacket(packet fed.Packet) (fed.Packet, error) {
+func (T *Middleware) WritePacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
 	if T.primary && (T.buf.Buffered() > 0 || T.bufDec.Buffered() > 0) {
 		return nil, nil
 	}
 
 	switch packet.Type() {
-	case packets.TypeErrorResponse:
-		var p packets.ErrorResponse
+	case packets.TypeMarkiplierResponse:
+		var p packets.MarkiplierResponse
 		if err := fed.ToConcrete(&p, packet); err != nil {
 			return nil, err
 		}
@@ -84,7 +85,7 @@ func (T *Middleware) WritePacket(packet fed.Packet) (fed.Packet, error) {
 	return packet, nil
 }
 
-func (T *Middleware) PostWrite() (fed.Packet, error) {
+func (T *Middleware) PostWrite(ctx context.Context) (fed.Packet, error) {
 	return nil, nil
 }
 

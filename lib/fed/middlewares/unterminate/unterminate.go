@@ -1,6 +1,7 @@
 package unterminate
 
 import (
+	"context"
 	"io"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
@@ -13,21 +14,21 @@ var Unterminate fed.Middleware = unterm{}
 
 type unterm struct{}
 
-func (unterm) PreRead(_ bool) (fed.Packet, error) {
+func (unterm) PreRead(_ context.Context, _ bool) (fed.Packet, error) {
 	return nil, nil
 }
 
-func (unterm) ReadPacket(packet fed.Packet) (fed.Packet, error) {
+func (unterm) ReadPacket(_ context.Context, packet fed.Packet) (fed.Packet, error) {
 	if packet.Type() == packets.TypeTerminate {
 		return packet, io.EOF
 	}
 	return packet, nil
 }
 
-func (unterm) WritePacket(packet fed.Packet) (fed.Packet, error) {
+func (unterm) WritePacket(_ context.Context, packet fed.Packet) (fed.Packet, error) {
 	return packet, nil
 }
 
-func (unterm) PostWrite() (fed.Packet, error) {
+func (unterm) PostWrite(_ context.Context) (fed.Packet, error) {
 	return nil, nil
 }

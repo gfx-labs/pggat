@@ -1,6 +1,7 @@
 package latency
 
 import (
+	"context"
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
@@ -28,9 +29,9 @@ func (T *Critic) CaddyModule() caddy.ModuleInfo {
 	}
 }
 
-func (T *Critic) Taste(conn *fed.Conn) (int, time.Duration, error) {
+func (T *Critic) Taste(ctx context.Context, conn *fed.Conn) (int, time.Duration, error) {
 	start := time.Now()
-	err, _ := backends.QueryString(conn, nil, "select 0")
+	err, _ := backends.QueryString(ctx, conn, nil, "select 0")
 	if err != nil {
 		return 0, time.Duration(T.Validity), err
 	}

@@ -1,6 +1,7 @@
 package gat
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/instrumentation/prom"
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
@@ -66,7 +68,7 @@ func (T *Server) Provision(ctx caddy.Context) error {
 	return nil
 }
 
-func (T *Server) Start() error {
+func (T *Server) Start(ctx context.Context) error {
 	for _, listener := range T.listen {
 		if err := listener.Start(); err != nil {
 			return err
@@ -74,7 +76,7 @@ func (T *Server) Start() error {
 
 		go func(listener *Listener) {
 			for {
-				if !T.acceptFrom(listener) {
+				if !T.acceptFrom(ctx, listener) {
 					break
 				}
 			}
@@ -84,7 +86,7 @@ func (T *Server) Start() error {
 	return nil
 }
 
-func (T *Server) Stop() error {
+func (T *Server) Stop(ctx context.Context) error {
 	for _, listen := range T.listen {
 		if err := listen.Stop(); err != nil {
 			return err
@@ -94,9 +96,9 @@ func (T *Server) Stop() error {
 	return nil
 }
 
-func (T *Server) Cancel(key fed.BackendKey) {
+func (T *Server) Cancel(ctx context.Context, key fed.BackendKey) {
 	for _, cancellableHandler := range T.cancellableHandlers {
-		cancellableHandler.Cancel(key)
+		cancellableHandler.Cancel(ctx, key)
 	}
 }
 
@@ -107,43 +109,49 @@ func (T *Server) ReadMetrics(m *metrics.Server) {
 }
 
 func (T *Server) Serve(conn *fed.Conn) {
-	for _, route := range T.routes {
+	ctx := context.Background()
+
+	composed := Router(RouterFunc(func(conn *fed.Conn) error {
+		// database not found
+		errResp := perror.ToPacket(
+			perror.New(
+				perror.FATAL,
+				perror.InvalidPassword,
+				fmt.Sprintf(`Database "%s" not found`, conn.Database),
+			),
+		)
+		_ = conn.WritePacket(ctx, errResp)
+		T.log.Warn("database not found", zap.String("user", conn.User), zap.String("database", conn.Database))
+		return nil
+	}))
+	for j := len(T.routes) - 1; j >= 0; j-- {
+		route := T.routes[j]
 		if route.match != nil && !route.match.Matches(conn) {
 			continue
 		}
-
 		if route.handle == nil {
 			continue
 		}
-		err := route.handle.Handle(conn)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				// normal closure
-				return
-			}
-
-			errResp := perror.ToPacket(perror.Wrap(err))
-			_ = conn.WritePacket(errResp)
+		composed = route.handle.Handle(composed)
+	}
+	err := composed.Route(conn)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			// normal closure
 			return
 		}
-	}
 
-	// database not found
-	errResp := perror.ToPacket(
-		perror.New(
-			perror.FATAL,
-			perror.InvalidPassword,
-			fmt.Sprintf(`Database "%s" not found`, conn.Database),
-		),
-	)
-	_ = conn.WritePacket(errResp)
-	T.log.Warn("database not found", zap.String("user", conn.User), zap.String("database", conn.Database))
+		errResp := perror.ToPacket(perror.Wrap(err))
+		_ = conn.WritePacket(ctx, errResp)
+		return
+	}
 }
 
-func (T *Server) accept(listener *Listener, conn *fed.Conn) {
+func (T *Server) accept(ctx context.Context, listener *Listener, conn *fed.Conn) {
 	defer func() {
-		_ = conn.Close()
+		_ = conn.Close(ctx)
 	}()
+	labels := prom.ListenerLabels{ListenAddr: listener.networkAddress.String()}
 
 	var tlsConfig *tls.Config
 	if listener.ssl != nil {
@@ -162,15 +170,21 @@ func (T *Server) accept(listener *Listener, conn *fed.Conn) {
 	}
 
 	if isCanceling {
-		T.Cancel(cancelKey)
+		T.Cancel(ctx, cancelKey)
 		return
 	}
 
 	count := listener.open.Add(1)
-	defer listener.open.Add(-1)
+	prom.Listener.Client(labels).Inc()
+	prom.Listener.Incoming(labels).Inc()
+	defer func() {
+		listener.open.Add(-1)
+		prom.Listener.Client(labels).Dec()
+	}()
 
 	if listener.MaxConnections != 0 && int(count) > listener.MaxConnections {
 		_ = conn.WritePacket(
+			ctx,
 			perror.ToPacket(perror.New(
 				perror.FATAL,
 				perror.TooManyConnections,
@@ -179,13 +193,13 @@ func (T *Server) accept(listener *Listener, conn *fed.Conn) {
 		)
 		return
 	}
-
+	prom.Listener.Accepted(labels).Inc()
 	T.Serve(conn)
 }
 
-func (T *Server) acceptFrom(listener *Listener) bool {
+func (T *Server) acceptFrom(ctx context.Context, listener *Listener) bool {
 	err := listener.listener.Accept(func(c *fed.Conn) {
-		T.accept(listener, c)
+		T.accept(ctx, listener, c)
 	})
 	if err != nil {
 		if errors.Is(err, net.ErrClosed) {

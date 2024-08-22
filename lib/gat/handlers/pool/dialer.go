@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -70,6 +71,7 @@ func (T *Dialer) Dial() (*fed.Conn, error) {
 	conn.User = T.Username
 	conn.Database = T.Database
 	err = backends.Accept(
+		context.Background(),
 		conn,
 		T.SSLMode,
 		T.SSLConfig,
@@ -85,21 +87,21 @@ func (T *Dialer) Dial() (*fed.Conn, error) {
 	return conn, nil
 }
 
-func (T *Dialer) Cancel(key fed.BackendKey) {
+func (T *Dialer) Cancel(ctx context.Context, key fed.BackendKey) {
 	c, err := T.dial()
 	if err != nil {
 		return
 	}
 	conn := fed.NewConn(netconncodec.NewCodec(c))
 	defer func() {
-		_ = conn.Close()
+		_ = conn.Close(ctx)
 	}()
-	if err = backends.Cancel(conn, key); err != nil {
+	if err = backends.Cancel(ctx, conn, key); err != nil {
 		return
 	}
 
 	// wait for server to close the connection, this means that the server received it ok
-	_, _ = conn.ReadPacket(true)
+	_, _ = conn.ReadPacket(ctx, true)
 }
 
 var _ caddy.Provisioner = (*gat.Listener)(nil)

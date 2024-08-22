@@ -1,8 +1,10 @@
 package hybrid
 
 import (
+	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -15,6 +17,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
+	"gfx.cafe/gfx/pggat/lib/instrumentation/prom"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -28,7 +31,7 @@ type Pool struct {
 	mu      sync.RWMutex
 }
 
-func NewPool(config Config) *Pool {
+func NewPool(ctx context.Context, config Config) *Pool {
 	c := config.Spool()
 
 	p := &Pool{
@@ -37,38 +40,38 @@ func NewPool(config Config) *Pool {
 		primary: spool.MakePool(c),
 		replica: spool.MakePool(c),
 	}
-	go p.primary.ScaleLoop()
-	go p.replica.ScaleLoop()
+	go p.primary.ScaleLoop(ctx)
+	go p.replica.ScaleLoop(ctx)
 	return p
 }
 
-func (T *Pool) AddReplicaRecipe(name string, recipe *pool.Recipe) {
-	T.replica.AddRecipe(name, recipe)
+func (T *Pool) AddReplicaRecipe(ctx context.Context, name string, recipe *pool.Recipe) {
+	T.replica.AddRecipe(ctx, name, recipe)
 }
 
-func (T *Pool) RemoveReplicaRecipe(name string) {
-	T.replica.RemoveRecipe(name)
+func (T *Pool) RemoveReplicaRecipe(ctx context.Context, name string) {
+	T.replica.RemoveRecipe(ctx, name)
 }
 
-func (T *Pool) AddRecipe(name string, recipe *pool.Recipe) {
-	T.primary.AddRecipe(name, recipe)
+func (T *Pool) AddRecipe(ctx context.Context, name string, recipe *pool.Recipe) {
+	T.primary.AddRecipe(ctx, name, recipe)
 }
 
-func (T *Pool) RemoveRecipe(name string) {
-	T.primary.RemoveRecipe(name)
+func (T *Pool) RemoveRecipe(ctx context.Context, name string) {
+	T.primary.RemoveRecipe(ctx, name)
 }
 
-func (T *Pool) Pair(client *Client, server *spool.Server) (err, serverErr error) {
+func (T *Pool) Pair(ctx context.Context, client *Client, server *spool.Server) (err, serverErr error) {
 	client.SetState(metrics.ConnStatePairing, server, true)
 	server.SetState(metrics.ConnStatePairing, client.ID)
 
-	err, serverErr = ps.Sync(T.config.TrackedParameters, client.Conn, server.Conn)
+	err, serverErr = ps.Sync(ctx, T.config.TrackedParameters, client.Conn, server.Conn)
 
 	if err != nil || serverErr != nil {
 		return
 	}
 
-	serverErr = eqp.Sync(client.Conn, server.Conn)
+	serverErr = eqp.Sync(ctx, client.Conn, server.Conn)
 
 	if serverErr != nil {
 		return
@@ -79,14 +82,14 @@ func (T *Pool) Pair(client *Client, server *spool.Server) (err, serverErr error)
 	return
 }
 
-func (T *Pool) PairPrimary(client *Client, psc *ps.Client, eqpc *eqp.Client, server *spool.Server) error {
+func (T *Pool) PairPrimary(ctx context.Context, client *Client, psc *ps.Client, eqpc *eqp.Client, server *spool.Server) error {
 	server.SetState(metrics.ConnStatePairing, client.ID)
 
-	if err := ps.SyncMiddleware(T.config.TrackedParameters, psc, server.Conn); err != nil {
+	if err := ps.SyncMiddleware(ctx, T.config.TrackedParameters, psc, server.Conn); err != nil {
 		return err
 	}
 
-	if err := eqp.SyncMiddleware(eqpc, server.Conn); err != nil {
+	if err := eqp.SyncMiddleware(ctx, eqpc, server.Conn); err != nil {
 		return err
 	}
 
@@ -112,7 +115,7 @@ func (T *Pool) removeClient(client *Client) {
 	delete(T.clients, client.Conn.BackendKey)
 }
 
-func (T *Pool) serveRW(conn *fed.Conn) error {
+func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.Conn) error {
 	m := NewMiddleware()
 
 	eqpa := eqp.NewClient()
@@ -144,17 +147,17 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 	defer func() {
 		if primary != nil {
 			if serverErr != nil {
-				T.primary.RemoveServer(primary)
+				T.primary.RemoveServer(ctx, primary)
 			} else {
-				T.primary.Release(primary)
+				T.primary.Release(ctx, primary)
 			}
 			primary = nil
 		}
 		if replica != nil {
 			if serverErr != nil {
-				T.replica.RemoveServer(replica)
+				T.replica.RemoveServer(ctx, replica)
 			} else {
-				T.replica.Release(replica)
+				T.replica.Release(ctx, replica)
 			}
 			replica = nil
 		}
@@ -169,7 +172,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 				return pool.ErrFailedToAcquirePeer
 			}
 
-			err, serverErr = T.Pair(client, replica)
+			err, serverErr = T.Pair(ctx, client, replica)
 			if serverErr != nil {
 				return serverErr
 			}
@@ -184,7 +187,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 				return pool.ErrFailedToAcquirePeer
 			}
 
-			err, serverErr = T.Pair(client, primary)
+			err, serverErr = T.Pair(ctx, client, primary)
 			if serverErr != nil {
 				return serverErr
 			}
@@ -194,7 +197,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 		}
 
 		p := packets.ReadyForQuery('I')
-		if err = conn.WritePacket(&p); err != nil {
+		if err = conn.WritePacket(ctx, &p); err != nil {
 			return err
 		}
 
@@ -203,17 +206,17 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 
 	for {
 		if primary != nil {
-			T.primary.Release(primary)
+			T.primary.Release(ctx, primary)
 			primary = nil
 		}
 		if replica != nil {
-			T.replica.Release(replica)
+			T.replica.Release(ctx, replica)
 			replica = nil
 		}
 		client.SetState(metrics.ConnStateIdle, nil, false)
 
 		var packet fed.Packet
-		packet, err = conn.ReadPacket(true)
+		packet, err = conn.ReadPacket(ctx, true)
 		if err != nil {
 			return err
 		}
@@ -222,18 +225,26 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 
 		// try replica first (if it isn't empty)
 		if !T.replica.Empty() {
+			start := time.Now()
 			replica = T.replica.Acquire(client.ID)
 			if replica == nil {
 				return pool.ErrFailedToAcquirePeer
 			}
 
-			err, serverErr = T.Pair(client, replica)
+			err, serverErr = T.Pair(ctx, client, replica)
+			dur := time.Since(start)
 
-			psi.Set(psa)
-			eqpi.Set(eqpa)
+			psi.Set(ctx, psa)
+			eqpi.Set(ctx, eqpa)
 
 			if err == nil && serverErr == nil {
-				err, serverErr = bouncers.Bounce(conn, replica.Conn, packet)
+				prom.OperationHybrid.Acquire(l.ToOperation("replica")).Observe(float64(dur) / float64(time.Millisecond))
+				start := time.Now()
+				err, serverErr = bouncers.Bounce(ctx, conn, replica.Conn, packet)
+				if serverErr == nil {
+					dur := time.Since(start)
+					prom.OperationHybrid.Execution(l.ToOperation("replica")).Observe(float64(dur) / float64(time.Millisecond))
+				}
 			}
 			if serverErr != nil {
 				return fmt.Errorf("server error: %w", serverErr)
@@ -245,10 +256,10 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 			if err == (ErrReadOnly{}) {
 				m.Primary()
 
-				T.replica.Release(replica)
+				T.replica.Release(ctx, replica)
 				replica = nil
 
-				packet, err = conn.ReadPacket(true)
+				packet, err = conn.ReadPacket(ctx, true)
 				if err != nil {
 					return err
 				}
@@ -256,43 +267,60 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 				client.SetState(metrics.ConnStateAwaitingServer, nil, false)
 
 				// acquire primary
+				start := time.Now()
 				primary = T.primary.Acquire(client.ID)
 				if primary == nil {
 					return pool.ErrFailedToAcquirePeer
 				}
 
-				serverErr = T.PairPrimary(client, psi, eqpi, primary)
+				serverErr = T.PairPrimary(ctx, client, psi, eqpi, primary)
+				dur := time.Since(start)
 
 				if serverErr == nil {
-					err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
+					prom.OperationHybrid.Acquire(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
+					start := time.Now()
+					err, serverErr = bouncers.Bounce(ctx, conn, primary.Conn, packet)
+					dur := time.Since(start)
+					prom.OperationHybrid.Execution(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
 				}
 				if serverErr != nil {
 					return fmt.Errorf("server error: %w", serverErr)
 				} else {
 					primary.TransactionComplete()
 				}
+			} else {
+				prom.OperationHybrid.Hit(l.ToOperation("replica")).Inc()
 			}
 		} else {
 			// straight to primary
 			m.Primary()
 
-			packet, err = conn.ReadPacket(true)
+			packet, err = conn.ReadPacket(ctx, true)
 			if err != nil {
 				return err
 			}
 
 			client.SetState(metrics.ConnStateAwaitingServer, nil, false)
 
+			start := time.Now()
 			// acquire primary
 			primary = T.primary.Acquire(client.ID)
 			if primary == nil {
 				return pool.ErrFailedToAcquirePeer
 			}
 
-			err, serverErr = T.Pair(client, primary)
+			err, serverErr = T.Pair(ctx, client, primary)
+
+			dur := time.Since(start)
 
 			if err == nil && serverErr == nil {
-				err, serverErr = bouncers.Bounce(conn, primary.Conn, packet)
+				prom.OperationHybrid.Acquire(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
+				start := time.Now()
+				err, serverErr = bouncers.Bounce(ctx, conn, primary.Conn, packet)
+				if serverErr == nil {
+					dur := time.Since(start)
+					prom.OperationHybrid.Execution(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
+				}
 			}
 			if serverErr != nil {
 				return fmt.Errorf("server error: %w", serverErr)
@@ -309,7 +337,7 @@ func (T *Pool) serveRW(conn *fed.Conn) error {
 	}
 }
 
-func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
+func (T *Pool) serveOnly(ctx context.Context, l prom.PoolHybridLabels, conn *fed.Conn, write bool) error {
 	var sp *spool.Pool
 	if write {
 		sp = &T.primary
@@ -338,9 +366,9 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 	defer func() {
 		if server != nil {
 			if serverErr != nil {
-				sp.RemoveServer(server)
+				sp.RemoveServer(ctx, server)
 			} else {
-				sp.Release(server)
+				sp.Release(ctx, server)
 			}
 			server = nil
 		}
@@ -354,7 +382,7 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 			return pool.ErrFailedToAcquirePeer
 		}
 
-		err, serverErr = T.Pair(client, server)
+		err, serverErr = T.Pair(ctx, client, server)
 		if serverErr != nil {
 			return serverErr
 		}
@@ -363,37 +391,50 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 		}
 
 		p := packets.ReadyForQuery('I')
-		if err = conn.WritePacket(&p); err != nil {
+		if err = conn.WritePacket(ctx, &p); err != nil {
 			return err
 		}
 
 		conn.Ready = true
 	}
 
+	var opL prom.OperationHybridLabels
+	if write {
+		opL = l.ToOperation("primary")
+	} else {
+		opL = l.ToOperation("replica")
+	}
+
 	for {
 		if server != nil {
-			sp.Release(server)
+			sp.Release(ctx, server)
 			server = nil
 		}
 		client.SetState(metrics.ConnStateIdle, nil, true)
 
 		var packet fed.Packet
-		packet, err = conn.ReadPacket(true)
+		packet, err = conn.ReadPacket(ctx, true)
 		if err != nil {
 			return err
 		}
 
 		client.SetState(metrics.ConnStateAwaitingServer, nil, true)
 
+		start := time.Now()
 		server = sp.Acquire(client.ID)
 		if server == nil {
 			return pool.ErrFailedToAcquirePeer
 		}
-
-		err, serverErr = T.Pair(client, server)
-
+		err, serverErr = T.Pair(ctx, client, server)
+		dur := time.Since(start)
 		if err == nil && serverErr == nil {
-			err, serverErr = bouncers.Bounce(conn, server.Conn, packet)
+			prom.OperationHybrid.Acquire(opL).Observe(float64(dur) / float64(time.Millisecond))
+			start := time.Now()
+			err, serverErr = bouncers.Bounce(ctx, conn, server.Conn, packet)
+			if serverErr == nil {
+				dur := time.Since(start)
+				prom.OperationHybrid.Execution(opL).Observe(float64(dur) / float64(time.Millisecond))
+			}
 		}
 		if serverErr != nil {
 			return fmt.Errorf("server error: %w", serverErr)
@@ -408,18 +449,35 @@ func (T *Pool) serveOnly(conn *fed.Conn, write bool) error {
 	}
 }
 
-func (T *Pool) Serve(conn *fed.Conn) error {
+func (T *Pool) Serve(ctx context.Context, conn *fed.Conn) error {
+	labels := prom.PoolHybridLabels{
+		Database: conn.Database,
+		User:     conn.User,
+	}
 	switch conn.InitialParameters[strutil.MakeCIString("hybrid.mode")] {
 	case "ro":
-		return T.serveOnly(conn, false)
+		labels.Mode = "ro"
 	case "wo":
-		return T.serveOnly(conn, true)
+		labels.Mode = "wo"
 	default:
-		return T.serveRW(conn)
+		labels.Mode = "rw"
+	}
+	prom.PoolHybrid.Accepted(labels).Inc()
+	prom.PoolHybrid.Current(labels).Inc()
+	defer prom.PoolHybrid.Current(labels).Dec()
+	switch labels.Mode {
+	case "ro":
+		return T.serveOnly(ctx, labels, conn, false)
+	case "wo":
+		return T.serveOnly(ctx, labels, conn, true)
+	case "rw":
+		return T.serveRW(ctx, labels, conn)
+	default:
+		panic("impossible")
 	}
 }
 
-func (T *Pool) Cancel(key fed.BackendKey) {
+func (T *Pool) Cancel(ctx context.Context, key fed.BackendKey) {
 	peer, replica := func() (*spool.Server, bool) {
 		T.mu.RLock()
 		defer T.mu.RUnlock()
@@ -438,9 +496,9 @@ func (T *Pool) Cancel(key fed.BackendKey) {
 	}
 
 	if replica {
-		T.replica.Cancel(peer)
+		T.replica.Cancel(ctx, peer)
 	} else {
-		T.primary.Cancel(peer)
+		T.primary.Cancel(ctx, peer)
 	}
 }
 
@@ -461,9 +519,9 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 	}
 }
 
-func (T *Pool) Close() {
-	T.primary.Close()
-	T.replica.Close()
+func (T *Pool) Close(ctx context.Context) {
+	T.primary.Close(ctx)
+	T.replica.Close(ctx)
 }
 
 var _ pool.Pool = (*Pool)(nil)
