@@ -2,6 +2,8 @@ package basic
 
 import (
 	"encoding/json"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
@@ -41,6 +43,22 @@ const (
 	// client and server connections
 	TracingOptionClientAndServer = TracingOptionClient | TracingOptionServer
 )
+
+func MapTracingOption(s string) (opt TracingOption, err error) {
+	switch strings.ToLower(s) {
+	case "disabled", "none", "off":
+	case "client":
+		opt = TracingOptionClient
+	case "server":
+		opt = TracingOptionServer
+	case "client-and-server", "both", "all":
+		opt = TracingOptionClientAndServer
+	default:
+		err = errors.New("unknown tracing option: " + s)
+	}
+
+	return
+}
 
 type Config struct {
 	RawPoolerFactory json.RawMessage `json:"pooler" caddy:"namespace=pggat.handlers.pool.poolers inline_key=pooler"`
