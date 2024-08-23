@@ -2,7 +2,9 @@
     ssl self_signed
 
     pool /base {
-        pool basic session
+        pool basic session {
+            otel_tracing_option client
+        }
 
         address localhost:5432
 
