@@ -2,6 +2,7 @@ package gat
 
 import (
 	"context"
+	"gfx.cafe/util/go/gotel"
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
@@ -27,6 +28,8 @@ type App struct {
 	closed chan struct{}
 
 	log *zap.Logger
+
+	otelShutdown gotel.ShutdownFunc
 }
 
 func (T *App) CaddyModule() caddy.ModuleInfo {
@@ -75,6 +78,8 @@ func (T *App) statLogLoop() {
 }
 
 func (T *App) Start() error {
+	T.otelShutdown, _ = gotel.InitTracing(context.Background(), gotel.WithServiceName("pggat"))
+
 	T.closed = make(chan struct{})
 	if T.StatLogPeriod != 0 {
 		go T.statLogLoop()
@@ -90,6 +95,12 @@ func (T *App) Start() error {
 }
 
 func (T *App) Stop() error {
+	defer func() {
+		if T.otelShutdown != nil {
+			_ = T.otelShutdown(context.Background())
+		}
+	}()
+
 	close(T.closed)
 
 	for _, server := range T.servers {
