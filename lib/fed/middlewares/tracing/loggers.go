@@ -5,7 +5,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"log/slog"
-	"strings"
+	"reflect"
 )
 
 var packetTypeNames = map[fed.Type]string{
@@ -70,8 +70,9 @@ func getLogFunc(packet fed.Packet) func(msg string, packet fed.Packet) {
 func logDefault(msg string, packet fed.Packet) {
 	typeName := getPacketTypeName(packet.Type())
 
+	// 1 alloc
 	slog.Info(
-		fmt.Sprintf("%s: %s", msg, strings.ToUpper(typeName)),
+		msg,
 		"type", packet.Type(),
 		"typename", typeName,
 		"length", packet.Length())
@@ -86,9 +87,11 @@ func logQuery(msg string, packet fed.Packet) {
 		}
 	} else {
 		if qp, ok := packet.(*packets.Query); ok && (qp != nil) {
+			// 0 alloc
 			sql = string(*qp)
 		} else {
-			slog.Warn(fmt.Sprintf("query: %T %#v", packet, packet))
+			// 1 alloc
+			slog.Warn(fmt.Sprintf("query: %s", reflect.TypeOf(packet)))
 			logDefault(msg, packet)
 			return
 		}
@@ -96,8 +99,9 @@ func logQuery(msg string, packet fed.Packet) {
 
 	typeName := getPacketTypeName(packet.Type())
 
+	// 2 alloc
 	slog.Info(
-		fmt.Sprintf("%s: %s", msg, strings.ToUpper(typeName)),
+		msg,
 		"type", packet.Type(),
 		"typename", typeName,
 		"length", packet.Length(),
@@ -115,8 +119,9 @@ func logClose(msg string, packet fed.Packet) {
 
 		typeName := getPacketTypeName(packet.Type())
 
+		// 2 alloc
 		slog.Info(
-			fmt.Sprintf("%s: %s", msg, strings.ToUpper(typeName)),
+			msg,
 			"type", packet.Type(),
 			"typename", typeName,
 			"length", packet.Length(),
@@ -127,15 +132,17 @@ func logClose(msg string, packet fed.Packet) {
 
 			info := string(*cc)
 
+			// 2 alloc
 			slog.Info(
-				fmt.Sprintf("%s: %s", msg, strings.ToUpper(typeName)),
+				msg,
 				"type", packet.Type(),
 				"typename", typeName,
 				"length", packet.Length(),
 				"info", info)
 
 		} else {
-			slog.Warn(fmt.Sprintf("close: %T %#v", packet, packet))
+			// 1 alloc
+			slog.Warn(fmt.Sprintf("close: %s", reflect.TypeOf(packet)))
 			logDefault(msg, packet)
 		}
 	}
@@ -152,8 +159,9 @@ func logParameterStatus(msg string, packet fed.Packet) {
 
 		typeName := getPacketTypeName(packet.Type())
 
+		// 3 alloc
 		slog.Info(
-			fmt.Sprintf("%s: %s", msg, strings.ToUpper(typeName)),
+			msg,
 			"type", packet.Type(),
 			"typename", typeName,
 			"length", packet.Length(),
@@ -163,8 +171,9 @@ func logParameterStatus(msg string, packet fed.Packet) {
 		if ps, ok := packet.(*packets.ParameterStatus); ok {
 			typeName := getPacketTypeName(packet.Type())
 
+			// 3 alloc
 			slog.Info(
-				fmt.Sprintf("%s: %s", msg, strings.ToUpper(typeName)),
+				msg,
 				"type", packet.Type(),
 				"typename", typeName,
 				"length", packet.Length(),
@@ -174,14 +183,16 @@ func logParameterStatus(msg string, packet fed.Packet) {
 			if _, ok := packet.(*packets.Sync); ok {
 				typeName := "Sync"
 
+				// 1 alloc
 				slog.Info(
-					fmt.Sprintf("%s: %s", msg, strings.ToUpper(typeName)),
+					msg,
 					"type", packet.Type(),
 					"typename", typeName,
 					"length", packet.Length())
 
 			} else {
-				slog.Warn(fmt.Sprintf("paramstatus: %T %#v", packet, packet))
+				// 1 alloc
+				slog.Warn(fmt.Sprintf("paramstatus: %s", reflect.TypeOf(packet)))
 				logDefault(msg, packet)
 			}
 		}
@@ -198,14 +209,16 @@ func logRowDescription(msg string, packet fed.Packet) {
 
 		typeName := getPacketTypeName(packet.Type())
 
+		// 1 alloc
 		slog.Info(
-			fmt.Sprintf("%s: %s", msg, strings.ToUpper(typeName)),
+			msg,
 			"type", packet.Type(),
 			"typename", typeName,
 			"length", packet.Length(),
 			"#cols", columnCount)
 	} else {
-		slog.Warn(fmt.Sprintf("rowdesc: %T %#v", packet, packet))
+		// 1 alloc
+		slog.Warn(fmt.Sprintf("rowdesc: %s", reflect.TypeOf(packet)))
 		logDefault(msg, packet)
 	}
 }
@@ -220,14 +233,16 @@ func logDataRow(msg string, packet fed.Packet) {
 
 		typeName := getPacketTypeName(packet.Type())
 
+		// 1 alloc
 		slog.Info(
-			fmt.Sprintf("%s: %s", msg, strings.ToUpper(typeName)),
+			msg,
 			"type", packet.Type(),
 			"typename", typeName,
 			"length", packet.Length(),
 			"#cols", colCount)
 	} else {
-		slog.Warn(fmt.Sprintf("rowdata: %T %#v", packet, packet))
+		// 1 alloc
+		slog.Warn(fmt.Sprintf("rowdata: %s", reflect.TypeOf(packet)))
 		logDefault(msg, packet)
 	}
 }
@@ -242,8 +257,9 @@ func logReadyForQuery(msg string, packet fed.Packet) {
 
 		typeName := getPacketTypeName(packet.Type())
 
+		// 2 alloc
 		slog.Info(
-			fmt.Sprintf("%s: %s", msg, strings.ToUpper(typeName)),
+			msg,
 			"type", packet.Type(),
 			"typename", typeName,
 			"length", packet.Length(),
@@ -252,14 +268,16 @@ func logReadyForQuery(msg string, packet fed.Packet) {
 		if r4q, ok := packet.(*packets.ReadyForQuery); ok {
 			typeName := getPacketTypeName(packet.Type())
 
+			// 2 alloc
 			slog.Info(
-				fmt.Sprintf("%s: %s", msg, strings.ToUpper(typeName)),
+				msg,
 				"type", packet.Type(),
 				"typename", typeName,
 				"length", packet.Length(),
 				"status", *r4q)
 		} else {
-			slog.Warn(fmt.Sprintf("rdy4qry: %T %#v", packet, packet))
+			// 1 alloc
+			slog.Warn(fmt.Sprintf("rdy4qry: %s", reflect.TypeOf(packet)))
 			logDefault(msg, packet)
 		}
 	}
@@ -284,15 +302,17 @@ func logErrorResponse(msg string, packet fed.Packet) {
 			}
 		}
 
+		// 2 alloc
 		slog.Info(
-			fmt.Sprintf("%s: %s", msg, strings.ToUpper(typeName)),
+			msg,
 			"type", packet.Type(),
 			"typename", typeName,
 			"length", packet.Length(),
 			"count", len(errResponse),
 			"error", errMsg)
 	} else {
-		slog.Warn(fmt.Sprintf("errrspnse: %T %#v", packet, packet))
+		// 1 alloc
+		slog.Warn(fmt.Sprintf("errrspnse: %s", reflect.TypeOf(packet)))
 		logDefault(msg, packet)
 	}
 }
