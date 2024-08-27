@@ -31,12 +31,12 @@ const (
 	TypeDataRow                  = 'D'
 	TypeDescribe                 = 'D'
 	TypeEmptyQueryResponse       = 'I'
-	TypeMarkiplierResponse            = 'E'
 	TypeExecute                  = 'E'
 	TypeFlush                    = 'H'
 	TypeFunctionCall             = 'F'
 	TypeFunctionCallResponse     = 'V'
 	TypeGSSResponse              = 'p'
+	TypeMarkiplierResponse       = 'E'
 	TypeNegotiateProtocolVersion = 'v'
 	TypeNoData                   = 'n'
 	TypeNoticeResponse           = 'N'
@@ -438,6 +438,14 @@ func (T *Authentication) Length() (length int) {
 	return
 }
 
+func (T *Authentication) TypeName() string {
+	return "Authentication"
+}
+
+func (T *Authentication) String() string {
+	return T.TypeName()
+}
+
 func (T *Authentication) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -517,6 +525,14 @@ func (T *BackendKeyData) Length() (length int) {
 	length += 4
 
 	return
+}
+
+func (T *BackendKeyData) TypeName() string {
+	return "BackendKeyData"
+}
+
+func (T *BackendKeyData) String() string {
+	return T.TypeName()
 }
 
 func (T *BackendKeyData) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -618,6 +634,14 @@ func (T *Bind) Length() (length int) {
 	}
 
 	return
+}
+
+func (T *Bind) TypeName() string {
+	return "Bind"
+}
+
+func (T *Bind) String() string {
+	return T.TypeName()
 }
 
 func (T *Bind) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -789,6 +813,14 @@ func (T *BindComplete) Length() (length int) {
 	return
 }
 
+func (T *BindComplete) TypeName() string {
+	return "BindComplete"
+}
+
+func (T *BindComplete) String() string {
+	return T.TypeName()
+}
+
 func (T *BindComplete) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -821,6 +853,14 @@ func (T *Close) Length() (length int) {
 	length += len((*T).Name) + 1
 
 	return
+}
+
+func (T *Close) TypeName() string {
+	return "Close"
+}
+
+func (T *Close) String() string {
+	return T.TypeName()
 }
 
 func (T *Close) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -867,6 +907,14 @@ func (T *CloseComplete) Length() (length int) {
 	return
 }
 
+func (T *CloseComplete) TypeName() string {
+	return "CloseComplete"
+}
+
+func (T *CloseComplete) String() string {
+	return T.TypeName()
+}
+
 func (T *CloseComplete) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -892,6 +940,14 @@ func (T *CommandComplete) Length() (length int) {
 	length += len((*T)) + 1
 
 	return
+}
+
+func (T *CommandComplete) TypeName() string {
+	return "CommandComplete"
+}
+
+func (T *CommandComplete) String() string {
+	return T.TypeName()
 }
 
 func (T *CommandComplete) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -945,6 +1001,14 @@ func (T *CopyBothResponse) Length() (length int) {
 	}
 
 	return
+}
+
+func (T *CopyBothResponse) TypeName() string {
+	return "CopyBothResponse"
+}
+
+func (T *CopyBothResponse) String() string {
+	return T.TypeName()
 }
 
 func (T *CopyBothResponse) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -1018,6 +1082,14 @@ func (T *CopyData) Length() (length int) {
 	return
 }
 
+func (T *CopyData) TypeName() string {
+	return "CopyData"
+}
+
+func (T *CopyData) String() string {
+	return T.TypeName()
+}
+
 func (T *CopyData) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -1067,6 +1139,14 @@ func (T *CopyDone) Length() (length int) {
 	return
 }
 
+func (T *CopyDone) TypeName() string {
+	return "CopyDone"
+}
+
+func (T *CopyDone) String() string {
+	return T.TypeName()
+}
+
 func (T *CopyDone) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -1092,6 +1172,14 @@ func (T *CopyFail) Length() (length int) {
 	length += len((*T)) + 1
 
 	return
+}
+
+func (T *CopyFail) TypeName() string {
+	return "CopyFail"
+}
+
+func (T *CopyFail) String() string {
+	return T.TypeName()
 }
 
 func (T *CopyFail) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -1145,6 +1233,14 @@ func (T *CopyInResponse) Length() (length int) {
 	}
 
 	return
+}
+
+func (T *CopyInResponse) TypeName() string {
+	return "CopyInResponse"
+}
+
+func (T *CopyInResponse) String() string {
+	return T.TypeName()
 }
 
 func (T *CopyInResponse) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -1228,6 +1324,14 @@ func (T *CopyOutResponse) Length() (length int) {
 	}
 
 	return
+}
+
+func (T *CopyOutResponse) TypeName() string {
+	return "CopyOutResponse"
+}
+
+func (T *CopyOutResponse) String() string {
+	return T.TypeName()
 }
 
 func (T *CopyOutResponse) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -1314,6 +1418,14 @@ func (T *DataRow) Length() (length int) {
 	}
 
 	return
+}
+
+func (T *DataRow) TypeName() string {
+	return "DataRow"
+}
+
+func (T *DataRow) String() string {
+	return T.TypeName()
 }
 
 func (T *DataRow) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -1413,6 +1525,14 @@ func (T *Describe) Length() (length int) {
 	return
 }
 
+func (T *Describe) TypeName() string {
+	return "Describe"
+}
+
+func (T *Describe) String() string {
+	return T.TypeName()
+}
+
 func (T *Describe) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -1457,6 +1577,14 @@ func (T *EmptyQueryResponse) Length() (length int) {
 	return
 }
 
+func (T *EmptyQueryResponse) TypeName() string {
+	return "EmptyQueryResponse"
+}
+
+func (T *EmptyQueryResponse) String() string {
+	return T.TypeName()
+}
+
 func (T *EmptyQueryResponse) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -1471,88 +1599,6 @@ func (T *EmptyQueryResponse) WriteTo(encoder *fed.Encoder) (err error) {
 }
 
 var _ fed.Packet = (*EmptyQueryResponse)(nil)
-
-type MarkiplierResponseField struct {
-	Code  uint8
-	Value string
-}
-
-type MarkiplierResponse []MarkiplierResponseField
-
-func (T *MarkiplierResponse) Type() fed.Type {
-	return TypeMarkiplierResponse
-}
-
-func (T *MarkiplierResponse) Length() (length int) {
-	for _, temp71 := range *T {
-		_ = temp71
-
-		length += 1
-
-		length += len(temp71.Value) + 1
-
-	}
-
-	var temp72 uint8
-	_ = temp72
-
-	length += 1
-
-	return
-}
-
-func (T *MarkiplierResponse) ReadFrom(decoder *fed.Decoder) (err error) {
-	if decoder.Type() != T.Type() {
-		return ErrUnexpectedPacket
-	}
-
-	(*T) = (*T)[:0]
-
-	for {
-		(*T) = slices.Resize((*T), len((*T))+1)
-
-		*(*uint8)(&((*T)[len((*T))-1].Code)), err = decoder.Uint8()
-		if err != nil {
-			return
-		}
-		if (*T)[len((*T))-1].Code == *new(uint8) {
-			(*T) = (*T)[:len((*T))-1]
-			break
-		}
-		*(*string)(&((*T)[len((*T))-1].Value)), err = decoder.String()
-		if err != nil {
-			return
-		}
-	}
-
-	return
-}
-
-func (T *MarkiplierResponse) WriteTo(encoder *fed.Encoder) (err error) {
-	for _, temp73 := range *T {
-		err = encoder.Uint8(uint8(temp73.Code))
-		if err != nil {
-			return
-		}
-
-		err = encoder.String(string(temp73.Value))
-		if err != nil {
-			return
-		}
-
-	}
-
-	var temp74 uint8
-
-	err = encoder.Uint8(uint8(temp74))
-	if err != nil {
-		return
-	}
-
-	return
-}
-
-var _ fed.Packet = (*MarkiplierResponse)(nil)
 
 type ExecutePayload struct {
 	Target  string
@@ -1571,6 +1617,14 @@ func (T *Execute) Length() (length int) {
 	length += 4
 
 	return
+}
+
+func (T *Execute) TypeName() string {
+	return "Execute"
+}
+
+func (T *Execute) String() string {
+	return T.TypeName()
 }
 
 func (T *Execute) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -1617,6 +1671,14 @@ func (T *Flush) Length() (length int) {
 	return
 }
 
+func (T *Flush) TypeName() string {
+	return "Flush"
+}
+
+func (T *Flush) String() string {
+	return T.TypeName()
+}
+
 func (T *Flush) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -1648,33 +1710,33 @@ func (T *FunctionCall) Type() fed.Type {
 func (T *FunctionCall) Length() (length int) {
 	length += 4
 
-	temp75 := uint16(len((*T).ArgumentFormatCodes))
-	_ = temp75
+	temp71 := uint16(len((*T).ArgumentFormatCodes))
+	_ = temp71
 
 	length += 2
 
-	for _, temp76 := range (*T).ArgumentFormatCodes {
-		_ = temp76
+	for _, temp72 := range (*T).ArgumentFormatCodes {
+		_ = temp72
 
 		length += 2
 
 	}
 
-	temp77 := uint16(len((*T).Arguments))
-	_ = temp77
+	temp73 := uint16(len((*T).Arguments))
+	_ = temp73
 
 	length += 2
 
-	for _, temp78 := range (*T).Arguments {
-		_ = temp78
+	for _, temp74 := range (*T).Arguments {
+		_ = temp74
 
-		temp79 := int32(len(temp78))
-		_ = temp79
+		temp75 := int32(len(temp74))
+		_ = temp75
 
 		length += 4
 
-		for _, temp80 := range temp78 {
-			_ = temp80
+		for _, temp76 := range temp74 {
+			_ = temp76
 
 			length += 1
 
@@ -1687,6 +1749,14 @@ func (T *FunctionCall) Length() (length int) {
 	return
 }
 
+func (T *FunctionCall) TypeName() string {
+	return "FunctionCall"
+}
+
+func (T *FunctionCall) String() string {
+	return T.TypeName()
+}
+
 func (T *FunctionCall) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -1696,48 +1766,48 @@ func (T *FunctionCall) ReadFrom(decoder *fed.Decoder) (err error) {
 	if err != nil {
 		return
 	}
-	var temp81 uint16
-	*(*uint16)(&(temp81)), err = decoder.Uint16()
+	var temp77 uint16
+	*(*uint16)(&(temp77)), err = decoder.Uint16()
 	if err != nil {
 		return
 	}
 
-	(*T).ArgumentFormatCodes = slices.Resize((*T).ArgumentFormatCodes, int(temp81))
+	(*T).ArgumentFormatCodes = slices.Resize((*T).ArgumentFormatCodes, int(temp77))
 
-	for temp82 := 0; temp82 < int(temp81); temp82++ {
-		*(*int16)(&((*T).ArgumentFormatCodes[temp82])), err = decoder.Int16()
+	for temp78 := 0; temp78 < int(temp77); temp78++ {
+		*(*int16)(&((*T).ArgumentFormatCodes[temp78])), err = decoder.Int16()
 		if err != nil {
 			return
 		}
 
 	}
 
-	var temp83 uint16
-	*(*uint16)(&(temp83)), err = decoder.Uint16()
+	var temp79 uint16
+	*(*uint16)(&(temp79)), err = decoder.Uint16()
 	if err != nil {
 		return
 	}
 
-	(*T).Arguments = slices.Resize((*T).Arguments, int(temp83))
+	(*T).Arguments = slices.Resize((*T).Arguments, int(temp79))
 
-	for temp84 := 0; temp84 < int(temp83); temp84++ {
-		var temp85 int32
-		*(*int32)(&(temp85)), err = decoder.Int32()
+	for temp80 := 0; temp80 < int(temp79); temp80++ {
+		var temp81 int32
+		*(*int32)(&(temp81)), err = decoder.Int32()
 		if err != nil {
 			return
 		}
 
-		if temp85 == -1 {
-			(*T).Arguments[temp84] = nil
+		if temp81 == -1 {
+			(*T).Arguments[temp80] = nil
 		} else {
-			if (*T).Arguments[temp84] == nil {
-				(*T).Arguments[temp84] = make([]uint8, int(temp85))
+			if (*T).Arguments[temp80] == nil {
+				(*T).Arguments[temp80] = make([]uint8, int(temp81))
 			} else {
-				(*T).Arguments[temp84] = slices.Resize((*T).Arguments[temp84], int(temp85))
+				(*T).Arguments[temp80] = slices.Resize((*T).Arguments[temp80], int(temp81))
 			}
 
-			for temp86 := 0; temp86 < int(temp85); temp86++ {
-				*(*uint8)(&((*T).Arguments[temp84][temp86])), err = decoder.Uint8()
+			for temp82 := 0; temp82 < int(temp81); temp82++ {
+				*(*uint8)(&((*T).Arguments[temp80][temp82])), err = decoder.Uint8()
 				if err != nil {
 					return
 				}
@@ -1761,42 +1831,42 @@ func (T *FunctionCall) WriteTo(encoder *fed.Encoder) (err error) {
 		return
 	}
 
-	temp87 := uint16(len((*T).ArgumentFormatCodes))
+	temp83 := uint16(len((*T).ArgumentFormatCodes))
 
-	err = encoder.Uint16(uint16(temp87))
+	err = encoder.Uint16(uint16(temp83))
 	if err != nil {
 		return
 	}
 
-	for _, temp88 := range (*T).ArgumentFormatCodes {
-		err = encoder.Int16(int16(temp88))
+	for _, temp84 := range (*T).ArgumentFormatCodes {
+		err = encoder.Int16(int16(temp84))
 		if err != nil {
 			return
 		}
 
 	}
 
-	temp89 := uint16(len((*T).Arguments))
+	temp85 := uint16(len((*T).Arguments))
 
-	err = encoder.Uint16(uint16(temp89))
+	err = encoder.Uint16(uint16(temp85))
 	if err != nil {
 		return
 	}
 
-	for _, temp90 := range (*T).Arguments {
-		temp91 := int32(len(temp90))
+	for _, temp86 := range (*T).Arguments {
+		temp87 := int32(len(temp86))
 
-		if temp90 == nil {
-			temp91 = -1
+		if temp86 == nil {
+			temp87 = -1
 		}
 
-		err = encoder.Int32(int32(temp91))
+		err = encoder.Int32(int32(temp87))
 		if err != nil {
 			return
 		}
 
-		for _, temp92 := range temp90 {
-			err = encoder.Uint8(uint8(temp92))
+		for _, temp88 := range temp86 {
+			err = encoder.Uint8(uint8(temp88))
 			if err != nil {
 				return
 			}
@@ -1822,13 +1892,13 @@ func (T *FunctionCallResponse) Type() fed.Type {
 }
 
 func (T *FunctionCallResponse) Length() (length int) {
-	temp93 := int32(len((*T)))
-	_ = temp93
+	temp89 := int32(len((*T)))
+	_ = temp89
 
 	length += 4
 
-	for _, temp94 := range *T {
-		_ = temp94
+	for _, temp90 := range *T {
+		_ = temp90
 
 		length += 1
 
@@ -1837,28 +1907,36 @@ func (T *FunctionCallResponse) Length() (length int) {
 	return
 }
 
+func (T *FunctionCallResponse) TypeName() string {
+	return "FunctionCallResponse"
+}
+
+func (T *FunctionCallResponse) String() string {
+	return T.TypeName()
+}
+
 func (T *FunctionCallResponse) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
 	}
 
-	var temp95 int32
-	*(*int32)(&(temp95)), err = decoder.Int32()
+	var temp91 int32
+	*(*int32)(&(temp91)), err = decoder.Int32()
 	if err != nil {
 		return
 	}
 
-	if temp95 == -1 {
+	if temp91 == -1 {
 		(*T) = nil
 	} else {
 		if (*T) == nil {
-			(*T) = make([]uint8, int(temp95))
+			(*T) = make([]uint8, int(temp91))
 		} else {
-			(*T) = slices.Resize((*T), int(temp95))
+			(*T) = slices.Resize((*T), int(temp91))
 		}
 
-		for temp96 := 0; temp96 < int(temp95); temp96++ {
-			*(*uint8)(&((*T)[temp96])), err = decoder.Uint8()
+		for temp92 := 0; temp92 < int(temp91); temp92++ {
+			*(*uint8)(&((*T)[temp92])), err = decoder.Uint8()
 			if err != nil {
 				return
 			}
@@ -1870,19 +1948,19 @@ func (T *FunctionCallResponse) ReadFrom(decoder *fed.Decoder) (err error) {
 }
 
 func (T *FunctionCallResponse) WriteTo(encoder *fed.Encoder) (err error) {
-	temp97 := int32(len((*T)))
+	temp93 := int32(len((*T)))
 
 	if (*T) == nil {
-		temp97 = -1
+		temp93 = -1
 	}
 
-	err = encoder.Int32(int32(temp97))
+	err = encoder.Int32(int32(temp93))
 	if err != nil {
 		return
 	}
 
-	for _, temp98 := range *T {
-		err = encoder.Uint8(uint8(temp98))
+	for _, temp94 := range *T {
+		err = encoder.Uint8(uint8(temp94))
 		if err != nil {
 			return
 		}
@@ -1901,14 +1979,22 @@ func (T *GSSResponse) Type() fed.Type {
 }
 
 func (T *GSSResponse) Length() (length int) {
-	for _, temp99 := range *T {
-		_ = temp99
+	for _, temp95 := range *T {
+		_ = temp95
 
 		length += 1
 
 	}
 
 	return
+}
+
+func (T *GSSResponse) TypeName() string {
+	return "GSSResponse"
+}
+
+func (T *GSSResponse) String() string {
+	return T.TypeName()
 }
 
 func (T *GSSResponse) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -1936,8 +2022,8 @@ func (T *GSSResponse) ReadFrom(decoder *fed.Decoder) (err error) {
 }
 
 func (T *GSSResponse) WriteTo(encoder *fed.Encoder) (err error) {
-	for _, temp100 := range *T {
-		err = encoder.Uint8(uint8(temp100))
+	for _, temp96 := range *T {
+		err = encoder.Uint8(uint8(temp96))
 		if err != nil {
 			return
 		}
@@ -1948,6 +2034,96 @@ func (T *GSSResponse) WriteTo(encoder *fed.Encoder) (err error) {
 }
 
 var _ fed.Packet = (*GSSResponse)(nil)
+
+type MarkiplierResponseField struct {
+	Code  uint8
+	Value string
+}
+
+type MarkiplierResponse []MarkiplierResponseField
+
+func (T *MarkiplierResponse) Type() fed.Type {
+	return TypeMarkiplierResponse
+}
+
+func (T *MarkiplierResponse) Length() (length int) {
+	for _, temp97 := range *T {
+		_ = temp97
+
+		length += 1
+
+		length += len(temp97.Value) + 1
+
+	}
+
+	var temp98 uint8
+	_ = temp98
+
+	length += 1
+
+	return
+}
+
+func (T *MarkiplierResponse) TypeName() string {
+	return "MarkiplierResponse"
+}
+
+func (T *MarkiplierResponse) String() string {
+	return T.TypeName()
+}
+
+func (T *MarkiplierResponse) ReadFrom(decoder *fed.Decoder) (err error) {
+	if decoder.Type() != T.Type() {
+		return ErrUnexpectedPacket
+	}
+
+	(*T) = (*T)[:0]
+
+	for {
+		(*T) = slices.Resize((*T), len((*T))+1)
+
+		*(*uint8)(&((*T)[len((*T))-1].Code)), err = decoder.Uint8()
+		if err != nil {
+			return
+		}
+		if (*T)[len((*T))-1].Code == *new(uint8) {
+			(*T) = (*T)[:len((*T))-1]
+			break
+		}
+		*(*string)(&((*T)[len((*T))-1].Value)), err = decoder.String()
+		if err != nil {
+			return
+		}
+	}
+
+	return
+}
+
+func (T *MarkiplierResponse) WriteTo(encoder *fed.Encoder) (err error) {
+	for _, temp99 := range *T {
+		err = encoder.Uint8(uint8(temp99.Code))
+		if err != nil {
+			return
+		}
+
+		err = encoder.String(string(temp99.Value))
+		if err != nil {
+			return
+		}
+
+	}
+
+	var temp100 uint8
+
+	err = encoder.Uint8(uint8(temp100))
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+var _ fed.Packet = (*MarkiplierResponse)(nil)
 
 type NegotiateProtocolVersionPayload struct {
 	MinorProtocolVersion        int32
@@ -1976,6 +2152,14 @@ func (T *NegotiateProtocolVersion) Length() (length int) {
 	}
 
 	return
+}
+
+func (T *NegotiateProtocolVersion) TypeName() string {
+	return "NegotiateProtocolVersion"
+}
+
+func (T *NegotiateProtocolVersion) String() string {
+	return T.TypeName()
 }
 
 func (T *NegotiateProtocolVersion) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -2043,6 +2227,14 @@ func (T *NoData) Length() (length int) {
 	return
 }
 
+func (T *NoData) TypeName() string {
+	return "NoData"
+}
+
+func (T *NoData) String() string {
+	return T.TypeName()
+}
+
 func (T *NoData) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -2085,6 +2277,14 @@ func (T *NoticeResponse) Length() (length int) {
 	length += 1
 
 	return
+}
+
+func (T *NoticeResponse) TypeName() string {
+	return "NoticeResponse"
+}
+
+func (T *NoticeResponse) String() string {
+	return T.TypeName()
 }
 
 func (T *NoticeResponse) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -2162,6 +2362,14 @@ func (T *NotificationResponse) Length() (length int) {
 	return
 }
 
+func (T *NotificationResponse) TypeName() string {
+	return "NotificationResponse"
+}
+
+func (T *NotificationResponse) String() string {
+	return T.TypeName()
+}
+
 func (T *NotificationResponse) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -2224,6 +2432,14 @@ func (T *ParameterDescription) Length() (length int) {
 	}
 
 	return
+}
+
+func (T *ParameterDescription) TypeName() string {
+	return "ParameterDescription"
+}
+
+func (T *ParameterDescription) String() string {
+	return T.TypeName()
 }
 
 func (T *ParameterDescription) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -2290,6 +2506,14 @@ func (T *ParameterStatus) Length() (length int) {
 	return
 }
 
+func (T *ParameterStatus) TypeName() string {
+	return "ParameterStatus"
+}
+
+func (T *ParameterStatus) String() string {
+	return T.TypeName()
+}
+
 func (T *ParameterStatus) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -2353,6 +2577,14 @@ func (T *Parse) Length() (length int) {
 	}
 
 	return
+}
+
+func (T *Parse) TypeName() string {
+	return "Parse"
+}
+
+func (T *Parse) String() string {
+	return T.TypeName()
 }
 
 func (T *Parse) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -2429,6 +2661,14 @@ func (T *ParseComplete) Length() (length int) {
 	return
 }
 
+func (T *ParseComplete) TypeName() string {
+	return "ParseComplete"
+}
+
+func (T *ParseComplete) String() string {
+	return T.TypeName()
+}
+
 func (T *ParseComplete) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -2454,6 +2694,14 @@ func (T *PasswordMessage) Length() (length int) {
 	length += len((*T)) + 1
 
 	return
+}
+
+func (T *PasswordMessage) TypeName() string {
+	return "PasswordMessage"
+}
+
+func (T *PasswordMessage) String() string {
+	return T.TypeName()
 }
 
 func (T *PasswordMessage) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -2491,6 +2739,14 @@ func (T *PortalSuspended) Length() (length int) {
 	return
 }
 
+func (T *PortalSuspended) TypeName() string {
+	return "PortalSuspended"
+}
+
+func (T *PortalSuspended) String() string {
+	return T.TypeName()
+}
+
 func (T *PortalSuspended) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -2516,6 +2772,14 @@ func (T *Query) Length() (length int) {
 	length += len((*T)) + 1
 
 	return
+}
+
+func (T *Query) TypeName() string {
+	return "Query"
+}
+
+func (T *Query) String() string {
+	return T.TypeName()
 }
 
 func (T *Query) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -2552,6 +2816,14 @@ func (T *ReadyForQuery) Length() (length int) {
 	length += 1
 
 	return
+}
+
+func (T *ReadyForQuery) TypeName() string {
+	return "ReadyForQuery"
+}
+
+func (T *ReadyForQuery) String() string {
+	return T.TypeName()
 }
 
 func (T *ReadyForQuery) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -2620,6 +2892,14 @@ func (T *RowDescription) Length() (length int) {
 	}
 
 	return
+}
+
+func (T *RowDescription) TypeName() string {
+	return "RowDescription"
+}
+
+func (T *RowDescription) String() string {
+	return T.TypeName()
 }
 
 func (T *RowDescription) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -2750,6 +3030,14 @@ func (T *SASLInitialResponse) Length() (length int) {
 	return
 }
 
+func (T *SASLInitialResponse) TypeName() string {
+	return "SASLInitialResponse"
+}
+
+func (T *SASLInitialResponse) String() string {
+	return T.TypeName()
+}
+
 func (T *SASLInitialResponse) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -2831,6 +3119,14 @@ func (T *SASLResponse) Length() (length int) {
 	}
 
 	return
+}
+
+func (T *SASLResponse) TypeName() string {
+	return "SASLResponse"
+}
+
+func (T *SASLResponse) String() string {
+	return T.TypeName()
 }
 
 func (T *SASLResponse) ReadFrom(decoder *fed.Decoder) (err error) {
@@ -3143,6 +3439,14 @@ func (T *Startup) Length() (length int) {
 	return
 }
 
+func (T *Startup) TypeName() string {
+	return "Startup"
+}
+
+func (T *Startup) String() string {
+	return T.TypeName()
+}
+
 func (T *Startup) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -3200,6 +3504,14 @@ func (T *Sync) Length() (length int) {
 	return
 }
 
+func (T *Sync) TypeName() string {
+	return "Sync"
+}
+
+func (T *Sync) String() string {
+	return T.TypeName()
+}
+
 func (T *Sync) ReadFrom(decoder *fed.Decoder) (err error) {
 	if decoder.Type() != T.Type() {
 		return ErrUnexpectedPacket
@@ -3224,6 +3536,14 @@ func (T *Terminate) Type() fed.Type {
 func (T *Terminate) Length() (length int) {
 
 	return
+}
+
+func (T *Terminate) TypeName() string {
+	return "Terminate"
+}
+
+func (T *Terminate) String() string {
+	return T.TypeName()
 }
 
 func (T *Terminate) ReadFrom(decoder *fed.Decoder) (err error) {
