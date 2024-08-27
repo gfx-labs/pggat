@@ -321,8 +321,8 @@ func (T *Pool) Cancel(ctx context.Context, key fed.BackendKey) {
 	T.servers.Cancel(ctx, peer)
 }
 
-func (T *Pool) ReadMetrics(m *metrics.Pool) {
-	T.servers.ReadMetrics(m)
+func (T *Pool) ReadMetrics(ctx context.Context,m *metrics.Pool) {
+	T.servers.ReadMetrics(ctx,m)
 
 	T.mu.RLock()
 	defer T.mu.RUnlock()
@@ -332,7 +332,7 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 	}
 	for _, client := range T.clients {
 		var c metrics.Conn
-		client.ReadMetrics(&c)
+		client.ReadMetrics(ctx,&c)
 		m.Clients[client.ID] = c
 	}
 }

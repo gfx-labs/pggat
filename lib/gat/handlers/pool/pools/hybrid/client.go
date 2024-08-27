@@ -1,6 +1,7 @@
 package hybrid
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -67,7 +68,7 @@ func (T *Client) TransactionComplete() {
 	T.txnCount.Add(1)
 }
 
-func (T *Client) ReadMetrics(m *metrics.Conn) {
+func (T *Client) ReadMetrics(_ context.Context,m *metrics.Conn) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 

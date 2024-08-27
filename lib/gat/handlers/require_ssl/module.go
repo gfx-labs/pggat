@@ -1,6 +1,7 @@
 package require_ssl
 
 import (
+	"context"
 	"github.com/caddyserver/caddy/v2"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
@@ -26,7 +27,7 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *Module) Handle(next gat.Router) gat.Router {
-	return gat.RouterFunc(func(conn *fed.Conn) error {
+	return gat.RouterFunc(func(ctx context.Context, conn *fed.Conn) error {
 		if T.SSL {
 			if !conn.SSL {
 				return perror.New(
@@ -35,7 +36,7 @@ func (T *Module) Handle(next gat.Router) gat.Router {
 					"SSL is required",
 				)
 			}
-			return next.Route(conn)
+			return next.Route(ctx, conn)
 		}
 
 		if conn.SSL {
@@ -45,7 +46,7 @@ func (T *Module) Handle(next gat.Router) gat.Router {
 				"SSL is not allowed",
 			)
 		}
-		return next.Route(conn)
+		return next.Route(ctx, conn)
 	})
 }
 

@@ -1,6 +1,7 @@
 package rewrite_database
 
 import (
+	"context"
 	"errors"
 	"strings"
 
@@ -38,7 +39,7 @@ func (T *Module) Validate() error {
 }
 
 func (T *Module) Handle(next gat.Router) gat.Router {
-	return gat.RouterFunc(func(conn *fed.Conn) error {
+	return gat.RouterFunc(func(ctx context.Context, conn *fed.Conn) error {
 		switch T.Mode {
 		case "strip_prefix":
 			conn.Database = strings.TrimPrefix(conn.Database, T.Database)
@@ -47,7 +48,7 @@ func (T *Module) Handle(next gat.Router) gat.Router {
 		default:
 			conn.Database = T.Database
 		}
-		return next.Route(conn)
+		return next.Route(ctx, conn)
 	})
 }
 

@@ -1,6 +1,7 @@
 package allowed_startup_parameters
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/caddyserver/caddy/v2"
@@ -30,7 +31,7 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *Module) Handle(next gat.Router) gat.Router {
-	return gat.RouterFunc(func(conn *fed.Conn) error {
+	return gat.RouterFunc(func(ctx context.Context, conn *fed.Conn) error {
 		for parameter := range conn.InitialParameters {
 			if !slices.Contains(T.Parameters, parameter) {
 				return perror.New(
@@ -40,7 +41,7 @@ func (T *Module) Handle(next gat.Router) gat.Router {
 				)
 			}
 		}
-		return next.Route(conn)
+		return next.Route(ctx, conn)
 	})
 }
 

@@ -28,7 +28,7 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *Module) Handle(next gat.Router) gat.Router {
-	return gat.RouterFunc(func(conn *fed.Conn) error {
+	return gat.RouterFunc(func(ctx context.Context, conn *fed.Conn) error {
 		if err := frontends.Authenticate(
 			context.Background(),
 			conn,
@@ -37,7 +37,7 @@ func (T *Module) Handle(next gat.Router) gat.Router {
 			return err
 		}
 
-		return next.Route(conn)
+		return next.Route(ctx, conn)
 	})
 }
 

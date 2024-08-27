@@ -50,9 +50,8 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	return nil
 }
 
-func (T *Module) Handle(next gat.Router) gat.Router {
-	return gat.RouterFunc(func(c *fed.Conn) error {
-		ctx := context.Background()
+func (T *Module) Handle(gat.Router) gat.Router {
+	return gat.RouterFunc(func(ctx context.Context, c *fed.Conn) error {
 		if err := frontends.Authenticate(ctx, c, nil); err != nil {
 			return err
 		}
@@ -61,8 +60,8 @@ func (T *Module) Handle(next gat.Router) gat.Router {
 	})
 }
 
-func (T *Module) ReadMetrics(metrics *metrics.Handler) {
-	T.pool.ReadMetrics(&metrics.Pool)
+func (T *Module) ReadMetrics(ctx context.Context, metrics *metrics.Handler) {
+	T.pool.ReadMetrics(ctx, &metrics.Pool)
 }
 
 func (T *Module) Cancel(ctx context.Context, key fed.BackendKey) {

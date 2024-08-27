@@ -1,6 +1,7 @@
 package rewrite_parameter
 
 import (
+	"context"
 	"github.com/caddyserver/caddy/v2"
 
 	"gfx.cafe/gfx/pggat/lib/fed"
@@ -27,13 +28,13 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *Module) Handle(next gat.Router) gat.Router {
-	return gat.RouterFunc(func(conn *fed.Conn) error {
+	return gat.RouterFunc(func(ctx context.Context, conn *fed.Conn) error {
 		if conn.InitialParameters == nil {
 			conn.InitialParameters = make(map[strutil.CIString]string)
 		}
 		conn.InitialParameters[T.Key] = T.Value
 
-		return next.Route(conn)
+		return next.Route(ctx, conn)
 	})
 }
 

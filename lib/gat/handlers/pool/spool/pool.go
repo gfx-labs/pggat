@@ -295,7 +295,7 @@ func (T *Pool) Release(ctx context.Context, server *Server) {
 
 		if err, _ := backends.QueryString(ctx, server.Conn, nil, T.config.ResetQuery); err != nil {
 			T.config.Logger.Error("failed to run reset query", zap.Error(err))
-			T.RemoveServer(ctx,server)
+			T.RemoveServer(ctx, server)
 			return
 		}
 	}
@@ -321,7 +321,7 @@ func (T *Pool) Cancel(ctx context.Context, server *Server) {
 	T.chef.Cancel(ctx, server.Conn)
 }
 
-func (T *Pool) ReadMetrics(m *metrics.Pool) {
+func (T *Pool) ReadMetrics(ctx context.Context, m *metrics.Pool) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 
@@ -330,7 +330,7 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 	}
 	for _, server := range T.serversByID {
 		var s metrics.Conn
-		server.ReadMetrics(&s)
+		server.ReadMetrics(ctx, &s)
 		m.Servers[server.ID] = s
 	}
 }

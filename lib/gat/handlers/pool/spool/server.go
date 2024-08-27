@@ -1,6 +1,7 @@
 package spool
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -64,7 +65,7 @@ func (T *Server) TransactionComplete() {
 	T.txnCount.Add(1)
 }
 
-func (T *Server) ReadMetrics(m *metrics.Conn) {
+func (T *Server) ReadMetrics(_ context.Context, m *metrics.Conn) {
 	T.mu.Lock()
 	defer T.mu.Unlock()
 

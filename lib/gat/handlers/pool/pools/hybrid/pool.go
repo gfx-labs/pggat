@@ -502,9 +502,9 @@ func (T *Pool) Cancel(ctx context.Context, key fed.BackendKey) {
 	}
 }
 
-func (T *Pool) ReadMetrics(m *metrics.Pool) {
-	T.primary.ReadMetrics(m)
-	T.replica.ReadMetrics(m)
+func (T *Pool) ReadMetrics(ctx context.Context, m *metrics.Pool) {
+	T.primary.ReadMetrics(ctx, m)
+	T.replica.ReadMetrics(ctx, m)
 
 	T.mu.RLock()
 	defer T.mu.RUnlock()
@@ -514,7 +514,7 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 	}
 	for _, client := range T.clients {
 		var c metrics.Conn
-		client.ReadMetrics(&c)
+		client.ReadMetrics(ctx, &c)
 		m.Clients[client.ID] = c
 	}
 }
