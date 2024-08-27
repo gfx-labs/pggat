@@ -78,23 +78,7 @@ func (t *otelTrace) process(ctx context.Context, packet fed.Packet) {
 	}
 }
 
-func getStateName(state queryState) (str string) {
-	switch state {
-	case Init:
-		str = "Init"
-	case Waiting:
-		str = "Waiting"
-	case Query:
-		str = "Query"
-	default:
-		str = "<unknown>"
-	}
-
-	return
-}
-
 func (t *otelTrace) setState(state queryState) {
-	// slog.Warn(fmt.Sprintf("State Change: %s => %s", getStateName(t.state), getStateName(state)))
 	t.state = state
 }
 
@@ -107,6 +91,7 @@ func (t *otelTrace) startQuery(ctx context.Context, packet fed.Packet) {
 		}
 	} else {
 		if qp, ok := packet.(*packets.Query); ok && (qp != nil) {
+			// 0 alloc
 			sql = string(*qp)
 		}
 	}
@@ -144,7 +129,7 @@ func (t *otelTrace) recordError(_ context.Context, packet fed.Packet) {
 	t.span.SetStatus(codes.Error, errMsg)
 }
 
-func (t *otelTrace) recordSummary(_ context.Context,packet fed.Packet) {
+func (t *otelTrace) recordSummary(_ context.Context, packet fed.Packet) {
 	summary := "<unresolved query summary>"
 
 	if pp, ok := packet.(fed.PendingPacket); ok {
