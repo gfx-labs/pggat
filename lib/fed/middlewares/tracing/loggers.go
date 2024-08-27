@@ -8,42 +8,6 @@ import (
 	"reflect"
 )
 
-var packetTypeNames = map[fed.Type]string{
-	packets.TypeQuery: "Query",
-	// packets.TypeClose: "Close",
-	packets.TypeCommandComplete: "CommandComplete",
-	packets.TypeParameterStatus: "ParameterStatus",
-	// packets.TypeSync: "Sync",
-	packets.TypeReadyForQuery:      "ReadyForQuery",
-	packets.TypeRowDescription:     "RowDescription",
-	packets.TypeDataRow:            "DataRow",
-	packets.TypeEmptyQueryResponse: "EmptyQueryResponse",
-	packets.TypeAuthentication:     "Authentication",
-	packets.TypeBind:               "Bind",
-	packets.TypeBindComplete:       "BindComplete",
-	packets.TypeCloseComplete:      "CloseComplete",
-	packets.TypeCopyData:           "CopyData",
-	packets.TypeCopyDone:           "CopyDone",
-	packets.TypeCopyFail:           "CopyFail",
-	packets.TypeMarkiplierResponse: "ErrorResponse",
-	// packets.TypeExecute: "Execute",
-	packets.TypeNoticeResponse:       "NoticeResponse",
-	packets.TypeFlush:                "Flush",
-	packets.TypeTerminate:            "Terminate",
-	packets.TypeParse:                "Parse",
-	packets.TypeParseComplete:        "ParseComplete",
-	packets.TypeFunctionCall:         "FunctionCall",
-	packets.TypeFunctionCallResponse: "FunctionCallResponse",
-}
-
-func getPacketTypeName(t fed.Type) string {
-	if str, ok := packetTypeNames[t]; ok {
-		return str
-	}
-
-	return "<unknown type>"
-}
-
 // span trace.Span
 var logFunc map[int]func(msg string, packet fed.Packet) = map[int]func(msg string, packet fed.Packet){
 	packets.TypeQuery:              logQuery,
@@ -68,13 +32,11 @@ func getLogFunc(packet fed.Packet) func(msg string, packet fed.Packet) {
 }
 
 func logDefault(msg string, packet fed.Packet) {
-	typeName := getPacketTypeName(packet.Type())
-
 	// 1 alloc
 	slog.Info(
 		msg,
 		"type", packet.Type(),
-		"typename", typeName,
+		"typename", packet.TypeName(),
 		"length", packet.Length())
 }
 
@@ -97,13 +59,11 @@ func logQuery(msg string, packet fed.Packet) {
 		}
 	}
 
-	typeName := getPacketTypeName(packet.Type())
-
 	// 2 alloc
 	slog.Info(
 		msg,
 		"type", packet.Type(),
-		"typename", typeName,
+		"typename", packet.TypeName(),
 		"length", packet.Length(),
 		"sql", sql)
 }
@@ -117,26 +77,22 @@ func logClose(msg string, packet fed.Packet) {
 			return
 		}
 
-		typeName := getPacketTypeName(packet.Type())
-
 		// 2 alloc
 		slog.Info(
 			msg,
 			"type", packet.Type(),
-			"typename", typeName,
+			"typename", packet.TypeName(),
 			"length", packet.Length(),
 			"info", payload)
 	} else {
 		if cc, ok := packet.(*packets.CommandComplete); ok {
-			typeName := "CommandComplete"
-
 			info := string(*cc)
 
 			// 2 alloc
 			slog.Info(
 				msg,
 				"type", packet.Type(),
-				"typename", typeName,
+				"typename", packet.TypeName(),
 				"length", packet.Length(),
 				"info", info)
 
@@ -157,37 +113,30 @@ func logParameterStatus(msg string, packet fed.Packet) {
 			return
 		}
 
-		typeName := getPacketTypeName(packet.Type())
-
 		// 3 alloc
 		slog.Info(
 			msg,
 			"type", packet.Type(),
-			"typename", typeName,
 			"length", packet.Length(),
 			"key", payload.Key,
 			"value", payload.Value)
 	} else {
 		if ps, ok := packet.(*packets.ParameterStatus); ok {
-			typeName := getPacketTypeName(packet.Type())
-
 			// 3 alloc
 			slog.Info(
 				msg,
 				"type", packet.Type(),
-				"typename", typeName,
+				"typename", packet.TypeName(),
 				"length", packet.Length(),
 				"key", ps.Key,
 				"value", ps.Value)
 		} else {
 			if _, ok := packet.(*packets.Sync); ok {
-				typeName := "Sync"
-
 				// 1 alloc
 				slog.Info(
 					msg,
 					"type", packet.Type(),
-					"typename", typeName,
+					"typename", packet.TypeName(),
 					"length", packet.Length())
 
 			} else {
@@ -207,13 +156,11 @@ func logRowDescription(msg string, packet fed.Packet) {
 			return
 		}
 
-		typeName := getPacketTypeName(packet.Type())
-
 		// 1 alloc
 		slog.Info(
 			msg,
 			"type", packet.Type(),
-			"typename", typeName,
+			"typename", packet.TypeName(),
 			"length", packet.Length(),
 			"#cols", columnCount)
 	} else {
@@ -231,13 +178,11 @@ func logDataRow(msg string, packet fed.Packet) {
 			return
 		}
 
-		typeName := getPacketTypeName(packet.Type())
-
 		// 1 alloc
 		slog.Info(
 			msg,
 			"type", packet.Type(),
-			"typename", typeName,
+			"typename", packet.TypeName(),
 			"length", packet.Length(),
 			"#cols", colCount)
 	} else {
@@ -255,24 +200,20 @@ func logReadyForQuery(msg string, packet fed.Packet) {
 			return
 		}
 
-		typeName := getPacketTypeName(packet.Type())
-
 		// 2 alloc
 		slog.Info(
 			msg,
 			"type", packet.Type(),
-			"typename", typeName,
+			"typename", packet.TypeName(),
 			"length", packet.Length(),
 			"status", status)
 	} else {
 		if r4q, ok := packet.(*packets.ReadyForQuery); ok {
-			typeName := getPacketTypeName(packet.Type())
-
 			// 2 alloc
 			slog.Info(
 				msg,
 				"type", packet.Type(),
-				"typename", typeName,
+				"typename", packet.TypeName(),
 				"length", packet.Length(),
 				"status", *r4q)
 		} else {
@@ -292,8 +233,6 @@ func logErrorResponse(msg string, packet fed.Packet) {
 			return
 		}
 
-		typeName := getPacketTypeName(packet.Type())
-
 		var errMsg string
 		for _, resp := range errResponse {
 			if resp.Code == 77 {
@@ -306,7 +245,7 @@ func logErrorResponse(msg string, packet fed.Packet) {
 		slog.Info(
 			msg,
 			"type", packet.Type(),
-			"typename", typeName,
+			"typename", packet.TypeName(),
 			"length", packet.Length(),
 			"count", len(errResponse),
 			"error", errMsg)
