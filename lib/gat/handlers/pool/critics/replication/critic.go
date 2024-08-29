@@ -13,9 +13,20 @@ func init() {
 	caddy.RegisterModule((*Critic)(nil))
 }
 
+// Critic describes a replication critic which measures replication lag,
+// with a fallback to query latency when there is no *measurable* lag
 type Critic struct {
-	Threshold caddy.Duration `json:"threshold"`
-	Validity  caddy.Duration `json:"validity"`
+	QueryThreshold       caddy.Duration `json:"query_threshold"`
+	ReplicationThreshold caddy.Duration `json:"replication_threshold"`
+	Validity             caddy.Duration `json:"validity"`
+}
+
+func NewCritic() *Critic {
+	return &Critic{
+		QueryThreshold:       caddy.Duration(time.Millisecond * 300),
+		ReplicationThreshold: caddy.Duration(time.Second * 3),
+		Validity:             caddy.Duration(time.Minute * 5),
+	}
 }
 
 func (T *Critic) CaddyModule() caddy.ModuleInfo {
@@ -44,11 +55,11 @@ func (T *Critic) Taste(ctx context.Context, conn *fed.Conn) (int, time.Duration,
 
 	penalty := 0
 
-	if result.Lag != nil {
-		penalty = int(*result.Lag / time.Duration(T.Threshold).Seconds())
+	if (result.Lag != nil) && (*result.Lag > 0) {
+		penalty = int(*result.Lag / time.Duration(T.ReplicationThreshold).Seconds())
 	} else {
 		dur := time.Since(start)
-		penalty = int(dur / time.Duration(T.Threshold))
+		penalty = int(dur / time.Duration(T.QueryThreshold))
 	}
 
 	return penalty, time.Duration(T.Validity), nil
