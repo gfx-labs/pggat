@@ -7,7 +7,7 @@
             }
 
             penalize replication_latency {
-                replication_threshold 3m
+                replication_threshold 7m
             }
 
             penalize replication_latency {
@@ -15,28 +15,28 @@
             }
 
             penalize replication_latency {
-                replication_threshold 3m
+                replication_threshold 7m
                 query_threshold 500ms
             }
 
             penalize replication_latency {
-                validity 5m
+                validity 3m
             }
 
             penalize replication_latency {
-                replication_threshold 3m
-                validity 5m
+                replication_threshold 7m
+                validity 3m
             }
 
             penalize replication_latency {
                 query_threshold 500ms
-                validity 5m
+                validity 3m
             }
 
             penalize replication_latency {
-                replication_threshold 3m
+                replication_threshold 7m
                 query_threshold 500ms
-                validity 5m
+                validity 3m
             }
         }
 
