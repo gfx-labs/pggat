@@ -1,0 +1,50 @@
+:5433 {
+    ssl self_signed
+
+    pool /base {
+        pool basic session {
+            penalize replication_latency {
+            }
+
+            penalize replication_latency {
+                replication_threshold 3m
+            }
+
+            penalize replication_latency {
+                query_threshold 500ms
+            }
+
+            penalize replication_latency {
+                replication_threshold 3m
+                query_threshold 500ms
+            }
+
+            penalize replication_latency {
+                validity 5m
+            }
+
+            penalize replication_latency {
+                replication_threshold 3m
+                validity 5m
+            }
+
+            penalize replication_latency {
+                query_threshold 500ms
+                validity 5m
+            }
+
+            penalize replication_latency {
+                replication_threshold 3m
+                query_threshold 500ms
+                validity 5m
+            }
+        }
+
+        address localhost:5432
+
+        username postgres
+        password postgres
+        database postgres
+    }
+
+}
