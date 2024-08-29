@@ -55,22 +55,11 @@ func init() {
 			default:
 				return nil, d.ArgErr()
 			}
-			if !d.NextBlock(d.Nesting()) {
-				return &module, nil
-			}
 		} else {
-			if !d.NextBlock(d.Nesting()) {
-				return nil, d.ArgErr()
-			}
-
 			module.TrackedParameters = nil
 		}
 
-		for {
-			if d.Val() == "}" {
-				break
-			}
-
+		for nesting := d.Nesting(); d.NextBlock(nesting); {
 			directive := d.Val()
 			switch directive {
 			case "pooler":
@@ -182,14 +171,11 @@ func init() {
 			default:
 				return nil, d.ArgErr()
 			}
-
-			if !d.NextLine() {
-				return nil, d.EOFErr()
-			}
 		}
 
 		return &module, nil
 	})
+
 	RegisterDirective(Pool, "hybrid", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
 		module := hybrid.Factory{
 			Config: hybrid.Config{
@@ -201,76 +187,66 @@ func init() {
 			},
 		}
 
-		if d.NextBlock(d.Nesting()) {
-			module.TrackedParameters = nil
+		module.TrackedParameters = nil
 
-			for {
-				if d.Val() == "}" {
-					break
-				}
-
-				directive := d.Val()
-				switch directive {
-				case "idle_timeout":
-					if !d.NextArg() {
-						return nil, d.ArgErr()
-					}
-
-					val, err := time.ParseDuration(d.Val())
-					if err != nil {
-						return nil, d.WrapErr(err)
-					}
-
-					module.ServerIdleTimeout = caddy.Duration(val)
-				case "reconnect":
-					if !d.NextArg() {
-						return nil, d.ArgErr()
-					}
-
-					initialTime, err := time.ParseDuration(d.Val())
-					if err != nil {
-						return nil, d.WrapErr(err)
-					}
-
-					maxTime := initialTime
-					if d.NextArg() {
-						maxTime, err = time.ParseDuration(d.Val())
-						if err != nil {
-							return nil, d.WrapErr(err)
-						}
-					}
-
-					module.ServerReconnectInitialTime = caddy.Duration(initialTime)
-					module.ServerReconnectMaxTime = caddy.Duration(maxTime)
-				case "track":
-					if !d.NextArg() {
-						return nil, d.ArgErr()
-					}
-
-					module.TrackedParameters = append(module.TrackedParameters, strutil.MakeCIString(d.Val()))
-				case "penalize":
-					if !d.NextArg() {
-						return nil, d.ArgErr()
-					}
-
-					critic, err := UnmarshalDirectiveJSONModuleObject(
-						d,
-						Critic,
-						"critic",
-						warnings,
-					)
-					if err != nil {
-						return nil, err
-					}
-
-					module.RawCritics = append(module.RawCritics, critic)
-				default:
+		for nesting := d.Nesting(); d.NextBlock(nesting); {
+			directive := d.Val()
+			switch directive {
+			case "idle_timeout":
+				if !d.NextArg() {
 					return nil, d.ArgErr()
 				}
 
-				if !d.NextLine() {
-					return nil, d.EOFErr()
+				val, err := time.ParseDuration(d.Val())
+				if err != nil {
+					return nil, d.WrapErr(err)
 				}
+
+				module.ServerIdleTimeout = caddy.Duration(val)
+			case "reconnect":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				initialTime, err := time.ParseDuration(d.Val())
+				if err != nil {
+					return nil, d.WrapErr(err)
+				}
+
+				maxTime := initialTime
+				if d.NextArg() {
+					maxTime, err = time.ParseDuration(d.Val())
+					if err != nil {
+						return nil, d.WrapErr(err)
+					}
+				}
+
+				module.ServerReconnectInitialTime = caddy.Duration(initialTime)
+				module.ServerReconnectMaxTime = caddy.Duration(maxTime)
+			case "track":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				module.TrackedParameters = append(module.TrackedParameters, strutil.MakeCIString(d.Val()))
+			case "penalize":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				critic, err := UnmarshalDirectiveJSONModuleObject(
+					d,
+					Critic,
+					"critic",
+					warnings,
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				module.RawCritics = append(module.RawCritics, critic)
+			default:
+				return nil, d.ArgErr()
 			}
 		}
 

@@ -66,15 +66,7 @@ func init() {
 	RegisterDirective(Critic, "replication_latency", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
 		module := replication.NewCritic()
 
-		if !d.NextBlock(d.Nesting()) {
-			return module, nil
-		}
-
-		for {
-			if d.Val() == "}" {
-				break
-			}
-
+		for nesting := d.Nesting(); d.NextBlock(nesting); {
 			directive := d.Val()
 			switch directive {
 			case "validity":
@@ -113,10 +105,6 @@ func init() {
 			default:
 				return nil, d.ArgErr()
 			}
-
-			if !d.NextLine() {
-				return nil, d.EOFErr()
-			}
 		}
 
 		return module, nil
@@ -126,41 +114,32 @@ func init() {
 func parseQueryCritic(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
 	module := latency.NewCritic()
 
-	// parse block format
-	if d.NextBlock(d.Nesting()) {
-		return parseLatency(module, d, warnings)
-	}
-
 	// use the defaults
-	if !d.NextArg() {
-		return module, nil
-	}
-
-	// parse legacy format
-	dur, err := caddy.ParseDuration(d.Val())
-	if err != nil {
-		return nil, d.WrapErr(err)
-	}
-	module.QueryThreshold = caddy.Duration(dur)
-
 	if d.NextArg() {
-		// optional validity
-		dur, err = caddy.ParseDuration(d.Val())
+		// parse legacy format
+		dur, err := caddy.ParseDuration(d.Val())
 		if err != nil {
 			return nil, d.WrapErr(err)
 		}
-		module.Validity = caddy.Duration(dur)
+		module.QueryThreshold = caddy.Duration(dur)
+
+		if d.NextArg() {
+			// optional validity
+			dur, err = caddy.ParseDuration(d.Val())
+			if err != nil {
+				return nil, d.WrapErr(err)
+			}
+			module.Validity = caddy.Duration(dur)
+		}
+	} else {
+		return parseLatency(module,d,warnings)
 	}
 
 	return module, nil
 }
 
 func parseLatency(critic *latency.Critic, d *caddyfile.Dispenser, _ *[]caddyconfig.Warning) (caddy.Module, error) {
-	for {
-		if d.Val() == "}" {
-			break
-		}
-
+	for nesting := d.Nesting(); d.NextBlock(nesting); {
 		directive := d.Val()
 		switch directive {
 		case "validity":
@@ -187,10 +166,6 @@ func parseLatency(critic *latency.Critic, d *caddyfile.Dispenser, _ *[]caddyconf
 			critic.QueryThreshold = caddy.Duration(threshold)
 		default:
 			return nil, d.ArgErr()
-		}
-
-		if !d.NextLine() {
-			return nil, d.EOFErr()
 		}
 	}
 
