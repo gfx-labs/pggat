@@ -55,132 +55,136 @@ func init() {
 			default:
 				return nil, d.ArgErr()
 			}
+			if !d.NextBlock(d.Nesting()) {
+				return &module, nil
+			}
 		} else {
 			if !d.NextBlock(d.Nesting()) {
 				return nil, d.ArgErr()
 			}
+
 			module.TrackedParameters = nil
+		}
 
-			for {
-				if d.Val() == "}" {
-					break
-				}
+		for {
+			if d.Val() == "}" {
+				break
+			}
 
-				directive := d.Val()
-				switch directive {
-				case "pooler":
-					if !d.NextArg() {
-						return nil, d.ArgErr()
-					}
-
-					var err error
-					module.RawPoolerFactory, err = UnmarshalDirectiveJSONModuleObject(
-						d,
-						Pooler,
-						"pooler",
-						warnings,
-					)
-					if err != nil {
-						return nil, err
-					}
-				case "release_after_transaction":
-					if d.NextArg() {
-						switch d.Val() {
-						case "true":
-							module.ReleaseAfterTransaction = true
-						case "false":
-							module.ReleaseAfterTransaction = false
-						default:
-							return nil, d.ArgErr()
-						}
-					} else {
-						module.ReleaseAfterTransaction = true
-					}
-				case "parameter_status_sync":
-					if !d.NextArg() {
-						return nil, d.ArgErr()
-					}
-
-					module.ParameterStatusSync = basic.ParameterStatusSync(d.Val())
-				case "extended_query_sync":
-					if d.NextArg() {
-						switch d.Val() {
-						case "true":
-							module.ExtendedQuerySync = true
-						case "false":
-							module.ExtendedQuerySync = false
-						default:
-							return nil, d.ArgErr()
-						}
-					} else {
-						module.ExtendedQuerySync = true
-					}
-				case "reset_query":
-					if !d.NextArg() {
-						return nil, d.ArgErr()
-					}
-
-					module.ServerResetQuery = d.Val()
-				case "idle_timeout":
-					if !d.NextArg() {
-						return nil, d.ArgErr()
-					}
-
-					val, err := time.ParseDuration(d.Val())
-					if err != nil {
-						return nil, d.WrapErr(err)
-					}
-
-					module.ServerIdleTimeout = caddy.Duration(val)
-				case "reconnect":
-					if !d.NextArg() {
-						return nil, d.ArgErr()
-					}
-
-					initialTime, err := time.ParseDuration(d.Val())
-					if err != nil {
-						return nil, d.WrapErr(err)
-					}
-
-					maxTime := initialTime
-					if d.NextArg() {
-						maxTime, err = time.ParseDuration(d.Val())
-						if err != nil {
-							return nil, d.WrapErr(err)
-						}
-					}
-
-					module.ServerReconnectInitialTime = caddy.Duration(initialTime)
-					module.ServerReconnectMaxTime = caddy.Duration(maxTime)
-				case "track":
-					if !d.NextArg() {
-						return nil, d.ArgErr()
-					}
-
-					module.TrackedParameters = append(module.TrackedParameters, strutil.MakeCIString(d.Val()))
-				case "penalize":
-					if !d.NextArg() {
-						return nil, d.ArgErr()
-					}
-
-					critic, err := UnmarshalDirectiveJSONModuleObject(
-						d,
-						Critic,
-						"critic",
-						warnings,
-					)
-					if err != nil {
-						return nil, err
-					}
-
-					module.RawCritics = append(module.RawCritics, critic)
-				default:
+			directive := d.Val()
+			switch directive {
+			case "pooler":
+				if !d.NextArg() {
 					return nil, d.ArgErr()
 				}
 
-				if !d.NextLine() {
-					return nil, d.EOFErr()
+				var err error
+				module.RawPoolerFactory, err = UnmarshalDirectiveJSONModuleObject(
+					d,
+					Pooler,
+					"pooler",
+					warnings,
+				)
+				if err != nil {
+					return nil, err
 				}
+			case "release_after_transaction":
+				if d.NextArg() {
+					switch d.Val() {
+					case "true":
+						module.ReleaseAfterTransaction = true
+					case "false":
+						module.ReleaseAfterTransaction = false
+					default:
+						return nil, d.ArgErr()
+					}
+				} else {
+					module.ReleaseAfterTransaction = true
+				}
+			case "parameter_status_sync":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				module.ParameterStatusSync = basic.ParameterStatusSync(d.Val())
+			case "extended_query_sync":
+				if d.NextArg() {
+					switch d.Val() {
+					case "true":
+						module.ExtendedQuerySync = true
+					case "false":
+						module.ExtendedQuerySync = false
+					default:
+						return nil, d.ArgErr()
+					}
+				} else {
+					module.ExtendedQuerySync = true
+				}
+			case "reset_query":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				module.ServerResetQuery = d.Val()
+			case "idle_timeout":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				val, err := time.ParseDuration(d.Val())
+				if err != nil {
+					return nil, d.WrapErr(err)
+				}
+
+				module.ServerIdleTimeout = caddy.Duration(val)
+			case "reconnect":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				initialTime, err := time.ParseDuration(d.Val())
+				if err != nil {
+					return nil, d.WrapErr(err)
+				}
+
+				maxTime := initialTime
+				if d.NextArg() {
+					maxTime, err = time.ParseDuration(d.Val())
+					if err != nil {
+						return nil, d.WrapErr(err)
+					}
+				}
+
+				module.ServerReconnectInitialTime = caddy.Duration(initialTime)
+				module.ServerReconnectMaxTime = caddy.Duration(maxTime)
+			case "track":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				module.TrackedParameters = append(module.TrackedParameters, strutil.MakeCIString(d.Val()))
+			case "penalize", "latency", "critic":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				critic, err := UnmarshalDirectiveJSONModuleObject(
+					d,
+					Critic,
+					"critic",
+					warnings,
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				module.RawCritics = append(module.RawCritics, critic)
+			default:
+				return nil, d.ArgErr()
+			}
+
+			if !d.NextLine() {
+				return nil, d.EOFErr()
 			}
 		}
 
