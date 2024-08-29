@@ -163,7 +163,7 @@ func init() {
 				}
 
 				module.TrackedParameters = append(module.TrackedParameters, strutil.MakeCIString(d.Val()))
-			case "penalize", "latency", "critic":
+			case "penalize":
 				if !d.NextArg() {
 					return nil, d.ArgErr()
 				}
