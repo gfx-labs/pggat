@@ -19,8 +19,6 @@ include:
 
 variables:
   CAFE_BUILD_DOCKERFILES: "Dockerfile"
-  GOLANGCI_LINT_VERSION: "v1.59.1"
-
 
 test:
   image: postgres:alpine
