@@ -2,7 +2,6 @@ package gat
 
 import (
 	"context"
-	"gfx.cafe/util/go/gotel"
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
@@ -28,8 +27,6 @@ type App struct {
 	closed chan struct{}
 
 	log *zap.Logger
-
-	otelShutdown gotel.ShutdownFunc
 }
 
 func (T *App) CaddyModule() caddy.ModuleInfo {
