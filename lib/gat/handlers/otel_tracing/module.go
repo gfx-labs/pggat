@@ -69,6 +69,10 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 func (T *Module) Provision(ctx caddy.Context) error {
 	T.logger = ctx.Logger(T)
 
+	T.tracer = otel.Tracer("pggat", trace.WithInstrumentationAttributes(
+		attribute.String("component", "gfx.cafe/gfx/pggat/lib/gat/handlers/otel_tracing/module.go"),
+	))
+
 	providerOptions := []gotel.Option{
 		gotel.WithServiceName(T.Config.ServiceName),
 		gotel.WithServiceNamespace(T.Config.ServiceNamespace),
@@ -96,10 +100,6 @@ func (T *Module) Provision(ctx caddy.Context) error {
 }
 
 func (T *Module) Handle(next gat.Router) gat.Router {
-	T.tracer = otel.Tracer("pggat", trace.WithInstrumentationAttributes(
-		attribute.String("component", "gfx.cafe/gfx/pggat/lib/gat/handlers/otel_tracing/module.go"),
-	))
-
 	return gat.RouterFunc(func(ctx context.Context, c *fed.Conn) error {
 		ctx, span := T.tracer.Start(ctx, "route handler",
 			trace.WithSpanKind(trace.SpanKindServer))
