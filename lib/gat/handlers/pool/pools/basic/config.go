@@ -46,7 +46,7 @@ const (
 
 func MapTracingOption(s string) (opt TracingOption, err error) {
 	switch strings.ToLower(s) {
-	case "disabled", "none", "off":
+	case "disable", "disabled", "none", "off":
 	case "client":
 		opt = TracingOptionClient
 	case "server":
