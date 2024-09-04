@@ -1,6 +1,7 @@
 package error_handler
 
 import (
+	"context"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/perror"
@@ -25,7 +26,7 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *Module) Handle(gat.Router) gat.Router {
-	return gat.RouterFunc(func(c *fed.Conn) error {
+	return gat.RouterFunc(func(_ context.Context, c *fed.Conn) error {
 		return perror.New(
 			perror.FATAL,
 			perror.InternalError,

@@ -20,12 +20,12 @@ func (H HandlerFunc) Handle(next Router) Router {
 }
 
 type Router interface {
-	Route(conn *fed.Conn) error
+	Route(ctx context.Context, conn *fed.Conn) error
 }
-type RouterFunc func(conn *fed.Conn) error
+type RouterFunc func(ctx context.Context, conn *fed.Conn) error
 
-func (R RouterFunc) Route(conn *fed.Conn) error {
-	return R(conn)
+func (R RouterFunc) Route(ctx context.Context, conn *fed.Conn) error {
+	return R(ctx, conn)
 }
 
 type CancellableHandler interface {

@@ -570,12 +570,10 @@ func (T *Module) ReadMetrics(metrics *metrics.Handler) {
 }
 
 func (T *Module) Handle(next gat.Router) gat.Router {
-	return gat.RouterFunc(func(conn *fed.Conn) error {
-		ctx := context.Background()
-
+	return gat.RouterFunc(func(ctx context.Context, conn *fed.Conn) error {
 		p, ok := T.getPool(conn.User, conn.Database)
 		if !ok {
-			return next.Route(conn)
+			return next.Route(ctx, conn)
 		}
 		if err := frontends.Authenticate(ctx, conn, p.creds); err != nil {
 			return err

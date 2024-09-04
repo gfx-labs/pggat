@@ -549,4 +549,29 @@ func init() {
 
 		return &module, nil
 	})
+
+	RegisterDirective(Handler, "tracing", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
+		var module caddy.Module
+		var err error
+
+		if !d.NextArg() {
+			return nil, d.Errf("expected a tracing directive")
+		}
+
+		directive := d.Val()
+
+		switch directive {
+		case OtelTracing:
+			module, err = UnmarshalModule(
+				d,
+				Tracing,
+				warnings,
+			)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		return module, nil
+	})
 }

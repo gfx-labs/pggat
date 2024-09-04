@@ -1,6 +1,11 @@
 :5433 {
     ssl self_signed
 
+    tracing otel {
+        service_name pggat-tracing
+        sample_rate always
+    }
+
     pool /base {
         pool basic session
 

@@ -51,7 +51,7 @@ func (T *Module) Provision(ctx caddy.Context) error {
 }
 
 func (T *Module) Handle(next gat.Router) gat.Router {
-	return gat.RouterFunc(func(c *fed.Conn) error {
+	return gat.RouterFunc(func(ctxt context.Context, c *fed.Conn) error {
 		ctx := context.Background()
 		if err := frontends.Authenticate(ctx, c, nil); err != nil {
 			return err

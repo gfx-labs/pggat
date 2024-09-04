@@ -111,7 +111,7 @@ func (T *Server) ReadMetrics(m *metrics.Server) {
 func (T *Server) Serve(conn *fed.Conn) {
 	ctx := context.Background()
 
-	composed := Router(RouterFunc(func(conn *fed.Conn) error {
+	composed := Router(RouterFunc(func(ctx context.Context, conn *fed.Conn) error {
 		// database not found
 		errResp := perror.ToPacket(
 			perror.New(
@@ -134,7 +134,7 @@ func (T *Server) Serve(conn *fed.Conn) {
 		}
 		composed = route.handle.Handle(composed)
 	}
-	err := composed.Route(conn)
+	err := composed.Route(ctx, conn)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
 			// normal closure
