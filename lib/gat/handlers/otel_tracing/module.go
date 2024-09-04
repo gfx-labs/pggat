@@ -127,7 +127,8 @@ func mapSamplerType(samplerType string) (sampler sdktrace.Sampler, err error) {
 	case "always", "all", "on":
 		sampler = sdktrace.AlwaysSample()
 	default:
-		if val, err := strconv.ParseFloat(samplerType, 64); err == nil {
+		var val float64
+		if val, err = strconv.ParseFloat(samplerType, 64); err == nil {
 			// if not 0.0 -> 1.0, then assume that the representation is a % (0-100)
 			if val > 1 {
 				val = val / float64(100)
