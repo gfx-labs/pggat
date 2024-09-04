@@ -35,7 +35,7 @@ test:
     - CGO_ENABLED=1 go test -race ./...
 
 lint:
-  image: registry.gitlab.com/gitlab-org/gitlab-build-images:golangci-lint-alpine
+  image: registry.gitlab.com/gitlab-org/gitlab-build-images:golangci-lint-alpine:v1.59.1
   stage: test
   extends: .go-cache
   script:
@@ -63,7 +63,7 @@ coverage:
     - su -c initdb postgres
     - su -c "pg_ctl start > /dev/null" postgres
     - apk update
-    - apk add go=1.23.0
+    - apk add go
     - go run gotest.tools/gotestsum@latest --junitfile report.xml --format testname -- -coverprofile=coverage.txt -covermode count ./...
     - go tool cover -func=coverage.txt
     - go run github.com/boumenot/gocover-cobertura@master < coverage.txt > coverage.xml
