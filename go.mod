@@ -4,12 +4,10 @@ go 1.22.0
 
 toolchain go1.22.6
 
-replace gfx.cafe/util/go => /Users/tomguinther/go/src/gfx.cafe/util/go
-
 require (
 	gfx.cafe/ghalliday1/scram v0.0.3
 	gfx.cafe/open/gotoprom v0.0.2
-	gfx.cafe/util/go v1.13.1
+	gfx.cafe/util/go v1.13.2-0.20240904191506-12ef5c11a215
 	gfx.cafe/util/temple v0.0.0-20230312041217-0882540e78eb
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/caddyserver/caddy/v2 v2.7.4
