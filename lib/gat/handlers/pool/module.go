@@ -3,6 +3,9 @@ package pool
 import (
 	"context"
 	"encoding/json"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/caddyserver/caddy/v2"
 
@@ -23,7 +26,9 @@ type Module struct {
 	Pool   json.RawMessage `json:"pool" caddy:"namespace=pggat.handlers.pool.pools inline_key=pool"`
 	Recipe Recipe          `json:"recipe"`
 
-	pool Pool
+	pool   Pool
+	dbAuth *frontends.DBAuthenticator
+	tracer trace.Tracer
 }
 
 func (T *Module) CaddyModule() caddy.ModuleInfo {
@@ -47,12 +52,20 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	}
 
 	T.pool.AddRecipe(ctx, "recipe", &T.Recipe)
+	T.dbAuth = frontends.NewDBAuthenticator()
+	T.tracer = otel.Tracer("pool module", trace.WithInstrumentationAttributes(
+		attribute.String("component", "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/module.go"),
+	))
+
 	return nil
 }
 
 func (T *Module) Handle(next gat.Router) gat.Router {
 	return gat.RouterFunc(func(ctx context.Context, c *fed.Conn) error {
-		if err := frontends.Authenticate(ctx, c, nil); err != nil {
+		ctx, span := T.tracer.Start(ctx, "serve", trace.WithSpanKind(trace.SpanKindInternal))
+		defer span.End()
+
+		if err := T.dbAuth.Authenticate(ctx, c, nil); err != nil {
 			return err
 		}
 

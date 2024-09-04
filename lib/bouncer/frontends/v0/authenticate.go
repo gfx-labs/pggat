@@ -5,6 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"io"
 	"time"
 
@@ -14,9 +18,21 @@ import (
 	"gfx.cafe/gfx/pggat/lib/perror"
 )
 
+type DBAuthenticator struct {
+	tracer trace.Tracer
+}
+
 type authParams struct {
 	Conn    *fed.Conn
 	Options authOptions
+}
+
+func NewDBAuthenticator() *DBAuthenticator {
+	return &DBAuthenticator{
+		tracer: otel.Tracer("postgres authenticator", trace.WithInstrumentationAttributes(
+			attribute.String("component", "gfx.cafe/gfx/pggat/lib/bouncer/frontends/v0/authenticate.go"),
+		)),
+	}
 }
 
 func authenticationSASLInitial(ctx context.Context, params *authParams, creds auth.SASLServer) (tool auth.SASLVerifier, resp []byte, done bool, err error) {
@@ -73,7 +89,10 @@ func authenticationSASLContinue(ctx context.Context, params *authParams, tool au
 	return
 }
 
-func authenticationSASL(ctx context.Context, params *authParams, creds auth.SASLServer) error {
+func (T *DBAuthenticator) authenticationSASL(ctx context.Context, params *authParams, creds auth.SASLServer) error {
+	ctx, span := T.tracer.Start(ctx, "authenticationSASL",trace.WithSpanKind(trace.SpanKindInternal))
+	defer span.End()
+
 	var mode packets.AuthenticationPayloadSASL
 	mechanisms := creds.SupportedSASLMechanisms()
 	for _, mechanism := range mechanisms {
@@ -126,7 +145,10 @@ func authenticationSASL(ctx context.Context, params *authParams, creds auth.SASL
 	return nil
 }
 
-func authenticationMD5(ctx context.Context, params *authParams, creds auth.MD5Server) error {
+func (T *DBAuthenticator) authenticationMD5(ctx context.Context, params *authParams, creds auth.MD5Server) error {
+	ctx, span := T.tracer.Start(ctx, "authenticationMD5",trace.WithSpanKind(trace.SpanKindInternal))
+	defer span.End()
+
 	var salt [4]byte
 	_, err := rand.Read(salt[:])
 	if err != nil {
@@ -161,12 +183,12 @@ func authenticationMD5(ctx context.Context, params *authParams, creds auth.MD5Se
 	return nil
 }
 
-func authenticate(ctx context.Context, params *authParams) (err error) {
+func (T *DBAuthenticator) authenticate(ctx context.Context, params *authParams) (err error) {
 	if params.Options.Credentials != nil {
 		if credsSASL, ok := params.Options.Credentials.(auth.SASLServer); ok {
-			err = authenticationSASL(ctx, params, credsSASL)
+			err = T.authenticationSASL(ctx, params, credsSASL)
 		} else if credsMD5, ok := params.Options.Credentials.(auth.MD5Server); ok {
-			err = authenticationMD5(ctx, params, credsMD5)
+			err = T.authenticationMD5(ctx, params, credsMD5)
 		} else {
 			err = perror.New(
 				perror.FATAL,
@@ -213,22 +235,36 @@ func authenticate(ctx context.Context, params *authParams) (err error) {
 	return
 }
 
-func Authenticate(ctx context.Context, conn *fed.Conn, creds auth.Credentials) (err error) {
+func (T *DBAuthenticator) Authenticate(ctx context.Context, conn *fed.Conn, creds auth.Credentials) (err error) {
 	if conn.Authenticated {
 		// already authenticated
 		return
 	}
 
-	params := authParams{
-		Conn: conn,
-		Options: authOptions{
-			Credentials: creds,
-		},
-	}
-	err = authenticate(ctx, &params)
+	func() {
+		ctx, span := T.tracer.Start(ctx, "authenticate", trace.WithSpanKind(trace.SpanKindInternal))
+		defer span.End()
+
+		params := authParams{
+			Conn: conn,
+			Options: authOptions{
+				Credentials: creds,
+			},
+		}
+		err = T.authenticate(ctx, &params)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+	}()
+
 	if err != nil {
 		// sleep after incorrect password
 		time.Sleep(250 * time.Millisecond)
 	}
 	return
+}
+
+func Authenticate(ctx context.Context, conn *fed.Conn, creds auth.Credentials) (err error) {
+	return NewDBAuthenticator().Authenticate(ctx, conn, creds)
 }
