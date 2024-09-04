@@ -3,6 +3,7 @@ package gatcaddyfile
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/caddyserver/caddy/v2"
 
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
@@ -20,6 +21,7 @@ const (
 	Critic             = "pggat.handlers.pool.critics"
 	SSLServer          = "pggat.ssl.servers"
 	SSLClient          = "pggat.ssl.clients"
+	Tracing            = "pggat.handlers.tracing.tracers"
 )
 
 var unmarshallers maps.TwoKey[string, string, Unmarshaller]
@@ -52,4 +54,17 @@ func UnmarshalDirectiveJSONModuleObject(
 		inlineKey,
 		warnings,
 	)
+}
+
+func UnmarshalModule(
+	d *caddyfile.Dispenser,
+	namespace string,
+	warnings *[]caddyconfig.Warning,
+) (caddy.Module, error) {
+	unmarshaller, ok := LookupDirective(namespace, d.Val())
+	if !ok {
+		return nil, d.Errf(`unknown directive in %s: "%s"`, namespace, d.Val())
+	}
+
+	return unmarshaller(d, warnings)
 }
