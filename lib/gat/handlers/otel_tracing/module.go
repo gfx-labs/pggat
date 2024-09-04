@@ -109,9 +109,7 @@ func (T *Module) Handle(next gat.Router) gat.Router {
 	})
 }
 
-func (T *Module) Cancel(ctx context.Context, key fed.BackendKey) {
-
-}
+func (T *Module) Cancel(context.Context,fed.BackendKey) {}
 
 func (T *Module) Cleanup() (err error) {
 	if T.shutdownFn != nil {
