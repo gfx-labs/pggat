@@ -30,7 +30,7 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 func (T *Module) Handle(next gat.Router) gat.Router {
 	return gat.RouterFunc(func(ctx context.Context, conn *fed.Conn) error {
 		if err := frontends.Authenticate(
-			context.Background(),
+			ctx,
 			conn,
 			credentials.FromString(conn.User, T.Password),
 		); err != nil {

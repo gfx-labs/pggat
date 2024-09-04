@@ -63,7 +63,7 @@ func (t *otelTrace) process(ctx context.Context, packet fed.Packet) {
 		switch packet.Type() {
 		case packets.TypeQuery:
 			t.setState(Query)
-			t.startQuery(context.Background(), packet)
+			t.startQuery(ctx, packet)
 		}
 	case Query:
 		switch packet.Type() {
