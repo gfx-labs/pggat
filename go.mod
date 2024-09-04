@@ -1,8 +1,6 @@
 module gfx.cafe/gfx/pggat
 
-go 1.22.0
-
-toolchain go1.22.6
+go 1.23.0
 
 require (
 	gfx.cafe/ghalliday1/scram v0.0.3
