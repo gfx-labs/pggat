@@ -28,9 +28,9 @@ type otelTrace struct {
 func NewOtelTrace() fed.Middleware {
 	return &otelTrace{
 		tracer: otel.Tracer(
-			"pggat",
+			"otel-tracer-middleware",
 			trace.WithInstrumentationAttributes(
-				attribute.String("component", "github.com/gfx.labs/pggat"))),
+				attribute.String("component", "github.com/gfx.labs/pggat/lib/fed/oteltrace"))),
 	}
 }
 
