@@ -21,7 +21,7 @@ const (
 	Critic             = "pggat.handlers.pool.critics"
 	SSLServer          = "pggat.ssl.servers"
 	SSLClient          = "pggat.ssl.clients"
-	Tracing            = "pggat.handlers.tracing.tracers"
+	Tracing            = "pggat.handlers.tracing"
 )
 
 var unmarshallers maps.TwoKey[string, string, Unmarshaller]

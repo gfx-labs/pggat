@@ -26,7 +26,7 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *Module) Handle(gat.Router) gat.Router {
-	return gat.RouterFunc(func(ctx context.Context, c *fed.Conn) error {
+	return gat.RouterFunc(func(_ context.Context, c *fed.Conn) error {
 		return perror.New(
 			perror.FATAL,
 			perror.InternalError,
