@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/tracing"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"sync"
 	"time"
 
@@ -29,12 +33,17 @@ type Pool struct {
 
 	clients map[fed.BackendKey]*Client
 	mu      sync.RWMutex
+
+	tracer trace.Tracer
 }
 
 func NewPool(ctx context.Context, config Config) *Pool {
 	p := &Pool{
 		config:  config,
 		servers: spool.MakePool(config.Spool()),
+		tracer: otel.Tracer("basic-pool", trace.WithInstrumentationAttributes(
+			attribute.String("component", "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/basic/pool.go"),
+		)),
 	}
 	go p.servers.ScaleLoop(ctx)
 	return p
@@ -49,6 +58,25 @@ func (T *Pool) RemoveRecipe(ctx context.Context, name string) {
 }
 
 func (T *Pool) SyncInitialParameters(ctx context.Context, client *Client, server *spool.Server) (err, serverErr error) {
+	ctx, span := T.tracer.Start(ctx, "SyncInitialParameters")
+	defer span.End()
+
+	// returning 2 errors is questionable
+	err, serverErr = T.syncInitialParameters(ctx, client, server)
+	if (err != nil) || (serverErr != nil) {
+		if serverErr != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		} else {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+	}
+
+	return
+}
+
+func (T *Pool) syncInitialParameters(ctx context.Context, client *Client, server *spool.Server) (err, serverErr error) {
 	clientParams := client.Conn.InitialParameters
 	serverParams := server.Conn.InitialParameters
 
@@ -113,6 +141,25 @@ func (T *Pool) SyncInitialParameters(ctx context.Context, client *Client, server
 }
 
 func (T *Pool) Pair(ctx context.Context, client *Client, server *spool.Server) (err, serverErr error) {
+	ctx, span := T.tracer.Start(ctx, "Pair")
+	defer span.End()
+
+	// returning 2 errors is questionable
+	err, serverErr = T.pair(ctx, client, server)
+	if (err != nil) || (serverErr != nil) {
+		if serverErr != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		} else {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+	}
+
+	return
+}
+
+func (T *Pool) pair(ctx context.Context, client *Client, server *spool.Server) (err, serverErr error) {
 	if T.config.ParameterStatusSync != ParameterStatusSyncNone || T.config.ExtendedQuerySync {
 		client.SetState(metrics.ConnStatePairing, server)
 		server.SetState(metrics.ConnStatePairing, client.ID)
@@ -160,6 +207,20 @@ func (T *Pool) removeClient(client *Client) {
 }
 
 func (T *Pool) Serve(ctx context.Context, conn *fed.Conn) error {
+	ctx, span := T.tracer.Start(ctx, "Server")
+	defer span.End()
+
+	// returning 2 errors is questionable
+	err := T.serve(ctx, conn)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+
+	return err
+}
+
+func (T *Pool) serve(ctx context.Context, conn *fed.Conn) error {
 	if (T.config.PacketTracingOption & TracingOptionClient) != 0 {
 		conn.Middleware = append(
 			conn.Middleware,
@@ -171,7 +232,6 @@ func (T *Pool) Serve(ctx context.Context, conn *fed.Conn) error {
 			conn.Middleware,
 			tracing.NewOtelTrace())
 	}
-
 
 	if T.config.ParameterStatusSync == ParameterStatusSyncDynamic {
 		conn.Middleware = append(
@@ -301,6 +361,9 @@ func (T *Pool) Serve(ctx context.Context, conn *fed.Conn) error {
 }
 
 func (T *Pool) Cancel(ctx context.Context, key fed.BackendKey) {
+	ctx, span := T.tracer.Start(ctx, "Cancel")
+	defer span.End()
+
 	peer := func() *spool.Server {
 		T.mu.RLock()
 		defer T.mu.RUnlock()
@@ -321,8 +384,11 @@ func (T *Pool) Cancel(ctx context.Context, key fed.BackendKey) {
 	T.servers.Cancel(ctx, peer)
 }
 
-func (T *Pool) ReadMetrics(ctx context.Context,m *metrics.Pool) {
-	T.servers.ReadMetrics(ctx,m)
+func (T *Pool) ReadMetrics(ctx context.Context, m *metrics.Pool) {
+	ctx, span := T.tracer.Start(ctx, "ReadMetrics")
+	defer span.End()
+
+	T.servers.ReadMetrics(ctx, m)
 
 	T.mu.RLock()
 	defer T.mu.RUnlock()
@@ -332,12 +398,15 @@ func (T *Pool) ReadMetrics(ctx context.Context,m *metrics.Pool) {
 	}
 	for _, client := range T.clients {
 		var c metrics.Conn
-		client.ReadMetrics(ctx,&c)
+		client.ReadMetrics(ctx, &c)
 		m.Clients[client.ID] = c
 	}
 }
 
 func (T *Pool) Close(ctx context.Context) {
+	ctx, span := T.tracer.Start(ctx, "Close")
+	defer span.End()
+
 	T.servers.Close(ctx)
 }
 
