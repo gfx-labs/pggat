@@ -1,6 +1,6 @@
 module gfx.cafe/gfx/pggat
 
-go 1.23
+go 1.22.4
 
 require (
 	gfx.cafe/ghalliday1/scram v0.0.3

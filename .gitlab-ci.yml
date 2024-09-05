@@ -30,11 +30,11 @@ test:
     - su -c initdb postgres
     - su -c "pg_ctl start > /dev/null" postgres
     - apk update
-    - apk add build-base go=~1.23
+    - apk add build-base go
     - CGO_ENABLED=1 go test -race ./...
 
 lint:
-  image: registry.gitlab.com/gitlab-org/gitlab-build-images:golangci-lint-alpine
+  image: golangci-lint:1.59.0-go1.22.5
   stage: test
   extends: .go-cache
   script:
