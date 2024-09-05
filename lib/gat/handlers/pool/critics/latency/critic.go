@@ -15,9 +15,18 @@ func init() {
 	caddy.RegisterModule((*Critic)(nil))
 }
 
+// Critic describes a replication critic which measures a penalty due to
+// query lag
 type Critic struct {
-	Threshold caddy.Duration `json:"threshold"`
-	Validity  caddy.Duration `json:"validity"`
+	QueryThreshold caddy.Duration `json:"query_threshold"`
+	Validity       caddy.Duration `json:"validity"`
+}
+
+func NewCritic() *Critic {
+	return &Critic{
+		QueryThreshold: caddy.Duration(time.Millisecond * 300),
+		Validity:       caddy.Duration(time.Minute * 5),
+	}
 }
 
 func (T *Critic) CaddyModule() caddy.ModuleInfo {
@@ -36,7 +45,7 @@ func (T *Critic) Taste(ctx context.Context, conn *fed.Conn) (int, time.Duration,
 		return 0, time.Duration(T.Validity), err
 	}
 	dur := time.Since(start)
-	penalty := int(dur / time.Duration(T.Threshold))
+	penalty := int(dur / time.Duration(T.QueryThreshold))
 	return penalty, time.Duration(T.Validity), nil
 }
 
