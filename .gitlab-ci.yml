@@ -35,6 +35,7 @@ test:
 
 lint:
   image: registry.hub.docker.com/golangci/golangci-lint:v1.59.1-alpine
+  timeout: 30m
   stage: test
   extends: .go-cache
   script:
