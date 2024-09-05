@@ -452,15 +452,7 @@ func init() {
 			}
 			module.Recipe.Dialer.RawPassword = d.Val()
 		} else {
-			if !d.NextBlock(d.Nesting()) {
-				return nil, d.ArgErr()
-			}
-
-			for {
-				if d.Val() == "}" {
-					break
-				}
-
+			for nesting := d.Nesting(); d.NextBlock(nesting); {
 				directive := d.Val()
 				switch directive {
 				case "pool":
@@ -539,10 +531,6 @@ func init() {
 					module.Recipe.Dialer.RawParameters[key] = value
 				default:
 					return nil, d.ArgErr()
-				}
-
-				if !d.NextLine() {
-					return nil, d.EOFErr()
 				}
 			}
 		}
