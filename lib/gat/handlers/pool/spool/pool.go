@@ -3,6 +3,9 @@ package spool
 import (
 	"context"
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/tracing"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"sync"
 	"time"
 
@@ -30,6 +33,8 @@ type Pool struct {
 	serversByID   map[uuid.UUID]*Server
 	serversByConn map[*fed.Conn]*Server
 	mu            sync.RWMutex
+
+	tracer trace.Tracer
 }
 
 // MakePool will create a new pool with config. ScaleLoop must be called if this is used instead of NewPool
@@ -45,6 +50,9 @@ func MakePool(config Config) Pool {
 			Critics: config.Critics,
 			Logger:  config.Logger,
 		}),
+		tracer: otel.Tracer("spool", trace.WithInstrumentationAttributes(
+			attribute.String("component", "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool/pool.go"),
+		)),
 	}
 }
 
