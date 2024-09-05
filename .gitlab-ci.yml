@@ -34,7 +34,7 @@ test:
     - CGO_ENABLED=1 go test -race ./...
 
 lint:
-  image: registry.gitlab.com/gitlab-org/gitlab-build-images:golangci-lint:v1.50-alpine
+  image: registry.gitlab.com/gitlab-org/gitlab-build-images:golangci-lint
   stage: test
   extends: .go-cache
   script:
