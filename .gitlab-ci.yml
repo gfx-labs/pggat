@@ -34,7 +34,7 @@ test:
     - CGO_ENABLED=1 go test -race ./...
 
 lint:
-  image: golangci-lint:1.59.0-go1.22.5
+  image: registry.hub.docker.com/docker/golangci-lint:1.59.0-go1.22.5
   stage: test
   extends: .go-cache
   script:
