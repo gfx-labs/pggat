@@ -34,8 +34,7 @@ test:
     - CGO_ENABLED=1 go test -race ./...
 
 lint:
-  image: registry.hub.docker.com/golangci/golangci-lint:v1.59.1-alpine
-  timeout: 30m
+  image: registry.gitlab.com/gitlab-org/gitlab-build-images:golangci-lint:v1.50-alpine
   stage: test
   extends: .go-cache
   script:
