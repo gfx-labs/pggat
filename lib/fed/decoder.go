@@ -10,6 +10,14 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/decorator"
 )
 
+type eofReader struct{}
+
+func (*eofReader) Read(p []byte) (n int, err error) {
+	return 0, io.EOF
+}
+
+var _eofReader = &eofReader{}
+
 type Decoder struct {
 	noCopy decorator.NoCopy
 
@@ -28,6 +36,23 @@ func NewDecoder(r io.Reader) *Decoder {
 	d := new(Decoder)
 	d.Reset(r)
 	return d
+}
+
+func CloneDecoder(d *Decoder, r io.Reader) *Decoder {
+	if r == nil {
+		r = _eofReader
+	}
+
+	return &Decoder{
+		buffer:       d.buffer,
+		bufferWrite:  d.bufferWrite,
+		bufferRead:   d.bufferRead,
+		packetType:   d.packetType,
+		packetLength: d.packetLength,
+		packetPos:    d.packetPos,
+		decodeBuf:    d.decodeBuf,
+		reader:       r,
+	}
 }
 
 func (T *Decoder) Reset(r io.Reader) {

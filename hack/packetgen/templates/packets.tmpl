@@ -39,6 +39,14 @@ const (
 		return
 	}
 
+	func (T *{{$name}}) TypeName() string {
+	    return "{{$name}}"
+	}
+
+	func (T *{{$name}}) String() string {
+	    return T.TypeName()
+	}
+
 	func (T *{{$name}}) ReadFrom(decoder *fed.Decoder) (err error) {
 		if decoder.Type() != T.Type() {
 			return ErrUnexpectedPacket

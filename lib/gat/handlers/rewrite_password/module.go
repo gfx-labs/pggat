@@ -28,16 +28,16 @@ func (T *Module) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *Module) Handle(next gat.Router) gat.Router {
-	return gat.RouterFunc(func(conn *fed.Conn) error {
+	return gat.RouterFunc(func(ctx context.Context, conn *fed.Conn) error {
 		if err := frontends.Authenticate(
-			context.Background(),
+			ctx,
 			conn,
 			credentials.FromString(conn.User, T.Password),
 		); err != nil {
 			return err
 		}
 
-		return next.Route(conn)
+		return next.Route(ctx, conn)
 	})
 }
 

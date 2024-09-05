@@ -55,6 +55,9 @@ func init() {
 			default:
 				return nil, d.ArgErr()
 			}
+			if !d.NextBlock(d.Nesting()) {
+				return &module, nil
+			}
 		} else {
 			module.TrackedParameters = nil
 		}
@@ -109,6 +112,26 @@ func init() {
 				} else {
 					module.ExtendedQuerySync = true
 				}
+			case "packet_tracing_option":
+				if d.NextArg() {
+					opt, err := basic.MapTracingOption(d.Val())
+					if err != nil {
+						return nil, err
+					}
+					module.PacketTracingOption = opt
+				} else {
+					module.PacketTracingOption = basic.TracingOptionDisabled
+				}
+			case "otel_tracing_option":
+				if d.NextArg() {
+					opt, err := basic.MapTracingOption(d.Val())
+					if err != nil {
+						return nil, err
+					}
+					module.OtelTracingOption = opt
+				} else {
+					module.OtelTracingOption = basic.TracingOptionDisabled
+				}
 			case "reset_query":
 				if !d.NextArg() {
 					return nil, d.ArgErr()
@@ -147,12 +170,6 @@ func init() {
 				module.ServerReconnectInitialTime = caddy.Duration(initialTime)
 				module.ServerReconnectMaxTime = caddy.Duration(maxTime)
 			case "track":
-				if !d.NextArg() {
-					return nil, d.ArgErr()
-				}
-
-				module.TrackedParameters = append(module.TrackedParameters, strutil.MakeCIString(d.Val()))
-			case "penalize":
 				if !d.NextArg() {
 					return nil, d.ArgErr()
 				}

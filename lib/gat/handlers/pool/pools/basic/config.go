@@ -2,6 +2,8 @@ package basic
 
 import (
 	"encoding/json"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
@@ -28,6 +30,36 @@ const (
 	ParameterStatusSyncDynamic = "dynamic"
 )
 
+type TracingOption int
+
+const (
+	// TracingOptionDisabled indicates tracing is disabled
+	TracingOptionDisabled TracingOption = iota
+	// TracingOptionClient indicates tracing is enabled for client connections
+	TracingOptionClient = 1 << (iota - 1)
+	// TracingOptionServer indicates tracing is enabled for server connections
+	TracingOptionServer = 1 << (iota - 1)
+	// TracingOptionClientAndServer indicates tracing is enabled for both
+	// client and server connections
+	TracingOptionClientAndServer = TracingOptionClient | TracingOptionServer
+)
+
+func MapTracingOption(s string) (opt TracingOption, err error) {
+	switch strings.ToLower(s) {
+	case "disable", "disabled", "none", "off":
+	case "client":
+		opt = TracingOptionClient
+	case "server":
+		opt = TracingOptionServer
+	case "client-and-server", "both", "all":
+		opt = TracingOptionClientAndServer
+	default:
+		err = errors.New("unknown tracing option: " + s)
+	}
+
+	return
+}
+
 type Config struct {
 	RawPoolerFactory json.RawMessage `json:"pooler" caddy:"namespace=pggat.handlers.pool.poolers inline_key=pooler"`
 
@@ -45,6 +77,14 @@ type Config struct {
 	// Use false for lower latency
 	// Use true for transaction pooling
 	ExtendedQuerySync bool `json:"extended_query_sync,omitempty"`
+
+	// PacketTracingOption enables/disables packet debug tracing for client and/or
+	// server connections
+	PacketTracingOption TracingOption `json:"packet_tracing_option,omitempty"`
+
+	// OtelTracingOption enables/disables Open Telemetry tracing for client and/or
+	// server connections
+	OtelTracingOption TracingOption `json:"otel_tracing_option,omitempty"`
 
 	ServerResetQuery string `json:"server_reset_query,omitempty"`
 
@@ -76,6 +116,8 @@ func (T Config) Spool() spool.Config {
 		PoolerFactory:        T.PoolerFactory,
 		UsePS:                T.ParameterStatusSync == ParameterStatusSyncDynamic,
 		UseEQP:               T.ExtendedQuerySync,
+		UseOtelTracing:       (T.OtelTracingOption & TracingOptionServer) != 0,
+		UsePacketTracing:     (T.PacketTracingOption & TracingOptionServer) != 0,
 		ResetQuery:           T.ServerResetQuery,
 		AcquireTimeout:       time.Duration(T.ClientAcquireTimeout),
 		IdleTimeout:          time.Duration(T.ServerIdleTimeout),
@@ -100,6 +142,8 @@ var Session = Config{
 	ParameterStatusSync:     ParameterStatusSyncInitial,
 	ExtendedQuerySync:       false,
 	ServerResetQuery:        "DISCARD ALL",
+	OtelTracingOption:       TracingOptionClient,
+	PacketTracingOption:     TracingOptionDisabled,
 }
 
 var Transaction = Config{
@@ -113,4 +157,6 @@ var Transaction = Config{
 	ReleaseAfterTransaction: true,
 	ParameterStatusSync:     ParameterStatusSyncDynamic,
 	ExtendedQuerySync:       true,
+	OtelTracingOption:       TracingOptionClient,
+	PacketTracingOption:     TracingOptionDisabled,
 }

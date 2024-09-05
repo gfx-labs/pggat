@@ -1,6 +1,7 @@
 package rewrite_user
 
 import (
+	"context"
 	"errors"
 	"strings"
 
@@ -38,7 +39,7 @@ func (T *Module) Validate() error {
 }
 
 func (T *Module) Handle(next gat.Router) gat.Router {
-	return gat.RouterFunc(func(conn *fed.Conn) error {
+	return gat.RouterFunc(func(ctx context.Context, conn *fed.Conn) error {
 		switch T.Mode {
 		case "strip_prefix":
 			conn.User = strings.TrimPrefix(conn.User, T.User)
@@ -47,7 +48,7 @@ func (T *Module) Handle(next gat.Router) gat.Router {
 		default:
 			conn.User = T.User
 		}
-		return next.Route(conn)
+		return next.Route(ctx, conn)
 	})
 }
 

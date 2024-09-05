@@ -1,8 +1,15 @@
 :5433 {
     ssl self_signed
 
+    tracing otel {
+        service_name pggat-tracing
+        sample_rate always
+    }
+
     pool /base {
-        pool basic session
+        pool basic session {
+            otel_tracing_option client
+        }
 
         address localhost:5432
 

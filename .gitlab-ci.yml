@@ -19,7 +19,7 @@ include:
 
 variables:
   CAFE_BUILD_DOCKERFILES: "Dockerfile"
-
+  GOLANGCI_LINT_VERSION: 'v1.59.1'
 
 test:
   image: postgres:alpine
@@ -35,7 +35,7 @@ test:
     - CGO_ENABLED=1 go test -race ./...
 
 lint:
-  image: registry.gitlab.com/gitlab-org/gitlab-build-images:golangci-lint-alpine
+  image: golangci/golangci-lint:$GOLANGCI_LINT_VERSION
   stage: test
   extends: .go-cache
   script:
@@ -44,7 +44,7 @@ lint:
     # Write the code coverage report to gl-code-quality-report.json
     # and print linting issues to stdout in the format: path/to/file:line description
     # remove `--issues-exit-code 0` or set to non-zero to fail the job if linting issues are detected
-    - golangci-lint run --issues-exit-code 0 --print-issued-lines=false --out-format code-climate:gl-code-quality-report.json,line-number
+    - golangci-lint run --timeout=15m --issues-exit-code 0 --print-issued-lines=false --out-format code-climate:gl-code-quality-report.json,line-number
   artifacts:
     when: always
     reports:

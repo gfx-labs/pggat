@@ -1,7 +1,12 @@
 package fed
 
+import "fmt"
+
 type Packet interface {
+	fmt.Stringer
+	
 	Type() Type
+	TypeName() string
 	Length() int
 
 	WriteTo(encoder *Encoder) error
@@ -19,6 +24,15 @@ type PendingPacket struct {
 
 func (T PendingPacket) Type() Type {
 	return T.Decoder.Type()
+}
+
+func (T PendingPacket) TypeName() string {
+	// 0 alloc
+	return string(T.Type())
+}
+
+func (T PendingPacket) String() string {
+	return T.TypeName()
 }
 
 func (T PendingPacket) Length() int {

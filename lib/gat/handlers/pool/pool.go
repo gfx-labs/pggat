@@ -16,7 +16,7 @@ type Pool interface {
 	Serve(ctx context.Context, conn *fed.Conn) error
 
 	Cancel(ctx context.Context, key fed.BackendKey)
-	ReadMetrics(m *metrics.Pool)
+	ReadMetrics(ctx context.Context,m *metrics.Pool)
 	Close(ctx context.Context)
 }
 

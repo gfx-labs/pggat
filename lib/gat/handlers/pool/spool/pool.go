@@ -2,6 +2,10 @@ package spool
 
 import (
 	"context"
+	"gfx.cafe/gfx/pggat/lib/fed/middlewares/tracing"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"sync"
 	"time"
 
@@ -29,6 +33,8 @@ type Pool struct {
 	serversByID   map[uuid.UUID]*Server
 	serversByConn map[*fed.Conn]*Server
 	mu            sync.RWMutex
+
+	tracer trace.Tracer
 }
 
 // MakePool will create a new pool with config. ScaleLoop must be called if this is used instead of NewPool
@@ -44,6 +50,9 @@ func MakePool(config Config) Pool {
 			Critics: config.Critics,
 			Logger:  config.Logger,
 		}),
+		tracer: otel.Tracer("spool", trace.WithInstrumentationAttributes(
+			attribute.String("component", "gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool/pool.go"),
+		)),
 	}
 }
 
@@ -54,6 +63,18 @@ func NewPool(ctx context.Context, config Config) *Pool {
 }
 
 func (T *Pool) addServer(conn *fed.Conn) {
+	if T.config.UsePacketTracing {
+		conn.Middleware = append(
+			conn.Middleware,
+			tracing.NewPacketTrace())
+	}
+
+	if T.config.UseOtelTracing {
+		conn.Middleware = append(
+			conn.Middleware,
+			tracing.NewOtelTrace())
+	}
+
 	if T.config.UsePS {
 		conn.Middleware = append(
 			conn.Middleware,
@@ -282,7 +303,7 @@ func (T *Pool) Release(ctx context.Context, server *Server) {
 
 		if err, _ := backends.QueryString(ctx, server.Conn, nil, T.config.ResetQuery); err != nil {
 			T.config.Logger.Error("failed to run reset query", zap.Error(err))
-			T.RemoveServer(ctx,server)
+			T.RemoveServer(ctx, server)
 			return
 		}
 	}
@@ -308,7 +329,7 @@ func (T *Pool) Cancel(ctx context.Context, server *Server) {
 	T.chef.Cancel(ctx, server.Conn)
 }
 
-func (T *Pool) ReadMetrics(m *metrics.Pool) {
+func (T *Pool) ReadMetrics(ctx context.Context, m *metrics.Pool) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 
@@ -317,7 +338,7 @@ func (T *Pool) ReadMetrics(m *metrics.Pool) {
 	}
 	for _, server := range T.serversByID {
 		var s metrics.Conn
-		server.ReadMetrics(&s)
+		server.ReadMetrics(ctx, &s)
 		m.Servers[server.ID] = s
 	}
 }

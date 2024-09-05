@@ -64,7 +64,7 @@ func (T *App) statLogLoop() {
 		select {
 		case <-t.C:
 			for _, server := range T.servers {
-				server.ReadMetrics(&stats)
+				server.ReadMetrics(context.Background(), &stats)
 			}
 			T.log.Info(stats.String())
 			stats.Clear()

@@ -292,9 +292,7 @@ func (T *Module) lookup(ctx context.Context, user, database string) (poolAndCred
 }
 
 func (T *Module) Handle(next gat.Router) gat.Router {
-	return gat.RouterFunc(func(conn *fed.Conn) error {
-		ctx := context.Background()
-
+	return gat.RouterFunc(func(ctx context.Context, conn *fed.Conn) error {
 		// check ssl
 		if T.Config.PgBouncer.ClientTLSSSLMode.IsRequired() {
 			if !conn.SSL {
@@ -332,7 +330,7 @@ func (T *Module) Handle(next gat.Router) gat.Router {
 
 		p, ok := T.lookup(ctx, conn.User, conn.Database)
 		if !ok {
-			return next.Route(conn)
+			return next.Route(ctx, conn)
 		}
 
 		if err := frontends.Authenticate(ctx, conn, p.creds); err != nil {
@@ -343,11 +341,11 @@ func (T *Module) Handle(next gat.Router) gat.Router {
 	})
 }
 
-func (T *Module) ReadMetrics(metrics *metrics.Handler) {
+func (T *Module) ReadMetrics(ctx context.Context, metrics *metrics.Handler) {
 	T.mu.RLock()
 	defer T.mu.RUnlock()
 	T.pools.Range(func(_ string, _ string, p poolAndCredentials) bool {
-		p.pool.ReadMetrics(&metrics.Pool)
+		p.pool.ReadMetrics(ctx, &metrics.Pool)
 		return true
 	})
 }
