@@ -1,6 +1,9 @@
-![image](https://github.com/user-attachments/assets/fbb0be19-9dce-4a54-b4ef-bea001bd8b46)
+
 
 # pggat
+
+![image](https://github.com/user-attachments/assets/a4e7881f-fc5a-4349-b141-3148aff0f09f)
+
 pggat is a Postgres pooler similar to PgBouncer. It is different in that it supports load balancing to rdwr/rd replicas.
 
 the name is because [this song is a banger](https://www.youtube.com/watch?v=-DqCc2DJ0sg)
