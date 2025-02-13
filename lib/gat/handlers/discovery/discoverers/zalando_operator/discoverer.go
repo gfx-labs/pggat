@@ -184,12 +184,14 @@ func (T *Discoverer) postgresqlToCluster(cluster acidv1.Postgresql) (discovery.C
 		// get secret
 		secret, err := T.k8s.Secrets(T.Namespace).Get(context.Background(), secretName, metav1.GetOptions{})
 		if err != nil {
-			return discovery.Cluster{}, err
+			fmt.Printf("Failed to get secret for user %s: %v\n", user, err)
+			continue
 		}
 
 		password, ok := secret.Data["password"]
 		if !ok {
-			return discovery.Cluster{}, fmt.Errorf("no password in secret: %s", secretName)
+			fmt.Printf("No password in secret: %s\n", secretName)
+			continue
 		}
 
 		c.Users = append(c.Users, discovery.User{
@@ -201,7 +203,6 @@ func (T *Discoverer) postgresqlToCluster(cluster acidv1.Postgresql) (discovery.C
 	for database := range cluster.Spec.Databases {
 		c.Databases = append(c.Databases, database)
 	}
-
 	return c, nil
 }
 
@@ -231,7 +232,9 @@ func (T *Discoverer) Removed() <-chan string {
 	return T.removed
 }
 
-var _ discovery.Discoverer = (*Discoverer)(nil)
-var _ caddy.Module = (*Discoverer)(nil)
-var _ caddy.Provisioner = (*Discoverer)(nil)
-var _ caddy.CleanerUpper = (*Discoverer)(nil)
+var (
+	_ discovery.Discoverer = (*Discoverer)(nil)
+	_ caddy.Module         = (*Discoverer)(nil)
+	_ caddy.Provisioner    = (*Discoverer)(nil)
+	_ caddy.CleanerUpper   = (*Discoverer)(nil)
+)
