@@ -3,14 +3,13 @@ FROM golang:1.23-alpine as GOBUILDER
 RUN apk add build-base git
 WORKDIR /src
 
-COPY go.mod go.sum .
+COPY go.mod go.sum ./
 RUN go mod download
 COPY test test
-copy lib lib
-copy cmd cmd
+COPY lib lib
+COPY cmd cmd
 
-RUN go mod tidy
-RUN go build -o pggat ./cmd/pggat
+RUN go mod tidy && go build -o pggat ./cmd/pggat
 
 FROM alpine:latest
 WORKDIR /

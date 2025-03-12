@@ -13,13 +13,12 @@ stages:
   - deploy
 
 include:
- - project: 'templates/ci'
-   file: "/kaniko.gitlab-ci.yml"
-
+  - project: "templates/ci"
+    file: "/kaniko.gitlab-ci.yml"
 
 variables:
   CAFE_BUILD_DOCKERFILES: "Dockerfile"
-  GOLANGCI_LINT_VERSION: 'v1.59.1'
+  GOLANGCI_LINT_VERSION: "v1.64.7"
 
 test:
   image: postgres:alpine
