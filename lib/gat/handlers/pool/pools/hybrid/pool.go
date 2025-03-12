@@ -3,12 +3,13 @@ package hybrid
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"sync"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -76,14 +77,12 @@ func (T *Pool) Pair(ctx context.Context, client *Client, server *spool.Server) (
 
 	// returning 2 errors is questionable
 	err, serverErr = T.pair(ctx, client, server)
-	if (err != nil) || (serverErr != nil) {
-		if serverErr != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-		} else {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-		}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	} else if serverErr != nil {
+		span.RecordError(serverErr)
+		span.SetStatus(codes.Error, serverErr.Error())
 	}
 
 	return
@@ -575,5 +574,7 @@ func (T *Pool) Close(ctx context.Context) {
 	T.replica.Close(ctx)
 }
 
-var _ pool.Pool = (*Pool)(nil)
-var _ pool.ReplicaPool = (*Pool)(nil)
+var (
+	_ pool.Pool        = (*Pool)(nil)
+	_ pool.ReplicaPool = (*Pool)(nil)
+)
