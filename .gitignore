@@ -1,5 +1,7 @@
 .idea
 
+ gl-code-quality-report.json
+
 /pggat
 *.out
 *.DS_STORE
