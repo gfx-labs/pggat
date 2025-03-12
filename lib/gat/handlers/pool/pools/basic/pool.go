@@ -3,13 +3,14 @@ package basic
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
+
 	"gfx.cafe/gfx/pggat/lib/fed/middlewares/tracing"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"sync"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -63,14 +64,12 @@ func (T *Pool) SyncInitialParameters(ctx context.Context, client *Client, server
 
 	// returning 2 errors is questionable
 	err, serverErr = T.syncInitialParameters(ctx, client, server)
-	if (err != nil) || (serverErr != nil) {
-		if serverErr != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-		} else {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-		}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	} else if serverErr != nil {
+		span.RecordError(serverErr)
+		span.SetStatus(codes.Error, serverErr.Error())
 	}
 
 	return
@@ -146,14 +145,12 @@ func (T *Pool) Pair(ctx context.Context, client *Client, server *spool.Server) (
 
 	// returning 2 errors is questionable
 	err, serverErr = T.pair(ctx, client, server)
-	if (err != nil) || (serverErr != nil) {
-		if serverErr != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-		} else {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-		}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	} else if serverErr != nil {
+		span.RecordError(serverErr)
+		span.SetStatus(codes.Error, serverErr.Error())
 	}
 
 	return
