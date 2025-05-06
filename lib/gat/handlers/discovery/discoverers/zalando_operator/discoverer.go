@@ -3,12 +3,12 @@ package zalando_operator
 import (
 	"context"
 	"fmt"
+	acidv1informer "github.com/zalando/postgres-operator/pkg/generated/informers/externalversions/acid.zalan.do/v1"
 	"strings"
 
 	"github.com/caddyserver/caddy/v2"
 	acidzalando "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do"
 	acidv1 "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do/v1"
-	acidv1informer "github.com/zalando/postgres-operator/pkg/generated/informers/externalversions/acid.zalan.do/v1"
 	"github.com/zalando/postgres-operator/pkg/util"
 	"github.com/zalando/postgres-operator/pkg/util/config"
 	"github.com/zalando/postgres-operator/pkg/util/constants"
@@ -69,33 +69,53 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 		}
 
 		T.op = config.NewFromMap(operatorConfig.Data)
-	} else if T.OperatorConfigurationObject != "" {
-		operatorConfig, err := T.k8s.OperatorConfigurations(T.Namespace).Get(ctx, T.OperatorConfigurationObject, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-
+	} else {
+		// defaults
 		T.op = new(config.Config)
 
-		// why did they do this to me
-		T.op.ClusterDomain = util.Coalesce(operatorConfig.Configuration.Kubernetes.ClusterDomain, "cluster.local")
+		// from Caddyfile
+		T.op.ClusterDomain = util.Coalesce(T.ClusterDomain, "cluster.local")
 
-		T.op.SecretNameTemplate = operatorConfig.Configuration.Kubernetes.SecretNameTemplate
+		T.op.SecretNameTemplate = config.StringTemplate(T.SecretNameTemplate)
 
 		T.op.ConnectionPooler.NumberOfInstances = util.CoalesceInt32(
-			operatorConfig.Configuration.ConnectionPooler.NumberOfInstances,
+			T.ConnectionPoolerNumberOfInstances,
 			k8sutil.Int32ToPointer(2))
 
 		T.op.ConnectionPooler.Mode = util.Coalesce(
-			operatorConfig.Configuration.ConnectionPooler.Mode,
+			T.ConnectionPoolerMode,
 			constants.ConnectionPoolerDefaultMode)
 
 		T.op.ConnectionPooler.MaxDBConnections = util.CoalesceInt32(
-			operatorConfig.Configuration.ConnectionPooler.MaxDBConnections,
+			T.ConnectionPoolerMaxDBConnections,
 			k8sutil.Int32ToPointer(constants.ConnectionPoolerMaxDBConnections))
-	} else {
-		// defaults
-		T.op = config.NewFromMap(make(map[string]string))
+
+		// from external config
+		if T.OperatorConfigurationObject != "" {
+			operatorConfig, err := T.k8s.OperatorConfigurations(T.Namespace).Get(ctx, T.OperatorConfigurationObject, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+
+			// why did they do this to me
+			T.op.ClusterDomain = util.Coalesce(operatorConfig.Configuration.Kubernetes.ClusterDomain, T.op.ClusterDomain)
+
+			T.op.SecretNameTemplate = config.StringTemplate(util.Coalesce(
+				string(operatorConfig.Configuration.Kubernetes.SecretNameTemplate),
+				string(T.op.SecretNameTemplate)))
+
+			T.op.ConnectionPooler.NumberOfInstances = util.CoalesceInt32(
+				operatorConfig.Configuration.ConnectionPooler.NumberOfInstances,
+				T.op.ConnectionPooler.NumberOfInstances)
+
+			T.op.ConnectionPooler.Mode = util.Coalesce(
+				operatorConfig.Configuration.ConnectionPooler.Mode,
+				T.op.ConnectionPooler.Mode)
+
+			T.op.ConnectionPooler.MaxDBConnections = util.CoalesceInt32(
+				operatorConfig.Configuration.ConnectionPooler.MaxDBConnections,
+				T.op.ConnectionPooler.MaxDBConnections)
+		}
 	}
 
 	T.informer = acidv1informer.NewPostgresqlInformer(
