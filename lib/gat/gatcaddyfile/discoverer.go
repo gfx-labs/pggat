@@ -1,13 +1,12 @@
 package gatcaddyfile
 
 import (
-	"github.com/caddyserver/caddy/v2"
-	"github.com/caddyserver/caddy/v2/caddyconfig"
-	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
-
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/digitalocean"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/google_cloud_sql"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/zalando_operator"
+	"github.com/caddyserver/caddy/v2"
+	"github.com/caddyserver/caddy/v2/caddyconfig"
+	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
 )
 
 func init() {
@@ -108,7 +107,21 @@ func init() {
 		if !d.NextArg() {
 			return nil, d.ArgErr()
 		}
+
 		module.OperatorConfigurationObject = d.Val()
+
+		for nesting := d.Nesting(); d.NextBlock(nesting); {
+			directive := d.Val()
+			switch directive {
+			case "namespace":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+				module.Namespace = d.Val()
+			default:
+				return nil, d.ArgErr()
+			}
+		}
 
 		return &module, nil
 	})
