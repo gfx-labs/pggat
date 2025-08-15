@@ -1,7 +1,7 @@
 package credentials
 
 import (
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // MD5 required for PostgreSQL authentication protocol
 	"crypto/rand"
 	"encoding/hex"
 	"strings"
@@ -33,7 +33,7 @@ func (T Cleartext) VerifyCleartext(value string) error {
 }
 
 func (T Cleartext) EncodeMD5(salt [4]byte) string {
-	hash := md5.New()
+	hash := md5.New() //nolint:gosec // MD5 required for PostgreSQL authentication protocol
 	hash.Write([]byte(T.Password))
 	hash.Write([]byte(T.Username))
 	sum1 := hash.Sum(nil)

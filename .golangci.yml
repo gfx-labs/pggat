@@ -2,6 +2,9 @@ version: 2
 
 run:
   timeout: 10m
+  skip-dirs:
+    - vendor
+    - third_party
 
 formatters:
   enable:
@@ -24,6 +27,10 @@ linters:
 linters-settings:
   cyclop:
     max-complexity: 20
+  
+  gosec:
+    excludes:
+      - G115  # Integer overflow - intentional for PostgreSQL wire protocol compatibility
     
   gocritic:
     # Which checks should be enabled

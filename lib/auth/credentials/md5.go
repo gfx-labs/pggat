@@ -1,7 +1,7 @@
 package credentials
 
 import (
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // MD5 required for PostgreSQL authentication protocol
 	"encoding/hex"
 	"strings"
 
@@ -34,7 +34,7 @@ func (MD5) Credentials() {}
 func (T MD5) EncodeMD5(salt [4]byte) string {
 	hexEncoded := make([]byte, hex.EncodedLen(len(T.Hash)))
 	hex.Encode(hexEncoded, T.Hash)
-	hash := md5.New()
+	hash := md5.New() //nolint:gosec // MD5 required for PostgreSQL authentication protocol
 
 	hash.Write(hexEncoded)
 	hash.Write(salt[:])
