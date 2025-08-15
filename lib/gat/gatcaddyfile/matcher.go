@@ -105,10 +105,7 @@ func init() {
 
 		var and []caddy.Module
 
-		for {
-			if d.Val() == "}" {
-				break
-			}
+		for d.Val() != "}" {
 
 			unmarshaller, ok := LookupDirective(Matcher, d.Val())
 			if !ok {
@@ -153,10 +150,7 @@ func init() {
 
 		var or []caddy.Module
 
-		for {
-			if d.Val() == "}" {
-				break
-			}
+		for d.Val() != "}" {
 
 			unmarshaller, ok := LookupDirective(Matcher, d.Val())
 			if !ok {

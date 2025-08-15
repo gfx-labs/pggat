@@ -118,10 +118,7 @@ func (T *AuthenticationPayloadGSSContinue) Length() (length int) {
 func (T *AuthenticationPayloadGSSContinue) ReadFrom(decoder *fed.Decoder) (err error) {
 	(*T) = (*T)[:0]
 
-	for {
-		if decoder.Position() >= decoder.Length() {
-			break
-		}
+	for decoder.Position() < decoder.Length() {
 
 		(*T) = slices.Resize((*T), len((*T))+1)
 
@@ -314,10 +311,7 @@ func (T *AuthenticationPayloadSASLContinue) Length() (length int) {
 func (T *AuthenticationPayloadSASLContinue) ReadFrom(decoder *fed.Decoder) (err error) {
 	(*T) = (*T)[:0]
 
-	for {
-		if decoder.Position() >= decoder.Length() {
-			break
-		}
+	for decoder.Position() < decoder.Length() {
 
 		(*T) = slices.Resize((*T), len((*T))+1)
 
@@ -363,10 +357,7 @@ func (T *AuthenticationPayloadSASLFinal) Length() (length int) {
 func (T *AuthenticationPayloadSASLFinal) ReadFrom(decoder *fed.Decoder) (err error) {
 	(*T) = (*T)[:0]
 
-	for {
-		if decoder.Position() >= decoder.Length() {
-			break
-		}
+	for decoder.Position() < decoder.Length() {
 
 		(*T) = slices.Resize((*T), len((*T))+1)
 
@@ -1097,10 +1088,7 @@ func (T *CopyData) ReadFrom(decoder *fed.Decoder) (err error) {
 
 	(*T) = (*T)[:0]
 
-	for {
-		if decoder.Position() >= decoder.Length() {
-			break
-		}
+	for decoder.Position() < decoder.Length() {
 
 		(*T) = slices.Resize((*T), len((*T))+1)
 
@@ -2004,10 +1992,7 @@ func (T *GSSResponse) ReadFrom(decoder *fed.Decoder) (err error) {
 
 	(*T) = (*T)[:0]
 
-	for {
-		if decoder.Position() >= decoder.Length() {
-			break
-		}
+	for decoder.Position() < decoder.Length() {
 
 		(*T) = slices.Resize((*T), len((*T))+1)
 
@@ -3136,10 +3121,7 @@ func (T *SASLResponse) ReadFrom(decoder *fed.Decoder) (err error) {
 
 	(*T) = (*T)[:0]
 
-	for {
-		if decoder.Position() >= decoder.Length() {
-			break
-		}
+	for decoder.Position() < decoder.Length() {
 
 		(*T) = slices.Resize((*T), len((*T))+1)
 

@@ -48,7 +48,7 @@ func (T *Module) Handle(next gat.Router) gat.Router {
 		default:
 			conn.Database = T.Database
 		}
-		return next.Route(ctx,conn)
+		return next.Route(ctx, conn)
 	})
 }
 

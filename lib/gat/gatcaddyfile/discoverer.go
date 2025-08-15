@@ -22,10 +22,7 @@ func init() {
 				return nil, d.ArgErr()
 			}
 
-			for {
-				if d.Val() == "}" {
-					break
-				}
+			for d.Val() != "}" {
 
 				directive := d.Val()
 				switch directive {
@@ -122,12 +119,12 @@ func init() {
 				if !d.NextArg() {
 					return nil, d.ArgErr()
 				}
-				module.Config.OperatorConfigurationObject = d.Val()
+				module.OperatorConfigurationObject = d.Val()
 			case "config_map_name":
 				if !d.NextArg() {
 					return nil, d.ArgErr()
 				}
-				module.Config.ConfigMapName = d.Val()
+				module.ConfigMapName = d.Val()
 			case "config":
 				{
 					for nesting := d.Nesting(); d.NextBlock(nesting); {
@@ -137,7 +134,7 @@ func init() {
 							if !d.NextArg() {
 								return nil, d.ArgErr()
 							}
-							module.Config.ClusterDomain = d.Val()
+							module.ClusterDomain = d.Val()
 						case "secret_name_template":
 							if !d.NextArg() {
 								return nil, d.ArgErr()
@@ -152,12 +149,12 @@ func init() {
 								return nil, fmt.Errorf("error parsing connection_pooler_number_of_instances: %v", err)
 							}
 							i32 := int32(val)
-							module.Config.ConnectionPoolerNumberOfInstances = &i32
+							module.ConnectionPoolerNumberOfInstances = &i32
 						case "connection_pooler_mode":
 							if !d.NextArg() {
 								return nil, d.ArgErr()
 							}
-							module.Config.ConnectionPoolerMode = d.Val()
+							module.ConnectionPoolerMode = d.Val()
 						case "connection_pooler_max_db_connections":
 							if !d.NextArg() {
 								return nil, d.ArgErr()
@@ -167,7 +164,7 @@ func init() {
 								return nil, fmt.Errorf("error parsing connection_pooler_max_db_instances: %v", err)
 							}
 							i32 := int32(val)
-							module.Config.ConnectionPoolerMaxDBConnections = &i32
+							module.ConnectionPoolerMaxDBConnections = &i32
 						default:
 							return nil, d.ArgErr()
 						}

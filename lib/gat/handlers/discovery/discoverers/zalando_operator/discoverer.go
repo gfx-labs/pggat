@@ -78,15 +78,15 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 
 		T.op.SecretNameTemplate = config.StringTemplate(T.SecretNameTemplate)
 
-		T.op.ConnectionPooler.NumberOfInstances = util.CoalesceInt32(
+		T.op.NumberOfInstances = util.CoalesceInt32(
 			T.ConnectionPoolerNumberOfInstances,
 			k8sutil.Int32ToPointer(2))
 
-		T.op.ConnectionPooler.Mode = util.Coalesce(
+		T.op.Mode = util.Coalesce(
 			T.ConnectionPoolerMode,
 			constants.ConnectionPoolerDefaultMode)
 
-		T.op.ConnectionPooler.MaxDBConnections = util.CoalesceInt32(
+		T.op.MaxDBConnections = util.CoalesceInt32(
 			T.ConnectionPoolerMaxDBConnections,
 			k8sutil.Int32ToPointer(constants.ConnectionPoolerMaxDBConnections))
 
@@ -104,17 +104,17 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 				string(operatorConfig.Configuration.Kubernetes.SecretNameTemplate),
 				string(T.op.SecretNameTemplate)))
 
-			T.op.ConnectionPooler.NumberOfInstances = util.CoalesceInt32(
+			T.op.NumberOfInstances = util.CoalesceInt32(
 				operatorConfig.Configuration.ConnectionPooler.NumberOfInstances,
-				T.op.ConnectionPooler.NumberOfInstances)
+				T.op.NumberOfInstances)
 
-			T.op.ConnectionPooler.Mode = util.Coalesce(
+			T.op.Mode = util.Coalesce(
 				operatorConfig.Configuration.ConnectionPooler.Mode,
-				T.op.ConnectionPooler.Mode)
+				T.op.Mode)
 
-			T.op.ConnectionPooler.MaxDBConnections = util.CoalesceInt32(
+			T.op.MaxDBConnections = util.CoalesceInt32(
 				operatorConfig.Configuration.ConnectionPooler.MaxDBConnections,
-				T.op.ConnectionPooler.MaxDBConnections)
+				T.op.MaxDBConnections)
 		}
 	}
 
@@ -195,7 +195,7 @@ func (T *Discoverer) postgresqlToCluster(cluster acidv1.Postgresql) (discovery.C
 
 	for user := range cluster.Spec.Users {
 		secretName := T.op.SecretNameTemplate.Format(
-			"username", strings.Replace(user, "_", "-", -1),
+			"username", strings.ReplaceAll(user, "_", "-"),
 			"cluster", cluster.Name,
 			"tprkind", acidv1.PostgresCRDResourceKind,
 			"tprgroup", acidzalando.GroupName,

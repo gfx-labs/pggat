@@ -100,11 +100,9 @@ func (T *Server) start(_ context.Context) error {
 		}
 
 		go func(listener *Listener) {
-			for {
+			for T.acceptFrom(listener) {
 				// acceptFrom creates its own context
-				if !T.acceptFrom(listener) {
-					break
-				}
+
 			}
 		}(listener)
 	}

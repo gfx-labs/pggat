@@ -90,7 +90,7 @@ func authenticationSASLContinue(ctx context.Context, params *authParams, tool au
 }
 
 func (T *DBAuthenticator) authenticationSASL(ctx context.Context, params *authParams, creds auth.SASLServer) error {
-	ctx, span := T.tracer.Start(ctx, "authenticationSASL",trace.WithSpanKind(trace.SpanKindInternal))
+	ctx, span := T.tracer.Start(ctx, "authenticationSASL", trace.WithSpanKind(trace.SpanKindInternal))
 	defer span.End()
 
 	var mode packets.AuthenticationPayloadSASL
@@ -146,7 +146,7 @@ func (T *DBAuthenticator) authenticationSASL(ctx context.Context, params *authPa
 }
 
 func (T *DBAuthenticator) authenticationMD5(ctx context.Context, params *authParams, creds auth.MD5Server) error {
-	ctx, span := T.tracer.Start(ctx, "authenticationMD5",trace.WithSpanKind(trace.SpanKindInternal))
+	ctx, span := T.tracer.Start(ctx, "authenticationMD5", trace.WithSpanKind(trace.SpanKindInternal))
 	defer span.End()
 
 	var salt [4]byte

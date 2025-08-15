@@ -74,20 +74,20 @@ func (T *Module) Provision(ctx caddy.Context) error {
 	))
 
 	providerOptions := []gotel.Option{
-		gotel.WithServiceName(T.Config.ServiceName),
-		gotel.WithServiceNamespace(T.Config.ServiceNamespace),
+		gotel.WithServiceName(T.ServiceName),
+		gotel.WithServiceNamespace(T.ServiceNamespace),
 	}
 
-	if T.Config.BatchTimout != nil {
-		providerOptions = append(providerOptions, gotel.WithBatchTimeout(*T.Config.BatchTimout))
+	if T.BatchTimout != nil {
+		providerOptions = append(providerOptions, gotel.WithBatchTimeout(*T.BatchTimout))
 	}
 
-	if T.Config.Endpoint != "" {
-		providerOptions = append(providerOptions, gotel.WithEndpoint(T.Config.Endpoint))
+	if T.Endpoint != "" {
+		providerOptions = append(providerOptions, gotel.WithEndpoint(T.Endpoint))
 	}
 
-	if T.Config.SamplerRate != "" {
-		sampler, err := mapSamplerType(T.Config.SamplerRate)
+	if T.SamplerRate != "" {
+		sampler, err := mapSamplerType(T.SamplerRate)
 		if err != nil {
 			return err
 		}
@@ -109,7 +109,7 @@ func (T *Module) Handle(next gat.Router) gat.Router {
 	})
 }
 
-func (T *Module) Cancel(context.Context,fed.BackendKey) {}
+func (T *Module) Cancel(context.Context, fed.BackendKey) {}
 
 func (T *Module) Cleanup() (err error) {
 	if T.shutdownFn != nil {

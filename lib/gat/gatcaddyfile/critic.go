@@ -132,7 +132,7 @@ func parseQueryCritic(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (
 			module.Validity = caddy.Duration(dur)
 		}
 	} else {
-		return parseLatency(module,d,warnings)
+		return parseLatency(module, d, warnings)
 	}
 
 	return module, nil

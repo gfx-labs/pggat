@@ -110,7 +110,7 @@ func (T *ReadWriteCloser) setReadDeadline(t time.Time) error {
 		return net.ErrClosed
 	}
 
-	if t == (time.Time{}) {
+	if t.Equal((time.Time{})) {
 		if T.readDeadlineTimer != nil {
 			T.readDeadlineTimer.Stop()
 		}

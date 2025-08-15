@@ -16,7 +16,7 @@ type Config struct {
 	// UseEQP controls whether to add the eqp middleware to servers
 	UseEQP bool
 
-	UseOtelTracing bool
+	UseOtelTracing   bool
 	UsePacketTracing bool
 
 	ResetQuery string

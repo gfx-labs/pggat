@@ -4,7 +4,7 @@ import "fmt"
 
 type Packet interface {
 	fmt.Stringer
-	
+
 	Type() Type
 	TypeName() string
 	Length() int

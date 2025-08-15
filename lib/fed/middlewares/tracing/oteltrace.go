@@ -2,7 +2,7 @@ package tracing
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"go.opentelemetry.io/otel"
@@ -125,7 +125,7 @@ func (t *otelTrace) recordError(_ context.Context, packet fed.Packet) {
 		}
 	}
 
-	t.span.RecordError(fmt.Errorf(errMsg))
+	t.span.RecordError(errors.New(errMsg))
 	t.span.SetStatus(codes.Error, errMsg)
 }
 

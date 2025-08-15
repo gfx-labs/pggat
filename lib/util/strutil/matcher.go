@@ -8,7 +8,7 @@ type Matcher string
 
 func (T Matcher) Matches(haystack string) bool {
 	matcher := T
-	for !(len(matcher) == 0 && len(haystack) == 0) {
+	for len(matcher) != 0 || len(haystack) != 0 {
 		e, size := utf8.DecodeRuneInString(string(matcher))
 		if e == utf8.RuneError {
 			return false

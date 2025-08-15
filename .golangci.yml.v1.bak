@@ -1,15 +1,12 @@
-version: 2
-
 run:
-  timeout: 10m
-
-formatters:
-  enable:
-    - gofmt
+  deadline: 10m
 
 linters:
+  disable-all: true
   enable:
+    - gofmt
     - errcheck
+    - gosimple
     - govet
     - ineffassign
     - staticcheck
@@ -26,12 +23,15 @@ linters-settings:
     max-complexity: 20
     
   gocritic:
-    # Which checks should be enabled
+    # Which checks should be enabled; can't be combined with 'disabled-checks';
+    # See https://go-critic.github.io/overview#checks-overview
+    # To check which checks are enabled run `GL_DEBUG=gocritic ./build/bin/golangci-lint run`
+    # By default list of stable checks is used.
     enabled-checks:
       - ruleguard
       - truncateCmp
 
-    # Which checks should be disabled
+    # Which checks should be disabled; can't be combined with 'enabled-checks'; default is empty
     disabled-checks:
       - captLocal
       - assignOp
@@ -39,7 +39,8 @@ linters-settings:
       - importShadow
       - commentFormatting
 
-    # Enable multiple checks by tags
+    # Enable multiple checks by tags, run `GL_DEBUG=gocritic golangci-lint run` to see all tags and checks.
+    # Empty list by default. See https://github.com/go-critic/go-critic#usage -> section "Tags".
     enabled-tags:
       - performance
       - diagnostic
@@ -48,18 +49,18 @@ linters-settings:
       - experimental
     settings:
       hugeParam:
-        # size in bytes that makes the warning trigger
+        # size in bytes that makes the warning trigger (default 80)
         sizeThreshold: 1000
       rangeExprCopy:
-        # size in bytes that makes the warning trigger
+        # size in bytes that makes the warning trigger (default 512)
         sizeThreshold: 512
-        # whether to check test functions
+        # whether to check test functions (default true)
         skipTestFuncs: true
       truncateCmp:
-        # whether to skip int/uint/uintptr types
+        # whether to skip int/uint/uintptr types (default true)
         skipArchDependent: true
       underef:
-        # whether to skip (*x).method() calls where x is a pointer receiver
+        # whether to skip (*x).method() calls where x is a pointer receiver (default true)
         skipRecvDeref: true
 
   govet:
@@ -68,10 +69,11 @@ linters-settings:
       - fieldalignment
       - shadow
       - unsafeptr
-      
   goconst:
     min-len: 2
     min-occurrences: 2
+  gofmt:
+    auto-fix: false
 
 issues:
   exclude-rules:
@@ -86,3 +88,4 @@ issues:
       text: "SA(1019|1029|5011)"
   exclude-dirs:
     - hack
+

@@ -21,7 +21,7 @@ func (T *Server) PreRead(ctx context.Context, _ bool) (fed.Packet, error) {
 	return nil, nil
 }
 
-func (T *Server) ReadPacket(ctx context.Context,packet fed.Packet) (fed.Packet, error) {
+func (T *Server) ReadPacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
 	switch packet.Type() {
 	case packets.TypeParameterStatus:
 		var p packets.ParameterStatus
@@ -40,11 +40,11 @@ func (T *Server) ReadPacket(ctx context.Context,packet fed.Packet) (fed.Packet, 
 	}
 }
 
-func (T *Server) WritePacket(ctx context.Context,packet fed.Packet) (fed.Packet, error) {
+func (T *Server) WritePacket(ctx context.Context, packet fed.Packet) (fed.Packet, error) {
 	return packet, nil
 }
 
-func (T *Server) PostWrite(ctx context.Context,) (fed.Packet, error) {
+func (T *Server) PostWrite(ctx context.Context) (fed.Packet, error) {
 	return nil, nil
 }
 

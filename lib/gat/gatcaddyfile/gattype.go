@@ -41,8 +41,8 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 					continue
 				}
 				directive := d.Val()
-				switch {
-				case directive == "stat_log_period":
+				switch directive {
+				case "stat_log_period":
 					if !d.NextArg() {
 						return nil, nil, d.ArgErr()
 					}
@@ -165,10 +165,7 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 
 					var and matchers.And
 
-					for {
-						if d.Val() == "}" {
-							break
-						}
+					for d.Val() != "}" {
 
 						cond, err := UnmarshalDirectiveJSONModuleObject(
 							d,

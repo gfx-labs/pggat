@@ -50,10 +50,7 @@ func init() {
 
 		var module allowed_startup_parameters.Module
 
-		for {
-			if d.Val() == "}" {
-				break
-			}
+		for d.Val() != "}" {
 
 			module.Parameters = append(module.Parameters, strutil.MakeCIString(d.Val()))
 
@@ -184,10 +181,7 @@ func init() {
 				return nil, d.ArgErr()
 			}
 
-			for {
-				if d.Val() == "}" {
-					break
-				}
+			for d.Val() != "}" {
 
 				directive := d.Val()
 				switch directive {
@@ -305,10 +299,7 @@ func init() {
 			return nil, d.ArgErr()
 		}
 
-		for {
-			if d.Val() == "}" {
-				break
-			}
+		for d.Val() != "}" {
 
 			directive := d.Val()
 			switch directive {
@@ -435,22 +426,22 @@ func init() {
 		}
 
 		if d.NextArg() {
-			module.Recipe.Dialer.Address = d.Val()
+			module.Recipe.Address = d.Val()
 
 			if !d.NextArg() {
 				return nil, d.ArgErr()
 			}
-			module.Recipe.Dialer.Database = d.Val()
+			module.Recipe.Database = d.Val()
 
 			if !d.NextArg() {
 				return nil, d.ArgErr()
 			}
-			module.Recipe.Dialer.Username = d.Val()
+			module.Recipe.Username = d.Val()
 
 			if !d.NextArg() {
 				return nil, d.ArgErr()
 			}
-			module.Recipe.Dialer.RawPassword = d.Val()
+			module.Recipe.RawPassword = d.Val()
 		} else {
 			for nesting := d.Nesting(); d.NextBlock(nesting); {
 				directive := d.Val()
@@ -475,20 +466,20 @@ func init() {
 						return nil, d.ArgErr()
 					}
 
-					module.Recipe.Dialer.Address = d.Val()
+					module.Recipe.Address = d.Val()
 				case "ssl":
 					if !d.NextArg() {
 						return nil, d.ArgErr()
 					}
 
-					module.Recipe.Dialer.SSLMode = bouncer.SSLMode(d.Val())
+					module.Recipe.SSLMode = bouncer.SSLMode(d.Val())
 
 					if !d.NextArg() {
 						return nil, d.ArgErr()
 					}
 
 					var err error
-					module.Recipe.Dialer.RawSSL, err = UnmarshalDirectiveJSONModuleObject(
+					module.Recipe.RawSSL, err = UnmarshalDirectiveJSONModuleObject(
 						d,
 						SSLClient,
 						"provider",
@@ -502,19 +493,19 @@ func init() {
 						return nil, d.ArgErr()
 					}
 
-					module.Recipe.Dialer.Username = d.Val()
+					module.Recipe.Username = d.Val()
 				case "password":
 					if !d.NextArg() {
 						return nil, d.ArgErr()
 					}
 
-					module.Recipe.Dialer.RawPassword = d.Val()
+					module.Recipe.RawPassword = d.Val()
 				case "database":
 					if !d.NextArg() {
 						return nil, d.ArgErr()
 					}
 
-					module.Recipe.Dialer.Database = d.Val()
+					module.Recipe.Database = d.Val()
 				case "parameter":
 					if !d.NextArg() {
 						return nil, d.ArgErr()
@@ -525,10 +516,10 @@ func init() {
 					if !ok {
 						return nil, d.SyntaxErr("key=value")
 					}
-					if module.Recipe.Dialer.RawParameters == nil {
-						module.Recipe.Dialer.RawParameters = make(map[string]string)
+					if module.Recipe.RawParameters == nil {
+						module.Recipe.RawParameters = make(map[string]string)
 					}
-					module.Recipe.Dialer.RawParameters[key] = value
+					module.Recipe.RawParameters[key] = value
 				default:
 					return nil, d.ArgErr()
 				}
