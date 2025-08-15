@@ -73,6 +73,10 @@ func cmdStart(fl Flags) (int, error) {
 	// ensure it's the process we're expecting - we can be
 	// sure by giving it some random bytes and having it echo
 	// them back to us)
+	//nolint:gosec // G204: This is safe - os.Args[0] is the current executable path (not user input).
+	// This is a self-restart mechanism where the parent process launches a child instance of itself
+	// with hardcoded arguments for daemon mode. The executable path comes from the OS, not from
+	// untrusted user input, making command injection impossible here.
 	cmd := exec.Command(os.Args[0], "run", "--pingback", ln.Addr().String())
 	if startCmdConfigFlag != "" {
 		cmd.Args = append(cmd.Args, "--config", startCmdConfigFlag)
@@ -456,6 +460,9 @@ func cmdAdaptConfig(fl Flags) (int, error) {
 			fmt.Errorf("unrecognized config adapter: %s", adaptCmdAdapterFlag)
 	}
 
+	//nolint:gosec // G304: Reading user-specified config file is the intended behavior of the adapt command.
+	// The file path comes from a command-line flag that the user explicitly provides to convert
+	// configuration from one format to another.
 	input, err := os.ReadFile(adaptCmdInputFlag)
 	if err != nil {
 		return caddy.ExitCodeFailedStartup,
@@ -577,6 +584,9 @@ func cmdFmt(fl Flags) (int, error) {
 		return caddy.ExitCodeSuccess, nil
 	}
 
+	//nolint:gosec // G304: Reading user-specified config file is the intended behavior of the fmt command.
+	// The file path comes from a command-line argument that the user explicitly provides to format
+	// their Caddyfile configuration.
 	input, err := os.ReadFile(formatCmdConfigFile)
 	if err != nil {
 		return caddy.ExitCodeFailedStartup,

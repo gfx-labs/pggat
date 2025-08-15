@@ -99,6 +99,8 @@ func cmdImportStorage(fl Flags) (int, error) {
 	if importStorageCmdImportFile == "-" {
 		f = os.Stdin
 	} else {
+		//nolint:gosec // G304: Reading user-specified import file is the intended behavior.
+		// The file path is provided via command-line flag for importing storage data.
 		f, err = os.Open(importStorageCmdImportFile)
 		if err != nil {
 			return caddy.ExitCodeFailedStartup, fmt.Errorf("opening input file: %v", err)
@@ -177,6 +179,8 @@ func cmdExportStorage(fl Flags) (int, error) {
 	if exportStorageCmdOutputFlag == "-" {
 		f = os.Stdout
 	} else {
+		//nolint:gosec // G304: Writing to user-specified export file is the intended behavior.
+		// The file path is provided via command-line flag for exporting storage data.
 		f, err = os.Create(exportStorageCmdOutputFlag)
 		if err != nil {
 			return caddy.ExitCodeFailedStartup, fmt.Errorf("opening output file: %v", err)

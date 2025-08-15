@@ -280,6 +280,8 @@ func getPluginPackages(modules []moduleInfo) (map[string]struct{}, error) {
 
 func writeCaddyBinary(path string, body *io.ReadCloser, fileInfo os.FileInfo) error {
 	l := caddy.Log()
+	//nolint:gosec // G304: Writing to user-specified binary output path is the intended behavior.
+	// This function is used to save the custom-built Caddy binary to the location specified by the user.
 	destFile, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fileInfo.Mode())
 	if err != nil {
 		return fmt.Errorf("unable to open destination file: %v", err)

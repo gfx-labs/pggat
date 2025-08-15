@@ -80,7 +80,7 @@ func (T *Listener) Provision(ctx caddy.Context) error {
 func (T *Listener) Start() error {
 	addr := T.networkAddress
 	if addr.Network == "unix" {
-		if err := os.MkdirAll(filepath.Dir(addr.Host), 0o660); err != nil {
+		if err := os.MkdirAll(filepath.Dir(addr.Host), 0o750); err != nil {
 			return err
 		}
 	}

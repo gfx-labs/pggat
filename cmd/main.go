@@ -107,6 +107,8 @@ func loadConfigWithLogger(logger *zap.Logger, configFile, adapterName string) ([
 		if configFile == "-" {
 			config, err = io.ReadAll(os.Stdin)
 		} else {
+			//nolint:gosec // G304: Reading user-specified config file is core functionality.
+			// The config file path is provided via command-line flag to load the application configuration.
 			config, err = os.ReadFile(configFile)
 		}
 		if err != nil {
@@ -288,6 +290,8 @@ func (f Flags) Duration(name string) time.Duration {
 }
 
 func loadEnvFromFile(envFile string) error {
+	//nolint:gosec // G304: Reading user-specified environment file is intended functionality.
+	// The env file path is provided via --envfile flag to load environment variables from a file.
 	file, err := os.Open(envFile)
 	if err != nil {
 		return fmt.Errorf("reading environment file: %v", err)

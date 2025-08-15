@@ -15,6 +15,9 @@ func (T *AuthFile) UnmarshalINI(bytes []byte) error {
 		return nil
 	}
 
+	//nolint:gosec // G304: Reading pgbouncer auth file from configured path is required functionality.
+	// The file path is provided via configuration to specify where the pgbouncer-compatible
+	// authentication file is located, which is necessary for pgbouncer compatibility mode.
 	file, err := os.ReadFile(path)
 	if err != nil {
 		return err

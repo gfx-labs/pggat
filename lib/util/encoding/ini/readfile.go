@@ -6,6 +6,8 @@ import (
 )
 
 func ReadFile(path string) ([]byte, error) {
+	//nolint:gosec // G304: Reading INI configuration file from specified path is required functionality.
+	// This is a utility function for reading INI-formatted configuration files.
 	lines, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
