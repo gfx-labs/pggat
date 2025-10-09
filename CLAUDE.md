@@ -144,8 +144,8 @@ go tool cover -func=coverage.txt
 # Run golangci-lint
 golangci-lint run --timeout=15m
 
-# Format code
-golangci-lint fmt
+# Fix issues automatically
+golangci-lint run --fix
 
 # CI uses golangci-lint v2.5.0
 ```

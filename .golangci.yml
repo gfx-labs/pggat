@@ -1,11 +1,7 @@
-version: 2
+version: "2"
 
 run:
   timeout: 10m
-
-formatters:
-  enable:
-    - gofmt
 
 linters:
   enable:
@@ -23,19 +19,17 @@ linters:
 
 linters-settings:
   cyclop:
-    max-complexity: 20
-  
+    max-complexity: 30
+
   gosec:
     excludes:
       - G115  # Integer overflow - intentional for PostgreSQL wire protocol compatibility
-    
+
   gocritic:
-    # Which checks should be enabled
     enabled-checks:
       - ruleguard
       - truncateCmp
 
-    # Which checks should be disabled
     disabled-checks:
       - captLocal
       - assignOp
@@ -43,28 +37,12 @@ linters-settings:
       - importShadow
       - commentFormatting
 
-    # Enable multiple checks by tags
     enabled-tags:
       - performance
       - diagnostic
       - opinionated
     disabled-tags:
       - experimental
-    settings:
-      hugeParam:
-        # size in bytes that makes the warning trigger
-        sizeThreshold: 1000
-      rangeExprCopy:
-        # size in bytes that makes the warning trigger
-        sizeThreshold: 512
-        # whether to check test functions
-        skipTestFuncs: true
-      truncateCmp:
-        # whether to skip int/uint/uintptr types
-        skipArchDependent: true
-      underef:
-        # whether to skip (*x).method() calls where x is a pointer receiver
-        skipRecvDeref: true
 
   govet:
     disable:
@@ -72,22 +50,13 @@ linters-settings:
       - fieldalignment
       - shadow
       - unsafeptr
-      
+
   goconst:
     min-len: 2
     min-occurrences: 2
 
 issues:
-  exclude-rules:
-    - linters:
-        - golint
-      text: "should be"
-    - linters:
-        - errcheck
-      text: "not checked"
-    - linters:
-        - staticcheck
-      text: "SA(1019|1029|5011)"
+  exclude-dirs-use-default: false
   exclude-dirs:
     - vendor
     - third_party

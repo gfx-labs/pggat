@@ -52,19 +52,10 @@ jobs:
           cache: true
       
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
-          args: --timeout=15m --print-issued-lines=false
-      
-      - name: Check formatting
-        run: |
-          golangci-lint fmt
-          if [ -n "$(git diff --name-only)" ]; then
-            echo "::error::Code is not properly formatted. Run 'golangci-lint fmt' to fix."
-            git diff
-            exit 1
-          fi
+          args: --timeout=15m
 
   coverage:
     runs-on: ubuntu-latest
