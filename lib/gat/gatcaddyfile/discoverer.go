@@ -181,11 +181,11 @@ func init() {
 	RegisterDirective(Discoverer, "cloudnative_pg", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
 		module := cloudnative_pg.Discoverer{
 			Config: cloudnative_pg.Config{
-				ClusterDomain: "cluster.local",
+				ClusterDomain:          "cluster.local",
 				ReadWriteServiceSuffix: "-rw",
-				ReadOnlyServiceSuffix: "-ro",
-				Port: 5432,
-				SecretSuffix: "-app",
+				ReadOnlyServiceSuffix:  "-ro",
+				Port:                   5432,
+				SecretSuffix:           "-app",
 			},
 		}
 

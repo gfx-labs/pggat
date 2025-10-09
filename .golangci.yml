@@ -13,42 +13,40 @@ linters:
     - misspell
     - goconst
 
-linters-settings:
-  govet:
-    disable:
-      - fieldalignment
-      - shadow
+  settings:
+    govet:
+      disable:
+        - fieldalignment
+        - shadow
 
-  gocritic:
-    enabled-checks:
-      - ruleguard
-      - truncateCmp
-    disabled-checks:
-      - captLocal
-      - assignOp
-      - paramTypeCombine
-      - importShadow
-      - commentFormatting
+    gocritic:
+      enabled-checks:
+        - ruleguard
+        - truncateCmp
+      disabled-checks:
+        - captLocal
+        - assignOp
+        - commentFormatting
 
-  gosec:
-    excludes:
-      - G115  # Integer overflow - intentional for PostgreSQL wire protocol
-      - G104  # Unhandled errors - using errcheck instead
+    gosec:
+      excludes:
+        - G115  # Integer overflow - intentional for PostgreSQL wire protocol
+        - G104  # Unhandled errors - using errcheck instead
 
-  goconst:
-    min-len: 3
-    min-occurrences: 3
+    goconst:
+      min-len: 3
+      min-occurrences: 3
 
-issues:
-  exclude-dirs:
-    - vendor
-    - third_party
-    - hack
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
-    - linters:
-        - staticcheck
-      text: "SA1019|SA1029|SA5011"
+  exclusions:
+    paths:
+      - vendor
+      - third_party
+      - hack
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+      - linters:
+          - staticcheck
+        text: "SA1019|SA1029|SA5011"
