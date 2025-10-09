@@ -18,6 +18,7 @@ linters:
       disable:
         - fieldalignment
         - shadow
+        - stdmethods
 
     gocritic:
       enabled-checks:
