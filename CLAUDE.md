@@ -147,14 +147,15 @@ golangci-lint run --timeout=15m
 # Fix issues automatically
 golangci-lint run --fix
 
-# CI uses golangci-lint v1.61.0
+# CI uses golangci-lint v1.62.2
 ```
 
 **Important Linter Notes**:
-- Uses golangci-lint v1.61.0
+- Uses golangci-lint v1.62.2 with golangci-lint-action v8
 - Directories excluded: vendor/, third_party/, hack/
 - Enabled linters: errcheck, govet, ineffassign, staticcheck, gocritic, bodyclose, gosec, prealloc, unconvert, unused
 - G115 (integer overflow) is disabled - intentional for PostgreSQL wire protocol compatibility
+- CI temporarily patches go.mod from 1.25 to 1.23 for linter compatibility
 
 ### Running Locally
 

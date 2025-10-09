@@ -7,7 +7,7 @@ on:
     branches: [ master, main ]
 
 env:
-  GOLANGCI_LINT_VERSION: v1.61.0
+  GOLANGCI_LINT_VERSION: v2.5.0
 
 jobs:
   test:
@@ -26,13 +26,13 @@ jobs:
           - 5432:5432
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.25'
           cache: true
-      
+
       - name: Run tests with race detector
         env:
           POSTGRES_HOST: localhost
@@ -44,22 +44,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'
+          go-version: '1.25'
           cache: true
 
-      - name: Fix go.mod version for linter
-        run: |
-          sed -i 's/^go 1\.25$/go 1.23/' go.mod
-
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --timeout=15m
+          skip-cache: true
 
   coverage:
     runs-on: ubuntu-latest
@@ -77,13 +74,13 @@ jobs:
           - 5432:5432
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.25'
           cache: true
-      
+
       - name: Run tests with coverage
         env:
           POSTGRES_HOST: localhost
@@ -92,13 +89,13 @@ jobs:
         run: |
           go test -v -coverprofile=coverage.txt -covermode=atomic ./...
           go tool cover -func=coverage.txt
-      
+
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
         with:
           name: coverage-reports
           path: coverage.txt
-      
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
@@ -111,10 +108,10 @@ jobs:
     needs: [test, lint]
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
