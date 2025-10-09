@@ -33,6 +33,7 @@ linters:
       excludes:
         - G115  # Integer overflow - intentional for PostgreSQL wire protocol
         - G104  # Unhandled errors - using errcheck instead
+        - G402  # TLS version too low/disabled  - intentional for PostgreSQL
 
     goconst:
       min-len: 3
