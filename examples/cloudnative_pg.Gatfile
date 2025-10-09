@@ -1,0 +1,109 @@
+# Example Gatfile configuration for CloudNativePG discovery
+# This configuration demonstrates how to use pggat with CloudNativePG operator
+
+{
+    # Global options
+    admin :2021
+
+    # Enable OpenTelemetry tracing (optional)
+    otel {
+        http localhost:4318
+    }
+}
+
+# Main listener on port 5433
+:5433 {
+    # Enable TLS with self-signed certificate
+    ssl self_signed
+
+    # Configure CloudNativePG discovery
+    # This will automatically discover all CloudNativePG clusters in the namespace
+    discovery {
+        discoverer cloudnative_pg {
+            # Namespace to watch for CloudNativePG clusters
+            # Leave empty to watch all namespaces
+            namespace default
+
+            # Kubernetes cluster domain (default: cluster.local)
+            cluster_domain cluster.local
+
+            # Service suffix for read-write service (default: -rw)
+            read_write_service_suffix -rw
+
+            # Service suffix for read-only service (default: -ro)
+            read_only_service_suffix -ro
+
+            # PostgreSQL port (default: 5432)
+            port 5432
+
+            # Secret suffix for app user credentials (default: -app)
+            secret_suffix -app
+
+            # Include superuser credentials (default: false)
+            # Use with caution in production environments
+            include_superuser false
+        }
+
+        # Poll interval for checking cluster changes
+        poll_interval 30s
+    }
+
+    # Configure connection pooling
+    pool cloudnative {
+        # Pool type: hybrid for separate read/write pools
+        pool hybrid transaction
+
+        # Connection pool settings
+        default_pool_size 10
+        max_pool_size 50
+
+        # Use discovered servers from CloudNativePG
+        discovery
+
+        # Connection pooler settings
+        pooler rob
+
+        # Health check settings
+        health_check_period 10s
+        health_check_timeout 5s
+
+        # Authentication settings
+        auth_query "SELECT username, password FROM pgbouncer.user_lookup($1)"
+        auth_user pgbouncer
+        auth_password {env.PGBOUNCER_PASSWORD}
+    }
+}
+
+# Alternative configuration: Direct pool configuration without discovery
+# This example shows how to manually configure a specific CloudNativePG cluster
+:5434 {
+    ssl self_signed
+
+    pool /mydb {
+        # Manually specify CloudNativePG cluster endpoints
+        pool hybrid transaction
+
+        servers {
+            # Primary (read-write) endpoint
+            primary {
+                address my-cluster-rw.default.svc.cluster.local:5432
+                role primary
+            }
+
+            # Read-only replicas endpoint
+            replica {
+                address my-cluster-ro.default.svc.cluster.local:5432
+                role replica
+            }
+        }
+
+        # Database and user configuration
+        database mydb
+        username myapp
+        password {env.MYAPP_PASSWORD}
+
+        # Connection pool settings
+        default_pool_size 10
+        max_pool_size 30
+    }
+}

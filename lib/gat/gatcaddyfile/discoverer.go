@@ -2,6 +2,7 @@ package gatcaddyfile
 
 import (
 	"fmt"
+	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/cloudnative_pg"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/digitalocean"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/google_cloud_sql"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/zalando_operator"
@@ -169,6 +170,74 @@ func init() {
 							return nil, d.ArgErr()
 						}
 					}
+				}
+			default:
+				return nil, d.ArgErr()
+			}
+		}
+
+		return &module, nil
+	})
+	RegisterDirective(Discoverer, "cloudnative_pg", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
+		module := cloudnative_pg.Discoverer{
+			Config: cloudnative_pg.Config{
+				ClusterDomain: "cluster.local",
+				ReadWriteServiceSuffix: "-rw",
+				ReadOnlyServiceSuffix: "-ro",
+				Port: 5432,
+				SecretSuffix: "-app",
+			},
+		}
+
+		for nesting := d.Nesting(); d.NextBlock(nesting); {
+			directive := d.Val()
+			switch directive {
+			case "namespace":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+				module.Namespace = d.Val()
+			case "cluster_domain":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+				module.ClusterDomain = d.Val()
+			case "read_write_service_suffix":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+				module.ReadWriteServiceSuffix = d.Val()
+			case "read_only_service_suffix":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+				module.ReadOnlyServiceSuffix = d.Val()
+			case "port":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+				port, err := strconv.Atoi(d.Val())
+				if err != nil {
+					return nil, fmt.Errorf("error parsing port: %v", err)
+				}
+				module.Port = port
+			case "secret_suffix":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+				module.SecretSuffix = d.Val()
+			case "include_superuser":
+				if d.NextArg() {
+					switch d.Val() {
+					case "true":
+						module.IncludeSuperuser = true
+					case "false":
+						module.IncludeSuperuser = false
+					default:
+						return nil, d.ArgErr()
+					}
+				} else {
+					module.IncludeSuperuser = true
 				}
 			default:
 				return nil, d.ArgErr()

@@ -31,6 +31,7 @@ import (
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 
 	// discovery
+	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/cloudnative_pg"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/digitalocean"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/google_cloud_sql"
 	_ "gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/zalando_operator"
