@@ -42,6 +42,7 @@ linters:
       - vendor
       - third_party
       - hack
+      - lib/fed/packets
     rules:
       - path: _test\.go
         linters:
