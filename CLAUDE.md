@@ -147,7 +147,7 @@ golangci-lint run --timeout=15m
 # Format code
 golangci-lint fmt
 
-# CI uses golangci-lint v2.4.0
+# CI uses golangci-lint v2.5.0
 ```
 
 **Important Linter Notes**:
@@ -248,9 +248,9 @@ lib/
 
 ## CI/CD
 
-GitHub Actions workflow (`.github/workflows/go.yml`):
-- **test**: Run tests on multiple Go versions (1.16-1.19)
-- **lint**: golangci-lint v2.4.0
+GitHub Actions workflow (`.github/workflows/ci.yml`):
+- **test**: Run tests with race detector on Go 1.23
+- **lint**: golangci-lint v2.5.0
 - **coverage**: Generate coverage reports, upload to Codecov
 - **build**: Build verification
 
