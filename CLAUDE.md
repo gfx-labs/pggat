@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 pggat is a PostgreSQL connection pooler similar to PgBouncer, with the key differentiator being built-in support for load balancing across read-write and read-only replica nodes. It's built on top of the Caddy web server framework, leveraging Caddy's module system, configuration management, and lifecycle handling.
 
 **Repository**: `github.com/gfx-labs/pggat`
-**Language**: Go 1.19+ (go.mod specifies 1.19)
+**Language**: Go 1.25+ (go.mod specifies 1.25)
 **Build System**: Go modules
 **Architecture**: Modular, based on Caddy v2
 
@@ -147,14 +147,14 @@ golangci-lint run --timeout=15m
 # Fix issues automatically
 golangci-lint run --fix
 
-# CI uses golangci-lint v2.5.0
+# CI uses golangci-lint v1.61.0
 ```
 
 **Important Linter Notes**:
+- Uses golangci-lint v1.61.0
+- Directories excluded: vendor/, third_party/, hack/
+- Enabled linters: errcheck, govet, ineffassign, staticcheck, gocritic, bodyclose, gosec, prealloc, unconvert, unused
 - G115 (integer overflow) is disabled - intentional for PostgreSQL wire protocol compatibility
-- Several gocritic checks are disabled (see `.golangci.yml`)
-- Max cyclomatic complexity: 30
-- Test functions and hack/ directory are excluded
 
 ### Running Locally
 
@@ -250,7 +250,7 @@ lib/
 
 GitHub Actions workflow (`.github/workflows/ci.yml`):
 - **test**: Run tests with race detector on Go 1.23
-- **lint**: golangci-lint v2.5.0
+- **lint**: golangci-lint v1.61.0
 - **coverage**: Generate coverage reports, upload to Codecov
 - **build**: Build verification
 

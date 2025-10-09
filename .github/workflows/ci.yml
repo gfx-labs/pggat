@@ -7,7 +7,7 @@ on:
     branches: [ master, main ]
 
 env:
-  GOLANGCI_LINT_VERSION: v2.5.0
+  GOLANGCI_LINT_VERSION: v1.61.0
 
 jobs:
   test:
@@ -48,11 +48,15 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version-file: 'go.mod'
           cache: true
-      
+
+      - name: Fix go.mod version for linter
+        run: |
+          sed -i 's/^go 1\.25$/go 1.23/' go.mod
+
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v6
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --timeout=15m
@@ -80,29 +84,20 @@ jobs:
           go-version: '1.23'
           cache: true
       
-      - name: Install test tools
-        run: |
-          go install gotest.tools/gotestsum@latest
-          go install github.com/boumenot/gocover-cobertura@master
-      
       - name: Run tests with coverage
         env:
           POSTGRES_HOST: localhost
           POSTGRES_PORT: 5432
           POSTGRES_PASSWORD: postgres
         run: |
-          gotestsum --junitfile report.xml --format testname -- -coverprofile=coverage.txt -covermode count ./...
+          go test -v -coverprofile=coverage.txt -covermode=atomic ./...
           go tool cover -func=coverage.txt
-          gocover-cobertura < coverage.txt > coverage.xml
       
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
         with:
           name: coverage-reports
-          path: |
-            report.xml
-            coverage.xml
-            coverage.txt
+          path: coverage.txt
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
