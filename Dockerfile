@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.25-alpine as GOBUILDER
+FROM golang:1.25-alpine AS gobuilder
 RUN apk add build-base git
 WORKDIR /src
 
@@ -15,7 +15,7 @@ FROM alpine:latest
 WORKDIR /
 RUN apk add --no-cache bash
 
-COPY --from=GOBUILDER /src/pggat /usr/bin/pggat
+COPY --from=gobuilder /src/pggat /usr/bin/pggat
 COPY presets /presets
 COPY entrypoint.sh .
 
