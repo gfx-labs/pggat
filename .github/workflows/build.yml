@@ -26,6 +26,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions: write-all
     # Only run if triggered by workflow_run and both workflows succeeded,
     # or if triggered directly (push/PR/manual)
     if: |
