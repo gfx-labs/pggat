@@ -1,15 +1,92 @@
-
-
 # pggat
 
 ![image](https://github.com/user-attachments/assets/a4e7881f-fc5a-4349-b141-3148aff0f09f)
 
-pggat is a Postgres pooler similar to PgBouncer. It is different in that it supports load balancing to rdwr/rd replicas.
+pggat is a Postgres pooler similar to PgBouncer. Its primary difference in functionality is that it supports load balancing to rdwr/rd replicas. This allows for pseudo-horizontal scaling via balancing to read-replicas.
 
-the name is because [this song is a banger](https://www.youtube.com/watch?v=-DqCc2DJ0sg)
+the name comes from [this song, as it is a banger](https://www.youtube.com/watch?v=-DqCc2DJ0sg)
 
+## Architecture
 
+pggat is built on the [Caddy](https://caddyserver.com/) framework, leveraging its module system, configuration management, and runtime capabilities. This provides pggat with:
 
+- A Robust plugin architecture through Caddy modules
+- Familiar Caddyfile configuration format (adapted as Gatfile)
+- A possible path to integration with Caddy down the line
+
+## Features
+
+### Connection Pooling
+- Transaction pooling mode with prepared statement support
+- Session pooling mode for full feature compatibility
+- Basic and hybrid pooling implementations
+- Connection warm-up and idle management
+- Automatic reconnection with exponential backoff
+
+### Load Balancing
+- Primary/replica routing
+- Read/write splitting
+- Query latency-based routing
+- Replication lag-aware routing
+- Parameter-based routing decisions
+
+### Authentication
+- Plaintext password authentication
+- MD5 password authentication
+- SCRAM-SHA-256 authentication
+- Client certificate authentication
+- Pass-through authentication modes
+
+### SSL/TLS
+- Self-signed certificate generation
+- X.509 certificate support
+- Client certificate verification
+- Optional SSL enforcement
+- Configurable TLS modes
+
+### Service Discovery
+- CloudNativePG operator integration
+- Zalando Postgres Operator support
+- Google Cloud SQL discovery
+- DigitalOcean managed database discovery
+- Static configuration support
+- Dynamic cluster updates
+
+### Protocol Support
+- PostgreSQL wire protocol v3.0
+- Extended query protocol
+- Simple query protocol
+- COPY protocol support
+- Prepared statements
+- Parameter status synchronization
+
+### Monitoring & Observability
+- OpenTelemetry tracing integration
+- Prometheus metrics export
+- Query performance tracking
+- Connection statistics
+- Packet-level tracing
+
+### Request Routing
+- Database-based routing
+- User-based routing
+- SSL requirement matching
+- Local address matching
+- Startup parameter matching
+- Boolean logic combinators (AND, OR, NOT)
+
+### Request Modification
+- Database rewriting
+- Username rewriting
+- Password rewriting
+- Parameter rewriting
+- Error message handling
+
+### Configuration
+- Gatfile configuration format (Using Caddyfile internals)
+- Runtime configuration reloading (Via Caddy)
+- Environment variable support
+- Command-line interface
 
 ## Pooling Modes
 There are currently two pooling modes which compromise between balancing and feature support. Most apps should work out of the box with transaction pooling.
