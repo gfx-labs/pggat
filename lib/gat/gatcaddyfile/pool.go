@@ -55,9 +55,6 @@ func init() {
 			default:
 				return nil, d.ArgErr()
 			}
-			if !d.NextBlock(d.Nesting()) {
-				return &module, nil
-			}
 		} else {
 			module.TrackedParameters = nil
 		}
@@ -78,7 +75,7 @@ func init() {
 					warnings,
 				)
 				if err != nil {
-					return nil, err
+					return nil, d.WrapErr(err)
 				}
 			case "release_after_transaction":
 				if d.NextArg() {
@@ -126,7 +123,7 @@ func init() {
 				if d.NextArg() {
 					opt, err := basic.MapTracingOption(d.Val())
 					if err != nil {
-						return nil, err
+						return nil, d.WrapErr(err)
 					}
 					module.OtelTracingOption = opt
 				} else {
