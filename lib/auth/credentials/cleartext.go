@@ -70,8 +70,7 @@ func (T Cleartext) SupportedSASLMechanisms() []auth.SASLMechanism {
 
 func (T Cleartext) EncodeSASL(mechanisms []auth.SASLMechanism) (auth.SASLMechanism, auth.SASLEncoder, error) {
 	for _, mechanism := range mechanisms {
-		switch mechanism {
-		case auth.ScramSHA256:
+		if mechanism == auth.ScramSHA256 {
 			return auth.ScramSHA256, &scram.ClientConversation{
 				Lookup: scram.ClientPasswordLookup(T.Password, sha256.New),
 			}, nil

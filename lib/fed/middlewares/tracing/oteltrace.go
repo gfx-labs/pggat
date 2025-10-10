@@ -55,13 +55,11 @@ func (t *otelTrace) PostWrite(_ context.Context) (fed.Packet, error) {
 func (t *otelTrace) process(ctx context.Context, packet fed.Packet) {
 	switch t.state {
 	case Init:
-		switch packet.Type() {
-		case packets.TypeReadyForQuery:
+		if packet.Type() == packets.TypeReadyForQuery {
 			t.setState(Waiting)
 		}
 	case Waiting:
-		switch packet.Type() {
-		case packets.TypeQuery:
+		if packet.Type() == packets.TypeQuery {
 			t.setState(Query)
 			t.startQuery(ctx, packet)
 		}

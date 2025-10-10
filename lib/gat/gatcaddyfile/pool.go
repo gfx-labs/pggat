@@ -80,9 +80,9 @@ func init() {
 			case "release_after_transaction":
 				if d.NextArg() {
 					switch d.Val() {
-					case "true":
+					case boolTrue:
 						module.ReleaseAfterTransaction = true
-					case "false":
+					case boolFalse:
 						module.ReleaseAfterTransaction = false
 					default:
 						return nil, d.ArgErr()
@@ -99,9 +99,9 @@ func init() {
 			case "extended_query_sync":
 				if d.NextArg() {
 					switch d.Val() {
-					case "true":
+					case boolTrue:
 						module.ExtendedQuerySync = true
-					case "false":
+					case boolFalse:
 						module.ExtendedQuerySync = false
 					default:
 						return nil, d.ArgErr()

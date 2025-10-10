@@ -66,15 +66,13 @@ func (T *Middleware) WritePacket(ctx context.Context, packet fed.Packet) (fed.Pa
 		return nil, nil
 	}
 
-	switch packet.Type() {
-	case packets.TypeMarkiplierResponse:
+	if packet.Type() == packets.TypeMarkiplierResponse {
 		var p packets.MarkiplierResponse
 		if err := fed.ToConcrete(&p, packet); err != nil {
 			return nil, err
 		}
 		for _, field := range p {
-			switch field.Code {
-			case 'C':
+			if field.Code == 'C' {
 				if perror.Code(field.Value) == perror.ReadOnlySqlTransaction {
 					return nil, ErrReadOnly{}
 				}

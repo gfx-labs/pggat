@@ -70,7 +70,7 @@ func Main() {
 // handlePingbackConn reads from conn and ensures it matches
 // the bytes in expect, or returns an error if it doesn't.
 func handlePingbackConn(conn net.Conn, expect []byte) error {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	confirmationBytes, err := io.ReadAll(io.LimitReader(conn, 32))
 	if err != nil {
 		return err
@@ -125,13 +125,14 @@ func loadConfigWithLogger(logger *zap.Logger, configFile, adapterName string) ([
 		cfgAdapter = caddyconfig.GetAdapter("gatfile")
 		if cfgAdapter != nil {
 			config, err = os.ReadFile("Gatfile")
-			if os.IsNotExist(err) {
+			switch {
+			case os.IsNotExist(err):
 				// okay, no default Gatfile; pretend like this never happened
 				cfgAdapter = nil
-			} else if err != nil {
+			case err != nil:
 				// default Gatfile exists, but error reading it
 				return nil, "", fmt.Errorf("reading default Gatfile: %v", err)
-			} else {
+			default:
 				// success reading default Gatfile
 				configFile = "Gatfile"
 				if logger != nil {
@@ -296,7 +297,7 @@ func loadEnvFromFile(envFile string) error {
 	if err != nil {
 		return fmt.Errorf("reading environment file: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	envMap, err := parseEnvFile(file)
 	if err != nil {

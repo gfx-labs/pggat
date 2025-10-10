@@ -91,10 +91,7 @@ func similar(v0, v1 int, vn ...int) bool {
 		}
 	}
 
-	if (float64(maximum-minimum) / float64(maximum)) > margin {
-		return false
-	}
-	return true
+	return (float64(maximum-minimum) / float64(maximum)) <= margin
 }
 
 // like debug.Stack but gets all stacks
