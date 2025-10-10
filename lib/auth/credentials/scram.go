@@ -92,8 +92,7 @@ func (T *Scram) EncodeSASL(mechanisms []auth.SASLMechanism) (auth.SASLMechanism,
 	}
 
 	for _, mechanism := range mechanisms {
-		switch mechanism {
-		case auth.ScramSHA256:
+		if mechanism == auth.ScramSHA256 {
 			return auth.ScramSHA256, &scram.ClientConversation{
 				Lookup: scram.ClientKeysLookup(scram.ClientKeys{
 					ClientKey: clientKey,

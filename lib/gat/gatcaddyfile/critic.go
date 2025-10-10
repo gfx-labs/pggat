@@ -36,14 +36,10 @@ func init() {
 	//				validity 5m
 	//			}
 	//	}
-	RegisterDirective(Critic, "query_latency", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
-		return parseQueryCritic(d, warnings)
-	})
+	RegisterDirective(Critic, "query_latency", parseQueryCritic)
 
 	// legacy directive for query_latency
-	RegisterDirective(Critic, "latency", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
-		return parseQueryCritic(d, warnings)
-	})
+	RegisterDirective(Critic, "latency", parseQueryCritic)
 
 	// Register a directive handler for the replication critic which uses
 	// replication lag as a determining factor for load balancing between

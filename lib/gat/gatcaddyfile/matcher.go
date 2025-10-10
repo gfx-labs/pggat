@@ -61,14 +61,14 @@ func init() {
 			Value: strutil.Matcher(value),
 		}, nil
 	})
-	RegisterDirective(Matcher, "ssl", func(d *caddyfile.Dispenser, _ *[]caddyconfig.Warning) (caddy.Module, error) {
+	RegisterDirective(Matcher, directiveSSL, func(d *caddyfile.Dispenser, _ *[]caddyconfig.Warning) (caddy.Module, error) {
 		var ssl = true
 		if d.NextArg() {
 			val := d.Val()
 			switch val {
-			case "true":
+			case boolTrue:
 				ssl = true
-			case "false":
+			case boolFalse:
 				ssl = false
 			default:
 				return nil, d.SyntaxErr("boolean")

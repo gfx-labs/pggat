@@ -147,11 +147,12 @@ func (T *Module) updated(ctx context.Context, prev, next Cluster) {
 	}
 
 	// replica endpoints
-	if len(prev.Replicas) != 0 && len(next.Replicas) == 0 {
+	switch {
+	case len(prev.Replicas) != 0 && len(next.Replicas) == 0:
 		T.removeReplicas(ctx, prev.Replicas, prev.Users, prev.Databases)
-	} else if len(prev.Replicas) == 0 && len(next.Replicas) != 0 {
+	case len(prev.Replicas) == 0 && len(next.Replicas) != 0:
 		T.addReplicas(ctx, next.Replicas, prev.Users, prev.Databases)
-	} else {
+	default:
 		// change # of replicas
 
 		for id, nextReplica := range next.Replicas {

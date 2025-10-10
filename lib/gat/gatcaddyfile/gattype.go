@@ -85,7 +85,7 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 			}
 			directive := d.Val()
 			switch {
-			case directive == "ssl":
+			case directive == directiveSSL:
 				var val json.RawMessage
 				if !d.NextArg() {
 					// self signed ssl
@@ -183,11 +183,12 @@ func (ServerType) Setup(blocks []caddyfile.ServerBlock, m map[string]any) (*cadd
 						}
 					}
 
-					if len(and.And) == 0 {
+					switch len(and.And) {
+					case 0:
 						matcher = nil
-					} else if len(and.And) == 1 {
+					case 1:
 						matcher = and.And[0]
-					} else {
+					default:
 						matcher = caddyconfig.JSONModuleObject(
 							and,
 							"matcher",

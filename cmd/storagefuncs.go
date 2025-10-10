@@ -105,7 +105,7 @@ func cmdImportStorage(fl Flags) (int, error) {
 		if err != nil {
 			return caddy.ExitCodeFailedStartup, fmt.Errorf("opening input file: %v", err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 	}
 
 	// store each archive element
@@ -185,7 +185,7 @@ func cmdExportStorage(fl Flags) (int, error) {
 		if err != nil {
 			return caddy.ExitCodeFailedStartup, fmt.Errorf("opening output file: %v", err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 	}
 
 	// `IsTerminal: true` keys hold the values we

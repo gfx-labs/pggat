@@ -62,7 +62,7 @@ func cmdStart(fl Flags) (int, error) {
 		return caddy.ExitCodeFailedStartup,
 			fmt.Errorf("opening listener for success confirmation: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	// craft the command with a pingback address and with a
 	// pipe for its stdin, so we can tell it our confirmation
@@ -115,7 +115,7 @@ func cmdStart(fl Flags) (int, error) {
 	// in a deadlock
 	go func() {
 		_, _ = stdinpipe.Write(expect)
-		stdinpipe.Close()
+		_ = stdinpipe.Close()
 	}()
 
 	// start the process
@@ -202,13 +202,14 @@ func cmdRun(fl Flags) (int, error) {
 	var config []byte
 	if runCmdResumeFlag {
 		config, err = os.ReadFile(caddy.ConfigAutosavePath)
-		if os.IsNotExist(err) {
+		switch {
+		case os.IsNotExist(err):
 			// not a bad error; just can't resume if autosave file doesn't exist
 			caddy.Log().Info("no autosave file exists", zap.String("autosave_file", caddy.ConfigAutosavePath))
 			runCmdResumeFlag = false
-		} else if err != nil {
+		case err != nil:
 			return caddy.ExitCodeFailedStartup, err
-		} else {
+		default:
 			if runCmdConfigFlag == "" {
 				caddy.Log().Info("resuming from last configuration",
 					zap.String("autosave_file", caddy.ConfigAutosavePath))
@@ -259,7 +260,7 @@ func cmdRun(fl Flags) (int, error) {
 			return caddy.ExitCodeFailedStartup,
 				fmt.Errorf("dialing confirmation address: %v", err)
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		_, err = conn.Write(confirmationBytes)
 		if err != nil {
 			return caddy.ExitCodeFailedStartup,
@@ -310,7 +311,7 @@ func cmdStop(fl Flags) (int, error) {
 		caddy.Log().Warn("failed using API to stop instance", zap.Error(err))
 		return caddy.ExitCodeFailedStartup, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	return caddy.ExitCodeSuccess, nil
 }
@@ -345,7 +346,7 @@ func cmdReload(fl Flags) (int, error) {
 	if err != nil {
 		return caddy.ExitCodeFailedStartup, fmt.Errorf("sending configuration to instance: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	return caddy.ExitCodeSuccess, nil
 }

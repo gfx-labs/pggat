@@ -30,11 +30,12 @@ func (T *RBTree[K, V]) alloc() *node[K, V] {
 func (T *RBTree[K, V]) Get(key K) (V, bool) {
 	n := T.root
 	for n != nil {
-		if key > n.key {
+		switch {
+		case key > n.key:
 			n = n.right
-		} else if key < n.key {
+		case key < n.key:
 			n = n.left
-		} else {
+		default:
 			return n.value, true
 		}
 	}
@@ -55,11 +56,12 @@ func (T *RBTree[K, V]) put(n *node[K, V], key K, value V) *node[K, V] {
 		return n
 	}
 
-	if key > n.key {
+	switch {
+	case key > n.key:
 		n.right = T.put(n.right, key, value)
-	} else if key < n.key {
+	case key < n.key:
 		n.left = T.put(n.left, key, value)
-	} else {
+	default:
 		n.value = value
 	}
 

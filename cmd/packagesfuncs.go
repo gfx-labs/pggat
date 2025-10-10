@@ -119,7 +119,7 @@ func upgradeBuild(pluginPkgs map[string]struct{}, fl Flags) (int, error) {
 	if err != nil {
 		return caddy.ExitCodeFailedStartup, fmt.Errorf("download failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// back up the current binary, in case something goes wrong we can replace it
 	backupExecPath := thisExecPath + ".tmp"
@@ -286,7 +286,7 @@ func writeCaddyBinary(path string, body *io.ReadCloser, fileInfo os.FileInfo) er
 	if err != nil {
 		return fmt.Errorf("unable to open destination file: %v", err)
 	}
-	defer destFile.Close()
+	defer func() { _ = destFile.Close() }()
 
 	l.Info("downloading binary", zap.String("destination", path))
 

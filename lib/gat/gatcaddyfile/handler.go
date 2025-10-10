@@ -31,9 +31,9 @@ func init() {
 		var ssl = true
 		if d.NextArg() {
 			switch d.Val() {
-			case "true":
+			case boolTrue:
 				ssl = true
-			case "false":
+			case boolFalse:
 				ssl = false
 			default:
 				return nil, d.SyntaxErr("boolean")
@@ -245,7 +245,7 @@ func init() {
 					if err != nil {
 						return nil, err
 					}
-				case "ssl":
+				case directiveSSL:
 					if !d.NextArg() {
 						return nil, d.ArgErr()
 					}
@@ -467,7 +467,7 @@ func init() {
 					}
 
 					module.Recipe.Address = d.Val()
-				case "ssl":
+				case directiveSSL:
 					if !d.NextArg() {
 						return nil, d.ArgErr()
 					}
@@ -539,8 +539,7 @@ func init() {
 
 		directive := d.Val()
 
-		switch directive {
-		case OtelTracing:
+		if directive == OtelTracing {
 			module, err = UnmarshalModule(
 				d,
 				Tracing,
