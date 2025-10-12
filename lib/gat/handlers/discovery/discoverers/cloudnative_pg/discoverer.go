@@ -167,13 +167,15 @@ func (d *Discoverer) handleClusterEvent(obj interface{}, eventType watch.EventTy
 		select {
 		case d.added <- discoveryCluster:
 		default:
-			// Channel full, drop the event
+			fmt.Printf("ERROR: Dropped add/update event for cluster %s (namespace: %s, UID: %s) - added channel full\n",
+				cluster.Name, cluster.Namespace, cluster.UID)
 		}
 	case watch.Deleted:
 		select {
 		case d.removed <- string(cluster.UID):
 		default:
-			// Channel full, drop the event
+			fmt.Printf("ERROR: Dropped delete event for cluster %s (namespace: %s, UID: %s) - removed channel full\n",
+				cluster.Name, cluster.Namespace, cluster.UID)
 		}
 	}
 }
@@ -216,7 +218,7 @@ func (d *Discoverer) clusterToDiscoveryCluster(cluster cnpgv1.Cluster) (discover
 		// Add database
 		database := initDB.Database
 		if database == "" {
-			database = "app"
+			database = "postgres"
 		}
 		discoveryCluster.Databases = append(discoveryCluster.Databases, database)
 
