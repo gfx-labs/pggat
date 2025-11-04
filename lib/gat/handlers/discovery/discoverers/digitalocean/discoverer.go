@@ -117,6 +117,60 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 			}
 		}
 
+		// Discover standby nodes via DNS if enabled
+		if T.DiscoverStandby {
+			var primaryHost string
+			var primaryPort int
+			if T.Private {
+				primaryHost = cluster.PrivateConnection.Host
+				primaryPort = cluster.PrivateConnection.Port
+			} else {
+				primaryHost = cluster.Connection.Host
+				primaryPort = cluster.Connection.Port
+			}
+
+			// Get primary node's IP addresses for comparison
+			primaryIPs, err := net.LookupIP(primaryHost)
+			if err != nil {
+				// If we can't resolve primary, skip standby discovery
+				primaryIPs = nil
+			}
+
+			// Create a set of primary IP strings for fast lookup
+			primaryIPSet := make(map[string]bool)
+			for _, ip := range primaryIPs {
+				if ipv4 := ip.To4(); ipv4 != nil {
+					primaryIPSet[ipv4.String()] = true
+				}
+			}
+
+			// Prepend "replica-" to the primary hostname
+			standbyHost := "replica-" + primaryHost
+
+			// Perform DNS A record lookup for standby nodes
+			standbyIPs, err := net.LookupIP(standbyHost)
+			if err == nil {
+				standbyIndex := 0
+				for _, ip := range standbyIPs {
+					// Only add IPv4 addresses
+					if ipv4 := ip.To4(); ipv4 != nil {
+						ipStr := ipv4.String()
+						// Skip if this IP is the same as the primary
+						if primaryIPSet[ipStr] {
+							continue
+						}
+						standbyAddr := net.JoinHostPort(ipStr, strconv.Itoa(primaryPort))
+						standbyID := fmt.Sprintf("%s-standby-%d", cluster.ID, standbyIndex)
+						c.Replicas[standbyID] = discovery.Node{
+							Address: standbyAddr,
+						}
+						standbyIndex++
+					}
+				}
+			}
+			// Silently ignore DNS lookup errors - standby nodes may not exist for all clusters
+		}
+
 		res = append(res, c)
 	}
 

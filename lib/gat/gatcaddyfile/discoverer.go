@@ -47,6 +47,19 @@ func init() {
 					} else {
 						module.Private = true
 					}
+				case "discover_standby":
+					if d.NextArg() {
+						switch d.Val() {
+						case boolTrue:
+							module.DiscoverStandby = true
+						case boolFalse:
+							module.DiscoverStandby = false
+						default:
+							return nil, d.ArgErr()
+						}
+					} else {
+						module.DiscoverStandby = true
+					}
 				case "filter":
 					if !d.NextArg() {
 						return nil, d.ArgErr()
