@@ -125,8 +125,8 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 		cache.Indexers{},
 	)
 
-	T.added = make(chan discovery.Cluster)
-	T.removed = make(chan string)
+	T.added = make(chan discovery.Cluster, 10)
+	T.removed = make(chan string, 10)
 
 	_, err = T.informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -138,7 +138,12 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 			if err != nil {
 				return
 			}
-			T.added <- cluster
+			select {
+			case T.added <- cluster:
+			default:
+				fmt.Printf("ERROR: Dropped add event for cluster %s (namespace: %s, UID: %s) - added channel full\n",
+					psql.Name, psql.Namespace, psql.UID)
+			}
 		},
 		UpdateFunc: func(_, obj interface{}) {
 			psql, ok := obj.(*acidv1.Postgresql)
@@ -149,14 +154,24 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 			if err != nil {
 				return
 			}
-			T.added <- cluster
+			select {
+			case T.added <- cluster:
+			default:
+				fmt.Printf("ERROR: Dropped update event for cluster %s (namespace: %s, UID: %s) - added channel full\n",
+					psql.Name, psql.Namespace, psql.UID)
+			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			psql, ok := obj.(*acidv1.Postgresql)
 			if !ok {
 				return
 			}
-			T.removed <- string(psql.UID)
+			select {
+			case T.removed <- string(psql.UID):
+			default:
+				fmt.Printf("ERROR: Dropped delete event for cluster %s (namespace: %s, UID: %s) - removed channel full\n",
+					psql.Name, psql.Namespace, psql.UID)
+			}
 		},
 	})
 	if err != nil {

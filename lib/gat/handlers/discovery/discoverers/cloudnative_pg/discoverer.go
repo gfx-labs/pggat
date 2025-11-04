@@ -6,6 +6,7 @@ import (
 
 	"github.com/caddyserver/caddy/v2"
 	cnpgv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
+	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,6 +38,8 @@ type Discoverer struct {
 
 	added   chan discovery.Cluster
 	removed chan string
+
+	log *zap.Logger
 }
 
 func (d *Discoverer) CaddyModule() caddy.ModuleInfo {
@@ -49,6 +52,8 @@ func (d *Discoverer) CaddyModule() caddy.ModuleInfo {
 }
 
 func (d *Discoverer) Provision(ctx caddy.Context) error {
+	d.log = ctx.Logger()
+
 	// Set defaults
 	if d.ClusterDomain == "" {
 		d.ClusterDomain = "cluster.local"
@@ -153,34 +158,38 @@ func (d *Discoverer) handleClusterEvent(obj interface{}, eventType watch.EventTy
 	var cluster cnpgv1.Cluster
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.UnstructuredContent(), &cluster)
 	if err != nil {
-		fmt.Printf("Failed to convert unstructured to Cluster: %v\n", err)
+		d.log.Error("failed to convert unstructured to Cluster", zap.Error(err))
 		return
 	}
 
 	switch eventType {
 	case watch.Added, watch.Modified:
-		discoveryCluster, err := d.clusterToDiscoveryCluster(cluster)
+		discoveryCluster, err := d.clusterToDiscoveryCluster(context.Background(), cluster)
 		if err != nil {
-			fmt.Printf("Failed to convert cluster %s: %v\n", cluster.Name, err)
+			d.log.Error("failed to convert cluster", zap.String("cluster", cluster.Name), zap.Error(err))
 			return
 		}
 		select {
 		case d.added <- discoveryCluster:
 		default:
-			fmt.Printf("ERROR: Dropped add/update event for cluster %s (namespace: %s, UID: %s) - added channel full\n",
-				cluster.Name, cluster.Namespace, cluster.UID)
+			d.log.Error("dropped add/update event - added channel full",
+				zap.String("cluster", cluster.Name),
+				zap.String("namespace", cluster.Namespace),
+				zap.String("uid", string(cluster.UID)))
 		}
 	case watch.Deleted:
 		select {
 		case d.removed <- string(cluster.UID):
 		default:
-			fmt.Printf("ERROR: Dropped delete event for cluster %s (namespace: %s, UID: %s) - removed channel full\n",
-				cluster.Name, cluster.Namespace, cluster.UID)
+			d.log.Error("dropped delete event - removed channel full",
+				zap.String("cluster", cluster.Name),
+				zap.String("namespace", cluster.Namespace),
+				zap.String("uid", string(cluster.UID)))
 		}
 	}
 }
 
-func (d *Discoverer) clusterToDiscoveryCluster(cluster cnpgv1.Cluster) (discovery.Cluster, error) {
+func (d *Discoverer) clusterToDiscoveryCluster(ctx context.Context, cluster cnpgv1.Cluster) (discovery.Cluster, error) {
 	namespace := cluster.Namespace
 	if namespace == "" {
 		namespace = "default"
@@ -239,7 +248,7 @@ func (d *Discoverer) clusterToDiscoveryCluster(cluster cnpgv1.Cluster) (discover
 
 		if secretName != "" {
 			secret, err := d.k8sClient.CoreV1().Secrets(namespace).Get(
-				context.Background(), secretName, metav1.GetOptions{})
+				ctx, secretName, metav1.GetOptions{})
 			if err == nil {
 				if password, ok := secret.Data["password"]; ok {
 					discoveryCluster.Users = append(discoveryCluster.Users, discovery.User{
@@ -248,8 +257,10 @@ func (d *Discoverer) clusterToDiscoveryCluster(cluster cnpgv1.Cluster) (discover
 					})
 				}
 			} else {
-				fmt.Printf("Failed to get secret %s for cluster %s: %v\n",
-					secretName, cluster.Name, err)
+				d.log.Warn("failed to get secret",
+					zap.String("secret", secretName),
+					zap.String("cluster", cluster.Name),
+					zap.Error(err))
 			}
 		}
 	}
@@ -257,7 +268,7 @@ func (d *Discoverer) clusterToDiscoveryCluster(cluster cnpgv1.Cluster) (discover
 	// Optionally include superuser
 	if d.IncludeSuperuser && cluster.Spec.SuperuserSecret != nil && cluster.Spec.SuperuserSecret.Name != "" {
 		secret, err := d.k8sClient.CoreV1().Secrets(namespace).Get(
-			context.Background(), cluster.Spec.SuperuserSecret.Name, metav1.GetOptions{})
+			ctx, cluster.Spec.SuperuserSecret.Name, metav1.GetOptions{})
 		if err == nil {
 			if password, ok := secret.Data["password"]; ok {
 				discoveryCluster.Users = append(discoveryCluster.Users, discovery.User{
@@ -266,8 +277,10 @@ func (d *Discoverer) clusterToDiscoveryCluster(cluster cnpgv1.Cluster) (discover
 				})
 			}
 		} else {
-			fmt.Printf("Failed to get superuser secret %s for cluster %s: %v\n",
-				cluster.Spec.SuperuserSecret.Name, cluster.Name, err)
+			d.log.Warn("failed to get superuser secret",
+				zap.String("secret", cluster.Spec.SuperuserSecret.Name),
+				zap.String("cluster", cluster.Name),
+				zap.Error(err))
 		}
 	}
 
@@ -295,7 +308,7 @@ func (d *Discoverer) Clusters() ([]discovery.Cluster, error) {
 			continue
 		}
 
-		discoveryCluster, err := d.clusterToDiscoveryCluster(cluster)
+		discoveryCluster, err := d.clusterToDiscoveryCluster(context.Background(), cluster)
 		if err != nil {
 			continue
 		}
