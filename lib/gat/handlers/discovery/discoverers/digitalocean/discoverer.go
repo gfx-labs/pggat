@@ -67,11 +67,48 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 			continue
 		}
 
-		var primaryAddr string
+		var primaryHost string
+		var primaryPort int
 		if T.Private {
-			primaryAddr = net.JoinHostPort(cluster.PrivateConnection.Host, strconv.Itoa(cluster.PrivateConnection.Port))
+			primaryHost = cluster.PrivateConnection.Host
+			primaryPort = cluster.PrivateConnection.Port
 		} else {
-			primaryAddr = net.JoinHostPort(cluster.Connection.Host, strconv.Itoa(cluster.Connection.Port))
+			primaryHost = cluster.Connection.Host
+			primaryPort = cluster.Connection.Port
+		}
+
+		var primaryAddr string
+		var primaryIPSet map[string]bool
+		if T.DiscoverStandby {
+			// When standby discovery is enabled, resolve the primary hostname to IP
+			// and use DNS A records as the authority
+			primaryIPs, err := net.LookupIP(primaryHost)
+			if err != nil || len(primaryIPs) == 0 {
+				// If we can't resolve the primary, skip this cluster
+				continue
+			}
+
+			// Build a set of primary IPs for later comparison with standbys
+			primaryIPSet = make(map[string]bool)
+
+			// Use the first IPv4 address as the primary
+			for _, ip := range primaryIPs {
+				if ipv4 := ip.To4(); ipv4 != nil {
+					ipStr := ipv4.String()
+					primaryIPSet[ipStr] = true
+					if primaryAddr == "" {
+						// Use first IP as the primary address
+						primaryAddr = net.JoinHostPort(ipStr, strconv.Itoa(primaryPort))
+					}
+				}
+			}
+			if primaryAddr == "" {
+				// No IPv4 address found, skip this cluster
+				continue
+			}
+		} else {
+			// Use hostname directly when standby discovery is disabled
+			primaryAddr = net.JoinHostPort(primaryHost, strconv.Itoa(primaryPort))
 		}
 
 		c := discovery.Cluster{
@@ -119,31 +156,6 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 
 		// Discover standby nodes via DNS if enabled
 		if T.DiscoverStandby {
-			var primaryHost string
-			var primaryPort int
-			if T.Private {
-				primaryHost = cluster.PrivateConnection.Host
-				primaryPort = cluster.PrivateConnection.Port
-			} else {
-				primaryHost = cluster.Connection.Host
-				primaryPort = cluster.Connection.Port
-			}
-
-			// Get primary node's IP addresses for comparison
-			primaryIPs, err := net.LookupIP(primaryHost)
-			if err != nil {
-				// If we can't resolve primary, skip standby discovery
-				primaryIPs = nil
-			}
-
-			// Create a set of primary IP strings for fast lookup
-			primaryIPSet := make(map[string]bool)
-			for _, ip := range primaryIPs {
-				if ipv4 := ip.To4(); ipv4 != nil {
-					primaryIPSet[ipv4.String()] = true
-				}
-			}
-
 			// Prepend "replica-" to the primary hostname
 			standbyHost := "replica-" + primaryHost
 
@@ -155,7 +167,7 @@ func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
 					// Only add IPv4 addresses
 					if ipv4 := ip.To4(); ipv4 != nil {
 						ipStr := ipv4.String()
-						// Skip if this IP is the same as the primary
+						// Skip if this IP is the same as any primary IP
 						if primaryIPSet[ipStr] {
 							continue
 						}
