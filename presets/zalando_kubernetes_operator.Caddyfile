@@ -1,5 +1,31 @@
 :5432 {
 	ssl
 
+	# Basic Zalando operator discovery with environment variable
 	discovery zalando_operator {$POSTGRES_OPERATOR_CONFIGURATION_OBJECT}
+}
+
+# Alternative configuration with label selectors
+:5433 {
+	ssl
+
+	discovery {
+		discoverer zalando_operator {
+			# Namespace configuration with label filters
+			# Only discover clusters in namespaces that match these labels
+			namespace default {
+				label environment production
+				label managed-by zalando-operator
+			}
+		}
+
+		poll_interval 30s
+	}
+
+	pool zalando {
+		pool hybrid transaction
+		default_pool_size 10
+		max_pool_size 50
+		discovery
+	}
 }
