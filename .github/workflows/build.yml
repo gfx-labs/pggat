@@ -60,8 +60,8 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             # PR number for pull requests
             type=ref,event=pr
-            # Short SHA for all events
-            type=sha,prefix={{branch}}-,format=short
+            # Short SHA for branches and tags (not PRs, since {{branch}} is empty for PRs)
+            type=sha,prefix={{branch}}-,format=short,enable=${{ github.event_name != 'pull_request' }}
           flavor: |
             latest=false
 
