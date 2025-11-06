@@ -52,7 +52,7 @@ func (d *Discoverer) CaddyModule() caddy.ModuleInfo {
 }
 
 func (d *Discoverer) Provision(ctx caddy.Context) error {
-	d.log = ctx.Logger()
+	d.log = ctx.Logger().With(zap.String("discoverer", "cloudnative_pg"))
 
 	// Set defaults
 	if d.ClusterDomain == "" {
@@ -105,9 +105,9 @@ func (d *Discoverer) Provision(ctx caddy.Context) error {
 
 	d.informer = factory.ForResource(gvr).Informer()
 
-	// Initialize channels
-	d.added = make(chan discovery.Cluster, 10)
-	d.removed = make(chan string, 10)
+	// Initialize channels with larger buffers to handle many clusters
+	d.added = make(chan discovery.Cluster, 200)
+	d.removed = make(chan string, 200)
 	d.stopCh = make(chan struct{})
 
 	// Set up event handlers

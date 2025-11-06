@@ -14,6 +14,7 @@ import (
 	"github.com/zalando/postgres-operator/pkg/util/config"
 	"github.com/zalando/postgres-operator/pkg/util/constants"
 	"github.com/zalando/postgres-operator/pkg/util/k8sutil"
+	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -40,6 +41,8 @@ type Discoverer struct {
 	removed chan string
 
 	done chan struct{}
+
+	log *zap.Logger
 }
 
 func (T *Discoverer) CaddyModule() caddy.ModuleInfo {
@@ -52,6 +55,8 @@ func (T *Discoverer) CaddyModule() caddy.ModuleInfo {
 }
 
 func (T *Discoverer) Provision(ctx caddy.Context) error {
+	T.log = ctx.Logger().With(zap.String("discoverer", "zalando_operator"))
+
 	var err error
 	T.rest, err = rest.InClusterConfig()
 	if err != nil {
@@ -126,8 +131,9 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 		cache.Indexers{},
 	)
 
-	T.added = make(chan discovery.Cluster, 10)
-	T.removed = make(chan string, 10)
+	// Initialize channels with larger buffers to handle many clusters
+	T.added = make(chan discovery.Cluster, 200)
+	T.removed = make(chan string, 200)
 
 	_, err = T.informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -146,8 +152,10 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 			select {
 			case T.added <- cluster:
 			default:
-				fmt.Printf("ERROR: Dropped add event for cluster %s (namespace: %s, UID: %s) - added channel full\n",
-					psql.Name, psql.Namespace, psql.UID)
+				T.log.Error("dropped add event - added channel full",
+					zap.String("cluster", psql.Name),
+					zap.String("namespace", psql.Namespace),
+					zap.String("uid", string(psql.UID)))
 			}
 		},
 		UpdateFunc: func(_, obj interface{}) {
@@ -166,8 +174,10 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 			select {
 			case T.added <- cluster:
 			default:
-				fmt.Printf("ERROR: Dropped update event for cluster %s (namespace: %s, UID: %s) - added channel full\n",
-					psql.Name, psql.Namespace, psql.UID)
+				T.log.Error("dropped update event - added channel full",
+					zap.String("cluster", psql.Name),
+					zap.String("namespace", psql.Namespace),
+					zap.String("uid", string(psql.UID)))
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -178,8 +188,10 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 			select {
 			case T.removed <- string(psql.UID):
 			default:
-				fmt.Printf("ERROR: Dropped delete event for cluster %s (namespace: %s, UID: %s) - removed channel full\n",
-					psql.Name, psql.Namespace, psql.UID)
+				T.log.Error("dropped delete event - removed channel full",
+					zap.String("cluster", psql.Name),
+					zap.String("namespace", psql.Namespace),
+					zap.String("uid", string(psql.UID)))
 			}
 		},
 	})
@@ -211,7 +223,9 @@ func (T *Discoverer) namespaceMatches(namespaceName string) bool {
 	// Fetch namespace to check its labels
 	ns, err := T.k8s.Namespaces().Get(context.Background(), namespaceName, metav1.GetOptions{})
 	if err != nil {
-		fmt.Printf("Failed to get namespace %s: %v\n", namespaceName, err)
+		T.log.Warn("failed to get namespace",
+			zap.String("namespace", namespaceName),
+			zap.Error(err))
 		return false
 	}
 
@@ -245,13 +259,22 @@ func (T *Discoverer) postgresqlToCluster(cluster acidv1.Postgresql) (discovery.C
 		// get secret - use cluster's namespace, not discoverer's namespace
 		secret, err := T.k8s.Secrets(cluster.Namespace).Get(context.Background(), secretName, metav1.GetOptions{})
 		if err != nil {
-			fmt.Printf("Failed to get secret for user %s: %v\n", user, err)
+			T.log.Warn("failed to get secret for user",
+				zap.String("user", user),
+				zap.String("secret", secretName),
+				zap.String("cluster", cluster.Name),
+				zap.String("namespace", cluster.Namespace),
+				zap.Error(err))
 			continue
 		}
 
 		password, ok := secret.Data["password"]
 		if !ok {
-			fmt.Printf("No password in secret: %s\n", secretName)
+			T.log.Warn("no password in secret",
+				zap.String("secret", secretName),
+				zap.String("user", user),
+				zap.String("cluster", cluster.Name),
+				zap.String("namespace", cluster.Namespace))
 			continue
 		}
 
