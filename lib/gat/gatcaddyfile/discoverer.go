@@ -8,6 +8,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/digitalocean"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/google_cloud_sql"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/zalando_operator"
+	"gfx.cafe/gfx/pggat/lib/k8s"
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
@@ -114,7 +115,10 @@ func init() {
 	RegisterDirective(Discoverer, "zalando_operator", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
 		module := zalando_operator.Discoverer{
 			Config: zalando_operator.Config{
-				Namespace: "default",
+				Namespace: k8s.NamespaceMatcher{
+					Namespace: "default",
+					Labels:    make(map[string]string),
+				},
 			},
 		}
 
@@ -129,7 +133,17 @@ func init() {
 				if !d.NextArg() {
 					return nil, d.ArgErr()
 				}
-				module.Namespace = d.Val()
+				module.Namespace.Namespace = d.Val()
+			case "label":
+				if !d.NextArg() {
+					return nil, d.Err("label directive requires a key argument")
+				}
+				key := d.Val()
+				if !d.NextArg() {
+					return nil, d.Errf("label directive requires a value argument for key %s", key)
+				}
+				value := d.Val()
+				module.Namespace.Labels[key] = value
 			case "operator_configuration_object":
 				if !d.NextArg() {
 					return nil, d.ArgErr()
@@ -200,6 +214,9 @@ func init() {
 				ReadOnlyServiceSuffix:  "-ro",
 				Port:                   5432,
 				SecretSuffix:           "-app",
+				Namespace: k8s.NamespaceMatcher{
+					Labels: make(map[string]string),
+				},
 			},
 		}
 
@@ -210,7 +227,17 @@ func init() {
 				if !d.NextArg() {
 					return nil, d.ArgErr()
 				}
-				module.Namespace = d.Val()
+				module.Namespace.Namespace = d.Val()
+			case "label":
+				if !d.NextArg() {
+					return nil, d.Err("label directive requires a key argument")
+				}
+				key := d.Val()
+				if !d.NextArg() {
+					return nil, d.Errf("label directive requires a value argument for key %s", key)
+				}
+				value := d.Val()
+				module.Namespace.Labels[key] = value
 			case "cluster_domain":
 				if !d.NextArg() {
 					return nil, d.ArgErr()

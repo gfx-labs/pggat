@@ -24,6 +24,12 @@
             # Leave empty to watch all namespaces
             namespace default
 
+            # Label selectors to filter clusters (optional)
+            # Only clusters matching ALL specified labels will be discovered
+            label app postgres
+            label environment production
+            label tier database
+
             # Kubernetes cluster domain (default: cluster.local)
             cluster_domain cluster.local
 

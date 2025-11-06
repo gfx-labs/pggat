@@ -95,11 +95,12 @@ func (d *Discoverer) Provision(ctx caddy.Context) error {
 		Resource: "clusters",
 	}
 
+	// Use NamespaceMatcher to configure label filtering
 	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
 		d.dynClient,
 		0, // No resync
-		d.Namespace,
-		nil,
+		d.Namespace.Namespace,
+		d.Namespace.TweakListOptions,
 	)
 
 	d.informer = factory.ForResource(gvr).Informer()
@@ -149,6 +150,23 @@ func (d *Discoverer) Cleanup() error {
 	return nil
 }
 
+// namespaceMatches checks if a namespace matches the label filter requirements
+func (d *Discoverer) namespaceMatches(ctx context.Context, namespaceName string) bool {
+	// If no label filters, always match
+	if len(d.Namespace.Labels) == 0 {
+		return d.Namespace.MatchesNamespace(namespaceName)
+	}
+
+	// Fetch namespace to check its labels
+	ns, err := d.k8sClient.CoreV1().Namespaces().Get(ctx, namespaceName, metav1.GetOptions{})
+	if err != nil {
+		d.log.Error("failed to get namespace", zap.String("namespace", namespaceName), zap.Error(err))
+		return false
+	}
+
+	return d.Namespace.MatchesNamespace(namespaceName) && d.Namespace.MatchesNamespaceLabels(ns.Labels)
+}
+
 func (d *Discoverer) handleClusterEvent(obj interface{}, eventType watch.EventType) {
 	unstructuredObj, ok := obj.(*unstructured.Unstructured)
 	if !ok {
@@ -159,6 +177,11 @@ func (d *Discoverer) handleClusterEvent(obj interface{}, eventType watch.EventTy
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.UnstructuredContent(), &cluster)
 	if err != nil {
 		d.log.Error("failed to convert unstructured to Cluster", zap.Error(err))
+		return
+	}
+
+	// Filter by namespace labels if configured
+	if !d.namespaceMatches(context.Background(), cluster.Namespace) {
 		return
 	}
 
@@ -305,6 +328,11 @@ func (d *Discoverer) Clusters() ([]discovery.Cluster, error) {
 		err := runtime.DefaultUnstructuredConverter.FromUnstructured(
 			unstructuredObj.UnstructuredContent(), &cluster)
 		if err != nil {
+			continue
+		}
+
+		// Filter by namespace labels
+		if !d.namespaceMatches(context.Background(), cluster.Namespace) {
 			continue
 		}
 
