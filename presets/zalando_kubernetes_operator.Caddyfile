@@ -11,14 +11,12 @@
 
 	discovery {
 		discoverer zalando_operator {
-			# Namespace to watch for Zalando PostgreSQL clusters
-			namespace default
-
-			# Label selectors to filter clusters (optional)
-			# Only clusters matching ALL specified labels will be discovered
-			label app postgres
-			label environment production
-			label managed-by zalando-operator
+			# Namespace configuration with label filters
+			# Only discover clusters in namespaces that match these labels
+			namespace default {
+				label environment production
+				label managed-by zalando-operator
+			}
 		}
 
 		poll_interval 30s

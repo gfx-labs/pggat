@@ -130,20 +130,33 @@ func init() {
 			directive := d.Val()
 			switch directive {
 			case "namespace":
-				if !d.NextArg() {
-					return nil, d.ArgErr()
+				// namespace can be either:
+				// namespace <name>
+				// or
+				// namespace [<name>] {
+				//   label key value
+				// }
+				if d.NextArg() {
+					module.Namespace.Namespace = d.Val()
 				}
-				module.Namespace.Namespace = d.Val()
-			case "label":
-				if !d.NextArg() {
-					return nil, d.Err("label directive requires a key argument")
+				// Check for block
+				for nesting := d.Nesting(); d.NextBlock(nesting); {
+					subDirective := d.Val()
+					switch subDirective {
+					case "label":
+						if !d.NextArg() {
+							return nil, d.Err("label directive requires a key argument")
+						}
+						key := d.Val()
+						if !d.NextArg() {
+							return nil, d.Errf("label directive requires a value argument for key %s", key)
+						}
+						value := d.Val()
+						module.Namespace.Labels[key] = value
+					default:
+						return nil, d.Errf("unrecognized namespace subdirective: %s", subDirective)
+					}
 				}
-				key := d.Val()
-				if !d.NextArg() {
-					return nil, d.Errf("label directive requires a value argument for key %s", key)
-				}
-				value := d.Val()
-				module.Namespace.Labels[key] = value
 			case "operator_configuration_object":
 				if !d.NextArg() {
 					return nil, d.ArgErr()
@@ -224,20 +237,33 @@ func init() {
 			directive := d.Val()
 			switch directive {
 			case "namespace":
-				if !d.NextArg() {
-					return nil, d.ArgErr()
+				// namespace can be either:
+				// namespace <name>
+				// or
+				// namespace [<name>] {
+				//   label key value
+				// }
+				if d.NextArg() {
+					module.Namespace.Namespace = d.Val()
 				}
-				module.Namespace.Namespace = d.Val()
-			case "label":
-				if !d.NextArg() {
-					return nil, d.Err("label directive requires a key argument")
+				// Check for block
+				for nesting := d.Nesting(); d.NextBlock(nesting); {
+					subDirective := d.Val()
+					switch subDirective {
+					case "label":
+						if !d.NextArg() {
+							return nil, d.Err("label directive requires a key argument")
+						}
+						key := d.Val()
+						if !d.NextArg() {
+							return nil, d.Errf("label directive requires a value argument for key %s", key)
+						}
+						value := d.Val()
+						module.Namespace.Labels[key] = value
+					default:
+						return nil, d.Errf("unrecognized namespace subdirective: %s", subDirective)
+					}
 				}
-				key := d.Val()
-				if !d.NextArg() {
-					return nil, d.Errf("label directive requires a value argument for key %s", key)
-				}
-				value := d.Val()
-				module.Namespace.Labels[key] = value
 			case "cluster_domain":
 				if !d.NextArg() {
 					return nil, d.ArgErr()
