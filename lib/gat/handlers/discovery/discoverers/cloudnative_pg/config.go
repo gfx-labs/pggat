@@ -1,9 +1,14 @@
 package cloudnative_pg
 
+import (
+	"gfx.cafe/gfx/pggat/lib/k8s"
+)
+
 type Config struct {
-	// Namespace to watch for CloudNativePG clusters
-	// If empty, watches all namespaces
-	Namespace string `json:"namespace,omitempty"`
+	// Namespace configures namespace and label filtering for cluster discovery
+	// Namespace field: if empty, watches all namespaces
+	// Labels field: only clusters matching ALL specified labels will be discovered
+	Namespace k8s.NamespaceMatcher `json:"namespace"`
 
 	// ClusterDomain is the Kubernetes cluster domain (default: cluster.local)
 	ClusterDomain string `json:"cluster_domain,omitempty"`

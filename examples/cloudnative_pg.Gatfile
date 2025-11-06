@@ -20,9 +20,12 @@
     # This will automatically discover all CloudNativePG clusters in the namespace
     discovery {
         discoverer cloudnative_pg {
-            # Namespace to watch for CloudNativePG clusters
-            # Leave empty to watch all namespaces
-            namespace default
+            # Namespace configuration with label filters
+            # Only discover clusters in namespaces that match these labels
+            namespace default {
+                label environment production
+                label tier database
+            }
 
             # Kubernetes cluster domain (default: cluster.local)
             cluster_domain cluster.local

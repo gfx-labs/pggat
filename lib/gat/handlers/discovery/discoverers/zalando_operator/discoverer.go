@@ -3,8 +3,9 @@ package zalando_operator
 import (
 	"context"
 	"fmt"
-	acidv1informer "github.com/zalando/postgres-operator/pkg/generated/informers/externalversions/acid.zalan.do/v1"
 	"strings"
+
+	acidv1informer "github.com/zalando/postgres-operator/pkg/generated/informers/externalversions/acid.zalan.do/v1"
 
 	"github.com/caddyserver/caddy/v2"
 	acidzalando "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do"
@@ -63,7 +64,7 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 	}
 
 	if T.ConfigMapName != "" {
-		operatorConfig, err := T.k8s.ConfigMaps(T.Namespace).Get(ctx, T.ConfigMapName, metav1.GetOptions{})
+		operatorConfig, err := T.k8s.ConfigMaps(T.Namespace.Namespace).Get(ctx, T.ConfigMapName, metav1.GetOptions{})
 		if err != nil {
 			return nil
 		}
@@ -92,7 +93,7 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 
 		// from external config
 		if T.OperatorConfigurationObject != "" {
-			operatorConfig, err := T.k8s.OperatorConfigurations(T.Namespace).Get(ctx, T.OperatorConfigurationObject, metav1.GetOptions{})
+			operatorConfig, err := T.k8s.OperatorConfigurations(T.Namespace.Namespace).Get(ctx, T.OperatorConfigurationObject, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
@@ -120,7 +121,7 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 
 	T.informer = acidv1informer.NewPostgresqlInformer(
 		T.k8s.AcidV1ClientSet,
-		T.Namespace,
+		T.Namespace.Namespace,
 		0,
 		cache.Indexers{},
 	)
@@ -132,6 +133,10 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 		AddFunc: func(obj interface{}) {
 			psql, ok := obj.(*acidv1.Postgresql)
 			if !ok {
+				return
+			}
+			// Filter by namespace labels if configured
+			if !T.namespaceMatches(psql.Namespace) {
 				return
 			}
 			cluster, err := T.postgresqlToCluster(*psql)
@@ -148,6 +153,10 @@ func (T *Discoverer) Provision(ctx caddy.Context) error {
 		UpdateFunc: func(_, obj interface{}) {
 			psql, ok := obj.(*acidv1.Postgresql)
 			if !ok {
+				return
+			}
+			// Filter by namespace labels if configured
+			if !T.namespaceMatches(psql.Namespace) {
 				return
 			}
 			cluster, err := T.postgresqlToCluster(*psql)
@@ -192,11 +201,28 @@ func (T *Discoverer) Cleanup() error {
 	return nil
 }
 
+// namespaceMatches checks if a namespace matches the label filter requirements
+func (T *Discoverer) namespaceMatches(namespaceName string) bool {
+	// If no label filters, always match
+	if len(T.Namespace.Labels) == 0 {
+		return T.Namespace.MatchesNamespace(namespaceName)
+	}
+
+	// Fetch namespace to check its labels
+	ns, err := T.k8s.Namespaces().Get(context.Background(), namespaceName, metav1.GetOptions{})
+	if err != nil {
+		fmt.Printf("Failed to get namespace %s: %v\n", namespaceName, err)
+		return false
+	}
+
+	return T.Namespace.MatchesNamespace(namespaceName) && T.Namespace.MatchesNamespaceLabels(ns.Labels)
+}
+
 func (T *Discoverer) postgresqlToCluster(cluster acidv1.Postgresql) (discovery.Cluster, error) {
 	c := discovery.Cluster{
 		ID: string(cluster.UID),
 		Primary: discovery.Node{
-			Address: fmt.Sprintf("%s.%s.svc.%s:5432", cluster.Name, T.Namespace, T.op.ClusterDomain),
+			Address: fmt.Sprintf("%s.%s.svc.%s:5432", cluster.Name, cluster.Namespace, T.op.ClusterDomain),
 		},
 		Databases: make([]string, 0, len(cluster.Spec.Databases)),
 		Users:     make([]discovery.User, 0, len(cluster.Spec.Users)),
@@ -204,7 +230,7 @@ func (T *Discoverer) postgresqlToCluster(cluster acidv1.Postgresql) (discovery.C
 	if cluster.Spec.NumberOfInstances > 1 {
 		c.Replicas = make(map[string]discovery.Node, 1)
 		c.Replicas["repl"] = discovery.Node{
-			Address: fmt.Sprintf("%s-repl.%s.svc.%s:5432", cluster.Name, T.Namespace, T.op.ClusterDomain),
+			Address: fmt.Sprintf("%s-repl.%s.svc.%s:5432", cluster.Name, cluster.Namespace, T.op.ClusterDomain),
 		}
 	}
 
@@ -216,8 +242,8 @@ func (T *Discoverer) postgresqlToCluster(cluster acidv1.Postgresql) (discovery.C
 			"tprgroup", acidzalando.GroupName,
 		)
 
-		// get secret
-		secret, err := T.k8s.Secrets(T.Namespace).Get(context.Background(), secretName, metav1.GetOptions{})
+		// get secret - use cluster's namespace, not discoverer's namespace
+		secret, err := T.k8s.Secrets(cluster.Namespace).Get(context.Background(), secretName, metav1.GetOptions{})
 		if err != nil {
 			fmt.Printf("Failed to get secret for user %s: %v\n", user, err)
 			continue
@@ -242,13 +268,21 @@ func (T *Discoverer) postgresqlToCluster(cluster acidv1.Postgresql) (discovery.C
 }
 
 func (T *Discoverer) Clusters() ([]discovery.Cluster, error) {
-	clusters, err := T.k8s.Postgresqls(T.Namespace).List(context.Background(), metav1.ListOptions{})
+	listOpts := metav1.ListOptions{}
+	// Note: TweakListOptions adds label filters but those are for cluster labels, not namespace labels
+	// We filter by namespace labels separately below
+
+	clusters, err := T.k8s.Postgresqls(T.Namespace.Namespace).List(context.Background(), listOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	res := make([]discovery.Cluster, 0, len(clusters.Items))
 	for _, cluster := range clusters.Items {
+		// Filter by namespace labels
+		if !T.namespaceMatches(cluster.Namespace) {
+			continue
+		}
 		r, err := T.postgresqlToCluster(cluster)
 		if err != nil {
 			return nil, err

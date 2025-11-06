@@ -8,6 +8,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/digitalocean"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/google_cloud_sql"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/discovery/discoverers/zalando_operator"
+	"gfx.cafe/gfx/pggat/lib/k8s"
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
@@ -114,7 +115,10 @@ func init() {
 	RegisterDirective(Discoverer, "zalando_operator", func(d *caddyfile.Dispenser, warnings *[]caddyconfig.Warning) (caddy.Module, error) {
 		module := zalando_operator.Discoverer{
 			Config: zalando_operator.Config{
-				Namespace: "default",
+				Namespace: k8s.NamespaceMatcher{
+					Namespace: "default",
+					Labels:    make(map[string]string),
+				},
 			},
 		}
 
@@ -126,10 +130,33 @@ func init() {
 			directive := d.Val()
 			switch directive {
 			case "namespace":
-				if !d.NextArg() {
-					return nil, d.ArgErr()
+				// namespace can be either:
+				// namespace <name>
+				// or
+				// namespace [<name>] {
+				//   label key value
+				// }
+				if d.NextArg() {
+					module.Namespace.Namespace = d.Val()
 				}
-				module.Namespace = d.Val()
+				// Check for block
+				for nesting := d.Nesting(); d.NextBlock(nesting); {
+					subDirective := d.Val()
+					switch subDirective {
+					case "label":
+						if !d.NextArg() {
+							return nil, d.Err("label directive requires a key argument")
+						}
+						key := d.Val()
+						if !d.NextArg() {
+							return nil, d.Errf("label directive requires a value argument for key %s", key)
+						}
+						value := d.Val()
+						module.Namespace.Labels[key] = value
+					default:
+						return nil, d.Errf("unrecognized namespace subdirective: %s", subDirective)
+					}
+				}
 			case "operator_configuration_object":
 				if !d.NextArg() {
 					return nil, d.ArgErr()
@@ -200,6 +227,9 @@ func init() {
 				ReadOnlyServiceSuffix:  "-ro",
 				Port:                   5432,
 				SecretSuffix:           "-app",
+				Namespace: k8s.NamespaceMatcher{
+					Labels: make(map[string]string),
+				},
 			},
 		}
 
@@ -207,10 +237,33 @@ func init() {
 			directive := d.Val()
 			switch directive {
 			case "namespace":
-				if !d.NextArg() {
-					return nil, d.ArgErr()
+				// namespace can be either:
+				// namespace <name>
+				// or
+				// namespace [<name>] {
+				//   label key value
+				// }
+				if d.NextArg() {
+					module.Namespace.Namespace = d.Val()
 				}
-				module.Namespace = d.Val()
+				// Check for block
+				for nesting := d.Nesting(); d.NextBlock(nesting); {
+					subDirective := d.Val()
+					switch subDirective {
+					case "label":
+						if !d.NextArg() {
+							return nil, d.Err("label directive requires a key argument")
+						}
+						key := d.Val()
+						if !d.NextArg() {
+							return nil, d.Errf("label directive requires a value argument for key %s", key)
+						}
+						value := d.Val()
+						module.Namespace.Labels[key] = value
+					default:
+						return nil, d.Errf("unrecognized namespace subdirective: %s", subDirective)
+					}
+				}
 			case "cluster_domain":
 				if !d.NextArg() {
 					return nil, d.ArgErr()
