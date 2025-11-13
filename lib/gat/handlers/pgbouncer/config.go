@@ -96,9 +96,10 @@ type PgBouncer struct {
 	Verbose                 int                `ini:"verbose"`
 	AdminUsers              []string           `ini:"auth_users"`
 	StatsUsers              []string           `ini:"stats_users"`
-	ServerResetQuery        string             `ini:"server_reset_query"`
-	ServerResetQueryAlways  int                `ini:"server_reset_query_always"`
-	ServerCheckDelay        float64            `ini:"server_check_delay"`
+	ServerResetQuery         string  `ini:"server_reset_query"`
+	ServerResetQueryAlways   int     `ini:"server_reset_query_always"`
+	ServerResetQueryTimeout  float64 `ini:"server_reset_query_timeout"`
+	ServerCheckDelay         float64 `ini:"server_check_delay"`
 	ServerCheckQuery        string             `ini:"server_check_query"`
 	ServerFastClose         int                `ini:"server_fast_close"`
 	ServerLifetime          float64            `ini:"server_lifetime"`
@@ -200,8 +201,9 @@ var Default = Config{
 		LogDisconnections:    1,
 		LogPoolerErrors:      1,
 		LogStats:             1,
-		ServerResetQuery:     "DISCARD ALL",
-		ServerCheckDelay:     30.0,
+		ServerResetQuery:        "DISCARD ALL",
+		ServerResetQueryTimeout: 15.0,
+		ServerCheckDelay:        30.0,
 		ServerCheckQuery:     "select 1",
 		ServerLifetime:       3600.0,
 		ServerIdleTimeout:    600.0,

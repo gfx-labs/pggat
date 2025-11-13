@@ -86,7 +86,8 @@ type Config struct {
 	// server connections
 	OtelTracingOption TracingOption `json:"otel_tracing_option,omitempty"`
 
-	ServerResetQuery string `json:"server_reset_query,omitempty"`
+	ServerResetQuery        string         `json:"server_reset_query,omitempty"`
+	ServerResetQueryTimeout caddy.Duration `json:"server_reset_query_timeout,omitempty"`
 
 	// ClientAcquireTimeout defines how long a client may be in AWAITING_SERVER state before it is disconnected
 	ClientAcquireTimeout caddy.Duration `json:"client_acquire_timeout,omitempty"`
@@ -112,6 +113,12 @@ type Config struct {
 }
 
 func (T Config) Spool() spool.Config {
+	// Set default reset query timeout if reset query is set but timeout is not
+	resetQueryTimeout := time.Duration(T.ServerResetQueryTimeout)
+	if T.ServerResetQuery != "" && resetQueryTimeout == 0 {
+		resetQueryTimeout = 15 * time.Second
+	}
+
 	return spool.Config{
 		PoolerFactory:        T.PoolerFactory,
 		UsePS:                T.ParameterStatusSync == ParameterStatusSyncDynamic,
@@ -119,6 +126,7 @@ func (T Config) Spool() spool.Config {
 		UseOtelTracing:       (T.OtelTracingOption & TracingOptionServer) != 0,
 		UsePacketTracing:     (T.PacketTracingOption & TracingOptionServer) != 0,
 		ResetQuery:           T.ServerResetQuery,
+		ResetQueryTimeout:    resetQueryTimeout,
 		AcquireTimeout:       time.Duration(T.ClientAcquireTimeout),
 		IdleTimeout:          time.Duration(T.ServerIdleTimeout),
 		ReconnectInitialTime: time.Duration(T.ServerReconnectInitialTime),
@@ -142,6 +150,7 @@ var Session = Config{
 	ParameterStatusSync:     ParameterStatusSyncInitial,
 	ExtendedQuerySync:       false,
 	ServerResetQuery:        "DISCARD ALL",
+	ServerResetQueryTimeout: caddy.Duration(15 * time.Second),
 	OtelTracingOption:       TracingOptionClient,
 	PacketTracingOption:     TracingOptionDisabled,
 }

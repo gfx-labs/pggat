@@ -19,7 +19,8 @@ type Config struct {
 	UseOtelTracing   bool
 	UsePacketTracing bool
 
-	ResetQuery string
+	ResetQuery        string
+	ResetQueryTimeout time.Duration
 
 	AcquireTimeout time.Duration
 

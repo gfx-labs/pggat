@@ -135,6 +135,17 @@ func init() {
 				}
 
 				module.ServerResetQuery = d.Val()
+			case "reset_query_timeout":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
+				val, err := time.ParseDuration(d.Val())
+				if err != nil {
+					return nil, d.WrapErr(err)
+				}
+
+				module.ServerResetQueryTimeout = caddy.Duration(val)
 			case "idle_timeout":
 				if !d.NextArg() {
 					return nil, d.ArgErr()

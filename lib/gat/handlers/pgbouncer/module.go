@@ -211,6 +211,7 @@ func (T *Module) tryCreate(ctx context.Context, user, database string) (poolAndC
 	}
 
 	config.TrackedParameters = trackedParameters
+	config.ServerResetQueryTimeout = caddy.Duration(T.Config.PgBouncer.ServerResetQueryTimeout * float64(time.Second))
 	config.ServerIdleTimeout = caddy.Duration(T.Config.PgBouncer.ServerIdleTimeout * float64(time.Second))
 	config.ServerReconnectInitialTime = serverLoginRetry
 	config.ServerReconnectMaxTime = serverLoginRetry

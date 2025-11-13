@@ -301,7 +301,15 @@ func (T *Pool) Release(ctx context.Context, server *Server) {
 	if T.config.ResetQuery != "" {
 		server.SetState(metrics.ConnStateRunningResetQuery, uuid.Nil)
 
-		if err, _ := backends.QueryString(ctx, server.Conn, nil, T.config.ResetQuery); err != nil {
+		// Use a timeout context for the reset query to prevent hanging connections
+		resetCtx := ctx
+		if T.config.ResetQueryTimeout > 0 {
+			var cancel context.CancelFunc
+			resetCtx, cancel = context.WithTimeout(context.Background(), T.config.ResetQueryTimeout)
+			defer cancel()
+		}
+
+		if err, _ := backends.QueryString(resetCtx, server.Conn, nil, T.config.ResetQuery); err != nil {
 			T.config.Logger.Error("failed to run reset query", zap.Error(err))
 			T.RemoveServer(ctx, server)
 			return
