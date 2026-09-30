@@ -1,25 +1,18 @@
-# Session pooling configuration
-# Each client session gets a dedicated server connection
-
-{
-    servers :6433
-}
+# Session pooling: each client session gets a dedicated server connection.
 
 :6433 {
-    pool testdb {
-        pool basic session
+	pool /testdb {
+		pool basic session {
+			idle_timeout 300s
+			reset_query "DISCARD ALL"
+			reset_query_timeout 15s
+		}
 
-        address postgres-primary:5432
-        username postgres
-        password postgres
-        database testdb
+		address postgres-primary:5432
+		ssl disable insecure_skip_verify
 
-        # Session pooling specific settings
-        min_connections 2
-        max_connections 20
-        acquire_timeout 10s
-        server_idle_timeout 300s
-        reset_query "DISCARD ALL"
-        reset_query_timeout 15s
-    }
+		username postgres
+		password postgres
+		database testdb
+	}
 }

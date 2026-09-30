@@ -182,6 +182,12 @@ func init() {
 					return nil, d.ArgErr()
 				}
 
+				module.TrackedParameters = append(module.TrackedParameters, strutil.MakeCIString(d.Val()))
+			case "penalize":
+				if !d.NextArg() {
+					return nil, d.ArgErr()
+				}
+
 				critic, err := UnmarshalDirectiveJSONModuleObject(
 					d,
 					Critic,

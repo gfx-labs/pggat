@@ -1,23 +1,16 @@
-# Transaction pooling configuration
-# Each transaction can go to a different server connection
-
-{
-    servers :6432
-}
+# Transaction pooling: each transaction may run on a different server connection.
 
 :6432 {
-    pool testdb {
-        pool basic transaction
+	pool /testdb {
+		pool basic transaction {
+			idle_timeout 60s
+		}
 
-        address postgres-primary:5432
-        username postgres
-        password postgres
-        database testdb
+		address postgres-primary:5432
+		ssl disable insecure_skip_verify
 
-        # Transaction pooling specific settings
-        min_connections 2
-        max_connections 20
-        acquire_timeout 10s
-        server_idle_timeout 60s
-    }
+		username postgres
+		password postgres
+		database testdb
+	}
 }

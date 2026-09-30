@@ -1,30 +1,30 @@
 :5433 {
-    ssl self_signed
+	ssl self_signed
 
-    tracing otel {
-        service_name pggat-tracing
-        sample_rate always
-    }
+	tracing otel {
+		service_name pggat-tracing
+		sample_rate always
+	}
 
-    pool /base {
-        pool basic session {
-            otel_tracing_option client
-        }
+	pool /base {
+		pool basic session {
+			otel_tracing_option client
+		}
 
-        address localhost:5432
+		address localhost:5432
 
-        username postgres
-        password postgres
-        database base
-    }
+		username postgres
+		password postgres
+		database base
+	}
 
-    pool /pgbench {
-        pool basic session
+	pool /pgbench {
+		pool basic session
 
-        address localhost:5432
+		address localhost:5432
 
-        username postgres
-        password postgres
-        database test
-    }
+		username postgres
+		password postgres
+		database test
+	}
 }

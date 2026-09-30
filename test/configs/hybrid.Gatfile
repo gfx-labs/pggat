@@ -1,39 +1,18 @@
-# Hybrid pooling configuration
-# Separate pools for read-write (primary) and read-only (replica) operations
-
-{
-    servers :6434
-}
+# Hybrid pooling: writes go to the primary pool, reads to the replica pool.
+# Replica recipes are added by discovery. With a static address only the
+# primary is configured, so reads fall back to it.
 
 :6434 {
-    pool testdb {
-        pool hybrid session
+	pool /testdb {
+		pool hybrid {
+			idle_timeout 300s
+		}
 
-        # Primary (read-write) pool
-        primary {
-            address postgres-primary:5432
-            username postgres
-            password postgres
-            database testdb
+		address postgres-primary:5432
+		ssl disable insecure_skip_verify
 
-            min_connections 2
-            max_connections 10
-        }
-
-        # Replica (read-only) pool
-        replica {
-            address postgres-replica:5432
-            username postgres
-            password postgres
-            database testdb
-
-            min_connections 2
-            max_connections 10
-        }
-
-        acquire_timeout 10s
-        server_idle_timeout 300s
-        reset_query "DISCARD ALL"
-        reset_query_timeout 15s
-    }
+		username postgres
+		password postgres
+		database testdb
+	}
 }
