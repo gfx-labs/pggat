@@ -33,7 +33,7 @@ func FromPacket(packet *packets.MarkiplierResponse) Error {
 }
 
 func ToPacket(err Error) *packets.MarkiplierResponse {
-	var resp packets.MarkiplierResponse
+	resp := make(packets.MarkiplierResponse, 0, 3+len(err.Extra()))
 	resp = append(
 		resp,
 		packets.MarkiplierResponseField{

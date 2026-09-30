@@ -46,10 +46,16 @@ linters:
       - hack
       - lib/fed/packets
     rules:
-      - path: _test\.go
+      - path: (_test\.go|^test/)
         linters:
           - errcheck
           - gosec
+          - goconst
+      # fmt --overwrite writes to the file the user named
+      - path: cmd/commandfuncs\.go
+        linters:
+          - gosec
+        text: G703
       - linters:
           - staticcheck
         text: "SA1019|SA1029|SA5011"

@@ -93,8 +93,8 @@ func (T *DBAuthenticator) authenticationSASL(ctx context.Context, params *authPa
 	ctx, span := T.tracer.Start(ctx, "authenticationSASL", trace.WithSpanKind(trace.SpanKindInternal))
 	defer span.End()
 
-	var mode packets.AuthenticationPayloadSASL
 	mechanisms := creds.SupportedSASLMechanisms()
+	mode := make(packets.AuthenticationPayloadSASL, 0, len(mechanisms))
 	for _, mechanism := range mechanisms {
 		mode = append(mode, packets.AuthenticationPayloadSASLMethod{
 			Method: mechanism,
