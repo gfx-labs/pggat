@@ -1,0 +1,23 @@
+# Transaction pooling configuration
+# Each transaction can go to a different server connection
+
+{
+    servers :6432
+}
+
+:6432 {
+    pool testdb {
+        pool basic transaction
+
+        address postgres-primary:5432
+        username postgres
+        password postgres
+        database testdb
+
+        # Transaction pooling specific settings
+        min_connections 2
+        max_connections 20
+        acquire_timeout 10s
+        server_idle_timeout 60s
+    }
+}

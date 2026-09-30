@@ -16,3 +16,23 @@ test:
 test-clean:
 	docker compose -f docker-compose.test.yml down -v
 
+.PHONY: integration
+integration:
+	docker compose -f docker-compose.integration.yml up --build --abort-on-container-exit --exit-code-from integration-tests
+
+.PHONY: integration-up
+integration-up:
+	docker compose -f docker-compose.integration.yml up -d postgres-primary postgres-replica pggat-transaction pggat-session pggat-hybrid
+
+.PHONY: integration-down
+integration-down:
+	docker compose -f docker-compose.integration.yml down -v
+
+.PHONY: integration-logs
+integration-logs:
+	docker compose -f docker-compose.integration.yml logs -f
+
+.PHONY: integration-shell
+integration-shell:
+	docker compose -f docker-compose.integration.yml run --rm integration-tests sh
+

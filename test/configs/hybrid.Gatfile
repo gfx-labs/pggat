@@ -1,0 +1,39 @@
+# Hybrid pooling configuration
+# Separate pools for read-write (primary) and read-only (replica) operations
+
+{
+    servers :6434
+}
+
+:6434 {
+    pool testdb {
+        pool hybrid session
+
+        # Primary (read-write) pool
+        primary {
+            address postgres-primary:5432
+            username postgres
+            password postgres
+            database testdb
+
+            min_connections 2
+            max_connections 10
+        }
+
+        # Replica (read-only) pool
+        replica {
+            address postgres-replica:5432
+            username postgres
+            password postgres
+            database testdb
+
+            min_connections 2
+            max_connections 10
+        }
+
+        acquire_timeout 10s
+        server_idle_timeout 300s
+        reset_query "DISCARD ALL"
+        reset_query_timeout 15s
+    }
+}
