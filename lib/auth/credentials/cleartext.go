@@ -8,7 +8,7 @@ import (
 
 	"github.com/minio/sha256-simd"
 
-	"gfx.cafe/ghalliday1/scram"
+	"github.com/gfx-labs/scram"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/util/slices"

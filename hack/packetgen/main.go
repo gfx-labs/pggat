@@ -4,8 +4,8 @@ import (
 	_ "embed"
 	"fmt"
 
-	"gfx.cafe/util/temple"
-	"gfx.cafe/util/temple/lib/prayer"
+	"github.com/gfx-labs/temple"
+	"github.com/gfx-labs/temple/lib/prayer"
 )
 
 func main() {

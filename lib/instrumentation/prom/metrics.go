@@ -1,7 +1,7 @@
 package prom
 
 import (
-	"gfx.cafe/open/gotoprom"
+	"github.com/gfx-labs/gotoprom"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

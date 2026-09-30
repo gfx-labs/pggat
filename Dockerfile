@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.25-alpine AS gobuilder
+FROM golang:1.27-alpine AS gobuilder
 RUN apk add build-base git
 WORKDIR /src
 

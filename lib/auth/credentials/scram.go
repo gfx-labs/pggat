@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"gfx.cafe/ghalliday1/scram"
+	"github.com/gfx-labs/scram"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
 )

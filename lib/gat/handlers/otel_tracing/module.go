@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	"gfx.cafe/gfx/pggat/lib/gat"
-	"gfx.cafe/util/go/gotel"
+	"github.com/gfx-labs/utilgo/gotel"
 	"github.com/caddyserver/caddy/v2"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
