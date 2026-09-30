@@ -22,6 +22,8 @@ env:
 
 jobs:
   test:
+    # Fork PRs do not run on our runners. Only branches pushed to this repo are tested.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubicloud-standard-4
     steps:
       - uses: actions/checkout@v6
@@ -51,6 +53,7 @@ jobs:
           path: coverage.txt
 
   lint:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubicloud-standard-4
     steps:
       - uses: actions/checkout@v6
@@ -107,4 +110,4 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
