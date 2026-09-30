@@ -316,9 +316,10 @@ func (T *Pool) Release(ctx context.Context, server *Server) {
 		}
 	}
 
-	T.pooler.Release(server.ID)
-
+	// Mark idle before releasing so a new owner's state is not overwritten.
 	server.SetState(metrics.ConnStateIdle, uuid.Nil)
+
+	T.pooler.Release(server.ID)
 }
 
 func (T *Pool) RemoveServer(ctx context.Context, server *Server) {
