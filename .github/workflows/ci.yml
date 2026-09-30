@@ -17,6 +17,7 @@ concurrency:
 
 env:
   GOLANGCI_LINT_VERSION: v2.14.0
+  GOVULNCHECK_VERSION: v1.8.0
   REGISTRY: ghcr.io
   IMAGE_NAME: gfx-labs/pggat
 
@@ -68,8 +69,21 @@ jobs:
       - name: golangci-lint (integration)
         run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION} run --timeout=15m --build-tags integration ./test/integration/...
 
+  govulncheck:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubicloud-standard-4
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION} ./...
+
   build:
-    needs: [test, lint]
+    needs: [test, lint, govulncheck]
     runs-on: ubicloud-standard-4
     permissions:
       contents: read
