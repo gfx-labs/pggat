@@ -88,13 +88,24 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      # Only master and release tags publish images. Dispatches on other refs build without pushing.
+      PUBLISH: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify release tag is on master
+        if: github.ref_type == 'tag'
+        run: |
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "tag $GITHUB_REF_NAME is not vX.Y.Z"; exit 1; }
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/master || { echo "tag $GITHUB_REF_NAME is not on master"; exit 1; }
 
       - uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH == 'true'
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
@@ -107,12 +118,12 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
+            type=raw,value=master,enable=${{ github.ref == 'refs/heads/master' }}
             type=ref,event=pr
             type=semver,pattern=v{{version}}
             type=semver,pattern=v{{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix={{branch}}-,format=short,enable=${{ github.ref_type == 'branch' && github.event_name != 'pull_request' }}
+            type=sha,prefix=master-,format=short,enable=${{ github.ref == 'refs/heads/master' }}
           flavor: |
             latest=false
 
@@ -120,7 +131,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ env.PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
