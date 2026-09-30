@@ -37,22 +37,40 @@ func testSink(sched *Scheduler) uuid.UUID {
 	return id
 }
 
-func testSource(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
+// unit is the base job length. Windows are sized in units so sample counts stay constant.
+const unit = time.Millisecond
+
+// window is how long a test phase runs before shares are measured.
+const window = 1000 * unit
+
+func stopOnCleanup(t *testing.T) <-chan struct{} {
+	done := make(chan struct{})
+	t.Cleanup(func() { close(done) })
+	return done
+}
+
+func stopped(done <-chan struct{}) bool {
+	select {
+	case <-done:
+		return true
+	default:
+		return false
+	}
+}
+
+func testSource(done <-chan struct{}, sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
 	source := uuid.New()
 	sched.AddUser(source)
-	for {
+	for !stopped(done) {
 		sink := sched.Acquire(source, 0)
-		start := time.Now()
-		for time.Since(start) < dur {
-			runtime.Gosched()
-		}
+		time.Sleep(dur)
 		tab.Inc(id)
 		sched.Release(sink)
 	}
 }
 
-func testStarver(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
-	for {
+func testStarver(done <-chan struct{}, sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
+	for !stopped(done) {
 		func() {
 			source := uuid.New()
 			sched.AddUser(source)
@@ -60,10 +78,7 @@ func testStarver(sched *Scheduler, tab *ShareTable, id int, dur time.Duration) {
 
 			sink := sched.Acquire(source, 0)
 			defer sched.Release(sink)
-			start := time.Now()
-			for time.Since(start) < dur {
-				runtime.Gosched()
-			}
+			time.Sleep(dur)
 			tab.Inc(id)
 		}()
 	}
@@ -107,16 +122,18 @@ func allStacks() []byte {
 }
 
 func TestScheduler(t *testing.T) {
+	t.Parallel()
+	done := stopOnCleanup(t)
 	var table ShareTable
 	sched := new(Scheduler)
 	testSink(sched)
 
-	go testSource(sched, &table, 0, 10*time.Millisecond)
-	go testSource(sched, &table, 1, 10*time.Millisecond)
-	go testSource(sched, &table, 2, 50*time.Millisecond)
-	go testSource(sched, &table, 3, 100*time.Millisecond)
+	go testSource(done, sched, &table, 0, unit)
+	go testSource(done, sched, &table, 1, unit)
+	go testSource(done, sched, &table, 2, 5*unit)
+	go testSource(done, sched, &table, 3, 10*unit)
 
-	time.Sleep(20 * time.Second)
+	time.Sleep(2 * window)
 	t0 := table.Get(0)
 	t1 := table.Get(1)
 	t2 := table.Get(2)
@@ -147,19 +164,21 @@ func TestScheduler(t *testing.T) {
 }
 
 func TestScheduler_Late(t *testing.T) {
+	t.Parallel()
+	done := stopOnCleanup(t)
 	var table ShareTable
 	sched := new(Scheduler)
 	testSink(sched)
 
-	go testSource(sched, &table, 0, 10*time.Millisecond)
-	go testSource(sched, &table, 1, 10*time.Millisecond)
+	go testSource(done, sched, &table, 0, unit)
+	go testSource(done, sched, &table, 1, unit)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(window)
 
-	go testSource(sched, &table, 2, 10*time.Millisecond)
-	go testSource(sched, &table, 3, 10*time.Millisecond)
+	go testSource(done, sched, &table, 2, unit)
+	go testSource(done, sched, &table, 3, unit)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(window)
 	t0 := table.Get(0)
 	t1 := table.Get(1)
 	t2 := table.Get(2)
@@ -191,17 +210,19 @@ func TestScheduler_Late(t *testing.T) {
 }
 
 func TestScheduler_StealBalanced(t *testing.T) {
+	t.Parallel()
+	done := stopOnCleanup(t)
 	var table ShareTable
 	sched := new(Scheduler)
 	testSink(sched)
 	testSink(sched)
 
-	go testSource(sched, &table, 0, 10*time.Millisecond)
-	go testSource(sched, &table, 1, 10*time.Millisecond)
-	go testSource(sched, &table, 2, 10*time.Millisecond)
-	go testSource(sched, &table, 3, 10*time.Millisecond)
+	go testSource(done, sched, &table, 0, unit)
+	go testSource(done, sched, &table, 1, unit)
+	go testSource(done, sched, &table, 2, unit)
+	go testSource(done, sched, &table, 3, unit)
 
-	time.Sleep(20 * time.Second)
+	time.Sleep(2 * window)
 	t0 := table.Get(0)
 	t1 := table.Get(1)
 	t2 := table.Get(2)
@@ -229,16 +250,18 @@ func TestScheduler_StealBalanced(t *testing.T) {
 }
 
 func TestScheduler_StealUnbalanced(t *testing.T) {
+	t.Parallel()
+	done := stopOnCleanup(t)
 	var table ShareTable
 	sched := new(Scheduler)
 	testSink(sched)
 	testSink(sched)
 
-	go testSource(sched, &table, 0, 10*time.Millisecond)
-	go testSource(sched, &table, 1, 10*time.Millisecond)
-	go testSource(sched, &table, 2, 10*time.Millisecond)
+	go testSource(done, sched, &table, 0, unit)
+	go testSource(done, sched, &table, 1, unit)
+	go testSource(done, sched, &table, 2, unit)
 
-	time.Sleep(20 * time.Second)
+	time.Sleep(2 * window)
 	t0 := table.Get(0)
 	t1 := table.Get(1)
 	t2 := table.Get(2)
@@ -264,16 +287,18 @@ func TestScheduler_StealUnbalanced(t *testing.T) {
 }
 
 func TestScheduler_IdleWake(t *testing.T) {
+	t.Parallel()
+	done := stopOnCleanup(t)
 	var table ShareTable
 	sched := new(Scheduler)
 
 	testSink(sched)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(window)
 
-	go testSource(sched, &table, 0, 10*time.Millisecond)
+	go testSource(done, sched, &table, 0, unit)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(window)
 	t0 := table.Get(0)
 
 	/*
@@ -289,16 +314,18 @@ func TestScheduler_IdleWake(t *testing.T) {
 }
 
 func TestScheduler_LateSink(t *testing.T) {
+	t.Parallel()
+	done := stopOnCleanup(t)
 	var table ShareTable
 	sched := new(Scheduler)
 
-	go testSource(sched, &table, 0, 10*time.Millisecond)
+	go testSource(done, sched, &table, 0, unit)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(window)
 
 	testSink(sched)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(window)
 	t0 := table.Get(0)
 
 	/*
@@ -314,16 +341,18 @@ func TestScheduler_LateSink(t *testing.T) {
 }
 
 func TestScheduler_Starve(t *testing.T) {
+	t.Parallel()
+	done := stopOnCleanup(t)
 	var table ShareTable
 	sched := new(Scheduler)
 
 	testSink(sched)
 
-	go testStarver(sched, &table, 1, 10*time.Millisecond)
-	go testStarver(sched, &table, 2, 10*time.Millisecond)
-	go testSource(sched, &table, 0, 10*time.Millisecond)
+	go testStarver(done, sched, &table, 1, unit)
+	go testStarver(done, sched, &table, 2, unit)
+	go testSource(done, sched, &table, 0, unit)
 
-	time.Sleep(20 * time.Second)
+	time.Sleep(2 * window)
 	t0 := table.Get(0)
 	t1 := table.Get(1)
 	t2 := table.Get(2)
@@ -343,21 +372,23 @@ func TestScheduler_Starve(t *testing.T) {
 }
 
 func TestScheduler_RemoveSinkOuter(t *testing.T) {
+	t.Parallel()
+	done := stopOnCleanup(t)
 	var table ShareTable
 	sched := new(Scheduler)
 	testSink(sched)
 	toRemove := testSink(sched)
 
-	go testSource(sched, &table, 0, 10*time.Millisecond)
-	go testSource(sched, &table, 1, 10*time.Millisecond)
-	go testSource(sched, &table, 2, 10*time.Millisecond)
-	go testSource(sched, &table, 3, 10*time.Millisecond)
+	go testSource(done, sched, &table, 0, unit)
+	go testSource(done, sched, &table, 1, unit)
+	go testSource(done, sched, &table, 2, unit)
+	go testSource(done, sched, &table, 3, unit)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(window)
 
 	sched.DeleteWorker(toRemove)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(window)
 
 	t0 := table.Get(0)
 	t1 := table.Get(1)
