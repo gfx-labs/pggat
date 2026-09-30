@@ -8,31 +8,17 @@ runotel: export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4318/v1/trac
 runotel:
 	go run ./cmd/pggat run pool basic transaction
 
+GOLANGCI_LINT_VERSION ?= v2.14.0
+
 .PHONY: test
 test:
-	docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test
-
-.PHONY: test-clean
-test-clean:
-	docker compose -f docker-compose.test.yml down -v
+	go test -race ./...
 
 .PHONY: integration
 integration:
-	docker compose -f docker-compose.integration.yml up --build --abort-on-container-exit --exit-code-from integration-tests
+	go test -race -tags integration ./test/integration/...
 
-.PHONY: integration-up
-integration-up:
-	docker compose -f docker-compose.integration.yml up -d postgres-primary postgres-replica pggat-transaction pggat-session pggat-hybrid
-
-.PHONY: integration-down
-integration-down:
-	docker compose -f docker-compose.integration.yml down -v
-
-.PHONY: integration-logs
-integration-logs:
-	docker compose -f docker-compose.integration.yml logs -f
-
-.PHONY: integration-shell
-integration-shell:
-	docker compose -f docker-compose.integration.yml run --rm integration-tests sh
-
+.PHONY: lint
+lint:
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./...
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --build-tags integration ./test/integration/...

@@ -5,8 +5,6 @@ import (
 	"crypto/tls"
 	"log"
 	"net"
-	"net/http"
-	_ "net/http/pprof"
 	"testing"
 
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
@@ -16,6 +14,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed/codecs/netconncodec"
 	"gfx.cafe/gfx/pggat/lib/gsql"
 	"gfx.cafe/gfx/pggat/lib/util/flip"
+	"gfx.cafe/gfx/pggat/test/pgtest"
 )
 
 type Result struct {
@@ -24,11 +23,9 @@ type Result struct {
 }
 
 func TestQuery(t *testing.T) {
-	go func() {
-		panic(http.ListenAndServe(":8080", nil))
-	}()
+	pg := pgtest.StartT(t, "postgres")
 
-	s, err := net.Dial("tcp", "localhost:5432")
+	s, err := net.Dial("tcp", pg.Addr())
 	if err != nil {
 		t.Error(err)
 		return

@@ -22,6 +22,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/matchers"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 	"gfx.cafe/gfx/pggat/test"
+	"gfx.cafe/gfx/pggat/test/pgtest"
 	"gfx.cafe/gfx/pggat/test/tests"
 
 	_ "gfx.cafe/gfx/pggat/lib/fed/listeners/netconnlistener"
@@ -165,8 +166,10 @@ func daisyChain(config *gat.Config, control dialer, n int) (dialer, error) {
 }
 
 func TestTester(t *testing.T) {
+	pg := pgtest.StartT(t, "postgres")
+
 	control := pool.Dialer{
-		Address:  "localhost:5432",
+		Address:  pg.Addr(),
 		Username: "postgres",
 		SSLMode:  bouncer.SSLModeDisable,
 		Credentials: credentials.Cleartext{
@@ -179,7 +182,7 @@ func TestTester(t *testing.T) {
 	config := gat.Config{}
 
 	parent, err := daisyChain(&config, dialer{
-		Address:  "localhost:5432",
+		Address:  pg.Addr(),
 		Username: "postgres",
 		Password: "postgres",
 		Database: "postgres",
@@ -230,6 +233,7 @@ func TestTester(t *testing.T) {
 	}
 
 	caddyConfig := caddy.Config{
+		Admin: &caddy.AdminConfig{Disabled: true},
 		AppsRaw: caddy.ModuleMap{
 			"pggat": caddyconfig.JSON(config, nil),
 		},

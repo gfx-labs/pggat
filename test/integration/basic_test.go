@@ -1,38 +1,20 @@
+//go:build integration
+
 package integration
 
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 )
-
-// Test configuration from environment
-var (
-	postgresPassword      = getEnv("POSTGRES_PASSWORD", "postgres")
-	postgresUser          = getEnv("POSTGRES_USER", "postgres")
-	pggatTransactionHost  = getEnv("PGGAT_TRANSACTION_HOST", "localhost")
-	pggatSessionHost      = getEnv("PGGAT_SESSION_HOST", "localhost")
-	pggatHybridHost       = getEnv("PGGAT_HYBRID_HOST", "localhost")
-	postgresPrimaryHost   = getEnv("POSTGRES_PRIMARY_HOST", "localhost")
-)
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
 
 // TestTransactionPooling tests basic transaction pooling functionality
 func TestTransactionPooling(t *testing.T) {
-	connString := fmt.Sprintf(
-		"postgres://%s:%s@%s:6432/testdb?sslmode=disable",
-		postgresUser, postgresPassword, pggatTransactionHost,
-	)
+	t.Parallel()
+	connString := connURL(transactionAddr)
 
 	conn, err := pgx.Connect(context.Background(), connString)
 	if err != nil {
@@ -73,10 +55,8 @@ func TestTransactionPooling(t *testing.T) {
 
 // TestSessionPooling tests session pooling with session state
 func TestSessionPooling(t *testing.T) {
-	connString := fmt.Sprintf(
-		"postgres://%s:%s@%s:6433/testdb?sslmode=disable",
-		postgresUser, postgresPassword, pggatSessionHost,
-	)
+	t.Parallel()
+	connString := connURL(sessionAddr)
 
 	conn, err := pgx.Connect(context.Background(), connString)
 	if err != nil {
@@ -118,10 +98,8 @@ func TestSessionPooling(t *testing.T) {
 
 // TestConcurrentConnections tests multiple concurrent connections
 func TestConcurrentConnections(t *testing.T) {
-	connString := fmt.Sprintf(
-		"postgres://%s:%s@%s:6432/testdb?sslmode=disable",
-		postgresUser, postgresPassword, pggatTransactionHost,
-	)
+	t.Parallel()
+	connString := connURL(transactionAddr)
 
 	numConns := 10
 	errors := make(chan error, numConns)
@@ -165,10 +143,8 @@ func TestConcurrentConnections(t *testing.T) {
 
 // TestResetQueryTimeout tests that reset query timeout works correctly
 func TestResetQueryTimeout(t *testing.T) {
-	connString := fmt.Sprintf(
-		"postgres://%s:%s@%s:6433/testdb?sslmode=disable",
-		postgresUser, postgresPassword, pggatSessionHost,
-	)
+	t.Parallel()
+	connString := connURL(sessionAddr)
 
 	conn, err := pgx.Connect(context.Background(), connString)
 	if err != nil {
@@ -207,14 +183,12 @@ func TestResetQueryTimeout(t *testing.T) {
 
 // TestLongRunningQuery tests handling of long queries
 func TestLongRunningQuery(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping long-running test in short mode")
 	}
 
-	connString := fmt.Sprintf(
-		"postgres://%s:%s@%s:6432/testdb?sslmode=disable",
-		postgresUser, postgresPassword, pggatTransactionHost,
-	)
+	connString := connURL(transactionAddr)
 
 	conn, err := pgx.Connect(context.Background(), connString)
 	if err != nil {
@@ -222,16 +196,16 @@ func TestLongRunningQuery(t *testing.T) {
 	}
 	defer conn.Close(context.Background())
 
-	// Run a query that takes 3 seconds
+	// Run a query that takes 1 second
 	start := time.Now()
 	var result bool
-	err = conn.QueryRow(context.Background(), "SELECT pg_sleep(3), true").Scan(&result)
+	err = conn.QueryRow(context.Background(), "SELECT true FROM pg_sleep(1)").Scan(&result)
 	duration := time.Since(start)
 
 	if err != nil {
 		t.Errorf("Long query failed: %v", err)
 	}
-	if duration < 3*time.Second {
+	if duration < time.Second {
 		t.Errorf("Query finished too quickly: %v", duration)
 	}
 	if !result {
@@ -241,10 +215,8 @@ func TestLongRunningQuery(t *testing.T) {
 
 // TestDirectPostgres tests direct connection to PostgreSQL (baseline)
 func TestDirectPostgres(t *testing.T) {
-	connString := fmt.Sprintf(
-		"postgres://%s:%s@%s:5432/testdb?sslmode=disable",
-		postgresUser, postgresPassword, postgresPrimaryHost,
-	)
+	t.Parallel()
+	connString := connURL(primaryAddr)
 
 	conn, err := pgx.Connect(context.Background(), connString)
 	if err != nil {
@@ -258,4 +230,32 @@ func TestDirectPostgres(t *testing.T) {
 		t.Errorf("Query failed: %v", err)
 	}
 	t.Logf("PostgreSQL version: %s", version)
+}
+
+// TestHybridPooling tests reads and writes through the hybrid pool
+func TestHybridPooling(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, connURL(hybridAddr))
+	if err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+	defer conn.Close(ctx)
+
+	var count int64
+	if err := conn.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&count); err != nil {
+		t.Fatalf("Read failed: %v", err)
+	}
+	if count < 1 {
+		t.Errorf("Expected at least 1 user, got %d", count)
+	}
+
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		t.Fatalf("Failed to begin transaction: %v", err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, "INSERT INTO posts (user_id, title) VALUES (1, 'hybrid')"); err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
 }

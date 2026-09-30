@@ -1,3 +1,5 @@
+//go:build integration
+
 package integration
 
 import (
@@ -8,22 +10,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // TestHighConcurrency tests many concurrent connections and queries
 func TestHighConcurrency(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping stress test in short mode")
 	}
 
-	connString := fmt.Sprintf(
-		"postgres://%s:%s@%s:6432/testdb?sslmode=disable&pool_max_conns=50",
-		postgresUser, postgresPassword, pggatTransactionHost,
-	)
+	connString := connURL(transactionAddr, "pool_max_conns=50")
 
-	pool, err := pgxpool.Connect(context.Background(), connString)
+	pool, err := pgxpool.New(context.Background(), connString)
 	if err != nil {
 		t.Fatalf("Failed to create connection pool: %v", err)
 	}
@@ -81,16 +81,14 @@ func TestHighConcurrency(t *testing.T) {
 
 // TestTransactionStress tests many concurrent transactions
 func TestTransactionStress(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping stress test in short mode")
 	}
 
-	connString := fmt.Sprintf(
-		"postgres://%s:%s@%s:6432/testdb?sslmode=disable",
-		postgresUser, postgresPassword, pggatTransactionHost,
-	)
+	connString := connURL(transactionAddr)
 
-	pool, err := pgxpool.Connect(context.Background(), connString)
+	pool, err := pgxpool.New(context.Background(), connString)
 	if err != nil {
 		t.Fatalf("Failed to create connection pool: %v", err)
 	}
@@ -151,14 +149,12 @@ func TestTransactionStress(t *testing.T) {
 
 // TestConnectionChurn tests rapid connection open/close cycles
 func TestConnectionChurn(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping stress test in short mode")
 	}
 
-	connString := fmt.Sprintf(
-		"postgres://%s:%s@%s:6432/testdb?sslmode=disable",
-		postgresUser, postgresPassword, pggatTransactionHost,
-	)
+	connString := connURL(transactionAddr)
 
 	numCycles := 100
 	var errorCount atomic.Int64
@@ -200,14 +196,12 @@ func TestConnectionChurn(t *testing.T) {
 
 // TestPreparedStatementStress tests many prepared statements
 func TestPreparedStatementStress(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping stress test in short mode")
 	}
 
-	connString := fmt.Sprintf(
-		"postgres://%s:%s@%s:6433/testdb?sslmode=disable",
-		postgresUser, postgresPassword, pggatSessionHost,
-	)
+	connString := connURL(sessionAddr)
 
 	conn, err := pgx.Connect(context.Background(), connString)
 	if err != nil {
@@ -255,14 +249,12 @@ func TestPreparedStatementStress(t *testing.T) {
 
 // TestLongTransaction tests a transaction that takes a while
 func TestLongTransaction(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping long test in short mode")
 	}
 
-	connString := fmt.Sprintf(
-		"postgres://%s:%s@%s:6432/testdb?sslmode=disable",
-		postgresUser, postgresPassword, pggatTransactionHost,
-	)
+	connString := connURL(transactionAddr)
 
 	conn, err := pgx.Connect(context.Background(), connString)
 	if err != nil {
@@ -285,7 +277,7 @@ func TestLongTransaction(t *testing.T) {
 			return
 		}
 		t.Logf("Query %d: user count = %d", i, count)
-		time.Sleep(1 * time.Second)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	err = tx.Commit(context.Background())
@@ -296,12 +288,9 @@ func TestLongTransaction(t *testing.T) {
 
 // BenchmarkSimpleQuery benchmarks simple query performance
 func BenchmarkSimpleQuery(b *testing.B) {
-	connString := fmt.Sprintf(
-		"postgres://%s:%s@%s:6432/testdb?sslmode=disable",
-		postgresUser, postgresPassword, pggatTransactionHost,
-	)
+	connString := connURL(transactionAddr)
 
-	pool, err := pgxpool.Connect(context.Background(), connString)
+	pool, err := pgxpool.New(context.Background(), connString)
 	if err != nil {
 		b.Fatalf("Failed to create connection pool: %v", err)
 	}
@@ -320,12 +309,9 @@ func BenchmarkSimpleQuery(b *testing.B) {
 
 // BenchmarkTransaction benchmarks transaction performance
 func BenchmarkTransaction(b *testing.B) {
-	connString := fmt.Sprintf(
-		"postgres://%s:%s@%s:6432/testdb?sslmode=disable",
-		postgresUser, postgresPassword, pggatTransactionHost,
-	)
+	connString := connURL(transactionAddr)
 
-	pool, err := pgxpool.Connect(context.Background(), connString)
+	pool, err := pgxpool.New(context.Background(), connString)
 	if err != nil {
 		b.Fatalf("Failed to create connection pool: %v", err)
 	}
