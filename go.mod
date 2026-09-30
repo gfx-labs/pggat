@@ -10,7 +10,7 @@ require (
 	github.com/digitalocean/godo v1.215.0
 	github.com/fergusstrange/embedded-postgres v1.34.0
 	github.com/gfx-labs/gotoprom v0.1.0
-	github.com/gfx-labs/scram v0.0.3
+	github.com/gfx-labs/scram v0.0.4-0.20260930100942-2e80f8d1c976
 	github.com/gfx-labs/temple v0.0.0-20260916035901-e3d24f5d32d5
 	github.com/gfx-labs/utilgo v0.1.1
 	github.com/google/uuid v1.6.0

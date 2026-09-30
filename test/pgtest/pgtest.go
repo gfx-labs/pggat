@@ -22,6 +22,14 @@ const (
 	Password = "postgres"
 
 	version = embeddedpostgres.V17
+
+	pgHBA = `local all         all              scram-sha-256
+host  all         all 127.0.0.1/32 scram-sha-256
+host  all         all ::1/128      scram-sha-256
+local replication all              scram-sha-256
+host  replication all 127.0.0.1/32 scram-sha-256
+host  replication all ::1/128      scram-sha-256
+`
 )
 
 // Server is a running embedded PostgreSQL instance.
@@ -171,6 +179,10 @@ func Start(database, runtimeDir string, logger io.Writer) (*Server, error) {
 	}
 	if out, err := exec.Command("cp", "-a", tmpl, data).CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("copy template: %w: %s", err, out)
+	}
+	// Require SCRAM so tests exercise pggat's SASL client against a real server.
+	if err := os.WriteFile(filepath.Join(data, "pg_hba.conf"), []byte(pgHBA), 0o600); err != nil {
+		return nil, err
 	}
 
 	port, err := FreePort()

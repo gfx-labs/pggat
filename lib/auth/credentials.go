@@ -34,12 +34,17 @@ const (
 	ScramSHA256 SASLMechanism = "SCRAM-SHA-256"
 )
 
+// SASLEncoder is the client side of a SASL exchange. Step(nil) returns the initial response.
 type SASLEncoder interface {
-	Write([]byte) ([]byte, error)
+	Step(in []byte) ([]byte, error)
+	Authenticated() bool
 }
 
+// SASLVerifier is the server side of a SASL exchange. Once Done reports true
+// after a successful Step, the returned bytes are the final server message.
 type SASLVerifier interface {
-	Write(bytes []byte) ([]byte, error)
+	Step(in []byte) ([]byte, error)
+	Done() bool
 }
 
 type SASLClient interface {

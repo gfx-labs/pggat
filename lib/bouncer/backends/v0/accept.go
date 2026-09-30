@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"io"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
 	"gfx.cafe/gfx/pggat/lib/bouncer"
@@ -41,7 +40,7 @@ func authenticationSASLChallenge(ctx context.Context, params *acceptParams, enco
 	case *packets.AuthenticationPayloadSASLContinue:
 		// challenge
 		var response []byte
-		response, err = encoder.Write(*mode)
+		response, err = encoder.Step(*mode)
 		if err != nil {
 			return
 		}
@@ -51,11 +50,12 @@ func authenticationSASLChallenge(ctx context.Context, params *acceptParams, enco
 		return
 	case *packets.AuthenticationPayloadSASLFinal:
 		// finish
-		_, err = encoder.Write(*mode)
-		if err != io.EOF {
-			if err == nil {
-				err = errors.New("expected EOF")
-			}
+		_, err = encoder.Step(*mode)
+		if err != nil {
+			return
+		}
+		if !encoder.Authenticated() {
+			err = errors.New("sasl exchange ended without authenticating the server")
 			return
 		}
 
@@ -71,7 +71,7 @@ func authenticationSASL(ctx context.Context, params *acceptParams, mechanisms []
 	if err != nil {
 		return err
 	}
-	initialResponse, err := encoder.Write(nil)
+	initialResponse, err := encoder.Step(nil)
 	if err != nil {
 		return err
 	}

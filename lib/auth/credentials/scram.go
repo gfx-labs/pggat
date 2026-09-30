@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
-	"io"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,8 +16,8 @@ import (
 type Scram struct {
 	Keys scram.ServerKeys
 
-	clientKey []byte
-	mu        sync.RWMutex
+	clientKeys *scram.ClientKeys
+	mu         sync.RWMutex
 }
 
 func ScramFromString(password string) (*Scram, error) {
@@ -85,40 +84,48 @@ func (T *Scram) SupportedSASLMechanisms() []auth.SASLMechanism {
 
 func (T *Scram) EncodeSASL(mechanisms []auth.SASLMechanism) (auth.SASLMechanism, auth.SASLEncoder, error) {
 	T.mu.RLock()
-	clientKey := T.clientKey
+	clientKeys := T.clientKeys
 	T.mu.RUnlock()
-	if clientKey == nil {
+	if clientKeys == nil {
 		return "", nil, errors.New("you must log in with SASL first")
 	}
 
 	for _, mechanism := range mechanisms {
 		if mechanism == auth.ScramSHA256 {
-			return auth.ScramSHA256, &scram.ClientConversation{
-				Lookup: scram.ClientKeysLookup(scram.ClientKeys{
-					ClientKey: clientKey,
-					ServerKey: T.Keys.ServerKey,
-					KeyInfo:   T.Keys.KeyInfo,
-				}),
-			}, nil
+			return auth.ScramSHA256, scram.NewClientConversation(scram.ClientConfig{
+				Lookup: scram.ClientKeysLookup(*clientKeys),
+			}), nil
 		}
 	}
 	return "", nil, auth.ErrSASLMechanismNotSupported
 }
 
+// ScramInterceptorVerifier records the client keys recovered from a successful
+// exchange so the same credentials can authenticate to upstream servers.
 type ScramInterceptorVerifier struct {
 	Scram        *Scram
 	Conversation *scram.ServerConversation
 }
 
-func (T ScramInterceptorVerifier) Write(bytes []byte) ([]byte, error) {
-	resp, err := T.Conversation.Write(bytes)
-	if err == io.EOF {
-		T.Scram.mu.Lock()
-		defer T.Scram.mu.Unlock()
-
-		T.Scram.clientKey = T.Conversation.RecoveredClientKey
+func (T ScramInterceptorVerifier) Step(in []byte) ([]byte, error) {
+	resp, err := T.Conversation.Step(in)
+	if err != nil {
+		return resp, err
 	}
-	return resp, err
+	if T.Conversation.Authenticated() {
+		keys, err := T.Conversation.ClientKeys()
+		if err != nil {
+			return nil, err
+		}
+		T.Scram.mu.Lock()
+		T.Scram.clientKeys = &keys
+		T.Scram.mu.Unlock()
+	}
+	return resp, nil
+}
+
+func (T ScramInterceptorVerifier) Done() bool {
+	return T.Conversation.Done()
 }
 
 var _ auth.SASLVerifier = ScramInterceptorVerifier{}
@@ -128,11 +135,11 @@ func (T *Scram) VerifySASL(mechanism auth.SASLMechanism) (auth.SASLVerifier, err
 	case auth.ScramSHA256:
 		return ScramInterceptorVerifier{
 			Scram: T,
-			Conversation: &scram.ServerConversation{
-				Lookup: func(string) (scram.ServerKeys, bool) {
-					return T.Keys, true
+			Conversation: scram.NewServerConversation(&scram.ServerConfig{
+				Lookup: func(string) (scram.ServerKeys, error) {
+					return T.Keys, nil
 				},
-			},
+			}),
 		}, nil
 	default:
 		return nil, auth.ErrSASLMechanismNotSupported

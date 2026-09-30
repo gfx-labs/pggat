@@ -4,12 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
-	"errors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"io"
 	"time"
 
 	"gfx.cafe/gfx/pggat/lib/auth"
@@ -53,15 +51,11 @@ func authenticationSASLInitial(ctx context.Context, params *authParams, creds au
 		return
 	}
 
-	resp, err = tool.Write(p.InitialClientResponse)
+	resp, err = tool.Step(p.InitialClientResponse)
 	if err != nil {
-		if errors.Is(err, io.EOF) {
-			done = true
-			err = nil
-			return
-		}
 		return
 	}
+	done = tool.Done()
 	return
 }
 
@@ -77,15 +71,11 @@ func authenticationSASLContinue(ctx context.Context, params *authParams, tool au
 		return
 	}
 
-	resp, err = tool.Write(p)
+	resp, err = tool.Step(p)
 	if err != nil {
-		if errors.Is(err, io.EOF) {
-			done = true
-			err = nil
-			return
-		}
 		return
 	}
+	done = tool.Done()
 	return
 }
 

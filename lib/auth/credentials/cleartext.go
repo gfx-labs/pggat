@@ -2,7 +2,6 @@ package credentials
 
 import (
 	"crypto/md5" //nolint:gosec // MD5 required for PostgreSQL authentication protocol
-	"crypto/rand"
 	"encoding/hex"
 	"strings"
 
@@ -71,9 +70,9 @@ func (T Cleartext) SupportedSASLMechanisms() []auth.SASLMechanism {
 func (T Cleartext) EncodeSASL(mechanisms []auth.SASLMechanism) (auth.SASLMechanism, auth.SASLEncoder, error) {
 	for _, mechanism := range mechanisms {
 		if mechanism == auth.ScramSHA256 {
-			return auth.ScramSHA256, &scram.ClientConversation{
+			return auth.ScramSHA256, scram.NewClientConversation(scram.ClientConfig{
 				Lookup: scram.ClientPasswordLookup(T.Password, sha256.New),
-			}, nil
+			}), nil
 		}
 	}
 	return "", nil, auth.ErrSASLMechanismNotSupported
@@ -82,31 +81,15 @@ func (T Cleartext) EncodeSASL(mechanisms []auth.SASLMechanism) (auth.SASLMechani
 func (T Cleartext) VerifySASL(mechanism auth.SASLMechanism) (auth.SASLVerifier, error) {
 	switch mechanism {
 	case auth.ScramSHA256:
-		return &scram.ServerConversation{
-			Lookup: func(string) (scram.ServerKeys, bool) {
-				var salt [32]byte
-				_, err := rand.Read(salt[:])
+		return scram.NewServerConversation(&scram.ServerConfig{
+			Lookup: func(string) (scram.ServerKeys, error) {
+				info, err := scram.NewKeyInfo(sha256.New, scram.DefaultMinIters)
 				if err != nil {
-					return scram.ServerKeys{}, false
+					return scram.ServerKeys{}, err
 				}
-				hasher := scram.Hasher(sha256.New)
-				keyInfo := scram.KeyInfo{
-					Salt:   salt[:],
-					Iters:  4096,
-					Hasher: hasher,
-				}
-				saltedPassword := hasher.SaltedPassword([]byte(T.Password), keyInfo.Salt, keyInfo.Iters)
-				serverKey := hasher.ServerKey(saltedPassword)
-				clientKey := hasher.ClientKey(saltedPassword)
-				storedKey := hasher.StoredKey(clientKey)
-
-				return scram.ServerKeys{
-					ServerKey: serverKey,
-					StoredKey: storedKey,
-					KeyInfo:   keyInfo,
-				}, true
+				return scram.DeriveServerKeys(T.Password, info)
 			},
-		}, nil
+		}), nil
 	default:
 		return nil, auth.ErrSASLMechanismNotSupported
 	}
