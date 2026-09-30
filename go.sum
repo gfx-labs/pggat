@@ -834,8 +834,8 @@ github.com/fxamacker/cbor/v2 v2.9.3 h1:oQBnFATpNdY8gJHTndDDv5Xl4QqNaz51G5LLEPhng
 github.com/fxamacker/cbor/v2 v2.9.3/go.mod h1:vM4b+DJCtHn+zz7h3FFp/hDAI9WNWCsZj23V5ytsSxQ=
 github.com/gfx-labs/gotoprom v0.1.0 h1:lvkG9S/0TIPZGdBVFQ4odf6aoaFDh7xXiGMSEwRL6ZY=
 github.com/gfx-labs/gotoprom v0.1.0/go.mod h1:LMPdvVXiaTaETULcl3miItsIWtdyQhaEPEznNz9a/ME=
-github.com/gfx-labs/scram v0.0.4-0.20260930100942-2e80f8d1c976 h1:vLpOFH8eunmKzVcHhzengVTwqo5xqEMjElWVfTxMgT8=
-github.com/gfx-labs/scram v0.0.4-0.20260930100942-2e80f8d1c976/go.mod h1:80Ftn9TCiwfXtjsWA6XGYAXkmBTGLgbU1fR5cMDi0VQ=
+github.com/gfx-labs/scram v0.0.4-0.20260930102440-042ba826436c h1:PTHLEBrwQuoEp7E92TMIyY+8f1hMAKUiR/OJkK98FZk=
+github.com/gfx-labs/scram v0.0.4-0.20260930102440-042ba826436c/go.mod h1:80Ftn9TCiwfXtjsWA6XGYAXkmBTGLgbU1fR5cMDi0VQ=
 github.com/gfx-labs/temple v0.0.0-20260916035901-e3d24f5d32d5 h1:eDKfLj3xQYajsE1bP1brA0Y5XNVGhVbaLY0aOcwMDYE=
 github.com/gfx-labs/temple v0.0.0-20260916035901-e3d24f5d32d5/go.mod h1:FPp2CGg4UmdCsgztOWbdxYKYITHkLn+fIykzFw6+75E=
 github.com/gfx-labs/utilgo v0.1.1 h1:WgcBb5EkauGa5ZiA2KjfeVdDhIho7/U1cw1a1QoEvq8=
