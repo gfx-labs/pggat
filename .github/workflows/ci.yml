@@ -22,7 +22,7 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - uses: actions/checkout@v6
 
@@ -51,7 +51,7 @@ jobs:
           path: coverage.txt
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - uses: actions/checkout@v6
 
@@ -67,7 +67,7 @@ jobs:
 
   build:
     needs: [test, lint]
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     permissions:
       contents: read
       packages: write
