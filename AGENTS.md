@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents when working with code in this repository.
 
 ## Project Overview
 
@@ -122,11 +122,11 @@ docker build -t pggat .
 ### Testing
 
 ```bash
-# Run all tests (requires PostgreSQL on localhost:5432)
-go test ./...
+# Unit tests (make test)
+go test -race ./...
 
-# Run with race detector
-CGO_ENABLED=1 go test -race ./...
+# Integration tests: pgx clients through pggat started from test/configs/*.Gatfile (make integration)
+go test -race -tags integration ./test/integration/...
 
 # Coverage
 go test -coverprofile=coverage.txt -covermode count ./...
@@ -134,20 +134,16 @@ go tool cover -func=coverage.txt
 ```
 
 **Test Requirements**:
-- PostgreSQL must be running on localhost:5432
-- Default credentials: postgres/postgres
-- Tests use environment variables: POSTGRES_HOST, POSTGRES_PORT, POSTGRES_PASSWORD
+- None. Tests that need PostgreSQL start one with `test/pgtest` (embedded-postgres).
+- The first run downloads and caches PostgreSQL in `~/.embedded-postgres-go` (`PGTEST_CACHE` overrides).
 
 ### Linting
 
 ```bash
-# Run golangci-lint
-golangci-lint run --timeout=15m
+make lint
 
 # Fix issues automatically
-golangci-lint run --fix
-
-# CI uses golangci-lint v1.62.2
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run --fix
 ```
 
 **Important Linter Notes**:
@@ -326,10 +322,11 @@ Key external dependencies:
 - `github.com/prometheus/client_golang`: Metrics
 - `k8s.io/client-go`: Kubernetes integration for discovery
 
-Custom dependencies (gfx.cafe):
-- `gfx.cafe/ghalliday1/scram`: SCRAM authentication
-- `gfx.cafe/open/gotoprom`: Prometheus helpers
-- `gfx.cafe/util/go`: General utilities
+Custom dependencies (gfx-labs):
+- `github.com/gfx-labs/scram`: SCRAM authentication
+- `github.com/gfx-labs/gotoprom`: Prometheus helpers
+- `github.com/gfx-labs/utilgo`: General utilities
+- `github.com/gfx-labs/temple`: Code generation templates (hack/packetgen)
 
 ## Performance Considerations
 
