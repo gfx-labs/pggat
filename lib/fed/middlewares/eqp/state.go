@@ -163,12 +163,17 @@ func (T *State) Query() {
 	delete(T.preparedStatements, "")
 }
 
-// CommandComplete clobbers everything if DISCARD ALL | DEALLOCATE | CLOSE
+// CommandComplete clobbers statements on DEALLOCATE ALL, everything on DISCARD ALL
 func (T *State) CommandComplete(packet fed.Packet) (fed.Packet, error) {
 	var p packets.CommandComplete
 	err := fed.ToConcrete(&p, packet)
 	if err != nil {
 		return nil, err
+	}
+
+	// Existing portals and queued protocol requests survive DEALLOCATE ALL.
+	if p == "DEALLOCATE ALL" {
+		maps.Clear(T.preparedStatements)
 	}
 
 	if p == "DISCARD ALL" {

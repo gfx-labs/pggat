@@ -17,6 +17,7 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"github.com/jackc/pgx/v5"
 
+	"gfx.cafe/gfx/pggat/lib/gat"
 	_ "gfx.cafe/gfx/pggat/lib/gat/gatcaddyfile"
 	_ "gfx.cafe/gfx/pggat/lib/gat/standard"
 
@@ -30,10 +31,11 @@ var (
 	postgresPassword = pgtest.Password
 
 	// addresses set by TestMain
-	primaryAddr     string
-	transactionAddr string
-	sessionAddr     string
-	hybridAddr      string
+	primaryAddr      string
+	transactionAddr  string
+	sessionAddr      string
+	hybridAddr       string
+	singleServerAddr string
 )
 
 func connURL(addr string, query ...string) string {
@@ -92,11 +94,40 @@ func startPggat() error {
 	if err := json.Unmarshal(cfg, &config); err != nil {
 		return err
 	}
+	if err := addSingleServer(&config); err != nil {
+		return err
+	}
 	config.Admin = &caddy.AdminConfig{Disabled: true}
 	if err := caddy.Run(&config); err != nil {
 		return fmt.Errorf("run pggat: %w", err)
 	}
 	return nil
+}
+
+// Recipe limits are exposed by native JSON, but not by the static pool Gatfile directive.
+func addSingleServer(config *caddy.Config) error {
+	raw, err := os.ReadFile(filepath.Join("..", "configs", "single_server.json"))
+	if err != nil {
+		return err
+	}
+	port, err := pgtest.FreePort()
+	if err != nil {
+		return err
+	}
+	singleServerAddr = fmt.Sprintf("127.0.0.1:%d", port)
+	s := strings.ReplaceAll(string(raw), "postgres-primary:5432", primaryAddr)
+	s = strings.ReplaceAll(s, ":6435", fmt.Sprintf(":%d", port))
+	var server gat.ServerConfig
+	if err := json.Unmarshal([]byte(s), &server); err != nil {
+		return err
+	}
+	var app gat.Config
+	if err := json.Unmarshal(config.AppsRaw["pggat"], &app); err != nil {
+		return err
+	}
+	app.Servers = append(app.Servers, server)
+	config.AppsRaw["pggat"], err = json.Marshal(app)
+	return err
 }
 
 func seed(ctx context.Context, pg *pgtest.Server) error {
@@ -158,7 +189,7 @@ func run(m *testing.M) int {
 	}
 	defer caddy.Stop()
 
-	if err := waitReady(ctx, transactionAddr, sessionAddr, hybridAddr); err != nil {
+	if err := waitReady(ctx, transactionAddr, sessionAddr, hybridAddr, singleServerAddr); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
