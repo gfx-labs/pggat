@@ -13,37 +13,38 @@ func sync(ctx context.Context, tracking []strutil.CIString, client *fed.Conn, c 
 	value, hasValue := c.parameters[name]
 	expected, hasExpected := s.parameters[name]
 
-	if value == expected {
-		if client != nil && !c.synced {
-			ps := packets.ParameterStatus{
-				Key:   name.String(),
-				Value: expected,
-			}
-			clientErr = client.WritePacket(ctx, &ps)
+	if slices.Contains(tracking, name) {
+		desired, hasDesired := value, hasValue
+		if !hasDesired {
+			desired, hasDesired = s.initialParameters[name]
 		}
-		return
-	}
-
-	var doSet bool
-
-	if hasValue && slices.Contains(tracking, name) {
-		if serverErr, _ = backends.SetParameter(ctx, server, nil, name, value); serverErr != nil {
+		if !hasDesired {
+			// Older servers may not report this parameter at startup or after SET.
+			if hasExpected {
+				if serverErr, _ = backends.ResetParameter(ctx, server, nil, name); serverErr != nil {
+					return
+				}
+				delete(s.parameters, name)
+			}
 			return
 		}
-		if s.parameters == nil {
-			s.parameters = make(map[strutil.CIString]string)
+		if !hasExpected || desired != expected {
+			if serverErr, _ = backends.SetParameter(ctx, server, nil, name, desired); serverErr != nil {
+				return
+			}
+			if s.parameters == nil {
+				s.parameters = make(map[strutil.CIString]string)
+			}
+			// Keep canonical values reported by the server. Unreported parameters
+			// still need bookkeeping for startup values and subsequent resets.
+			if _, reported := s.initialParameters[name]; !reported {
+				s.parameters[name] = desired
+			}
+			expected, hasExpected = s.parameters[name]
 		}
-		s.parameters[name] = value
-		expected = value
-
-		if !c.synced {
-			doSet = true
-		}
-	} else if hasExpected {
-		doSet = true
 	}
 
-	if client != nil && doSet {
+	if client != nil && hasExpected && (!c.synced || !hasValue || value != expected) {
 		ps := packets.ParameterStatus{
 			Key:   name.String(),
 			Value: expected,

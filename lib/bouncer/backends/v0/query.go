@@ -6,6 +6,7 @@ import (
 
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/perror"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -68,11 +69,20 @@ func query(ctx context.Context, binding *serverToPeerBinding) error {
 		}
 
 		switch binding.Packet.Type() {
+		case packets.TypeMarkiplierResponse:
+			if binding.ServerError == nil {
+				var p packets.MarkiplierResponse
+				if err = fed.ToConcrete(&p, binding.Packet); err != nil {
+					return err
+				}
+				binding.ServerError = perror.FromPacket(&p)
+				binding.Packet = &p
+			}
+			binding.PeerWrite(ctx)
 		case packets.TypeCommandComplete,
 			packets.TypeRowDescription,
 			packets.TypeDataRow,
 			packets.TypeEmptyQueryResponse,
-			packets.TypeMarkiplierResponse,
 			packets.TypeNoticeResponse,
 			packets.TypeParameterStatus,
 			packets.TypeNotificationResponse:
@@ -113,26 +123,30 @@ func QueryString(ctx context.Context, server, peer *fed.Conn, query string) (err
 		Peer:   peer,
 	}
 	err = queryString(ctx, &binding, query)
+	if err == nil {
+		// the server's ErrorResponse, returned after ReadyForQuery
+		err = binding.ServerError
+	}
 	peerError = binding.PeerError
 	return
 }
 
 func SetParameter(ctx context.Context, server, peer *fed.Conn, name strutil.CIString, value string) (err, peerError error) {
-	var q strings.Builder
-	escapedName := strutil.Escape(name.String(), '"')
-	escapedValue := strutil.Escape(value, '\'')
-	q.Grow(len(`SET "" = ''`) + len(escapedName) + len(escapedValue))
-	q.WriteString(`SET "`)
-	q.WriteString(escapedName)
-	q.WriteString(`" = '`)
-	q.WriteString(escapedValue)
-	q.WriteString(`'`)
-
+	// set_config takes the value as one string, so list values like search_path "a, b" are not quoted into one identifier
 	return QueryString(
 		ctx,
 		server,
 		peer,
-		q.String(),
+		`SELECT pg_catalog.set_config(E'`+strutil.Escape(name.String(), '\'')+`', E'`+strutil.Escape(value, '\'')+`', false)`,
+	)
+}
+
+func ResetParameter(ctx context.Context, server, peer *fed.Conn, name strutil.CIString) (err, peerError error) {
+	return QueryString(
+		ctx,
+		server,
+		peer,
+		`RESET "`+strings.ReplaceAll(name.String(), `"`, `""`)+`"`,
 	)
 }
 

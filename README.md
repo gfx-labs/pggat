@@ -94,7 +94,9 @@ There are currently two pooling modes which compromise between balancing and fea
 ### Transaction Pooling (default)
 Send each transaction to a new node. This mode supports all postgres features that do not rely on session state (plus a few exceptions noted below).
 
-This is similar to PgBouncer's transaction pooling except we additionally support protocol level prepared statements and all parameters (they may change at unexpected times, but clients should be able to handle this)
+This is similar to PgBouncer's transaction pooling except we additionally support protocol level prepared statements and parameter status synchronization.
+
+Gatfile pools track `search_path` by default. Startup values are applied when pairing a client with a server. Session-level `SET search_path` persists across transactions only on PostgreSQL 18 or later, which reports changes through `ParameterStatus`. On older servers, use `BEGIN; SET LOCAL search_path ...; ...; COMMIT` for each transaction or use session pooling. Unreported session-level changes cannot be tracked or isolated by transaction pooling.
 
 Using LISTEN commands in this mode will lead to undefined behavior (you may not receive the notifications you want, and you may receive notifications you did not ask for).
 

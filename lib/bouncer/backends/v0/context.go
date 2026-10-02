@@ -10,7 +10,9 @@ type serverToPeerBinding struct {
 	Peer      *fed.Conn
 	Packet    fed.Packet
 	PeerError error
-	TxState   byte
+	// ServerError is the first ErrorResponse the server sent during query, if any.
+	ServerError error
+	TxState     byte
 }
 
 func (T *serverToPeerBinding) ErrUnexpectedPacket() error {
