@@ -42,6 +42,12 @@ template data directory, so startup takes well under a second.
 
 Set `PGTEST_LOG=1` to print PostgreSQL server output.
 
+The embedded server is PostgreSQL 18. Only PostgreSQL 18 and later send
+`ParameterStatus` for `search_path`. On earlier versions pggat is never told about
+`SET search_path` at runtime, so transaction pooling cannot carry it to another
+server connection. The `search_path` tests (`search_path_test.go`) need 18+ and
+would fail on 17. Startup `search_path` values do not depend on this.
+
 ## Writing tests
 
 Tests connect with `connURL(addr)` where `addr` is one of:

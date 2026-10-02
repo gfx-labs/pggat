@@ -21,7 +21,8 @@ const (
 	Username = "postgres"
 	Password = "postgres"
 
-	version = embeddedpostgres.V17
+	// PostgreSQL 18 reports search_path in ParameterStatus, which pggat relies on to track it.
+	version = embeddedpostgres.V18
 
 	pgHBA = `local all         all              scram-sha-256
 host  all         all 127.0.0.1/32 scram-sha-256

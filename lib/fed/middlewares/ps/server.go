@@ -5,15 +5,18 @@ import (
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
+	"maps"
 )
 
 type Server struct {
-	parameters map[strutil.CIString]string
+	parameters        map[strutil.CIString]string
+	initialParameters map[strutil.CIString]string
 }
 
 func NewServer(parameters map[strutil.CIString]string) *Server {
 	return &Server{
-		parameters: parameters,
+		parameters:        maps.Clone(parameters),
+		initialParameters: maps.Clone(parameters),
 	}
 }
 

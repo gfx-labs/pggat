@@ -55,8 +55,6 @@ func init() {
 			default:
 				return nil, d.ArgErr()
 			}
-		} else {
-			module.TrackedParameters = nil
 		}
 
 		for nesting := d.Nesting(); d.NextBlock(nesting); {
@@ -217,8 +215,6 @@ func init() {
 				TrackedParameters:          defaultTrackedParameters(),
 			},
 		}
-
-		module.TrackedParameters = nil
 
 		for nesting := d.Nesting(); d.NextBlock(nesting); {
 			directive := d.Val()
