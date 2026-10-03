@@ -228,6 +228,12 @@ func startup1(ctx context.Context, params *acceptParams) (done bool, err error) 
 		params.Conn.InitialParameters[ikey] = p.Value
 		return false, nil
 	case packets.TypeReadyForQuery:
+		// Consume the status byte so the connection is at a packet boundary.
+		var p packets.ReadyForQuery
+		err = fed.ToConcrete(&p, packet)
+		if err != nil {
+			return
+		}
 		return true, nil
 	case packets.TypeMarkiplierResponse:
 		var p packets.MarkiplierResponse

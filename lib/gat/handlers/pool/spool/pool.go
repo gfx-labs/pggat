@@ -293,6 +293,13 @@ func (T *Pool) Acquire(client uuid.UUID) *Server {
 			continue
 		}
 
+		// Nothing has been sent yet, so replacing a backend that died while idle is safe.
+		if !c.Conn.IdleUsable() {
+			T.config.Logger.Warn("discarding unusable idle backend", zap.String("server", c.ID.String()))
+			T.RemoveServer(context.Background(), c)
+			continue
+		}
+
 		return c
 	}
 }

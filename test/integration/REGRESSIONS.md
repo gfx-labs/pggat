@@ -17,6 +17,7 @@ upstream test code or fixtures were copied. Pggat's license is unchanged.
 | `TestDisconnectInTransactionRollsBack` | Graceful and abrupt disconnects roll back writes, release transaction locks, and return the same backend to the pool. | PgCat [disconnect during a transaction](https://github.com/postgresml/pgcat/blob/5b038813eb14f181434ab7b5509e74d9b1fe123b/tests/ruby/misc_spec.rb#L180-L188), checked through PostgreSQL data and backend PIDs rather than a mocked query counter. |
 | `TestInvalidStartupParameterKeepsBackend` | A rejected startup setting returns `22023` without replacing the healthy backend or leaking settings to its next client. Covers transaction, session, and hybrid primary pools. | Pggat-specific lifecycle defect found during the coverage audit. |
 | `TestTerminateDoesNotWaitForBackend` | An idle client's Terminate closes promptly while the only backend belongs to another transaction. | Pggat-specific lifecycle defect found during the coverage audit. |
+| `TestIdleTerminatedBackendIsReplaced` | A terminated idle backend is replaced before its next client's query is sent. The client remains usable and receives a new backend PID. | Odyssey [server-closed regression](https://github.com/yandex/odyssey/blob/456131c5ae1e292cf0b1353a2ac9295d2b6ed38a/test/pg_regress/tests/broken_conn/sql/server_closed.sql). |
 
 The original hybrid and deallocation regressions fail on the pre-fix code:
 
@@ -34,6 +35,16 @@ new regression tests fail on the previous implementation.
 
 The other original tests protect missing contracts that already worked when
 this comparison was made.
+
+Idle checkout now rejects pending input or a closed socket before pairing. It
+never retries an application query that may have executed. This is a best-effort
+snapshot, not a guarantee that the backend cannot fail immediately afterward.
+Socket peeking is available on Linux, macOS, and the supported BSD targets.
+Other platforms and custom transports can only inspect buffered input. TLS
+probes also check internal buffered input, bound reads and writes, and reject
+transport write failures. A TLS KeyUpdate requesting a response can cause a
+conservative reconnect. TLS probe diagnostics use real TLS transports, but the
+embedded PostgreSQL fixture still disables backend TLS.
 
 The single-server native JSON fixture uses the existing recipe min/max limits
 of one. It prevents a test from accidentally passing by using another backend.
@@ -58,24 +69,19 @@ seen by the client during replay.
    reading the backend until Sync. Repair needs a separate protocol change,
    including response ordering, error draining, and backpressure coverage.
    The diagnostic is not part of the passing CI suite.
-2. **Idle backend termination, confirmed.** Terminating a pooled backend while
-   idle can make its next client receive `FATAL 57P01` and disconnect. Odyssey's
-   [server-closed regression](https://github.com/yandex/odyssey/blob/456131c5ae1e292cf0b1353a2ac9295d2b6ed38a/test/pg_regress/tests/broken_conn/sql/server_closed.sql)
-   motivates checkout-liveness coverage. Any repair must avoid retrying a query
-   whose execution status is unknown.
-3. **Real replica routing and replay.** The existing hybrid Gatfile has no
+2. **Real replica routing and replay.** The existing hybrid Gatfile has no
    replica and exercises primary fallback only. Add an actual standby fixture
    before claiming coverage for writes, `SELECT FOR UPDATE`, data-changing CTEs,
    multi-statement transactions, or partial results followed by a write error.
    Pgpool-II's [multi-statement transaction scenarios](https://github.com/pgpool/pgpool2/blob/a76292e80f388dea26893cc63eb270a6be9011c1/src/test/regression/tests/001.load_balance/sql/7.sql)
    are useful inputs, but its routing assertions are not transferable directly.
-4. **In-flight cancellation across backend reuse.** PgBouncer's
+3. **In-flight cancellation across backend reuse.** PgBouncer's
    [cancel race](https://github.com/pgbouncer/pgbouncer/blob/7d38761c8f6c757238fde9f942cf9fe0cd272ae3/test/test_cancel.py#L80-L112)
    sends many simultaneous cancellations while another client reuses a backend.
    Idle-client cancellation coverage is not proof that an already forwarded
    cancellation cannot hit a later owner. This needs a distinct concurrency
    regression and cancellation lifecycle analysis.
-5. **Late CopyDone and large pipelines.** The ordinary COPY recovery test does
+4. **Late CopyDone and large pipelines.** The ordinary COPY recovery test does
    not cover PgBouncer's [late-CopyDone race](https://github.com/pgbouncer/pgbouncer/blob/7d38761c8f6c757238fde9f942cf9fe0cd272ae3/test/test_copy.py#L142-L178)
    or full-duplex streaming under socket backpressure. Avoid timing-only sleeps
    when adapting these scenarios.
