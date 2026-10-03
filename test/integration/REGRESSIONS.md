@@ -15,8 +15,10 @@ upstream test code or fixtures were copied. Pggat's license is unchanged.
 | `TestCopyFromErrorInTransaction` | Invalid COPY input reaches the client as a PostgreSQL error, leaves the transaction failed until rollback, and allows a later successful COPY on the same client. | PgBouncer [ordinary COPY failure](https://github.com/pgbouncer/pgbouncer/blob/7d38761c8f6c757238fde9f942cf9fe0cd272ae3/test/test_copy.py#L34-L42), extended here to transaction recovery. This does not reproduce the late-CopyDone race. |
 | `TestCancelRequestTargetsOnlyActiveClient` | An active client receives `57014` and recovers on the same backend. An idle client's cancel does not interrupt another client using that backend. | PgBouncer [cancel](https://github.com/pgbouncer/pgbouncer/blob/7d38761c8f6c757238fde9f942cf9fe0cd272ae3/test/test_cancel.py#L9-L17) and [ownership race](https://github.com/pgbouncer/pgbouncer/blob/7d38761c8f6c757238fde9f942cf9fe0cd272ae3/test/test_cancel.py#L80-L112). This does not reproduce the in-flight race. |
 | `TestDisconnectInTransactionRollsBack` | Graceful and abrupt disconnects roll back writes, release transaction locks, and return the same backend to the pool. | PgCat [disconnect during a transaction](https://github.com/postgresml/pgcat/blob/5b038813eb14f181434ab7b5509e74d9b1fe123b/tests/ruby/misc_spec.rb#L180-L188), checked through PostgreSQL data and backend PIDs rather than a mocked query counter. |
+| `TestInvalidStartupParameterKeepsBackend` | A rejected startup setting returns `22023` without replacing the healthy backend or leaking settings to its next client. Covers transaction, session, and hybrid primary pools. | Pggat-specific lifecycle defect found during the coverage audit. |
+| `TestTerminateDoesNotWaitForBackend` | An idle client's Terminate closes promptly while the only backend belongs to another transaction. | Pggat-specific lifecycle defect found during the coverage audit. |
 
-Two regressions fail on the pre-fix code:
+The original hybrid and deallocation regressions fail on the pre-fix code:
 
 - The hybrid pool changes an ordinary `25006` error from the primary into
   `FATAL XX000` and closes the client. Only replica errors should request a retry
@@ -25,8 +27,13 @@ Two regressions fail on the pre-fix code:
   silently recreates a statement the client already deallocated. Clear the
   prepared statements without discarding portals or queued protocol requests.
 
-The other tests protect missing contracts that already worked when this
-comparison was made.
+Rejected startup settings now count as client errors after PostgreSQL has sent
+ReadyForQuery. Transport failures and FATAL errors still discard the backend.
+The basic pool also handles an idle Terminate before acquiring a server. Both
+new regression tests fail on the previous implementation.
+
+The other original tests protect missing contracts that already worked when
+this comparison was made.
 
 The single-server native JSON fixture uses the existing recipe min/max limits
 of one. It prevents a test from accidentally passing by using another backend.

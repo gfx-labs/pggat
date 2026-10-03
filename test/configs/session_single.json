@@ -1,0 +1,53 @@
+{
+  "listen": [
+    {
+      "address": ":6436"
+    }
+  ],
+  "routes": [
+    {
+      "match": {
+        "matcher": "database",
+        "database": "testdb"
+      },
+      "handle": {
+        "handler": "pool",
+        "pool": {
+          "pool": "basic",
+          "pooler": {
+            "pooler": "lifo"
+          },
+          "parameter_status_sync": "initial",
+          "client_acquire_timeout": 10000000000,
+          "otel_tracing_option": 1,
+          "server_idle_timeout": 60000000000,
+          "server_reset_query": "DISCARD ALL",
+          "server_reset_query_timeout": 15000000000,
+          "server_reconnect_initial_time": 10000000,
+          "server_reconnect_max_time": 1000000000,
+          "tracked_parameters": [
+            "client_encoding",
+            "datestyle",
+            "timezone",
+            "standard_conforming_strings",
+            "application_name",
+            "intervalstyle",
+            "search_path"
+          ]
+        },
+        "recipe": {
+          "address": "postgres-primary:5432",
+          "ssl_mode": "disable",
+          "ssl": {
+            "provider": "insecure_skip_verify"
+          },
+          "username": "postgres",
+          "password": "postgres",
+          "database": "testdb",
+          "min_connections": 1,
+          "max_connections": 1
+        }
+      }
+    }
+  ]
+}

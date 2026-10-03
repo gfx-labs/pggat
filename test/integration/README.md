@@ -7,9 +7,9 @@ Everything runs in-process. No Docker is needed:
   and seeded from `test/fixtures/init-primary.sql`.
 - pggat is started from the Gatfiles in `test/configs/` (transaction, session, hybrid).
   Each Gatfile is rewritten to point at the embedded server and listen on a free port.
-- `test/configs/single_server.json` adds a native JSON server configuration with
-  exactly one backend. Recipe connection limits are not exposed by the static
-  Gatfile pool directive.
+- Native JSON fixtures add transaction, session, and hybrid pools with exactly
+  one backend. Recipe connection limits are not exposed by the static Gatfile
+  pool directive.
 
 ## Running
 
@@ -62,6 +62,8 @@ Tests connect with `connURL(addr)` where `addr` is one of:
 | `hybridAddr`      | pggat, `hybrid.Gatfile`         |
 | `primaryAddr`     | PostgreSQL directly             |
 | `singleServerAddr` | Transaction pool, one backend   |
+| `sessionSingleAddr` | Session pool, one backend       |
+| `hybridSingleAddr` | Hybrid primary pool, one backend |
 
 ```go
 func TestMyFeature(t *testing.T) {
@@ -77,9 +79,9 @@ func TestMyFeature(t *testing.T) {
 ```
 
 Tests run in parallel and share one database, so write only inside transactions
-that are rolled back, or use unique names. Tests using `singleServerAddr` must
-not call `t.Parallel()`. That fixture makes backend reuse deterministic and
-makes a connection that is not released block the next client.
+that are rolled back, or use unique names. Tests using a single-backend fixture
+must not call `t.Parallel()`. Those fixtures make backend reuse deterministic,
+and an unreleased connection blocks the next client.
 
 [Regression scenarios and upstream sources](REGRESSIONS.md) describe the
 pooler comparisons, retained coverage, and remaining gaps.

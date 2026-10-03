@@ -36,6 +36,9 @@ var (
 	sessionAddr      string
 	hybridAddr       string
 	singleServerAddr string
+	// one-backend servers, see addSingleServers
+	sessionSingleAddr string
+	hybridSingleAddr  string
 )
 
 func connURL(addr string, query ...string) string {
@@ -94,7 +97,7 @@ func startPggat() error {
 	if err := json.Unmarshal(cfg, &config); err != nil {
 		return err
 	}
-	if err := addSingleServer(&config); err != nil {
+	if err := addSingleServers(&config); err != nil {
 		return err
 	}
 	config.Admin = &caddy.AdminConfig{Disabled: true}
@@ -105,27 +108,37 @@ func startPggat() error {
 }
 
 // Recipe limits are exposed by native JSON, but not by the static pool Gatfile directive.
-func addSingleServer(config *caddy.Config) error {
-	raw, err := os.ReadFile(filepath.Join("..", "configs", "single_server.json"))
-	if err != nil {
-		return err
-	}
-	port, err := pgtest.FreePort()
-	if err != nil {
-		return err
-	}
-	singleServerAddr = fmt.Sprintf("127.0.0.1:%d", port)
-	s := strings.ReplaceAll(string(raw), "postgres-primary:5432", primaryAddr)
-	s = strings.ReplaceAll(s, ":6435", fmt.Sprintf(":%d", port))
-	var server gat.ServerConfig
-	if err := json.Unmarshal([]byte(s), &server); err != nil {
-		return err
-	}
+func addSingleServers(config *caddy.Config) error {
 	var app gat.Config
 	if err := json.Unmarshal(config.AppsRaw["pggat"], &app); err != nil {
 		return err
 	}
-	app.Servers = append(app.Servers, server)
+	for _, c := range []struct {
+		file, listen string
+		addr         *string
+	}{
+		{"single_server.json", ":6435", &singleServerAddr},
+		{"session_single.json", ":6436", &sessionSingleAddr},
+		{"hybrid_single.json", ":6437", &hybridSingleAddr},
+	} {
+		raw, err := os.ReadFile(filepath.Join("..", "configs", c.file))
+		if err != nil {
+			return err
+		}
+		port, err := pgtest.FreePort()
+		if err != nil {
+			return err
+		}
+		*c.addr = fmt.Sprintf("127.0.0.1:%d", port)
+		s := strings.ReplaceAll(string(raw), "postgres-primary:5432", primaryAddr)
+		s = strings.ReplaceAll(s, c.listen, fmt.Sprintf(":%d", port))
+		var server gat.ServerConfig
+		if err := json.Unmarshal([]byte(s), &server); err != nil {
+			return err
+		}
+		app.Servers = append(app.Servers, server)
+	}
+	var err error
 	config.AppsRaw["pggat"], err = json.Marshal(app)
 	return err
 }
@@ -189,7 +202,7 @@ func run(m *testing.M) int {
 	}
 	defer caddy.Stop()
 
-	if err := waitReady(ctx, transactionAddr, sessionAddr, hybridAddr, singleServerAddr); err != nil {
+	if err := waitReady(ctx, transactionAddr, sessionAddr, hybridAddr, singleServerAddr, sessionSingleAddr, hybridSingleAddr); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}

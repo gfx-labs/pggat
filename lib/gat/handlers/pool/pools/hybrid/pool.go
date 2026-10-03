@@ -2,6 +2,7 @@ package hybrid
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -23,6 +24,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/instrumentation/prom"
+	"gfx.cafe/gfx/pggat/lib/perror"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -76,7 +78,7 @@ func (T *Pool) Pair(ctx context.Context, client *Client, server *spool.Server) (
 	defer span.End()
 
 	// returning 2 errors is questionable
-	err, serverErr = T.pair(ctx, client, server)
+	err, serverErr = clientPairError(T.pair(ctx, client, server))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -86,6 +88,16 @@ func (T *Pool) Pair(ctx context.Context, client *Client, server *spool.Server) (
 	}
 
 	return
+}
+
+// clientPairError treats a PostgreSQL ERROR drained through ReadyForQuery as the client's error.
+// The backend stays usable. Transport failures and FATAL errors remain server errors.
+func clientPairError(err, serverErr error) (error, error) {
+	var perr perror.Error
+	if err == nil && errors.As(serverErr, &perr) && perr.Severity() == perror.ERROR {
+		return serverErr, nil
+	}
+	return err, serverErr
 }
 
 func (T *Pool) pair(ctx context.Context, client *Client, server *spool.Server) (err, serverErr error) {
@@ -300,10 +312,10 @@ func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.C
 					return pool.ErrFailedToAcquirePeer
 				}
 
-				serverErr = T.PairPrimary(ctx, client, psi, eqpi, primary)
+				err, serverErr = clientPairError(nil, T.PairPrimary(ctx, client, psi, eqpi, primary))
 				dur := time.Since(start)
 
-				if serverErr == nil {
+				if err == nil && serverErr == nil {
 					prom.OperationHybrid.Acquire(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
 					start := time.Now()
 					err, serverErr = bouncers.Bounce(ctx, conn, primary.Conn, packet)
