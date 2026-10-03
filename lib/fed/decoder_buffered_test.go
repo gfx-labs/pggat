@@ -8,9 +8,11 @@ import (
 )
 
 func frame(typ byte, length uint32, body []byte) []byte {
-	b := []byte{typ, 0, 0, 0, 0}
-	binary.BigEndian.PutUint32(b[1:], length)
-	return append(b, body...)
+	b := make([]byte, 5+len(body))
+	b[0] = typ
+	binary.BigEndian.PutUint32(b[1:5], length)
+	copy(b[5:], body)
+	return b
 }
 
 func packetOf(typ byte, body []byte) []byte {
