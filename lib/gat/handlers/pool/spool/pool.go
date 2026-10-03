@@ -341,8 +341,9 @@ func (T *Pool) RemoveServer(ctx context.Context, server *Server) {
 	T.pooler.DeleteServer(server.ID)
 }
 
-func (T *Pool) Cancel(ctx context.Context, server *Server) {
-	T.chef.Cancel(ctx, server.Conn)
+// Cancel returns pool.ErrCancelUnconfirmed if server may still receive the cancel later.
+func (T *Pool) Cancel(ctx context.Context, server *Server) error {
+	return T.chef.Cancel(ctx, server.Conn)
 }
 
 func (T *Pool) ReadMetrics(ctx context.Context, m *metrics.Pool) {

@@ -269,11 +269,7 @@ func (T *Pool) serve(ctx context.Context, conn *fed.Conn) error {
 	var server *spool.Server
 	defer func() {
 		if server != nil {
-			if serverErr != nil {
-				T.servers.RemoveServer(ctx, server)
-			} else {
-				T.servers.Release(ctx, server)
-			}
+			_ = T.release(ctx, client, metrics.ConnStateIdle, server, serverErr != nil)
 			server = nil
 		}
 	}()
@@ -320,9 +316,11 @@ func (T *Pool) serve(ctx context.Context, conn *fed.Conn) error {
 	opLabels := poolLabels.ToOperation()
 	for {
 		if server != nil && T.config.ReleaseAfterTransaction {
-			client.SetState(metrics.ConnStateIdle, nil)
-			T.servers.Release(ctx, server)
+			err = T.release(ctx, client, metrics.ConnStateIdle, server, false)
 			server = nil
+			if err != nil {
+				return err
+			}
 		}
 
 		var packet fed.Packet
@@ -374,28 +372,32 @@ func (T *Pool) serve(ctx context.Context, conn *fed.Conn) error {
 	}
 }
 
+// release detaches server from client, then returns it to the pool. A server that may still
+// receive a cancel forwarded for client is removed instead. It returns a client write error.
+func (T *Pool) release(ctx context.Context, client *Client, state metrics.ConnState, server *spool.Server, remove bool) error {
+	burn, err := client.Detach(ctx, state, server)
+	if burn || remove {
+		T.servers.RemoveServer(ctx, server)
+		return err
+	}
+	T.servers.Release(ctx, server)
+	return err
+}
+
 func (T *Pool) Cancel(ctx context.Context, key fed.BackendKey) {
 	ctx, span := T.tracer.Start(ctx, "Cancel")
 	defer span.End()
 
-	peer := func() *spool.Server {
-		T.mu.RLock()
-		defer T.mu.RUnlock()
-
-		c, ok := T.clients[key]
-		if !ok {
-			return nil
-		}
-
-		_, _, peer := c.GetState()
-		return peer
-	}()
-
-	if peer == nil {
+	T.mu.RLock()
+	c, ok := T.clients[key]
+	T.mu.RUnlock()
+	if !ok {
 		return
 	}
 
-	T.servers.Cancel(ctx, peer)
+	c.Cancel(func(peer *spool.Server) error {
+		return T.servers.Cancel(ctx, peer)
+	})
 }
 
 func (T *Pool) ReadMetrics(ctx context.Context, m *metrics.Pool) {

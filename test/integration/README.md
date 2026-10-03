@@ -64,6 +64,11 @@ Tests connect with `connURL(addr)` where `addr` is one of:
 | `singleServerAddr` | Transaction pool, one backend   |
 | `sessionSingleAddr` | Session pool, one backend       |
 | `hybridSingleAddr` | Hybrid primary pool, one backend |
+| `cancelSingleAddr` | Transaction pool, one backend reached through `cancels` |
+| `cancelHybridAddr` | Hybrid primary pool, one backend reached through `cancels` |
+
+`cancels` is a TCP proxy in front of PostgreSQL that holds each forwarded
+CancelRequest until the test delivers or resets it (`cancel_race_test.go`).
 
 ```go
 func TestMyFeature(t *testing.T) {

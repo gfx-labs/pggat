@@ -39,6 +39,10 @@ var (
 	// one-backend servers, see addSingleServers
 	sessionSingleAddr string
 	hybridSingleAddr  string
+	// one-backend transaction and hybrid pools whose backend is reached through cancels
+	cancelSingleAddr string
+	cancelHybridAddr string
+	cancels          *cancelProxy
 )
 
 func connURL(addr string, query ...string) string {
@@ -116,10 +120,13 @@ func addSingleServers(config *caddy.Config) error {
 	for _, c := range []struct {
 		file, listen string
 		addr         *string
+		backend      string
 	}{
-		{"single_server.json", ":6435", &singleServerAddr},
-		{"session_single.json", ":6436", &sessionSingleAddr},
-		{"hybrid_single.json", ":6437", &hybridSingleAddr},
+		{"single_server.json", ":6435", &singleServerAddr, primaryAddr},
+		{"session_single.json", ":6436", &sessionSingleAddr, primaryAddr},
+		{"hybrid_single.json", ":6437", &hybridSingleAddr, primaryAddr},
+		{"single_server.json", ":6435", &cancelSingleAddr, cancels.Addr()},
+		{"hybrid_single.json", ":6437", &cancelHybridAddr, cancels.Addr()},
 	} {
 		raw, err := os.ReadFile(filepath.Join("..", "configs", c.file))
 		if err != nil {
@@ -130,7 +137,7 @@ func addSingleServers(config *caddy.Config) error {
 			return err
 		}
 		*c.addr = fmt.Sprintf("127.0.0.1:%d", port)
-		s := strings.ReplaceAll(string(raw), "postgres-primary:5432", primaryAddr)
+		s := strings.ReplaceAll(string(raw), "postgres-primary:5432", c.backend)
 		s = strings.ReplaceAll(s, c.listen, fmt.Sprintf(":%d", port))
 		var server gat.ServerConfig
 		if err := json.Unmarshal([]byte(s), &server); err != nil {
@@ -196,13 +203,20 @@ func run(m *testing.M) int {
 		return 1
 	}
 
+	cancels, err = startCancelProxy(primaryAddr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "start cancel proxy:", err)
+		return 1
+	}
+	defer cancels.Close()
+
 	if err := startPggat(); err != nil {
 		fmt.Fprintln(os.Stderr, "start pggat:", err)
 		return 1
 	}
 	defer caddy.Stop()
 
-	if err := waitReady(ctx, transactionAddr, sessionAddr, hybridAddr, singleServerAddr, sessionSingleAddr, hybridSingleAddr); err != nil {
+	if err := waitReady(ctx, transactionAddr, sessionAddr, hybridAddr, singleServerAddr, sessionSingleAddr, hybridSingleAddr, cancelSingleAddr, cancelHybridAddr); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
