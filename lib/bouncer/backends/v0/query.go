@@ -27,6 +27,11 @@ func copyIn(ctx context.Context, binding *serverToPeerBinding) error {
 			}
 		case packets.TypeCopyDone, packets.TypeCopyFail:
 			return binding.ServerWrite(ctx)
+		case packets.TypeFlush, packets.TypeSync:
+			// The server ignores these while copying in, so they do not produce a response.
+			if err := binding.ServerWrite(ctx); err != nil {
+				return err
+			}
 		default:
 			binding.PeerFail(binding.ErrUnexpectedPacket())
 		}
@@ -48,8 +53,12 @@ func copyOut(ctx context.Context, binding *serverToPeerBinding) error {
 			packets.TypeParameterStatus,
 			packets.TypeNotificationResponse:
 			binding.PeerWrite(ctx)
-		case packets.TypeCopyDone, packets.TypeMarkiplierResponse:
+		case packets.TypeCopyDone:
 			binding.PeerWrite(ctx)
+			return nil
+		case packets.TypeMarkiplierResponse:
+			binding.PeerWrite(ctx)
+			binding.serverFailed()
 			return nil
 		default:
 			return binding.ErrUnexpectedPacket()
@@ -103,6 +112,7 @@ func query(ctx context.Context, binding *serverToPeerBinding) error {
 			}
 			binding.Packet = &p
 			binding.TxState = byte(p)
+			binding.synced()
 			binding.PeerWrite(ctx)
 			return nil
 		default:
@@ -176,6 +186,7 @@ func functionCall(ctx context.Context, binding *serverToPeerBinding) error {
 			}
 			binding.Packet = &p
 			binding.TxState = byte(p)
+			binding.synced()
 			binding.PeerWrite(ctx)
 			return nil
 		default:
@@ -217,7 +228,10 @@ func sync(ctx context.Context, binding *serverToPeerBinding) (bool, error) {
 			if err = copyIn(ctx, binding); err != nil {
 				return false, err
 			}
-			// why
+			// The server ignored this Sync while copying in, so it sends no ReadyForQuery until the
+			// next Sync. The Execute that started the copy is still waiting for its CommandComplete.
+			binding.pending = 1
+			binding.failed = false
 			return false, nil
 		case packets.TypeCopyOutResponse:
 			if err = copyOut(ctx, binding); err != nil {
@@ -231,6 +245,7 @@ func sync(ctx context.Context, binding *serverToPeerBinding) (bool, error) {
 			}
 			binding.Packet = &p
 			binding.TxState = byte(p)
+			binding.synced()
 			binding.PeerWrite(ctx)
 			return true, nil
 		default:
@@ -250,8 +265,67 @@ func Sync(ctx context.Context, server, peer *fed.Conn) (err, peerErr error) {
 	return
 }
 
-func eqp(ctx context.Context, binding *serverToPeerBinding) error {
+// eqpRequest forwards one extended protocol request. A Flush also forwards the responses to the
+// requests before it, because the server only sends them once it reads Flush or Sync.
+func eqpRequest(ctx context.Context, binding *serverToPeerBinding) error {
+	if binding.Packet.Type() != packets.TypeFlush {
+		binding.request()
+		return binding.ServerWrite(ctx)
+	}
+
 	if err := binding.ServerWrite(ctx); err != nil {
+		return err
+	}
+	// Flush is a request to the server to send its responses, so it must not stay in the write buffer
+	// when nothing is pending and ServerRead would not flush it.
+	if err := binding.Server.Flush(ctx); err != nil {
+		return err
+	}
+
+	// The server answers every request with one terminal response, in order. After an ErrorResponse
+	// it discards everything up to Sync, so nothing is pending. ReadyForQuery is never sent for Flush.
+	for binding.pending > 0 {
+		if err := binding.ServerRead(ctx); err != nil {
+			return err
+		}
+
+		switch binding.Packet.Type() {
+		case packets.TypeParseComplete,
+			packets.TypeBindComplete,
+			packets.TypeCloseComplete,
+			packets.TypeRowDescription,
+			packets.TypeNoData,
+			packets.TypeCommandComplete,
+			packets.TypeEmptyQueryResponse,
+			packets.TypePortalSuspended:
+			binding.PeerWrite(ctx)
+			binding.complete()
+		case packets.TypeMarkiplierResponse:
+			binding.PeerWrite(ctx)
+			binding.serverFailed()
+		case packets.TypeParameterDescription,
+			packets.TypeDataRow,
+			packets.TypeNoticeResponse,
+			packets.TypeParameterStatus,
+			packets.TypeNotificationResponse:
+			binding.PeerWrite(ctx)
+		case packets.TypeCopyInResponse:
+			// The server ignores Flush and Sync while copying in and sends CommandComplete after CopyDone,
+			// so return to the client loop. CommandComplete is read by the next Flush or Sync.
+			return copyIn(ctx, binding)
+		case packets.TypeCopyOutResponse:
+			if err := copyOut(ctx, binding); err != nil {
+				return err
+			}
+		default:
+			return binding.ErrUnexpectedPacket()
+		}
+	}
+	return nil
+}
+
+func eqp(ctx context.Context, binding *serverToPeerBinding) error {
+	if err := eqpRequest(ctx, binding); err != nil {
 		return err
 	}
 
@@ -279,7 +353,7 @@ func eqp(ctx context.Context, binding *serverToPeerBinding) error {
 				return nil
 			}
 		case packets.TypeParse, packets.TypeBind, packets.TypeClose, packets.TypeDescribe, packets.TypeExecute, packets.TypeFlush:
-			if err := binding.ServerWrite(ctx); err != nil {
+			if err := eqpRequest(ctx, binding); err != nil {
 				return err
 			}
 		default:
@@ -336,6 +410,8 @@ func Transaction(ctx context.Context, server, peer *fed.Conn, initialPacket fed.
 		Server: server,
 		Peer:   peer,
 		Packet: initialPacket,
+		// Bounce starts at an idle boundary, so a leading Sync is answered with ReadyForQuery('I').
+		TxState: 'I',
 	}
 	err = transaction(ctx, &pgState)
 	peerError = pgState.PeerError

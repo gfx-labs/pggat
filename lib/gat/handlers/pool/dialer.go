@@ -4,9 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/caddyserver/caddy/v2"
 
@@ -19,6 +22,13 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
+
+// cancelTimeout bounds one forwarded CancelRequest, from dial to PostgreSQL closing the socket.
+const cancelTimeout = 10 * time.Second
+
+// ErrCancelUnconfirmed means a CancelRequest may have reached PostgreSQL without its close being seen,
+// so the backend may still receive the cancel later.
+var ErrCancelUnconfirmed = errors.New("cancel request not confirmed by server")
 
 type Dialer struct {
 	Address  string          `json:"address"`
@@ -54,16 +64,17 @@ func (T *Dialer) Provision(ctx caddy.Context) error {
 	return nil
 }
 
-func (T *Dialer) dial() (net.Conn, error) {
+func (T *Dialer) dial(ctx context.Context) (net.Conn, error) {
+	var d net.Dialer
 	if strings.HasPrefix(T.Address, "/") {
-		return net.Dial("unix", T.Address)
+		return d.DialContext(ctx, "unix", T.Address)
 	} else {
-		return net.Dial("tcp", T.Address)
+		return d.DialContext(ctx, "tcp", T.Address)
 	}
 }
 
 func (T *Dialer) Dial() (*fed.Conn, error) {
-	c, err := T.dial()
+	c, err := T.dial(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -87,21 +98,44 @@ func (T *Dialer) Dial() (*fed.Conn, error) {
 	return conn, nil
 }
 
-func (T *Dialer) Cancel(ctx context.Context, key fed.BackendKey) {
-	c, err := T.dial()
+// Cancel forwards a CancelRequest and waits for PostgreSQL to close the connection, which it does
+// after signaling the backend. It returns ErrCancelUnconfirmed if the request may have been delivered
+// but that close was not observed.
+func (T *Dialer) Cancel(ctx context.Context, key fed.BackendKey) error {
+	ctx, cancel := context.WithTimeout(ctx, cancelTimeout)
+	defer cancel()
+
+	c, err := T.dial(ctx)
 	if err != nil {
-		return
+		// nothing was sent
+		return err
+	}
+	defer func() {
+		_ = c.Close()
+	}()
+	// The codec ignores ctx, so closing the socket is what interrupts a blocked write or read.
+	stop := context.AfterFunc(ctx, func() {
+		_ = c.Close()
+	})
+	defer stop()
+	if deadline, ok := ctx.Deadline(); ok {
+		if err = c.SetDeadline(deadline); err != nil {
+			return err
+		}
 	}
 	conn := fed.NewConn(netconncodec.NewCodec(c))
-	defer func() {
-		_ = conn.Close(ctx)
-	}()
 	if err = backends.Cancel(ctx, conn, key); err != nil {
-		return
+		return errors.Join(ErrCancelUnconfirmed, err)
+	}
+	if err = conn.Flush(ctx); err != nil {
+		return errors.Join(ErrCancelUnconfirmed, err)
 	}
 
-	// wait for server to close the connection, this means that the server received it ok
-	_, _ = conn.ReadPacket(ctx, true)
+	// PostgreSQL signals the backend before closing, so a clean close means the cancel is pending there.
+	if _, err = conn.ReadPacket(ctx, true); !errors.Is(err, io.EOF) {
+		return errors.Join(ErrCancelUnconfirmed, err)
+	}
+	return nil
 }
 
 var _ caddy.Provisioner = (*gat.Listener)(nil)

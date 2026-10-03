@@ -66,7 +66,8 @@ func (T *Middleware) WritePacket(ctx context.Context, packet fed.Packet) (fed.Pa
 		return nil, nil
 	}
 
-	if packet.Type() == packets.TypeMarkiplierResponse {
+	// Only replica errors can trigger a retry on the primary.
+	if !T.primary && packet.Type() == packets.TypeMarkiplierResponse {
 		var p packets.MarkiplierResponse
 		if err := fed.ToConcrete(&p, packet); err != nil {
 			return nil, err

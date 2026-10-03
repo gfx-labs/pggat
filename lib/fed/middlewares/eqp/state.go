@@ -19,11 +19,17 @@ type Close struct {
 	Target  string
 }
 
+type queuedParse struct {
+	parse *packets.Parse
+	// injected is set for a Parse pggat sent on the client's behalf. Its ParseComplete is not forwarded.
+	injected bool
+}
+
 type State struct {
 	preparedStatements map[string]*packets.Parse
 	portals            map[string]*packets.Bind
 
-	pendingPreparedStatements ring.Ring[*packets.Parse]
+	pendingPreparedStatements ring.Ring[queuedParse]
 	pendingPortals            ring.Ring[*packets.Bind]
 	pendingCloses             ring.Ring[Close]
 }
@@ -116,21 +122,47 @@ func (T *State) Parse(packet fed.Packet) (fed.Packet, error) {
 	if err != nil {
 		return nil, err
 	}
-	T.pendingPreparedStatements.PushBack(&p)
+	T.pendingPreparedStatements.PushBack(queuedParse{parse: &p})
 	return &p, nil
 }
 
+// inject records a Parse sent on the client's behalf.
+func (T *State) inject(p *packets.Parse) {
+	T.pendingPreparedStatements.PushBack(queuedParse{parse: p, injected: true})
+}
+
 // ParseComplete notifies that a parse was successful. Execute on ParseComplete S->C
-func (T *State) ParseComplete() {
-	preparedStatement, ok := T.pendingPreparedStatements.PopFront()
+func (T *State) ParseComplete() (queuedParse, bool) {
+	pending, ok := T.pendingPreparedStatements.PopFront()
 	if !ok {
-		return
+		return pending, false
 	}
 
 	if T.preparedStatements == nil {
 		T.preparedStatements = make(map[string]*packets.Parse)
 	}
-	T.preparedStatements[preparedStatement.Destination] = preparedStatement
+	T.preparedStatements[pending.parse.Destination] = pending.parse
+	return pending, true
+}
+
+// pendingParse reports whether a Parse of the named statement awaits its response.
+func (T *State) pendingParse(name string) bool {
+	for i := 0; i < T.pendingPreparedStatements.Length(); i++ {
+		if T.pendingPreparedStatements.Get(i).parse.Destination == name {
+			return true
+		}
+	}
+	return false
+}
+
+// pendingClose reports whether a Close of the named statement awaits its response.
+func (T *State) pendingClose(name string) bool {
+	for i := 0; i < T.pendingCloses.Length(); i++ {
+		if c := T.pendingCloses.Get(i); c.Variant == CloseVariantPreparedStatement && c.Target == name {
+			return true
+		}
+	}
+	return false
 }
 
 // Bind is a pending portal. Execute on Bind C->S
@@ -163,12 +195,17 @@ func (T *State) Query() {
 	delete(T.preparedStatements, "")
 }
 
-// CommandComplete clobbers everything if DISCARD ALL | DEALLOCATE | CLOSE
+// CommandComplete clobbers statements on DEALLOCATE ALL, everything on DISCARD ALL
 func (T *State) CommandComplete(packet fed.Packet) (fed.Packet, error) {
 	var p packets.CommandComplete
 	err := fed.ToConcrete(&p, packet)
 	if err != nil {
 		return nil, err
+	}
+
+	// Existing portals and queued protocol requests survive DEALLOCATE ALL.
+	if p == "DEALLOCATE ALL" {
+		maps.Clear(T.preparedStatements)
 	}
 
 	if p == "DISCARD ALL" {
