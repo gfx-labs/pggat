@@ -71,12 +71,15 @@ func (T *Pool) RemoveRecipe(ctx context.Context, name string) {
 	T.primary.RemoveRecipe(ctx, name)
 }
 
-func (T *Pool) Pair(ctx context.Context, client *Client, server *spool.Server) (err, serverErr error) {
+// Pair syncs client state onto server. replica reports which pool server was
+// acquired from: Cancel forwards a client's cancel request to that pool, so it
+// must match, or the cancel is dropped and the query keeps running.
+func (T *Pool) Pair(ctx context.Context, client *Client, server *spool.Server, replica bool) (err, serverErr error) {
 	ctx, span := T.tracer.Start(ctx, "Pair")
 	defer span.End()
 
 	// returning 2 errors is questionable
-	err, serverErr = T.pair(ctx, client, server)
+	err, serverErr = T.pair(ctx, client, server, replica)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -88,8 +91,8 @@ func (T *Pool) Pair(ctx context.Context, client *Client, server *spool.Server) (
 	return
 }
 
-func (T *Pool) pair(ctx context.Context, client *Client, server *spool.Server) (err, serverErr error) {
-	client.SetState(metrics.ConnStatePairing, server, true)
+func (T *Pool) pair(ctx context.Context, client *Client, server *spool.Server, replica bool) (err, serverErr error) {
+	client.SetState(metrics.ConnStatePairing, server, replica)
 	server.SetState(metrics.ConnStatePairing, client.ID)
 
 	err, serverErr = ps.Sync(ctx, T.config.TrackedParameters, client.Conn, server.Conn)
@@ -104,7 +107,7 @@ func (T *Pool) pair(ctx context.Context, client *Client, server *spool.Server) (
 		return
 	}
 
-	client.SetState(metrics.ConnStateActive, server, true)
+	client.SetState(metrics.ConnStateActive, server, replica)
 	server.SetState(metrics.ConnStateActive, client.ID)
 	return
 }
@@ -199,7 +202,7 @@ func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.C
 				return pool.ErrFailedToAcquirePeer
 			}
 
-			err, serverErr = T.Pair(ctx, client, replica)
+			err, serverErr = T.Pair(ctx, client, replica, true)
 			if serverErr != nil {
 				return serverErr
 			}
@@ -214,7 +217,7 @@ func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.C
 				return pool.ErrFailedToAcquirePeer
 			}
 
-			err, serverErr = T.Pair(ctx, client, primary)
+			err, serverErr = T.Pair(ctx, client, primary, false)
 			if serverErr != nil {
 				return serverErr
 			}
@@ -258,7 +261,7 @@ func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.C
 				return pool.ErrFailedToAcquirePeer
 			}
 
-			err, serverErr = T.Pair(ctx, client, replica)
+			err, serverErr = T.Pair(ctx, client, replica, true)
 			dur := time.Since(start)
 
 			psi.Set(ctx, psa)
@@ -336,7 +339,7 @@ func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.C
 				return pool.ErrFailedToAcquirePeer
 			}
 
-			err, serverErr = T.Pair(ctx, client, primary)
+			err, serverErr = T.Pair(ctx, client, primary, false)
 
 			dur := time.Since(start)
 
@@ -402,14 +405,14 @@ func (T *Pool) serveOnly(ctx context.Context, l prom.PoolHybridLabels, conn *fed
 	}()
 
 	if !conn.Ready {
-		client.SetState(metrics.ConnStateAwaitingServer, nil, true)
+		client.SetState(metrics.ConnStateAwaitingServer, nil, !write)
 
 		server = sp.Acquire(client.ID)
 		if server == nil {
 			return pool.ErrFailedToAcquirePeer
 		}
 
-		err, serverErr = T.Pair(ctx, client, server)
+		err, serverErr = T.Pair(ctx, client, server, !write)
 		if serverErr != nil {
 			return serverErr
 		}
@@ -437,7 +440,7 @@ func (T *Pool) serveOnly(ctx context.Context, l prom.PoolHybridLabels, conn *fed
 			sp.Release(ctx, server)
 			server = nil
 		}
-		client.SetState(metrics.ConnStateIdle, nil, true)
+		client.SetState(metrics.ConnStateIdle, nil, !write)
 
 		var packet fed.Packet
 		packet, err = conn.ReadPacket(ctx, true)
@@ -445,14 +448,14 @@ func (T *Pool) serveOnly(ctx context.Context, l prom.PoolHybridLabels, conn *fed
 			return err
 		}
 
-		client.SetState(metrics.ConnStateAwaitingServer, nil, true)
+		client.SetState(metrics.ConnStateAwaitingServer, nil, !write)
 
 		start := time.Now()
 		server = sp.Acquire(client.ID)
 		if server == nil {
 			return pool.ErrFailedToAcquirePeer
 		}
-		err, serverErr = T.Pair(ctx, client, server)
+		err, serverErr = T.Pair(ctx, client, server, !write)
 		dur := time.Since(start)
 		if err == nil && serverErr == nil {
 			prom.OperationHybrid.Acquire(opL).Observe(float64(dur) / float64(time.Millisecond))
