@@ -2,9 +2,11 @@ package eqp
 
 import (
 	"context"
+
 	"gfx.cafe/gfx/pggat/lib/bouncer/backends/v0"
 	"gfx.cafe/gfx/pggat/lib/fed"
 	packets "gfx.cafe/gfx/pggat/lib/fed/packets/v3.0"
+	"gfx.cafe/gfx/pggat/lib/perror"
 	"gfx.cafe/gfx/pggat/lib/util/slices"
 )
 
@@ -20,11 +22,17 @@ func preparedStatementsEqual(a, b *packets.Parse) bool {
 	return true
 }
 
+// SyncMiddleware makes the server's prepared statements and portals match the client's.
+// Prepared statements are parsed lazily, just before the client next uses them, so a statement
+// that no longer parses fails only that request, with its own error.
 func SyncMiddleware(ctx context.Context, c *Client, server *fed.Conn) error {
 	s, ok := fed.LookupMiddleware[*Server](server)
 	if !ok {
 		panic("middleware not found")
 	}
+
+	clear(s.lazy)
+	s.deferred = nil
 
 	var needsBackendSync bool
 
@@ -67,7 +75,7 @@ func SyncMiddleware(ctx context.Context, c *Client, server *fed.Conn) error {
 		needsBackendSync = true
 	}
 
-	// parse all prepared statements that aren't on server
+	// defer every prepared statement that isn't on server
 	for name, preparedStatement := range c.state.preparedStatements {
 		if serverPreparedStatement, ok := s.state.preparedStatements[name]; ok {
 			if preparedStatementsEqual(preparedStatement, serverPreparedStatement) {
@@ -75,14 +83,13 @@ func SyncMiddleware(ctx context.Context, c *Client, server *fed.Conn) error {
 			}
 		}
 
-		if err := server.WritePacket(ctx, preparedStatement); err != nil {
-			return err
+		if s.lazy == nil {
+			s.lazy = make(map[string]*packets.Parse)
 		}
-
-		needsBackendSync = true
+		s.lazy[name] = preparedStatement
 	}
 
-	// bind all portals
+	// bind all portals. Binding injects the Parse of their prepared statements.
 	for _, portal := range c.state.portals {
 		if err := server.WritePacket(ctx, portal); err != nil {
 			return err
@@ -91,13 +98,44 @@ func SyncMiddleware(ctx context.Context, c *Client, server *fed.Conn) error {
 		needsBackendSync = true
 	}
 
-	if needsBackendSync {
-		var err error
-		err, _ = backends.Sync(ctx, server, nil)
+	if !needsBackendSync {
+		return nil
+	}
+
+	if err := server.WritePacket(ctx, &packets.Sync{}); err != nil {
 		return err
 	}
 
-	return nil
+	// Close does not fail, so an error belongs to a client portal or the Parse injected for it.
+	// The portal cannot be recreated, so report it.
+	var serverErr error
+	s.syncing = true
+	defer func() { s.syncing = false }()
+	for {
+		packet, err := server.ReadPacket(ctx, true)
+		if err != nil {
+			return err
+		}
+		switch packet.Type() {
+		case packets.TypeBindComplete,
+			packets.TypeCloseComplete,
+			packets.TypeNoticeResponse,
+			packets.TypeParameterStatus,
+			packets.TypeNotificationResponse:
+		case packets.TypeMarkiplierResponse:
+			if serverErr == nil {
+				var p packets.MarkiplierResponse
+				if err = fed.ToConcrete(&p, packet); err != nil {
+					return err
+				}
+				serverErr = perror.FromPacket(&p)
+			}
+		case packets.TypeReadyForQuery:
+			return serverErr
+		default:
+			return backends.ErrUnexpectedPacket(packet.Type())
+		}
+	}
 }
 
 func Sync(ctx context.Context, client, server *fed.Conn) error {

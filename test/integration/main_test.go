@@ -17,6 +17,7 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"github.com/jackc/pgx/v5"
 
+	"gfx.cafe/gfx/pggat/lib/gat"
 	_ "gfx.cafe/gfx/pggat/lib/gat/gatcaddyfile"
 	_ "gfx.cafe/gfx/pggat/lib/gat/standard"
 
@@ -30,10 +31,18 @@ var (
 	postgresPassword = pgtest.Password
 
 	// addresses set by TestMain
-	primaryAddr     string
-	transactionAddr string
-	sessionAddr     string
-	hybridAddr      string
+	primaryAddr      string
+	transactionAddr  string
+	sessionAddr      string
+	hybridAddr       string
+	singleServerAddr string
+	// one-backend servers, see addSingleServers
+	sessionSingleAddr string
+	hybridSingleAddr  string
+	// one-backend transaction and hybrid pools whose backend is reached through cancels
+	cancelSingleAddr string
+	cancelHybridAddr string
+	cancels          *cancelProxy
 )
 
 func connURL(addr string, query ...string) string {
@@ -92,11 +101,53 @@ func startPggat() error {
 	if err := json.Unmarshal(cfg, &config); err != nil {
 		return err
 	}
+	if err := addSingleServers(&config); err != nil {
+		return err
+	}
 	config.Admin = &caddy.AdminConfig{Disabled: true}
 	if err := caddy.Run(&config); err != nil {
 		return fmt.Errorf("run pggat: %w", err)
 	}
 	return nil
+}
+
+// Recipe limits are exposed by native JSON, but not by the static pool Gatfile directive.
+func addSingleServers(config *caddy.Config) error {
+	var app gat.Config
+	if err := json.Unmarshal(config.AppsRaw["pggat"], &app); err != nil {
+		return err
+	}
+	for _, c := range []struct {
+		file, listen string
+		addr         *string
+		backend      string
+	}{
+		{"single_server.json", ":6435", &singleServerAddr, primaryAddr},
+		{"session_single.json", ":6436", &sessionSingleAddr, primaryAddr},
+		{"hybrid_single.json", ":6437", &hybridSingleAddr, primaryAddr},
+		{"single_server.json", ":6435", &cancelSingleAddr, cancels.Addr()},
+		{"hybrid_single.json", ":6437", &cancelHybridAddr, cancels.Addr()},
+	} {
+		raw, err := os.ReadFile(filepath.Join("..", "configs", c.file))
+		if err != nil {
+			return err
+		}
+		port, err := pgtest.FreePort()
+		if err != nil {
+			return err
+		}
+		*c.addr = fmt.Sprintf("127.0.0.1:%d", port)
+		s := strings.ReplaceAll(string(raw), "postgres-primary:5432", c.backend)
+		s = strings.ReplaceAll(s, c.listen, fmt.Sprintf(":%d", port))
+		var server gat.ServerConfig
+		if err := json.Unmarshal([]byte(s), &server); err != nil {
+			return err
+		}
+		app.Servers = append(app.Servers, server)
+	}
+	var err error
+	config.AppsRaw["pggat"], err = json.Marshal(app)
+	return err
 }
 
 func seed(ctx context.Context, pg *pgtest.Server) error {
@@ -152,13 +203,20 @@ func run(m *testing.M) int {
 		return 1
 	}
 
+	cancels, err = startCancelProxy(primaryAddr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "start cancel proxy:", err)
+		return 1
+	}
+	defer cancels.Close()
+
 	if err := startPggat(); err != nil {
 		fmt.Fprintln(os.Stderr, "start pggat:", err)
 		return 1
 	}
 	defer caddy.Stop()
 
-	if err := waitReady(ctx, transactionAddr, sessionAddr, hybridAddr); err != nil {
+	if err := waitReady(ctx, transactionAddr, sessionAddr, hybridAddr, singleServerAddr, sessionSingleAddr, hybridSingleAddr, cancelSingleAddr, cancelHybridAddr); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}

@@ -2,6 +2,7 @@ package hybrid
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -23,6 +24,7 @@ import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/spool"
 	"gfx.cafe/gfx/pggat/lib/gat/metrics"
 	"gfx.cafe/gfx/pggat/lib/instrumentation/prom"
+	"gfx.cafe/gfx/pggat/lib/perror"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 )
 
@@ -76,7 +78,7 @@ func (T *Pool) Pair(ctx context.Context, client *Client, server *spool.Server) (
 	defer span.End()
 
 	// returning 2 errors is questionable
-	err, serverErr = T.pair(ctx, client, server)
+	err, serverErr = clientPairError(T.pair(ctx, client, server))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -86,6 +88,16 @@ func (T *Pool) Pair(ctx context.Context, client *Client, server *spool.Server) (
 	}
 
 	return
+}
+
+// clientPairError treats a PostgreSQL ERROR drained through ReadyForQuery as the client's error.
+// The backend stays usable. Transport failures and FATAL errors remain server errors.
+func clientPairError(err, serverErr error) (error, error) {
+	var perr perror.Error
+	if err == nil && errors.As(serverErr, &perr) && perr.Severity() == perror.ERROR {
+		return serverErr, nil
+	}
+	return err, serverErr
 }
 
 func (T *Pool) pair(ctx context.Context, client *Client, server *spool.Server) (err, serverErr error) {
@@ -173,19 +185,11 @@ func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.C
 	var primary, replica *spool.Server
 	defer func() {
 		if primary != nil {
-			if serverErr != nil {
-				T.primary.RemoveServer(ctx, primary)
-			} else {
-				T.primary.Release(ctx, primary)
-			}
+			_ = T.release(ctx, client, &T.primary, primary, serverErr != nil)
 			primary = nil
 		}
 		if replica != nil {
-			if serverErr != nil {
-				T.replica.RemoveServer(ctx, replica)
-			} else {
-				T.replica.Release(ctx, replica)
-			}
+			_ = T.release(ctx, client, &T.replica, replica, serverErr != nil)
 			replica = nil
 		}
 	}()
@@ -233,12 +237,18 @@ func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.C
 
 	for {
 		if primary != nil {
-			T.primary.Release(ctx, primary)
+			err = T.release(ctx, client, &T.primary, primary, false)
 			primary = nil
+			if err != nil {
+				return err
+			}
 		}
 		if replica != nil {
-			T.replica.Release(ctx, replica)
+			err = T.release(ctx, client, &T.replica, replica, false)
 			replica = nil
+			if err != nil {
+				return err
+			}
 		}
 		client.SetState(metrics.ConnStateIdle, nil, false)
 
@@ -283,8 +293,11 @@ func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.C
 			if err == (ErrReadOnly{}) {
 				m.Primary()
 
-				T.replica.Release(ctx, replica)
+				err = T.release(ctx, client, &T.replica, replica, false)
 				replica = nil
+				if err != nil {
+					return err
+				}
 
 				packet, err = conn.ReadPacket(ctx, true)
 				if err != nil {
@@ -300,10 +313,10 @@ func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.C
 					return pool.ErrFailedToAcquirePeer
 				}
 
-				serverErr = T.PairPrimary(ctx, client, psi, eqpi, primary)
+				err, serverErr = clientPairError(nil, T.PairPrimary(ctx, client, psi, eqpi, primary))
 				dur := time.Since(start)
 
-				if serverErr == nil {
+				if err == nil && serverErr == nil {
 					prom.OperationHybrid.Acquire(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
 					start := time.Now()
 					err, serverErr = bouncers.Bounce(ctx, conn, primary.Conn, packet)
@@ -392,11 +405,7 @@ func (T *Pool) serveOnly(ctx context.Context, l prom.PoolHybridLabels, conn *fed
 	var server *spool.Server
 	defer func() {
 		if server != nil {
-			if serverErr != nil {
-				sp.RemoveServer(ctx, server)
-			} else {
-				sp.Release(ctx, server)
-			}
+			_ = T.release(ctx, client, sp, server, serverErr != nil)
 			server = nil
 		}
 	}()
@@ -434,8 +443,11 @@ func (T *Pool) serveOnly(ctx context.Context, l prom.PoolHybridLabels, conn *fed
 
 	for {
 		if server != nil {
-			sp.Release(ctx, server)
+			err = T.release(ctx, client, sp, server, false)
 			server = nil
+			if err != nil {
+				return err
+			}
 		}
 		client.SetState(metrics.ConnStateIdle, nil, true)
 
@@ -518,32 +530,33 @@ func (T *Pool) serve(ctx context.Context, conn *fed.Conn) error {
 	}
 }
 
+// release detaches server from client, then returns it to sp. A server that may still
+// receive a cancel forwarded for client is removed instead. It returns a client write error.
+func (T *Pool) release(ctx context.Context, client *Client, sp *spool.Pool, server *spool.Server, remove bool) error {
+	burn, err := client.Detach(ctx, metrics.ConnStateIdle, server, false)
+	if burn || remove {
+		sp.RemoveServer(ctx, server)
+		return err
+	}
+	sp.Release(ctx, server)
+	return err
+}
+
 func (T *Pool) Cancel(ctx context.Context, key fed.BackendKey) {
 	ctx, span := T.tracer.Start(ctx, "Cancel")
 	defer span.End()
 
-	peer, replica := func() (*spool.Server, bool) {
-		T.mu.RLock()
-		defer T.mu.RUnlock()
-
-		c, ok := T.clients[key]
-		if !ok {
-			return nil, false
-		}
-
-		_, _, peer, replica := c.GetState()
-		return peer, replica
-	}()
-
-	if peer == nil {
+	T.mu.RLock()
+	c, ok := T.clients[key]
+	T.mu.RUnlock()
+	if !ok {
 		return
 	}
 
-	if replica {
-		T.replica.Cancel(ctx, peer)
-	} else {
-		T.primary.Cancel(ctx, peer)
-	}
+	// Route through the pool owning this connection, not the client's replica hint.
+	c.Cancel(func(peer *spool.Server) error {
+		return errors.Join(T.primary.Cancel(ctx, peer), T.replica.Cancel(ctx, peer))
+	})
 }
 
 func (T *Pool) ReadMetrics(ctx context.Context, m *metrics.Pool) {

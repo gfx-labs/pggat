@@ -312,16 +312,16 @@ func (T *Chef) Ignite(ctx context.Context, conn *fed.Conn) bool {
 	return true
 }
 
-func (T *Chef) Cancel(ctx context.Context, conn *fed.Conn) {
+// Cancel forwards a cancel for conn without holding the chef lock during network IO.
+func (T *Chef) Cancel(ctx context.Context, conn *fed.Conn) error {
 	T.mu.Lock()
-	defer T.mu.Unlock()
-
 	r, ok := T.byConn[conn]
+	T.mu.Unlock()
 	if !ok {
-		return
+		return nil
 	}
 
-	r.recipe.Cancel(ctx, conn.BackendKey)
+	return r.recipe.Cancel(ctx, conn.BackendKey)
 }
 
 func (T *Chef) Close(ctx context.Context) {
