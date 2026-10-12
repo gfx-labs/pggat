@@ -5,10 +5,13 @@ End-to-end tests that run real clients (pgx v5) through pggat against a real Pos
 Everything runs in-process. No Docker is needed:
 - PostgreSQL is started with [embedded-postgres](https://github.com/fergusstrange/embedded-postgres)
   and seeded from `test/fixtures/init-primary.sql`.
-- pggat is started from the Gatfiles in `test/configs/` (transaction, session, hybrid).
-  Each Gatfile is rewritten to point at the embedded server and listen on a free port.
+- pggat is started from the Caddyfiles in `test/configs/` (transaction, session, hybrid).
+  Each `[pg]` listener is rewritten to point at the embedded server and use a free port.
+- The integration process adapts and runs a single Caddyfile containing `[global]`,
+  `[pg]`, and `[http.server]` blocks. `TestCombinedHTTPAndPostgresCaddyfile` exercises
+  the HTTP endpoint and a PostgreSQL query from that shared runtime config.
 - Native JSON fixtures add transaction, session, and hybrid pools with exactly
-  one backend. Recipe connection limits are not exposed by the static Gatfile
+  one backend. Recipe connection limits are not exposed by the static Caddyfile
   pool directive.
 
 ## Running
@@ -57,9 +60,9 @@ Tests connect with `connURL(addr)` where `addr` is one of:
 
 | Variable          | Target                          |
 |-------------------|---------------------------------|
-| `transactionAddr` | pggat, `transaction.Gatfile`    |
-| `sessionAddr`     | pggat, `session.Gatfile`        |
-| `hybridAddr`      | pggat, `hybrid.Gatfile`         |
+| `transactionAddr` | pggat, `transaction.Caddyfile`  |
+| `sessionAddr`     | pggat, `session.Caddyfile`     |
+| `hybridAddr`      | pggat, `hybrid.Caddyfile`      |
 | `primaryAddr`     | PostgreSQL directly             |
 | `singleServerAddr` | Transaction pool, one backend   |
 | `sessionSingleAddr` | Session pool, one backend       |

@@ -15,11 +15,11 @@ import (
 	"gfx.cafe/gfx/pggat/lib/auth/credentials"
 	"gfx.cafe/gfx/pggat/lib/bouncer"
 	"gfx.cafe/gfx/pggat/lib/gat"
-	"gfx.cafe/gfx/pggat/lib/gat/gatcaddyfile"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/pools/basic"
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/rewrite_password"
 	"gfx.cafe/gfx/pggat/lib/gat/matchers"
+	"gfx.cafe/gfx/pggat/lib/gat/pgcaddyfile"
 	"gfx.cafe/gfx/pggat/lib/util/strutil"
 	"gfx.cafe/gfx/pggat/test"
 	"gfx.cafe/gfx/pggat/test/pgtest"
@@ -78,11 +78,11 @@ func createServer(parent dialer, pools map[string]caddy.Module) (server gat.Serv
 	server.Routes = append(
 		server.Routes,
 		gat.RouteConfig{
-			Handle: gatcaddyfile.JSONModuleObject(
+			Handle: pgcaddyfile.JSONModuleObject(
 				&rewrite_password.Module{
 					Password: password,
 				},
-				gatcaddyfile.Handler,
+				pgcaddyfile.Handler,
 				"handler",
 				nil,
 			),
@@ -91,9 +91,9 @@ func createServer(parent dialer, pools map[string]caddy.Module) (server gat.Serv
 
 	for name, pp := range pools {
 		p := pool.Module{
-			Pool: gatcaddyfile.JSONModuleObject(
+			Pool: pgcaddyfile.JSONModuleObject(
 				pp,
-				gatcaddyfile.Pool,
+				pgcaddyfile.Pool,
 				"pool",
 				nil,
 			),
@@ -109,17 +109,17 @@ func createServer(parent dialer, pools map[string]caddy.Module) (server gat.Serv
 		}
 
 		server.Routes = append(server.Routes, gat.RouteConfig{
-			Match: gatcaddyfile.JSONModuleObject(
+			Match: pgcaddyfile.JSONModuleObject(
 				&matchers.Database{
 					Database: strutil.Matcher(name),
 				},
-				gatcaddyfile.Matcher,
+				pgcaddyfile.Matcher,
 				"matcher",
 				nil,
 			),
-			Handle: gatcaddyfile.JSONModuleObject(
+			Handle: pgcaddyfile.JSONModuleObject(
 				&p,
-				gatcaddyfile.Handler,
+				pgcaddyfile.Handler,
 				"handler",
 				nil,
 			),

@@ -46,10 +46,10 @@ pggat's architecture consists of several layers:
    - Support for penalty-based routing (latency, replication lag)
    - Critics evaluate server health and apply penalties
 
-5. **Configuration** (`lib/gat/gatcaddyfile/`)
-   - Custom Caddyfile adapter called "Gatfile"
-   - Supports both Caddyfile syntax and native JSON configuration
-   - Default config file name: `Gatfile` (searched in current directory)
+5. **Configuration** (`lib/gat/pgcaddyfile/`)
+   - Custom `[pg]` block integrated with the standard Caddyfile adapter
+   - Supports Caddyfile syntax with `[pg]` PostgreSQL blocks and standard Caddy `[global]` / `[http.server]` blocks, plus native JSON
+   - Default config file name: `Caddyfile` (searched in current directory)
 
 6. **Authentication** (`lib/auth/`)
    - Supports: Cleartext, MD5, SASL-SCRAM-SHA-256
@@ -125,7 +125,7 @@ docker build -t pggat .
 # Unit tests (make test)
 go test -race ./...
 
-# Integration tests: pgx clients through pggat started from test/configs/*.Gatfile (make integration)
+# Integration tests: pgx clients through pggat started from test/configs/*.Caddyfile (make integration)
 go test -race -tags integration ./test/integration/...
 
 # Coverage
@@ -153,27 +153,27 @@ go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run --fix
 ### Running Locally
 
 ```bash
-# Run with a Gatfile in current directory
+# Run with a Caddyfile in current directory
 go run ./cmd/pggat run
 
 # Run with specific config
-go run ./cmd/pggat run --config myconfig.Gatfile
+go run ./cmd/pggat run --config myconfig.Caddyfile
 
 # Run with config watching (auto-reload on changes)
-go run ./cmd/pggat run --config myconfig.Gatfile --watch
+go run ./cmd/pggat run --config myconfig.Caddyfile --watch
 
 # Validate config
-go run ./cmd/pggat validate --config myconfig.Gatfile
+go run ./cmd/pggat validate --config myconfig.Caddyfile
 
-# Convert Gatfile to JSON
-go run ./cmd/pggat adapt --config myconfig.Gatfile --pretty
+# Convert Caddyfile to JSON
+go run ./cmd/pggat adapt --config myconfig.Caddyfile --adapter caddyfile --pretty
 ```
 
 ### Configuration Example
 
-Example minimal Gatfile:
+Example minimal Caddyfile:
 ```caddyfile
-:5433 {
+[pg] :5433 {
     ssl self_signed
 
     pool /mydb {
@@ -228,7 +228,7 @@ lib/
 │   ├── middlewares/   # Packet middleware (ps, eqp, tracing, etc.)
 │   └── packets/       # Packet type definitions (GENERATED)
 ├── gat/               # Caddy integration and main app
-│   ├── gatcaddyfile/  # Gatfile configuration adapter
+│   ├── pgcaddyfile/   # Caddyfile [pg] block parser
 │   ├── handlers/      # Route handlers (pool, discovery, rewrite, etc.)
 │   ├── matchers/      # Request matchers (user, database, SSL, etc.)
 │   ├── metrics/       # Prometheus metrics
@@ -291,14 +291,14 @@ The `.claude/settings.local.json` file shows allowed Bash commands for AI assist
 1. Create package in `lib/gat/handlers/pool/pools/yourtype/`
 2. Implement `pool.Pool` interface
 3. Register factory in `lib/gat/handlers/pool/module.go`
-4. Add Gatfile unmarshaller in `lib/gat/gatcaddyfile/pool.go`
+4. Add Caddyfile unmarshalling in `lib/gat/pgcaddyfile/pool.go`
 
 ### Adding a New Matcher
 
 1. Create package in `lib/gat/matchers/yourmatcher.go`
 2. Implement `gat.Matcher` interface
 3. Register in Caddy module system
-4. Add Gatfile unmarshaller in `lib/gat/gatcaddyfile/matcher.go`
+4. Add Caddyfile unmarshalling in `lib/gat/pgcaddyfile/matcher.go`
 
 ### Adding Prometheus Metrics
 
@@ -338,9 +338,9 @@ Custom dependencies (gfx-labs):
 
 ## Debugging Tips
 
-1. Enable stat logging: Set `stat_log_period` in Gatfile global options
+1. Enable stat logging: Set `stat_log_period` in a keyless `[pg]` Caddyfile block
 2. Use OpenTelemetry tracing: Configure OTEL environment variables
 3. Check Prometheus metrics: Hit `/metrics` endpoint
-4. Validate config: `pggat validate --config yourconfig.Gatfile`
-5. Pretty-print adapted JSON: `pggat adapt --config yourconfig.Gatfile --pretty`
-6. Watch mode for development: `pggat run --config yourconfig.Gatfile --watch`
+4. Validate config: `pggat validate --config yourconfig.Caddyfile`
+5. Pretty-print adapted JSON: `pggat adapt --config yourconfig.Caddyfile --pretty`
+6. Watch mode for development: `pggat run --config yourconfig.Caddyfile --watch`

@@ -1,6 +1,6 @@
 # Session pooling: each client session gets a dedicated server connection.
 
-:6433 {
+[pg] :6433 {
 	pool /testdb {
 		pool basic session {
 			idle_timeout 300s

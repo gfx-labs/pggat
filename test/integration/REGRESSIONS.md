@@ -91,7 +91,7 @@ seen by the client during replay.
 
 ## Remaining gaps
 
-1. **Real replica routing and replay.** The existing hybrid Gatfile has no
+1. **Real replica routing and replay.** The existing hybrid Caddyfile has no
    replica and exercises primary fallback only. Add an actual standby fixture
    before claiming coverage for writes, `SELECT FOR UPDATE`, data-changing CTEs,
    multi-statement transactions, or partial results followed by a write error.

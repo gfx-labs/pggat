@@ -1,4 +1,4 @@
-package gatcaddyfile
+package pgcaddyfile
 
 // Common directive and configuration constants
 const (

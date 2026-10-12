@@ -1,4 +1,4 @@
-:5432 {
+[pg] :5432 {
 	ssl
 
 	# Basic Zalando operator discovery with environment variable
@@ -6,7 +6,7 @@
 }
 
 # Alternative configuration with label selectors
-:5433 {
+[pg] :5433 {
 	ssl
 
 	discovery {
