@@ -1,6 +1,6 @@
 module gfx.cafe/gfx/pggat
 
-go 1.27.0
+go 1.27.2
 
 // Caddy PR 7344: extensible configuration blocks, pinned while under review.
 replace github.com/caddyserver/caddy/v2 => github.com/elee1766/caddy/v2 v2.8.5-0.20261009021648-ff3c2333ff14
@@ -218,7 +218,7 @@ require (
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20260929172509-b39ff6d641ec // indirect
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba // indirect
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
