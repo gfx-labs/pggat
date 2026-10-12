@@ -1,6 +1,6 @@
 # Transaction pooling: each transaction may run on a different server connection.
 
-:6432 {
+[pg] :6432 {
 	pool /testdb {
 		pool basic transaction {
 			idle_timeout 60s

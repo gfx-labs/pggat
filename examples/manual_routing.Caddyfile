@@ -1,8 +1,8 @@
-{
+[pg] {
 	stat_log_period 1s
 }
 
-:6432 {
+[pg] :6432 {
 	ssl self_signed
 	require_ssl
 

@@ -1,4 +1,4 @@
-:5433 {
+[pg] :5433 {
 	ssl self_signed
 
 	tracing otel {

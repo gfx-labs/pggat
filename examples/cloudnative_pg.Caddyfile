@@ -2,7 +2,7 @@
 # Each discovered cluster gets a hybrid pool: writes go to the -rw service,
 # reads are balanced across the -ro service.
 
-:5433 {
+[pg] :5433 {
 	ssl self_signed
 
 	discovery {

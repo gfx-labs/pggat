@@ -8,7 +8,7 @@ pggat() {
 }
 
 if ! [[ -z "${PGGAT_RUN_MODE}" ]]; then
-    $EXEC_BIN_PATH run --adapter="gatfile" --config="/presets/${PGGAT_RUN_MODE:=default}.Caddyfile"
+    $EXEC_BIN_PATH run --adapter="caddyfile" --config="/presets/${PGGAT_RUN_MODE:=default}.Caddyfile"
     exit 0
 fi
 

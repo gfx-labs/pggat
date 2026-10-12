@@ -11,7 +11,7 @@ the name comes from [this song, as it is a banger](https://www.youtube.com/watch
 pggat is built on the [Caddy](https://caddyserver.com/) framework, leveraging its module system, configuration management, and runtime capabilities. This provides pggat with:
 
 - A Robust plugin architecture through Caddy modules
-- Familiar Caddyfile configuration format (adapted as Gatfile)
+- Familiar Caddyfile configuration with pggat `[pg]` blocks
 - A possible path to integration with Caddy down the line
 
 ## Features
@@ -83,10 +83,39 @@ pggat is built on the [Caddy](https://caddyserver.com/) framework, leveraging it
 - Error message handling
 
 ### Configuration
-- Gatfile configuration format (Using Caddyfile internals)
+- Standard Caddyfile adapter with custom `[pg]` blocks, alongside Caddy `[global]` and `[http.server]` blocks
+- Native JSON configuration remains supported
 - Runtime configuration reloading (Via Caddy)
 - Environment variable support
 - Command-line interface
+
+A pggat server is declared in a `[pg]` block. Keep pggat-wide options such as `stat_log_period` in a keyless `[pg]` block. Caddy-wide settings belong in `[global]`, and HTTP sites can use `[http.server]` blocks in the same file.
+
+By default, pggat reads `Caddyfile` from the current directory. For an explicit config path, use the standard `caddyfile` adapter (`--adapter caddyfile`). The former `gatfile` adapter and untyped PostgreSQL listener blocks are removed. Rename `Gatfile` to `Caddyfile`, add `[pg]` to PostgreSQL listener blocks, and move PostgreSQL-wide options such as `stat_log_period` into a keyless `[pg]` block. Keep Caddy-wide settings in `[global]`.
+
+The `go.mod` replace currently pins Caddy PR #7344 at commit `ff3c2333ff1468297d9c49c2bf82f8be5163275e` while the custom block API is under review. Keep this pin until a released Caddy version includes the compatible API.
+
+```caddyfile
+[global] {
+    admin off
+}
+
+[pg] {
+    stat_log_period 1m
+}
+
+[pg] :5433 {
+    pool /mydb {
+        pool basic session
+        address localhost:5432
+        username postgres
+        password postgres
+        database mydb
+    }
+}
+```
+
+`pggat` also continues to accept native JSON configuration.
 
 ## Pooling Modes
 There are currently two pooling modes which compromise between balancing and feature support. Most apps should work out of the box with transaction pooling.
@@ -96,7 +125,7 @@ Send each transaction to a new node. This mode supports all postgres features th
 
 This is similar to PgBouncer's transaction pooling except we additionally support protocol level prepared statements and parameter status synchronization.
 
-Gatfile pools track `search_path` by default. Startup values are applied when pairing a client with a server. Session-level `SET search_path` persists across transactions only on PostgreSQL 18 or later, which reports changes through `ParameterStatus`. On older servers, use `BEGIN; SET LOCAL search_path ...; ...; COMMIT` for each transaction or use session pooling. Unreported session-level changes cannot be tracked or isolated by transaction pooling.
+pggat Caddyfile pools track `search_path` by default. Startup values are applied when pairing a client with a server. Session-level `SET search_path` persists across transactions only on PostgreSQL 18 or later, which reports changes through `ParameterStatus`. On older servers, use `BEGIN; SET LOCAL search_path ...; ...; COMMIT` for each transaction or use session pooling. Unreported session-level changes cannot be tracked or isolated by transaction pooling.
 
 Using LISTEN commands in this mode will lead to undefined behavior (you may not receive the notifications you want, and you may receive notifications you did not ask for).
 

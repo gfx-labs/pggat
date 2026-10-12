@@ -1,4 +1,4 @@
-:{$CONNECTION_POOLER_PORT:5432} {
+[pg] :{$CONNECTION_POOLER_PORT:5432} {
 	ssl x509_key_pair /etc/ssl/certs/pgbouncer.crt /etc/ssl/certs/pgbouncer.key
 	require_ssl
 

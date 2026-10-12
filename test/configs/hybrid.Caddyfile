@@ -2,7 +2,7 @@
 # Replica recipes are added by discovery. With a static address only the
 # primary is configured, so reads fall back to it.
 
-:6434 {
+[pg] :6434 {
 	pool /testdb {
 		pool hybrid {
 			idle_timeout 300s
