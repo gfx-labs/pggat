@@ -24,10 +24,10 @@ Use Caddy's standard `caddyfile` adapter. PostgreSQL servers use `[pg]` blocks. 
 }
 ```
 
-A keyless `[pg]` block configures pggat-wide options. `stat_log_period` defaults to `1m`. Each keyed `[pg]` block defines a listener; its keys become listener addresses. You can put the keyless options block before or after the listener blocks.
+A keyless `[pg]` block configures pggat-wide options. `stat_log_period` defaults to `1m`. Each keyed `[pg]` block defines a PostgreSQL server; its keys become listener addresses. You can put the keyless options block before or after the listener blocks.
 
 | Directive | Description |
 | --- | --- |
-| `stat_log_period` | pggat app log interval, accepted in keyless `[pg]` blocks |
+| `stat_log_period` | pggat app log interval; must be positive and appear in a keyless `[pg]` block |
 | `ssl` | listener SSL configuration |
 | `{handler}` | pggat handlers, evaluated in order |
