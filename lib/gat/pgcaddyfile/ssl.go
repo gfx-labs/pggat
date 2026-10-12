@@ -1,4 +1,4 @@
-package gatcaddyfile
+package pgcaddyfile
 
 import (
 	"github.com/caddyserver/caddy/v2"

@@ -1,4 +1,4 @@
-package gatcaddyfile
+package pgcaddyfile
 
 import (
 	"gfx.cafe/gfx/pggat/lib/gat/handlers/pool/critics/replication"
