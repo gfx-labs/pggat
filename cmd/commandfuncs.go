@@ -543,7 +543,7 @@ func cmdValidateConfig(fl Flags) (int, error) {
 	}
 	if validateCmdConfigFlag == "" {
 		return caddy.ExitCodeFailedStartup,
-			fmt.Errorf("input file required when there is no Gatfile in current directory (use --config flag)")
+			fmt.Errorf("input file required when there is no Caddyfile in current directory (use --config flag)")
 	}
 
 	input, _, err := LoadConfig(validateCmdConfigFlag, validateCmdAdapterFlag)
@@ -571,7 +571,7 @@ func cmdValidateConfig(fl Flags) (int, error) {
 func cmdFmt(fl Flags) (int, error) {
 	formatCmdConfigFile := fl.Arg(0)
 	if formatCmdConfigFile == "" {
-		formatCmdConfigFile = "Gatfile"
+		formatCmdConfigFile = "Caddyfile"
 	}
 
 	// as a special case, read from stdin if the file name is "-"
@@ -622,7 +622,7 @@ func cmdFmt(fl Flags) (int, error) {
 	}
 
 	if warning, diff := caddyfile.FormattingDifference(formatCmdConfigFile, input); diff {
-		return caddy.ExitCodeFailedStartup, fmt.Errorf(`%s:%d: Gatfile input is not formatted; Tip: use '--overwrite' to update your Gatfile in-place instead of previewing it. Consult '--help' for more options`,
+		return caddy.ExitCodeFailedStartup, fmt.Errorf(`%s:%d: Caddyfile input is not formatted; Tip: use '--overwrite' to update your Caddyfile in-place instead of previewing it. Consult '--help' for more options`,
 			warning.File,
 			warning.Line,
 		)
@@ -745,7 +745,7 @@ func DetermineAdminAPIAddress(address string, config []byte, configFile, configA
 				return "", err
 			}
 			if loadedConfigFile == "" {
-				return "", fmt.Errorf("no config file to load; either use --config flag or ensure Gatfile exists in current directory")
+				return "", fmt.Errorf("no config file to load; either use --config flag or ensure Caddyfile exists in current directory")
 			}
 		}
 
@@ -771,21 +771,21 @@ func DetermineAdminAPIAddress(address string, config []byte, configFile, configA
 // configFileWithRespectToDefault returns the filename to use for loading the config, based
 // on whether a config file is already specified and a supported default config file exists.
 func configFileWithRespectToDefault(logger *zap.Logger, configFile string) (string, error) {
-	const defaultGatfile = "Gatfile"
+	const defaultCaddyfile = "Caddyfile"
 
-	// if no input file was specified, try a default Gatfile if the Gatfile adapter is plugged in
-	if configFile == "" && caddyconfig.GetAdapter("gatfile") != nil {
-		_, err := os.Stat(defaultGatfile)
+	// if no input file was specified, try a default Caddyfile if the Caddyfile adapter is plugged in
+	if configFile == "" && caddyconfig.GetAdapter("caddyfile") != nil {
+		_, err := os.Stat(defaultCaddyfile)
 		if err == nil {
-			// default Gatfile exists
+			// default Caddyfile exists
 			if logger != nil {
-				logger.Info("using adjacent Gatfile")
+				logger.Info("using adjacent Caddyfile")
 			}
-			return defaultGatfile, nil
+			return defaultCaddyfile, nil
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
 			// problem checking
-			return configFile, fmt.Errorf("checking if default Gatfile exists: %v", err)
+			return configFile, fmt.Errorf("checking if default Caddyfile exists: %v", err)
 		}
 	}
 

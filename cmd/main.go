@@ -120,35 +120,34 @@ func loadConfigWithLogger(logger *zap.Logger, configFile, adapterName string) ([
 				zap.String("config_adapter", adapterName))
 		}
 	} else if adapterName == "" {
-		// if the Gatfile adapter is plugged in, we can try using an
-		// adjacent Gatfile by default
-		cfgAdapter = caddyconfig.GetAdapter("gatfile")
+		// if the Caddyfile adapter is plugged in, we can try using an
+		// adjacent Caddyfile by default
+		cfgAdapter = caddyconfig.GetAdapter("caddyfile")
 		if cfgAdapter != nil {
-			config, err = os.ReadFile("Gatfile")
+			config, err = os.ReadFile("Caddyfile")
 			switch {
 			case os.IsNotExist(err):
-				// okay, no default Gatfile; pretend like this never happened
+				// okay, no default Caddyfile; pretend like this never happened
 				cfgAdapter = nil
 			case err != nil:
-				// default Gatfile exists, but error reading it
-				return nil, "", fmt.Errorf("reading default Gatfile: %v", err)
+				// default Caddyfile exists, but error reading it
+				return nil, "", fmt.Errorf("reading default Caddyfile: %v", err)
 			default:
-				// success reading default Gatfile
-				configFile = "Gatfile"
+				// success reading default Caddyfile
+				configFile = "Caddyfile"
 				if logger != nil {
-					logger.Info("using adjacent Gatfile")
+					logger.Info("using adjacent Caddyfile")
 				}
 			}
 		}
 	}
 
-	// as a special case, if a config file called "Gatfile" was
-	// specified, and no adapter is specified, assume caddyfile adapter
-	// for convenience
-	if strings.HasPrefix(filepath.Base(configFile), "Gatfile") &&
-		filepath.Ext(configFile) != ".json" &&
+	// Infer the adapter for Caddyfile names without treating JSON as a Caddyfile.
+	baseConfig := strings.ToLower(filepath.Base(configFile))
+	if (strings.HasPrefix(baseConfig, "caddyfile") || strings.HasSuffix(baseConfig, ".caddyfile")) &&
+		filepath.Ext(baseConfig) != ".json" &&
 		adapterName == "" {
-		adapterName = "gatfile"
+		adapterName = "caddyfile"
 	}
 
 	// load config adapter

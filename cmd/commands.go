@@ -115,7 +115,7 @@ errors will immediately be used. If you want to review the results of the
 adaptation first, use the 'adapt' subcommand.
 
 As a special case, if the current working directory has a file called
-"Gatfile" and the caddyfile config adapter is plugged in (default), then
+"Caddyfile" and the caddyfile config adapter is plugged in (default), then
 that file will be loaded and used to configure Pggat, even without any command
 line flags.
 
@@ -265,7 +265,7 @@ zero exit status will be returned.
 `,
 		CobraFunc: func(cmd *cobra.Command) {
 			cmd.Flags().StringP("config", "c", "", "Configuration file to adapt (required)")
-			cmd.Flags().StringP("adapter", "a", "gatfile", "Name of config adapter")
+			cmd.Flags().StringP("adapter", "a", "caddyfile", "Name of config adapter")
 			cmd.Flags().BoolP("pretty", "p", false, "Format the output for human readability")
 			cmd.Flags().BoolP("validate", "", false, "Validate the output")
 			cmd.RunE = WrapCommandFuncForCobra(cmdAdaptConfig)
@@ -299,8 +299,8 @@ the KEY=VALUE format will be loaded into the Pggat process.
 Allows exporting and importing Pggat's storage contents. The two commands can be
 combined in a pipeline to transfer directly from one storage to another:
 
-$ caddy storage export --config Gatfile.old --output - |
-> caddy storage import --config Gatfile.new --input -
+$ caddy storage export --config Caddyfile.old --output - |
+> caddy storage import --config Caddyfile.new --input -
 
 The - argument refers to stdout and stdin, respectively.
 
@@ -345,9 +345,9 @@ a tar archive.
 	RegisterCommand(Command{
 		Name:  "fmt",
 		Usage: "[--overwrite] [--diff] [<path>]",
-		Short: "Formats a Gatfile",
+		Short: "Formats a Caddyfile",
 		Long: `
-Formats the Gatfile by adding proper indentation and spaces to improve
+Formats the Caddyfile by adding proper indentation and spaces to improve
 human readability. It prints the result to stdout.
 
 If --overwrite is specified, the output will be written to the config file
