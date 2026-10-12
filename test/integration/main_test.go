@@ -102,7 +102,9 @@ func startPggat() error {
 		return err
 	}
 	httpAddr = fmt.Sprintf("127.0.0.1:%d", httpPort)
-	caddyfile.WriteString(fmt.Sprintf("[http.server] http://%s {\n\trespond \"pggat-http-ok\"\n}\n", httpAddr))
+	if _, err := fmt.Fprintf(&caddyfile, "[http.server] http://%s {\n\trespond \"pggat-http-ok\"\n}\n", httpAddr); err != nil {
+		return err
+	}
 
 	adapter := caddyconfig.GetAdapter("caddyfile")
 	cfg, _, err := adapter.Adapt([]byte(caddyfile.String()), nil)
