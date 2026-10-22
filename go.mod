@@ -2,6 +2,8 @@ module gfx.cafe/gfx/pggat
 
 go 1.27.0
 
+toolchain go1.27.3
+
 require (
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/caddyserver/caddy/v2 v2.11.5-0.20260928121951-256df3c8ad4e
