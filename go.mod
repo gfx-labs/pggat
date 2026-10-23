@@ -1,6 +1,6 @@
 module gfx.cafe/gfx/pggat
 
-go 1.27.0
+go 1.27.3
 
 require (
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
@@ -198,7 +198,7 @@ require (
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20260709184058-243e02a382f8 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
