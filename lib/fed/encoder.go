@@ -9,7 +9,8 @@ import (
 	"gfx.cafe/gfx/pggat/lib/util/decorator"
 )
 
-const defaultBufferSize = 4 * 1024
+// Matches the 16KB TLS record limit, so a full buffer flushes as one record and one write.
+const defaultBufferSize = 16 * 1024
 
 type Encoder struct {
 	noCopy decorator.NoCopy
