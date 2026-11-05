@@ -1,28 +1,21 @@
 package prom
 
 import (
-	"github.com/gfx-labs/gotoprom"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func init() {
-	gotoprom.MustInit(&PoolHybrid, "pggat_pool_hybrid", prometheus.Labels{})
-	gotoprom.MustInit(&OperationHybrid, "pggat_operation_hybrid", prometheus.Labels{})
-}
-
 type PoolHybridLabels struct {
-	Mode     string `label:"mode"`
-	Database string `label:"database"`
-	User     string `label:"user"`
+	Mode     string
+	Database string
+	User     string
 }
 
 type OperationHybridLabels struct {
-	Pool string `label:"pool"`
-	Mode string `label:"mode"`
-
-	Target   string `label:"target"`
-	Database string `label:"database"`
-	User     string `label:"user"`
+	Pool     string
+	Mode     string
+	Target   string
+	Database string
+	User     string
 }
 
 func (s *PoolHybridLabels) ToOperation(
@@ -36,14 +29,45 @@ func (s *PoolHybridLabels) ToOperation(
 	}
 }
 
-var PoolHybrid struct {
-	Accepted func(PoolHybridLabels) prometheus.Counter `name:"accepted" help:"hybrid connections accepted"`
-	Current  func(PoolHybridLabels) prometheus.Gauge   `name:"current" help:"current hybrid connections"`
+func (l OperationHybridLabels) values() []string {
+	return []string{l.Pool, l.Mode, l.Target, l.Database, l.User}
 }
 
-var OperationHybrid struct {
-	Acquire   func(OperationHybridLabels) prometheus.Histogram `name:"acquire_ms"    buckets:"0.005,0.01,0.1,0.25,0.5,0.75,1,5,10,100,500,1000,5000"  help:"ms to acquire from pool"`
-	Execution func(OperationHybridLabels) prometheus.Histogram `name:"execution_ms"  buckets:"1,5,10,30,75,150,300,500,1000,2000,5000,7500,10000,15000,30000" help:"ms that the txn took to execute on remote"`
-	Miss      func(OperationHybridLabels) prometheus.Counter   `name:"write_misses" help:"queries which failed replica"`
-	Hit       func(OperationHybridLabels) prometheus.Counter   `name:"write_hits" help:"queries which failed replica"`
+var (
+	poolHybridAccepted = newCounterVec("pggat_pool_hybrid", "accepted", "hybrid connections accepted", "mode", "database", "user")
+	poolHybridCurrent  = newGaugeVec("pggat_pool_hybrid", "current", "current hybrid connections", "mode", "database", "user")
+
+	opHybridLabels    = []string{"pool", "mode", "target", "database", "user"}
+	opHybridAcquire   = newHistogramVec("pggat_operation_hybrid", "acquire_ms", "ms to acquire from pool", acquireBuckets, opHybridLabels...)
+	opHybridExecution = newHistogramVec("pggat_operation_hybrid", "execution_ms", "ms that the txn took to execute on remote", executionBuckets, opHybridLabels...)
+	opHybridMiss      = newCounterVec("pggat_operation_hybrid", "write_misses", "queries which failed replica", opHybridLabels...)
+	opHybridHit       = newCounterVec("pggat_operation_hybrid", "write_hits", "queries which failed replica", opHybridLabels...)
+)
+
+var PoolHybrid = struct {
+	Accepted func(PoolHybridLabels) prometheus.Counter
+	Current  func(PoolHybridLabels) prometheus.Gauge
+}{
+	Accepted: func(l PoolHybridLabels) prometheus.Counter {
+		return poolHybridAccepted.WithLabelValues(l.Mode, l.Database, l.User)
+	},
+	Current: func(l PoolHybridLabels) prometheus.Gauge {
+		return poolHybridCurrent.WithLabelValues(l.Mode, l.Database, l.User)
+	},
+}
+
+var OperationHybrid = struct {
+	Acquire   func(OperationHybridLabels) prometheus.Observer
+	Execution func(OperationHybridLabels) prometheus.Observer
+	Miss      func(OperationHybridLabels) prometheus.Counter
+	Hit       func(OperationHybridLabels) prometheus.Counter
+}{
+	Acquire:   func(l OperationHybridLabels) prometheus.Observer { return opHybridAcquire.WithLabelValues(l.values()...) },
+	Execution: func(l OperationHybridLabels) prometheus.Observer { return opHybridExecution.WithLabelValues(l.values()...) },
+	Miss:      func(l OperationHybridLabels) prometheus.Counter { return opHybridMiss.WithLabelValues(l.values()...) },
+	Hit:       func(l OperationHybridLabels) prometheus.Counter { return opHybridHit.WithLabelValues(l.values()...) },
+}
+
+func init() {
+	prometheus.MustRegister(poolHybridAccepted, poolHybridCurrent, opHybridAcquire, opHybridExecution, opHybridMiss, opHybridHit)
 }

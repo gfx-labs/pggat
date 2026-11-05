@@ -235,6 +235,11 @@ func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.C
 		conn.Ready = true
 	}
 
+	replicaL, primaryL := l.ToOperation("replica"), l.ToOperation("primary")
+	replicaAcquire, replicaExecution := prom.OperationHybrid.Acquire(replicaL), prom.OperationHybrid.Execution(replicaL)
+	primaryAcquire, primaryExecution := prom.OperationHybrid.Acquire(primaryL), prom.OperationHybrid.Execution(primaryL)
+	replicaHit := prom.OperationHybrid.Hit(replicaL)
+
 	for {
 		if primary != nil {
 			err = T.release(ctx, client, &T.primary, primary, false)
@@ -275,12 +280,12 @@ func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.C
 			eqpi.Set(ctx, eqpa)
 
 			if err == nil && serverErr == nil {
-				prom.OperationHybrid.Acquire(l.ToOperation("replica")).Observe(float64(dur) / float64(time.Millisecond))
+				replicaAcquire.Observe(float64(dur) / float64(time.Millisecond))
 				start := time.Now()
 				err, serverErr = bouncers.Bounce(ctx, conn, replica.Conn, packet)
 				if serverErr == nil {
 					dur := time.Since(start)
-					prom.OperationHybrid.Execution(l.ToOperation("replica")).Observe(float64(dur) / float64(time.Millisecond))
+					replicaExecution.Observe(float64(dur) / float64(time.Millisecond))
 				}
 			}
 			if serverErr != nil {
@@ -317,11 +322,11 @@ func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.C
 				dur := time.Since(start)
 
 				if err == nil && serverErr == nil {
-					prom.OperationHybrid.Acquire(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
+					primaryAcquire.Observe(float64(dur) / float64(time.Millisecond))
 					start := time.Now()
 					err, serverErr = bouncers.Bounce(ctx, conn, primary.Conn, packet)
 					dur := time.Since(start)
-					prom.OperationHybrid.Execution(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
+					primaryExecution.Observe(float64(dur) / float64(time.Millisecond))
 				}
 				if serverErr != nil {
 					return fmt.Errorf("server error: %w", serverErr)
@@ -329,7 +334,7 @@ func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.C
 					primary.TransactionComplete()
 				}
 			} else {
-				prom.OperationHybrid.Hit(l.ToOperation("replica")).Inc()
+				replicaHit.Inc()
 			}
 		} else {
 			// straight to primary
@@ -354,12 +359,12 @@ func (T *Pool) serveRW(ctx context.Context, l prom.PoolHybridLabels, conn *fed.C
 			dur := time.Since(start)
 
 			if err == nil && serverErr == nil {
-				prom.OperationHybrid.Acquire(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
+				primaryAcquire.Observe(float64(dur) / float64(time.Millisecond))
 				start := time.Now()
 				err, serverErr = bouncers.Bounce(ctx, conn, primary.Conn, packet)
 				if serverErr == nil {
 					dur := time.Since(start)
-					prom.OperationHybrid.Execution(l.ToOperation("primary")).Observe(float64(dur) / float64(time.Millisecond))
+					primaryExecution.Observe(float64(dur) / float64(time.Millisecond))
 				}
 			}
 			if serverErr != nil {
@@ -440,6 +445,7 @@ func (T *Pool) serveOnly(ctx context.Context, l prom.PoolHybridLabels, conn *fed
 	} else {
 		opL = l.ToOperation("replica")
 	}
+	acquireObs, executionObs := prom.OperationHybrid.Acquire(opL), prom.OperationHybrid.Execution(opL)
 
 	for {
 		if server != nil {
@@ -467,12 +473,12 @@ func (T *Pool) serveOnly(ctx context.Context, l prom.PoolHybridLabels, conn *fed
 		err, serverErr = T.Pair(ctx, client, server)
 		dur := time.Since(start)
 		if err == nil && serverErr == nil {
-			prom.OperationHybrid.Acquire(opL).Observe(float64(dur) / float64(time.Millisecond))
+			acquireObs.Observe(float64(dur) / float64(time.Millisecond))
 			start := time.Now()
 			err, serverErr = bouncers.Bounce(ctx, conn, server.Conn, packet)
 			if serverErr == nil {
 				dur := time.Since(start)
-				prom.OperationHybrid.Execution(opL).Observe(float64(dur) / float64(time.Millisecond))
+				executionObs.Observe(float64(dur) / float64(time.Millisecond))
 			}
 		}
 		if serverErr != nil {

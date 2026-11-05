@@ -1,24 +1,13 @@
 package prom
 
 import (
-	"github.com/gfx-labs/gotoprom"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func init() {
-	gotoprom.MustInit(&PoolSimple, "pggat_pool_simple", make(prometheus.Labels))
-	gotoprom.MustInit(&OperationSimple, "pggat_operation_simple", make(prometheus.Labels))
-}
-
-var PoolSimple struct {
-	Accepted func(PoolSimpleLabels) prometheus.Counter `name:"accepted" help:"simple connections accepted"`
-	Current  func(PoolSimpleLabels) prometheus.Gauge   `name:"current" help:"current simple connections"`
-}
-
 type PoolSimpleLabels struct {
-	Mode     string `label:"mode"`
-	Database string `label:"database"`
-	User     string `label:"user"`
+	Mode     string
+	Database string
+	User     string
 }
 
 func (s *PoolSimpleLabels) ToOperation() OperationSimpleLabels {
@@ -30,13 +19,45 @@ func (s *PoolSimpleLabels) ToOperation() OperationSimpleLabels {
 }
 
 type OperationSimpleLabels struct {
-	Pool     string `label:"pool"`
-	Mode     string `label:"mode"`
-	Database string `label:"database"`
-	User     string `label:"user"`
+	Pool     string
+	Mode     string
+	Database string
+	User     string
 }
 
-var OperationSimple struct {
-	Acquire   func(OperationSimpleLabels) prometheus.Histogram `name:"acquire_ms"    buckets:"0.005,0.01,0.1,0.25,0.5,0.75,1,5,10,100,500,1000"  help:"ms to acquire from pool"`
-	Execution func(OperationSimpleLabels) prometheus.Histogram `name:"execution_ms"  buckets:"1,5,10,30,75,150,300,500,1000,2000,5000,7500,10000,15000,30000" help:"ms that the txn took to execute on remote"`
+var (
+	poolSimpleAccepted = newCounterVec("pggat_pool_simple", "accepted", "simple connections accepted", "mode", "database", "user")
+	poolSimpleCurrent  = newGaugeVec("pggat_pool_simple", "current", "current simple connections", "mode", "database", "user")
+
+	// The basic pool acquire histogram never had the 5000 bucket.
+	opSimpleAcquire   = newHistogramVec("pggat_operation_simple", "acquire_ms", "ms to acquire from pool", acquireBuckets[:len(acquireBuckets)-1], "pool", "mode", "database", "user")
+	opSimpleExecution = newHistogramVec("pggat_operation_simple", "execution_ms", "ms that the txn took to execute on remote", executionBuckets, "pool", "mode", "database", "user")
+)
+
+var PoolSimple = struct {
+	Accepted func(PoolSimpleLabels) prometheus.Counter
+	Current  func(PoolSimpleLabels) prometheus.Gauge
+}{
+	Accepted: func(l PoolSimpleLabels) prometheus.Counter {
+		return poolSimpleAccepted.WithLabelValues(l.Mode, l.Database, l.User)
+	},
+	Current: func(l PoolSimpleLabels) prometheus.Gauge {
+		return poolSimpleCurrent.WithLabelValues(l.Mode, l.Database, l.User)
+	},
+}
+
+var OperationSimple = struct {
+	Acquire   func(OperationSimpleLabels) prometheus.Observer
+	Execution func(OperationSimpleLabels) prometheus.Observer
+}{
+	Acquire: func(l OperationSimpleLabels) prometheus.Observer {
+		return opSimpleAcquire.WithLabelValues(l.Pool, l.Mode, l.Database, l.User)
+	},
+	Execution: func(l OperationSimpleLabels) prometheus.Observer {
+		return opSimpleExecution.WithLabelValues(l.Pool, l.Mode, l.Database, l.User)
+	},
+}
+
+func init() {
+	prometheus.MustRegister(poolSimpleAccepted, poolSimpleCurrent, opSimpleAcquire, opSimpleExecution)
 }

@@ -9,7 +9,6 @@ require (
 	github.com/cloudnative-pg/cloudnative-pg v1.30.1
 	github.com/digitalocean/godo v1.215.0
 	github.com/fergusstrange/embedded-postgres v1.34.0
-	github.com/gfx-labs/gotoprom v0.1.0
 	github.com/gfx-labs/scram v0.0.4
 	github.com/gfx-labs/temple v0.0.0-20260916035901-e3d24f5d32d5
 	github.com/gfx-labs/utilgo v0.1.1
@@ -164,6 +163,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
+	github.com/zeebo/assert v1.3.0 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.etcd.io/bbolt v1.5.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect

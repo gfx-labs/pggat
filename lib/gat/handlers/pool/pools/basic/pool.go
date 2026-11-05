@@ -314,6 +314,7 @@ func (T *Pool) serve(ctx context.Context, conn *fed.Conn) error {
 		defer prom.PoolSimple.Current(poolLabels).Dec()
 	}
 	opLabels := poolLabels.ToOperation()
+	acquireObs, executionObs := prom.OperationSimple.Acquire(opLabels), prom.OperationSimple.Execution(opLabels)
 	for {
 		if server != nil && T.config.ReleaseAfterTransaction {
 			err = T.release(ctx, client, metrics.ConnStateIdle, server, false)
@@ -345,7 +346,7 @@ func (T *Pool) serve(ctx context.Context, conn *fed.Conn) error {
 			err, serverErr = T.Pair(ctx, client, server)
 			dur := time.Since(start)
 			if err == nil && serverErr == nil {
-				prom.OperationSimple.Acquire(opLabels).Observe(float64(dur) / float64(time.Millisecond))
+				acquireObs.Observe(float64(dur) / float64(time.Millisecond))
 			}
 		}
 		if err == nil && serverErr == nil {
@@ -354,7 +355,7 @@ func (T *Pool) serve(ctx context.Context, conn *fed.Conn) error {
 				err, serverErr = bouncers.Bounce(ctx, client.Conn, server.Conn, packet)
 				if serverErr == nil {
 					dur := time.Since(start)
-					prom.OperationSimple.Execution(opLabels).Observe(float64(dur) / float64(time.Millisecond))
+					executionObs.Observe(float64(dur) / float64(time.Millisecond))
 				}
 			}
 		}
